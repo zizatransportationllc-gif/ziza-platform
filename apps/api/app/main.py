@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 2.
+"""Ziza API — Sprint 3.
 
 Endpoints:
   GET  /health          liveness probe
@@ -103,4 +103,34 @@ def me(claims: Claims = Depends(get_current_user)) -> MeResponse:
         email=claims.email,
         role=claims.role,
         provider=claims.provider,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Auth — POST /v1/auth/register  (Sprint 3)
+# ---------------------------------------------------------------------------
+
+class RegisterResponse(BaseModel):
+    user_id: str
+    email: str
+    role: str
+    provider: str
+    created: bool  # True = new user, False = existing user updated
+
+
+@app.post("/v1/auth/register", tags=["auth"])
+def register(claims: Claims = Depends(get_current_user)) -> RegisterResponse:
+    """Upsert the authenticated user in the database.
+
+    Called once after the first sign-in (any provider).
+    Sprint 3: returns a stub response.
+    Sprint 4: will write to PostgreSQL.
+    """
+    # TODO Sprint 4: upsert into `users` table
+    return RegisterResponse(
+        user_id=claims.user_id,
+        email=claims.email,
+        role=claims.role,
+        provider=claims.provider,
+        created=True,  # Sprint 4 will detect real create vs update
     )

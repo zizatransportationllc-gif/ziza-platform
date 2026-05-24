@@ -26,6 +26,15 @@ export async function fetchMe(token) {
   return res.json();
 }
 
+export async function registerUser(token) {
+  const res = await fetch(`${API_BASE}/v1/auth/register`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (!res.ok) throw new Error(`/v1/auth/register error ${res.status}`);
+  return res.json();
+}
+
 export async function fetchDemo(token) {
   const res = await fetch(`${API_BASE}/v1/demo`, {
     headers: {

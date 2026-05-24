@@ -65,6 +65,10 @@ html, body {
 
 .login-form button:disabled { opacity: 0.5; cursor: not-allowed; }
 .form-error { color: var(--color-error); font-size: 0.9rem; }
+.google-btn { display: flex; align-items: center; justify-content: center; gap: var(--space-2); width: 100%; background: #fff; color: #333; border: 1px solid #dadce0; border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); font-size: 1rem; cursor: pointer; font-weight: 500; margin-top: var(--space-2); transition: background 0.15s; }
+.google-btn span { font-weight: 700; color: #4285f4; font-size: 1.1rem; }
+.google-btn:hover { background: #f8f9fa; }
+.google-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .hint { color: var(--color-muted); font-size: 0.78rem; line-height: 1.6; margin-top: var(--space-4); }
 
 /* Dashboard */
