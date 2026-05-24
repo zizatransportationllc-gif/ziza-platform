@@ -94,7 +94,7 @@ jobs:
 
           EXTRA_FLAGS=""
           if [ "${{ matrix.app }}" = "api" ]; then
-            EXTRA_FLAGS="--set-env-vars=ENVIRONMENT=dev,CORS_ORIGINS_RAW=${{ vars.ZIZA_CORS_ORIGINS }}"
+            EXTRA_FLAGS="--set-env-vars=^|^ENVIRONMENT=dev|CORS_ORIGINS_RAW=${{ vars.ZIZA_CORS_ORIGINS }}"
           fi
 
           gcloud run deploy "$SERVICE" \
