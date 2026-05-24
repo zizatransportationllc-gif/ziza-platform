@@ -1,0 +1,113 @@
+name: Deploy Dev (GCP Cloud Run)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  GCP_REGION: us-central1
+  AR_REPO: ziza
+  # Values from repo settings (vars):
+  #   GCP_PROJECT_ID, WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT
+
+jobs:
+  # ------------------------------------------------------------------
+  # Step 1: build and push images for all 4 apps in parallel
+  # ------------------------------------------------------------------
+  build-push:
+    name: Build & push ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [api, web-customer, web-driver, web-admin]
+    outputs:
+      image_tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Auth GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Compute image tag
+        id: tag
+        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Build & push image
+        run: |
+          IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/${{ matrix.app }}:${{ steps.tag.outputs.tag }}"
+          IMAGE_LATEST="${{ env.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/${{ matrix.app }}:latest"
+
+          if [ "${{ matrix.app }}" != "api" ]; then
+            BUILD_ARGS="--build-arg VITE_API_URL=${{ vars.ZIZA_API_URL }}"
+          else
+            BUILD_ARGS=""
+          fi
+
+          docker build $BUILD_ARGS -t "$IMAGE" -t "$IMAGE_LATEST" apps/${{ matrix.app }}
+          docker push "$IMAGE"
+          docker push "$IMAGE_LATEST"
+
+  # ------------------------------------------------------------------
+  # Step 2: deploy each image to Cloud Run
+  # ------------------------------------------------------------------
+  deploy:
+    name: Deploy ${{ matrix.app }}
+    needs: build-push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [api, web-customer, web-driver, web-admin]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Auth GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloud Run
+        run: |
+          SERVICE="ziza-${{ matrix.app }}"
+          IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/${{ matrix.app }}:${GITHUB_SHA::7}"
+
+          EXTRA_FLAGS=""
+          if [ "${{ matrix.app }}" = "api" ]; then
+            EXTRA_FLAGS="--set-env-vars=ENVIRONMENT=dev,CORS_ORIGINS_RAW=${{ vars.ZIZA_CORS_ORIGINS }}"
+          fi
+
+          gcloud run deploy "$SERVICE" \
+            --image="$IMAGE" \
+            --region="${{ env.GCP_REGION }}" \
+            --platform=managed \
+            --allow-unauthenticated \
+            --port=8080 \
+            --cpu=1 \
+            --memory=512Mi \
+            --min-instances=0 \
+            --max-instances=2 \
+            $EXTRA_FLAGS
+
+          URL=$(gcloud run services describe "$SERVICE" --region="${{ env.GCP_REGION }}" --format="value(status.url)")
+          echo "::notice title=Deployed::$SERVICE → $URL"

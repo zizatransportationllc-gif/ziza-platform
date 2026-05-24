@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ------------------------------------------------------------------
+  # Backend: pytest
+  # ------------------------------------------------------------------
+  backend-test:
+    name: Backend tests (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+
+      - name: Install dependencies
+        working-directory: apps/api
+        run: pip install -r requirements.txt
+
+      - name: Run pytest
+        working-directory: apps/api
+        run: pytest
+
+  # ------------------------------------------------------------------
+  # Docker builds for all 4 apps (matrix, parallel)
+  # ------------------------------------------------------------------
+  docker-build:
+    name: Docker build (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [api, web-customer, web-driver, web-admin]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/${{ matrix.app }}
+          push: false
+          load: true
+          tags: ziza-${{ matrix.app }}:ci
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,scope=${{ matrix.app }},mode=max
+
+  # ------------------------------------------------------------------
+  # Frontend isolation guard: no cross-app imports allowed
+  # ------------------------------------------------------------------
+  frontend-isolation:
+    name: Frontend isolation guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fail if a frontend imports from another frontend
+        run: |
+          set -e
+          PATTERN='from\s+["'"'"'](\.\./){2,}'
+          FOUND=$(grep -rE "$PATTERN" \
+            apps/web-customer/src \
+            apps/web-driver/src \
+            apps/web-admin/src || true)
+          if [ -n "$FOUND" ]; then
+            echo "::error::Cross-frontend relative imports detected:"
+            echo "$FOUND"
+            exit 1
+          fi
+          if grep -rE 'packages/shared|/web-customer/|/web-driver/|/web-admin/' \
+               apps/web-customer/src \
+               apps/web-driver/src \
+               apps/web-admin/src; then
+            echo "::error::Cross-app or packages/shared references detected."
+            exit 1
+          fi
+          echo "✓ Frontend isolation OK"
