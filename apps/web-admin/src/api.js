@@ -1,15 +1,34 @@
 /**
- * Local API client for web-customer.
- * Intentionally NOT shared across frontends - each app has its own copy.
+ * API client for web-admin — Sprint 2.
+ * NOT shared across frontends (isolation rule).
  */
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-export async function fetchDemo() {
-  const res = await fetch(`${API_BASE_URL}/v1/demo`, {
-    headers: { Accept: "application/json" },
+export async function login(email, password) {
+  const res = await fetch(`${API_BASE}/v1/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
   });
   if (!res.ok) {
-    throw new Error(`API error ${res.status}: ${res.statusText}`);
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Login failed (${res.status})`);
   }
+  return res.json();
+}
+
+export async function fetchMe(token) {
+  const res = await fetch(`${API_BASE}/v1/me`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (!res.ok) throw new Error(`/v1/me error ${res.status}`);
+  return res.json();
+}
+
+export async function fetchDemo(token) {
+  const res = await fetch(`${API_BASE}/v1/demo`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (!res.ok) throw new Error(`API error ${res.status}`);
   return res.json();
 }
