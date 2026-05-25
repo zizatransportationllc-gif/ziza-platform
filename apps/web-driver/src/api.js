@@ -193,6 +193,30 @@ export async function listDriverTripHistory(token, limit = 20, offset = 0) {
 }
 
 // ---------------------------------------------------------------------------
+// Driver payout requests — Sprint 15
+// ---------------------------------------------------------------------------
+
+export async function createPayoutRequest(token, amountXof) {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/payout-requests`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ amount_xof: Number(amountXof) }),
+  });
+  return _json(res); // PayoutResponse
+}
+
+export async function listPayoutRequests(token) {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/payout-requests`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // PayoutResponse[]
+}
+
+// ---------------------------------------------------------------------------
 // Legacy demo (kept for compat)
 // ---------------------------------------------------------------------------
 

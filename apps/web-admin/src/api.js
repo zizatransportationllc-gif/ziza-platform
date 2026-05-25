@@ -140,6 +140,45 @@ export async function adminDeactivatePromo(token, code) {
   return _json(res); // PromoResponse (active=false)
 }
 
+// ---------------------------------------------------------------------------
+// Admin — payout requests — Sprint 15
+// ---------------------------------------------------------------------------
+
+export async function adminListPayouts(token, limit = 50, offset = 0) {
+  const res = await fetch(
+    `${API_BASE}/v1/admin/payout-requests?limit=${limit}&offset=${offset}`,
+    { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+  );
+  return _json(res); // AdminPayoutRecord[]
+}
+
+export async function adminUpdatePayoutStatus(token, payoutId, newStatus, noteAdmin = null) {
+  const body = { status: newStatus };
+  if (noteAdmin) body.note_admin = noteAdmin;
+  const res = await fetch(`${API_BASE}/v1/admin/payout-requests/${payoutId}/status`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  return _json(res); // PayoutResponse
+}
+
+// ---------------------------------------------------------------------------
+// Admin — ratings view — Sprint 15
+// ---------------------------------------------------------------------------
+
+export async function adminListRatings(token, limit = 50, offset = 0) {
+  const res = await fetch(
+    `${API_BASE}/v1/admin/ratings?limit=${limit}&offset=${offset}`,
+    { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+  );
+  return _json(res); // AdminRatingRecord[]
+}
+
 export async function adminSetDriverStatus(token, driverId, newStatus) {
   const res = await fetch(`${API_BASE}/v1/admin/drivers/${driverId}/status`, {
     method: "PATCH",

@@ -4,6 +4,7 @@ import {
   adminListDrivers, adminSetDriverCapabilities,
   adminGetStats, adminListTrips, adminListUsers, adminListAssistance,
   adminCreatePromo, adminListPromos, adminDeactivatePromo, adminSetDriverStatus,
+  adminListPayouts, adminUpdatePayoutStatus, adminListRatings,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -44,7 +45,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 14 — Codes promo & gestion chauffeurs</p>
+      <p className="subtitle">Sprint 15 — Retraits & avis</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -588,6 +589,161 @@ function PromoPanel({ token }) {
 }
 
 // ---------------------------------------------------------------------------
+// Payouts Panel — Sprint 15
+// ---------------------------------------------------------------------------
+
+const PAYOUT_STATUS_LABELS = {
+  pending:  "⏳ En attente",
+  approved: "✅ Approuvé",
+  rejected: "✗ Rejeté",
+};
+
+const PAGE_SIZE_PAYOUT = 10;
+
+function PayoutsPanel({ token }) {
+  const [payouts, setPayouts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const [acting, setActing] = useState(null);
+  const [noteInputs, setNoteInputs] = useState({});
+
+  const load = useCallback((p = 0) => {
+    setPage(p); setLoading(true);
+    adminListPayouts(token, PAGE_SIZE_PAYOUT, p * PAGE_SIZE_PAYOUT)
+      .then(setPayouts).catch(() => {}).finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => { load(0); }, [load]);
+
+  async function handleStatus(payoutId, newStatus) {
+    const note = noteInputs[payoutId] || null;
+    setActing(payoutId);
+    try {
+      const updated = await adminUpdatePayoutStatus(token, payoutId, newStatus, note);
+      setPayouts((prev) => prev.map((p) =>
+        p.payout_id === payoutId ? { ...p, status: updated.status, note_admin: updated.note_admin } : p
+      ));
+    } catch (_) {}
+    finally { setActing(null); }
+  }
+
+  return (
+    <div className="payouts-panel">
+      <div className="panel-header">
+        <h2 className="panel-title">💸 Demandes de retrait</h2>
+        <button className="refresh-btn" onClick={() => load(page)} disabled={loading}>↻</button>
+      </div>
+      {loading && <div className="status loading">⏳ Chargement…</div>}
+      {!loading && payouts.length === 0 && <p className="muted-msg">Aucune demande de retrait.</p>}
+      {payouts.map((p) => (
+        <div key={p.payout_id} className={`payout-row payout-row-${p.status}`}>
+          <div className="payout-row-main">
+            <span className="payout-row-amount">{formatXOF(p.amount_xof)}</span>
+            <span className={`payout-row-status status-${p.status}`}>
+              {PAYOUT_STATUS_LABELS[p.status] ?? p.status}
+            </span>
+          </div>
+          <div className="payout-row-meta">
+            <span>🧑‍✈️ {p.driver_email}</span>
+            <span>{new Date(p.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}</span>
+          </div>
+          {p.note_admin && <p className="payout-row-note">💬 {p.note_admin}</p>}
+          {p.status === "pending" && (
+            <div className="payout-row-actions">
+              <input
+                className="payout-note-input"
+                type="text"
+                placeholder="Note (optionnelle)"
+                value={noteInputs[p.payout_id] ?? ""}
+                onChange={(e) => setNoteInputs((prev) => ({ ...prev, [p.payout_id]: e.target.value }))}
+              />
+              <button
+                className="payout-approve-btn"
+                disabled={acting === p.payout_id}
+                onClick={() => handleStatus(p.payout_id, "approved")}
+              >✅ Approuver</button>
+              <button
+                className="payout-reject-btn"
+                disabled={acting === p.payout_id}
+                onClick={() => handleStatus(p.payout_id, "rejected")}
+              >✗ Rejeter</button>
+            </div>
+          )}
+        </div>
+      ))}
+      {(payouts.length === PAGE_SIZE_PAYOUT || page > 0) && (
+        <div className="pagination">
+          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Précédent</button>
+          <span className="page-info">Page {page + 1}</span>
+          <button className="page-btn" onClick={() => load(page + 1)} disabled={payouts.length < PAGE_SIZE_PAYOUT || loading}>Suivant →</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Ratings Panel — Sprint 15
+// ---------------------------------------------------------------------------
+
+const PAGE_SIZE_RATINGS = 10;
+
+function StarDisplay({ stars }) {
+  return (
+    <span className="rating-stars">
+      {[1, 2, 3, 4, 5].map((s) => (
+        <span key={s} className={s <= stars ? "star-filled" : "star-empty"}>★</span>
+      ))}
+    </span>
+  );
+}
+
+function RatingsPanel({ token }) {
+  const [ratings, setRatings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+
+  const load = useCallback((p = 0) => {
+    setPage(p); setLoading(true);
+    adminListRatings(token, PAGE_SIZE_RATINGS, p * PAGE_SIZE_RATINGS)
+      .then(setRatings).catch(() => {}).finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => { load(0); }, [load]);
+
+  return (
+    <div className="ratings-panel">
+      <div className="panel-header">
+        <h2 className="panel-title">⭐ Avis clients</h2>
+        <button className="refresh-btn" onClick={() => load(page)} disabled={loading}>↻</button>
+      </div>
+      {loading && <div className="status loading">⏳ Chargement…</div>}
+      {!loading && ratings.length === 0 && <p className="muted-msg">Aucun avis pour l&apos;instant.</p>}
+      {ratings.map((r) => (
+        <div key={r.rating_id} className="rating-row">
+          <div className="rating-row-main">
+            <StarDisplay stars={r.stars} />
+            <span className="rating-customer">{r.customer_email}</span>
+          </div>
+          {r.comment && <p className="rating-comment">&ldquo;{r.comment}&rdquo;</p>}
+          <div className="rating-row-meta">
+            <span>🧑‍✈️ Chauffeur {r.driver_id.slice(0, 8)}…</span>
+            <span>{new Date(r.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}</span>
+          </div>
+        </div>
+      ))}
+      {(ratings.length === PAGE_SIZE_RATINGS || page > 0) && (
+        <div className="pagination">
+          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Précédent</button>
+          <span className="page-info">Page {page + 1}</span>
+          <button className="page-btn" onClick={() => load(page + 1)} disabled={ratings.length < PAGE_SIZE_RATINGS || loading}>Suivant →</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard — tabbed navigation
 // ---------------------------------------------------------------------------
 
@@ -597,6 +753,8 @@ const TABS = [
   { id: "assist",    label: "🆘 Assistances" },
   { id: "drivers",   label: "🧑‍✈️ Chauffeurs" },
   { id: "promos",    label: "🏷️ Promos" },
+  { id: "payouts",   label: "💸 Retraits" },
+  { id: "ratings",   label: "⭐ Avis" },
   { id: "users",     label: "👥 Utilisateurs" },
 ];
 
@@ -624,10 +782,12 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "trips"   && <TripsPanel      token={token} />}
       {activeTab === "assist"  && <AssistancePanel token={token} />}
       {activeTab === "drivers" && <DriversPanel    token={token} />}
-      {activeTab === "promos"  && <PromoPanel      token={token} />}
-      {activeTab === "users"   && <UsersPanel      token={token} />}
+      {activeTab === "promos"   && <PromoPanel      token={token} />}
+      {activeTab === "payouts"  && <PayoutsPanel    token={token} />}
+      {activeTab === "ratings"  && <RatingsPanel    token={token} />}
+      {activeTab === "users"    && <UsersPanel      token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 14</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 15</p>
     </div>
   );
 }

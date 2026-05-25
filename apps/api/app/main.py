@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 14.
+"""Ziza API — Sprint 15.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -48,6 +48,11 @@ Endpoints:
   DELETE /v1/admin/promos/{code}                   admin deactivates a promo code
   PATCH /v1/admin/drivers/{driver_id}/status       admin sets driver status
   POST  /v1/promos/validate                        customer validates a promo code
+  POST  /v1/drivers/me/payout-requests             driver creates a payout request
+  GET   /v1/drivers/me/payout-requests             driver lists their payout requests
+  GET   /v1/admin/payout-requests                  admin lists all payout requests
+  PATCH /v1/admin/payout-requests/{id}/status      admin approves or rejects a payout
+  GET   /v1/admin/ratings                          admin lists all ratings
 """
 from __future__ import annotations
 
@@ -432,6 +437,8 @@ class DriverProfileResponse(BaseModel):
     driver_id: str
     status: str
     is_online: bool
+    avg_rating: float | None = None   # Sprint 15: average rating from customers
+    total_ratings: int = 0            # Sprint 15: number of ratings received
     registered_at: str
 
 
@@ -910,6 +917,8 @@ class AdminDriverRecord(BaseModel):
     status: str
     license_number: str | None = None
     capabilities: list[str]
+    avg_rating: float | None = None   # Sprint 15
+    total_ratings: int = 0            # Sprint 15
     created_at: str
 
 
@@ -1371,3 +1380,155 @@ async def admin_set_driver_status(
         )
     result = await crud.admin_set_driver_status(db, driver_id, body.status)
     return DriverStatusResponse(**result)
+
+
+# ---------------------------------------------------------------------------
+# Driver Payout Requests — Sprint 15
+# ---------------------------------------------------------------------------
+
+class PayoutCreateRequest(BaseModel):
+    amount_xof: Annotated[int, Field(ge=1, description="Amount in XOF to withdraw")]
+
+
+class PayoutResponse(BaseModel):
+    payout_id: str
+    driver_id: str
+    amount_xof: int
+    status: str
+    note_admin: str | None = None
+    created_at: str
+    updated_at: str
+
+
+def _payout_response(req) -> PayoutResponse:
+    return PayoutResponse(
+        payout_id=str(req.id),
+        driver_id=str(req.driver_id),
+        amount_xof=req.amount_xof,
+        status=req.status,
+        note_admin=req.note_admin,
+        created_at=req.created_at.isoformat(),
+        updated_at=req.updated_at.isoformat(),
+    )
+
+
+@app.post("/v1/drivers/me/payout-requests", tags=["payouts"], status_code=201)
+async def create_payout_request(
+    body: PayoutCreateRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PayoutResponse:
+    """Driver requests a payout of their accumulated earnings.
+
+    Amount must be at least 1 XOF.  Admin will review and approve or reject.
+    """
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can create payout requests",
+        )
+    req = await crud.create_payout_request(db, claims.user_id, body.amount_xof)
+    return _payout_response(req)
+
+
+@app.get("/v1/drivers/me/payout-requests", tags=["payouts"])
+async def list_payout_requests(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[PayoutResponse]:
+    """Driver: list all their payout requests, newest first."""
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can view payout requests",
+        )
+    reqs = await crud.list_driver_payout_requests(db, claims.user_id)
+    return [_payout_response(r) for r in reqs]
+
+
+class AdminPayoutRecord(BaseModel):
+    payout_id: str
+    driver_id: str
+    driver_email: str
+    amount_xof: int
+    status: str
+    note_admin: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class AdminPayoutStatusRequest(BaseModel):
+    status: Literal["approved", "rejected"]
+    note_admin: str | None = None
+
+
+@app.get("/v1/admin/payout-requests", tags=["payouts"])
+async def admin_list_payout_requests(
+    limit: int = 50,
+    offset: int = 0,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[AdminPayoutRecord]:
+    """Admin: list all payout requests (newest first, paginated)."""
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    limit = min(limit, 200)
+    rows = await crud.admin_list_payout_requests(db, limit=limit, offset=offset)
+    return [AdminPayoutRecord(**r) for r in rows]
+
+
+@app.patch("/v1/admin/payout-requests/{payout_id}/status", tags=["payouts"])
+async def admin_update_payout_status(
+    payout_id: str,
+    body: AdminPayoutStatusRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PayoutResponse:
+    """Admin: approve or reject a driver payout request.
+
+    Optionally attach a note (e.g. reason for rejection).
+    """
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    result = await crud.admin_update_payout_status(
+        db, payout_id, body.status, body.note_admin
+    )
+    return PayoutResponse(**result)
+
+
+# ---------------------------------------------------------------------------
+# Admin Ratings View — Sprint 15
+# ---------------------------------------------------------------------------
+
+class AdminRatingRecord(BaseModel):
+    rating_id: str
+    trip_id: str
+    driver_id: str
+    customer_email: str
+    stars: int
+    comment: str | None = None
+    created_at: str
+
+
+@app.get("/v1/admin/ratings", tags=["admin"])
+async def admin_list_ratings(
+    limit: int = 50,
+    offset: int = 0,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[AdminRatingRecord]:
+    """Admin: list all customer ratings (newest first, paginated)."""
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    limit = min(limit, 200)
+    rows = await crud.admin_list_ratings(db, limit=limit, offset=offset)
+    return [AdminRatingRecord(**r) for r in rows]

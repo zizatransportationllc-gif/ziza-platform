@@ -130,3 +130,25 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .page-info { font-size: 0.85rem; color: var(--color-muted); }
 .refresh-btn { background: transparent; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-1) var(--space-3); color: var(--color-muted); cursor: pointer; font-size: 0.85rem; }
 .refresh-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+
+/* ---- Payout Section — Sprint 15 ---------------------------------------- */
+.payout-section { text-align: left; margin-top: var(--space-6); }
+.payout-form { display: flex; gap: var(--space-2); margin-bottom: var(--space-3); flex-wrap: wrap; }
+.payout-amount-input { flex: 1; min-width: 160px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--color-fg); font-size: 0.95rem; }
+.payout-amount-input:focus { outline: none; border-color: var(--color-accent); }
+.payout-submit-btn { background: var(--color-accent-strong); color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-2) var(--space-4); font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+.payout-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.payout-success { color: var(--color-ok); font-size: 0.9rem; margin-bottom: var(--space-2); }
+.payout-err { color: var(--color-error); font-size: 0.9rem; margin-bottom: var(--space-2); }
+.payout-empty { color: var(--color-muted); font-size: 0.9rem; text-align: center; padding: var(--space-4); }
+.loading-msg { color: var(--color-muted); font-size: 0.9rem; text-align: center; }
+.payout-list { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-3); }
+.payout-item { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); }
+.payout-item-main { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-1); }
+.payout-amount { font-weight: 700; font-size: 1rem; }
+.payout-status { font-size: 0.8rem; font-weight: 600; padding: 2px 8px; border-radius: 99px; }
+.payout-status-pending  { background: color-mix(in srgb, #f59e0b 15%, transparent); color: #92400e; }
+.payout-status-approved { background: color-mix(in srgb, var(--color-ok) 15%, transparent); color: var(--color-ok); }
+.payout-status-rejected { background: color-mix(in srgb, var(--color-error) 12%, transparent); color: var(--color-error); }
+.payout-note { font-size: 0.82rem; color: var(--color-muted); margin: var(--space-1) 0 0; }
+.payout-date { font-size: 0.78rem; color: var(--color-muted); margin: var(--space-1) 0 0; }

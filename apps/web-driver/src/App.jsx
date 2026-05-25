@@ -8,6 +8,7 @@ import {
   getMyRating, getMyEarnings,
   getMyVehicle, registerVehicle,
   getDriverProfile, setDriverOnline, listDriverTripHistory,
+  createPayoutRequest, listPayoutRequests,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -51,7 +52,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Driver</h1>
-      <p className="subtitle">Sprint 13 — Présence & historique</p>
+      <p className="subtitle">Sprint 15 — Retraits de gains</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -425,6 +426,100 @@ function DriverTripHistory({ token }) {
 }
 
 // ---------------------------------------------------------------------------
+// Payout Section — Sprint 15
+// ---------------------------------------------------------------------------
+
+const PAYOUT_STATUS_LABELS = {
+  pending:  "⏳ En attente",
+  approved: "✅ Approuvé",
+  rejected: "✗ Rejeté",
+};
+
+function PayoutSection({ token }) {
+  const [amount, setAmount]   = useState("");
+  const [payouts, setPayouts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError]     = useState(null);
+  const [success, setSuccess] = useState(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    listPayoutRequests(token)
+      .then(setPayouts)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!amount || Number(amount) <= 0) return;
+    setSubmitting(true); setError(null); setSuccess(null);
+    try {
+      await createPayoutRequest(token, Number(amount));
+      setAmount("");
+      setSuccess("Demande envoyée avec succès !");
+      load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="payout-section">
+      <h3 className="section-title">💰 Demandes de retrait</h3>
+
+      <form className="payout-form" onSubmit={handleSubmit}>
+        <input
+          className="payout-amount-input"
+          type="number"
+          min="1"
+          step="500"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="Montant en XOF (ex: 50000)"
+          required
+        />
+        <button className="payout-submit-btn" type="submit" disabled={submitting}>
+          {submitting ? "Envoi…" : "Demander le retrait"}
+        </button>
+      </form>
+      {success && <p className="payout-success">{success}</p>}
+      {error   && <p className="payout-err">{error}</p>}
+
+      <div className="payout-list">
+        {loading && <p className="loading-msg">Chargement…</p>}
+        {!loading && payouts.length === 0 && (
+          <p className="payout-empty">Aucune demande de retrait pour l&apos;instant.</p>
+        )}
+        {payouts.map((p) => (
+          <div key={p.payout_id} className={`payout-item payout-${p.status}`}>
+            <div className="payout-item-main">
+              <span className="payout-amount">{formatXOF(p.amount_xof)}</span>
+              <span className={`payout-status payout-status-${p.status}`}>
+                {PAYOUT_STATUS_LABELS[p.status] ?? p.status}
+              </span>
+            </div>
+            {p.note_admin && (
+              <p className="payout-note">💬 {p.note_admin}</p>
+            )}
+            <p className="payout-date">
+              {new Date(p.created_at).toLocaleDateString("fr-FR", {
+                day: "2-digit", month: "short", year: "numeric",
+              })}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
@@ -437,7 +532,7 @@ function Dashboard({ user, token, onLogout }) {
   const [vehicle, setVehicle] = useState(undefined); // undefined = loading, null = none
   const [isOnline, setIsOnline] = useState(false);
   const [togglingOnline, setTogglingOnline] = useState(false);
-  const [tab, setTab] = useState("dispatch"); // "dispatch" | "history"
+  const [tab, setTab] = useState("dispatch"); // "dispatch" | "history" | "payouts"
 
   // On mount: parallel fetch
   useEffect(() => {
@@ -551,6 +646,12 @@ function Dashboard({ user, token, onLogout }) {
             >
               📋 Historique
             </button>
+            <button
+              className={`driver-tab ${tab === "payouts" ? "active" : ""}`}
+              onClick={() => setTab("payouts")}
+            >
+              💰 Retraits
+            </button>
           </div>
 
           {tab === "dispatch" && (
@@ -570,10 +671,11 @@ function Dashboard({ user, token, onLogout }) {
           )}
 
           {tab === "history" && <DriverTripHistory token={token} />}
+          {tab === "payouts" && <PayoutSection token={token} />}
         </>
       )}
 
-      <p className="footer">App: <strong>web-driver</strong> · Sprint 13</p>
+      <p className="footer">App: <strong>web-driver</strong> · Sprint 15</p>
     </div>
   );
 }

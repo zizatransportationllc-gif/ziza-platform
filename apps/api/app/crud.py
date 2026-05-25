@@ -19,6 +19,7 @@ from app.models.assistance import AssistanceRequest, ASSISTANCE_TYPES
 from app.models.driver import Driver
 from app.models.driver_capability import DriverCapability
 from app.models.estimate import Estimate
+from app.models.payout_request import PayoutRequest as PayoutRequestModel
 from app.models.promo import PromoCode
 from app.models.rating import Rating
 from app.models.trip import Trip, TripEvent
@@ -941,6 +942,14 @@ async def admin_list_drivers(db: AsyncSession) -> list[dict]:
             )
         )
         capabilities = sorted(caps_result.scalars().all())
+        # Sprint 15: include avg rating stats
+        rating_result = await db.execute(
+            select(func.avg(Rating.stars), func.count(Rating.id))
+            .where(Rating.driver_id == driver.id)
+        )
+        r_row = rating_result.one()
+        avg_rating = round(float(r_row[0]), 2) if r_row[0] is not None else None
+        total_ratings = r_row[1]
         out.append({
             "driver_id": str(driver.id),
             "user_id": user.user_id,
@@ -948,6 +957,8 @@ async def admin_list_drivers(db: AsyncSession) -> list[dict]:
             "status": driver.status,
             "license_number": driver.license_number,
             "capabilities": capabilities,
+            "avg_rating": avg_rating,
+            "total_ratings": total_ratings,
             "created_at": driver.created_at.isoformat(),
         })
     return out
@@ -1292,12 +1303,21 @@ async def admin_list_users(db: AsyncSession) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 async def get_driver_profile(db: AsyncSession, auth_user_id: str) -> dict:
-    """Return minimal driver profile including online status."""
+    """Return driver profile including online status and rating stats (Sprint 15)."""
     driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
+    r = await db.execute(
+        select(func.avg(Rating.stars), func.count(Rating.id))
+        .where(Rating.driver_id == driver.id)
+    )
+    row = r.one()
+    avg_rating = round(float(row[0]), 2) if row[0] is not None else None
+    total_ratings = row[1]
     return {
         "driver_id": str(driver.id),
         "status": driver.status,
         "is_online": driver.is_online,
+        "avg_rating": avg_rating,
+        "total_ratings": total_ratings,
         "registered_at": _utc(driver.created_at).isoformat(),
     }
 
@@ -1449,6 +1469,153 @@ async def validate_promo(db: AsyncSession, code: str) -> dict:
             detail=f"Promo code '{code}' has reached its usage limit",
         )
     return {"valid": True, "code": promo.code, "discount_pct": promo.discount_pct}
+
+
+# ---------------------------------------------------------------------------
+# Sprint 15 — Payout requests & admin ratings view
+# ---------------------------------------------------------------------------
+
+_VALID_PAYOUT_STATUSES = {"approved", "rejected"}
+
+
+async def create_payout_request(
+    db: AsyncSession,
+    auth_user_id: str,
+    amount_xof: int,
+) -> PayoutRequestModel:
+    """Driver creates a payout (withdrawal) request.
+
+    Raises 422 if amount_xof ≤ 0.
+    """
+    driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
+    if amount_xof <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="amount_xof must be greater than 0",
+        )
+    req = PayoutRequestModel(
+        driver_id=driver.id,
+        amount_xof=amount_xof,
+        status="pending",
+    )
+    db.add(req)
+    await db.commit()
+    await db.refresh(req)
+    return req
+
+
+async def list_driver_payout_requests(
+    db: AsyncSession,
+    auth_user_id: str,
+) -> list[PayoutRequestModel]:
+    """Return all payout requests for the authenticated driver, newest first."""
+    driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
+    result = await db.execute(
+        select(PayoutRequestModel)
+        .where(PayoutRequestModel.driver_id == driver.id)
+        .order_by(PayoutRequestModel.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def admin_list_payout_requests(
+    db: AsyncSession, limit: int = 50, offset: int = 0
+) -> list[dict]:
+    """Return all payout requests (newest first) for admin view."""
+    result = await db.execute(
+        select(PayoutRequestModel, Driver, User)
+        .join(Driver, PayoutRequestModel.driver_id == Driver.id)
+        .join(User, Driver.user_id == User.id)
+        .order_by(PayoutRequestModel.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return [
+        {
+            "payout_id": str(req.id),
+            "driver_id": str(req.driver_id),
+            "driver_email": user.email,
+            "amount_xof": req.amount_xof,
+            "status": req.status,
+            "note_admin": req.note_admin,
+            "created_at": _utc(req.created_at).isoformat(),
+            "updated_at": _utc(req.updated_at).isoformat(),
+        }
+        for req, driver, user in result.all()
+    ]
+
+
+async def admin_update_payout_status(
+    db: AsyncSession,
+    request_id_str: str,
+    new_status: str,
+    note_admin: str | None = None,
+) -> dict:
+    """Admin approves or rejects a payout request.
+
+    Raises 422 for invalid status, 404 if not found.
+    """
+    if new_status not in _VALID_PAYOUT_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid status '{new_status}'. Valid: {sorted(_VALID_PAYOUT_STATUSES)}",
+        )
+    try:
+        req_uuid = uuid.UUID(request_id_str)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid payout_request_id format",
+        )
+    result = await db.execute(
+        select(PayoutRequestModel).where(PayoutRequestModel.id == req_uuid)
+    )
+    req: PayoutRequestModel | None = result.scalar_one_or_none()
+    if req is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Payout request not found",
+        )
+    req.status = new_status
+    if note_admin is not None:
+        req.note_admin = note_admin
+    req.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(req)
+    return {
+        "payout_id": str(req.id),
+        "driver_id": str(req.driver_id),
+        "amount_xof": req.amount_xof,
+        "status": req.status,
+        "note_admin": req.note_admin,
+        "created_at": _utc(req.created_at).isoformat(),
+        "updated_at": _utc(req.updated_at).isoformat(),
+    }
+
+
+async def admin_list_ratings(
+    db: AsyncSession, limit: int = 50, offset: int = 0
+) -> list[dict]:
+    """Return all ratings (newest first) with customer info for admin view."""
+    result = await db.execute(
+        select(Rating, User)
+        .join(User, Rating.customer_id == User.id)
+        .order_by(Rating.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return [
+        {
+            "rating_id": str(rating.id),
+            "trip_id": str(rating.trip_id),
+            "driver_id": str(rating.driver_id),
+            "customer_email": user.email,
+            "stars": rating.stars,
+            "comment": rating.comment,
+            "created_at": _utc(rating.created_at).isoformat(),
+        }
+        for rating, user in result.all()
+    ]
 
 
 _VALID_DRIVER_STATUSES = {"active", "inactive", "suspended"}

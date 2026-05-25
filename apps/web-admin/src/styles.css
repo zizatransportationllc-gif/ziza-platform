@@ -167,3 +167,32 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .promo-status.inactive { color: var(--color-muted); font-size: 0.78rem; }
 .promo-deactivate-btn { background: transparent; border: none; color: var(--color-error); font-size: 0.78rem; cursor: pointer; text-decoration: underline; margin-top: var(--space-1); }
 .admin-tabs { flex-wrap: wrap; }
+
+/* ---- Payouts Panel — Sprint 15 ------------------------------------------ */
+.payouts-panel { text-align: left; }
+.muted-msg { color: var(--color-muted); font-size: 0.9rem; text-align: center; padding: var(--space-4); }
+.payout-row { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3); }
+.payout-row-main { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-1); }
+.payout-row-amount { font-weight: 700; font-size: 1rem; }
+.payout-row-status { font-size: 0.8rem; font-weight: 600; padding: 2px 8px; border-radius: 99px; }
+.payout-row-meta { font-size: 0.8rem; color: var(--color-muted); display: flex; justify-content: space-between; margin-bottom: var(--space-2); }
+.payout-row-note { font-size: 0.82rem; color: var(--color-muted); margin: var(--space-1) 0; }
+.payout-row-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; margin-top: var(--space-2); }
+.payout-note-input { flex: 1; min-width: 120px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-1) var(--space-2); color: var(--color-fg); font-size: 0.82rem; }
+.payout-approve-btn { background: color-mix(in srgb, var(--color-ok) 15%, transparent); color: var(--color-ok); border: 1px solid var(--color-ok); border-radius: var(--radius-md); padding: var(--space-1) var(--space-3); font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+.payout-reject-btn  { background: color-mix(in srgb, var(--color-error) 12%, transparent); color: var(--color-error); border: 1px solid var(--color-error); border-radius: var(--radius-md); padding: var(--space-1) var(--space-3); font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+.payout-approve-btn:disabled, .payout-reject-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.status-pending  { background: color-mix(in srgb, #f59e0b 15%, transparent); color: #92400e; }
+.status-approved { background: color-mix(in srgb, var(--color-ok) 15%, transparent); color: var(--color-ok); }
+.status-rejected { background: color-mix(in srgb, var(--color-error) 12%, transparent); color: var(--color-error); }
+
+/* ---- Ratings Panel — Sprint 15 ------------------------------------------ */
+.ratings-panel { text-align: left; }
+.rating-row { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3); }
+.rating-row-main { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-1); }
+.rating-stars { font-size: 1.1rem; letter-spacing: 2px; }
+.star-filled { color: #f59e0b; }
+.star-empty  { color: var(--color-border); }
+.rating-customer { font-size: 0.85rem; color: var(--color-muted); }
+.rating-comment { font-style: italic; font-size: 0.88rem; color: var(--color-fg); margin: var(--space-1) 0; }
+.rating-row-meta { font-size: 0.78rem; color: var(--color-muted); display: flex; justify-content: space-between; margin-top: var(--space-2); }
