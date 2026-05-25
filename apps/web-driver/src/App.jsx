@@ -10,6 +10,7 @@ import {
   getDriverProfile, setDriverOnline, listDriverTripHistory,
   createPayoutRequest, listPayoutRequests,
   submitDocument, listMyDocuments,
+  listNotifications, getUnreadCount, markAllRead,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -53,7 +54,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Driver</h1>
-      <p className="subtitle">Sprint 17 — Documents KYC</p>
+      <p className="subtitle">Sprint 18 — Notifications in-app</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -626,6 +627,86 @@ function DocumentsSection({ token }) {
 }
 
 // ---------------------------------------------------------------------------
+// Notifications section — Sprint 18
+// ---------------------------------------------------------------------------
+
+const DRIVER_NOTIF_ICONS = {
+  document_approved: "✅",
+  document_rejected: "❌",
+  trip_accepted:     "🚗",
+  trip_completed:    "✅",
+};
+
+const DRIVER_NOTIF_PAGE = 10;
+
+function DriverNotificationsSection({ token, onRead }) {
+  const [notifs, setNotifs] = useState([]);
+  const [page, setPage] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [marking, setMarking] = useState(false);
+
+  const load = useCallback(async (p = 0) => {
+    setLoading(true);
+    try {
+      const data = await listNotifications(token, DRIVER_NOTIF_PAGE, p * DRIVER_NOTIF_PAGE);
+      setNotifs(data); setPage(p);
+    } catch (_) {}
+    finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { load(0); }, [load]);
+
+  async function handleMarkAll() {
+    setMarking(true);
+    try {
+      await markAllRead(token);
+      setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
+      onRead();
+    } catch (_) {}
+    finally { setMarking(false); }
+  }
+
+  const unreadCount = notifs.filter((n) => !n.read).length;
+
+  return (
+    <div className="notif-section">
+      <div className="notif-header">
+        <h3 className="section-title">🔔 Notifications</h3>
+        {unreadCount > 0 && (
+          <button className="notif-mark-btn" onClick={handleMarkAll} disabled={marking}>
+            {marking ? "…" : `Tout marquer lu (${unreadCount})`}
+          </button>
+        )}
+      </div>
+      {loading && <p className="muted">⏳ Chargement…</p>}
+      {!loading && notifs.length === 0 && <p className="muted">Aucune notification.</p>}
+      <div className="notif-list">
+        {notifs.map((n) => (
+          <div key={n.notification_id} className={`notif-item ${n.read ? "notif-read" : "notif-unread"}`}>
+            <div className="notif-item-header">
+              <span className="notif-icon">{DRIVER_NOTIF_ICONS[n.type] ?? "🔔"}</span>
+              <span className="notif-title">{n.title}</span>
+              {!n.read && <span className="notif-dot" />}
+            </div>
+            <p className="notif-body">{n.body}</p>
+            <span className="notif-date">
+              {new Date(n.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+            </span>
+          </div>
+        ))}
+      </div>
+      {(notifs.length === DRIVER_NOTIF_PAGE || page > 0) && (
+        <div className="history-pagination">
+          <button className="page-btn-sm" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Précédent</button>
+          <span className="page-info-sm">Page {page + 1}</span>
+          <button className="page-btn-sm" onClick={() => load(page + 1)} disabled={notifs.length < DRIVER_NOTIF_PAGE || loading}>Suivant →</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
@@ -638,7 +719,15 @@ function Dashboard({ user, token, onLogout }) {
   const [vehicle, setVehicle] = useState(undefined); // undefined = loading, null = none
   const [isOnline, setIsOnline] = useState(false);
   const [togglingOnline, setTogglingOnline] = useState(false);
-  const [tab, setTab] = useState("dispatch"); // "dispatch" | "history" | "payouts" | "documents"
+  const [tab, setTab] = useState("dispatch"); // "dispatch" | "history" | "payouts" | "documents" | "notifications"
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const refreshUnread = useCallback(() => {
+    getUnreadCount(token).then((d) => setUnreadCount(d.count)).catch(() => {});
+  }, [token]);
+
+  useEffect(() => { refreshUnread(); }, [refreshUnread]);
+  useEffect(() => { refreshUnread(); }, [tab, refreshUnread]);
 
   // On mount: parallel fetch
   useEffect(() => {
@@ -710,7 +799,16 @@ function Dashboard({ user, token, onLogout }) {
     <div className="app">
       <header className="dash-header">
         <h1>Ziza Driver</h1>
-        <button className="logout-btn" onClick={onLogout}>Déconnexion</button>
+        <div className="dash-header-right">
+          <button
+            className={`bell-btn ${unreadCount > 0 ? "bell-btn-active" : ""}`}
+            onClick={() => setTab("notifications")}
+            title="Notifications"
+          >
+            🔔{unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}
+          </button>
+          <button className="logout-btn" onClick={onLogout}>Déconnexion</button>
+        </div>
       </header>
       <div className="status ok">✓ Connecté — <strong>{user.email}</strong></div>
       <div className="role-badge">{user.role} · {user.provider}</div>
@@ -764,6 +862,12 @@ function Dashboard({ user, token, onLogout }) {
             >
               📄 Documents
             </button>
+            <button
+              className={`driver-tab ${tab === "notifications" ? "active" : ""}`}
+              onClick={() => setTab("notifications")}
+            >
+              🔔{unreadCount > 0 && <span className="tab-badge-sm">{unreadCount}</span>}
+            </button>
           </div>
 
           {tab === "dispatch" && (
@@ -782,13 +886,14 @@ function Dashboard({ user, token, onLogout }) {
             )
           )}
 
-          {tab === "history"   && <DriverTripHistory token={token} />}
-          {tab === "payouts"   && <PayoutSection token={token} />}
-          {tab === "documents" && <DocumentsSection token={token} />}
+          {tab === "history"       && <DriverTripHistory token={token} />}
+          {tab === "payouts"       && <PayoutSection token={token} />}
+          {tab === "documents"     && <DocumentsSection token={token} />}
+          {tab === "notifications" && <DriverNotificationsSection token={token} onRead={refreshUnread} />}
         </>
       )}
 
-      <p className="footer">App: <strong>web-driver</strong> · Sprint 17</p>
+      <p className="footer">App: <strong>web-driver</strong> · Sprint 18</p>
     </div>
   );
 }

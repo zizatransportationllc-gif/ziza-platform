@@ -241,6 +241,32 @@ export async function listMyDocuments(token) {
 }
 
 // ---------------------------------------------------------------------------
+// Notifications — Sprint 18
+// ---------------------------------------------------------------------------
+
+export async function listNotifications(token, limit = 20, offset = 0) {
+  const res = await fetch(`${API_BASE}/v1/notifications?limit=${limit}&offset=${offset}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // NotificationRecord[]
+}
+
+export async function getUnreadCount(token) {
+  const res = await fetch(`${API_BASE}/v1/notifications/unread-count`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // { count: int }
+}
+
+export async function markAllRead(token) {
+  const res = await fetch(`${API_BASE}/v1/notifications/read-all`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // { marked: int }
+}
+
+// ---------------------------------------------------------------------------
 // Legacy demo (kept for compat)
 // ---------------------------------------------------------------------------
 

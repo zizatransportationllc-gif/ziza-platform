@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 17.
+"""Ziza API — Sprint 18.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -62,6 +62,9 @@ Endpoints:
   GET   /v1/admin/documents                        admin lists all driver documents (paginated)
   PATCH /v1/admin/documents/{id}/status            admin approves or rejects a document
   GET   /v1/admin/pending-counts                   admin pending-action item counts
+  GET   /v1/notifications                          list user's notifications (newest first)
+  GET   /v1/notifications/unread-count             count of unread notifications
+  PATCH /v1/notifications/read-all                 mark all notifications as read
 """
 from __future__ import annotations
 
@@ -1783,3 +1786,69 @@ async def admin_pending_counts(
         )
     counts = await crud.admin_get_pending_counts(db)
     return AdminPendingCounts(**counts)
+
+
+# ---------------------------------------------------------------------------
+# Notifications — Sprint 18
+# ---------------------------------------------------------------------------
+
+class NotificationRecord(BaseModel):
+    notification_id: str
+    type: str
+    title: str
+    body: str
+    read: bool
+    created_at: str
+
+
+class UnreadCountResponse(BaseModel):
+    count: int
+
+
+class MarkReadResponse(BaseModel):
+    marked: int
+
+
+@app.get("/v1/notifications/unread-count", tags=["notifications"])
+async def notifications_unread_count(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UnreadCountResponse:
+    """Return the number of unread notifications for the authenticated user.
+
+    Declared BEFORE /v1/notifications so the literal path wins over query params.
+    """
+    count = await crud.get_unread_count(db, claims.user_id)
+    return UnreadCountResponse(count=count)
+
+
+@app.get("/v1/notifications", tags=["notifications"])
+async def list_notifications(
+    limit: int = 20,
+    offset: int = 0,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[NotificationRecord]:
+    """List notifications for the authenticated user, newest first."""
+    notifs = await crud.list_notifications(db, claims.user_id, limit, offset)
+    return [
+        NotificationRecord(
+            notification_id=str(n.id),
+            type=n.type,
+            title=n.title,
+            body=n.body,
+            read=n.read,
+            created_at=n.created_at.isoformat(),
+        )
+        for n in notifs
+    ]
+
+
+@app.patch("/v1/notifications/read-all", tags=["notifications"])
+async def mark_all_notifications_read(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MarkReadResponse:
+    """Mark all of the authenticated user's unread notifications as read."""
+    marked = await crud.mark_all_notifications_read(db, claims.user_id)
+    return MarkReadResponse(marked=marked)

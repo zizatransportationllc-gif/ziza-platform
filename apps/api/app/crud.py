@@ -19,6 +19,7 @@ from app.models.assistance import AssistanceRequest, ASSISTANCE_TYPES
 from app.models.driver import Driver
 from app.models.driver_capability import DriverCapability
 from app.models.driver_document import DriverDocument, DOCUMENT_TYPES
+from app.models.notification import Notification
 from app.models.estimate import Estimate
 from app.models.payout_request import PayoutRequest as PayoutRequestModel
 from app.models.platform_setting import PlatformSetting
@@ -38,6 +39,83 @@ def _utc(dt: datetime) -> datetime:
     always works.
     """
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+
+# ---------------------------------------------------------------------------
+# Notifications — Sprint 18 (internal helper, used by other CRUD functions)
+# ---------------------------------------------------------------------------
+
+async def _push_notification(
+    db: AsyncSession,
+    user_uuid: uuid.UUID,
+    notif_type: str,
+    title: str,
+    body: str,
+) -> None:
+    """Insert a Notification row for the given users.id UUID.
+
+    Fire-and-forget: errors are silently swallowed so they never break the
+    parent transaction.  The caller must already have committed the triggering
+    event before calling this.
+    """
+    try:
+        notif = Notification(
+            user_id=user_uuid,
+            type=notif_type,
+            title=title,
+            body=body,
+        )
+        db.add(notif)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+
+
+async def list_notifications(
+    db: AsyncSession,
+    auth_user_id: str,
+    limit: int = 20,
+    offset: int = 0,
+) -> list[Notification]:
+    """Return all notifications for the authenticated user, newest first."""
+    user = await _get_user_by_auth_id(db, auth_user_id)
+    if user is None:
+        return []
+    result = await db.execute(
+        select(Notification)
+        .where(Notification.user_id == user.id)
+        .order_by(Notification.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return list(result.scalars().all())
+
+
+async def get_unread_count(db: AsyncSession, auth_user_id: str) -> int:
+    """Return the number of unread notifications for the authenticated user."""
+    user = await _get_user_by_auth_id(db, auth_user_id)
+    if user is None:
+        return 0
+    result = await db.execute(
+        select(func.count(Notification.id))
+        .where(Notification.user_id == user.id, Notification.read.is_(False))
+    )
+    return result.scalar() or 0
+
+
+async def mark_all_notifications_read(db: AsyncSession, auth_user_id: str) -> int:
+    """Mark every unread notification as read.  Returns the count marked."""
+    user = await _get_user_by_auth_id(db, auth_user_id)
+    if user is None:
+        return 0
+    result = await db.execute(
+        sa.update(Notification)
+        .where(Notification.user_id == user.id, Notification.read.is_(False))
+        .values(read=True)
+        .returning(Notification.id)
+    )
+    await db.commit()
+    return len(result.all())
 
 
 # ---------------------------------------------------------------------------
@@ -430,6 +508,13 @@ async def accept_trip(db: AsyncSession, trip_id: str, auth_user_id: str) -> Trip
     ))
     await db.commit()
     await db.refresh(trip)
+    # Sprint 18: notify the customer
+    await _push_notification(
+        db, trip.customer_id,
+        "trip_accepted",
+        "🚗 Chauffeur en route",
+        "Un chauffeur a accepté votre course. Il arrive bientôt !",
+    )
     return trip
 
 
@@ -474,6 +559,14 @@ async def complete_trip(db: AsyncSession, trip_id: str, auth_user_id: str) -> Tr
     ))
     await db.commit()
     await db.refresh(trip)
+    # Sprint 18: notify the customer
+    fare_str = f" — {trip.fare_xof:,} XOF".replace(",", " ") if trip.fare_xof else ""
+    await _push_notification(
+        db, trip.customer_id,
+        "trip_completed",
+        "✅ Trajet terminé",
+        f"Votre course est terminée{fare_str}. Merci d'avoir choisi Ziza !",
+    )
     return trip
 
 
@@ -1837,6 +1930,33 @@ async def admin_update_document_status(
     doc.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(doc)
+
+    # Sprint 18: notify the driver whose document was reviewed
+    driver_result = await db.execute(select(Driver).where(Driver.id == doc.driver_id))
+    reviewed_driver = driver_result.scalar_one_or_none()
+    if reviewed_driver is not None:
+        doc_type_label = {
+            "license": "Permis de conduire",
+            "insurance": "Assurance",
+            "registration": "Carte grise",
+            "id_card": "Carte d'identité",
+        }.get(doc.type, doc.type)
+        if new_status == "approved":
+            await _push_notification(
+                db, reviewed_driver.user_id,
+                "document_approved",
+                "✅ Document approuvé",
+                f"Votre {doc_type_label} a été approuvé par l'équipe Ziza.",
+            )
+        else:
+            note_suffix = f" — {note_admin}" if note_admin else ""
+            await _push_notification(
+                db, reviewed_driver.user_id,
+                "document_rejected",
+                "❌ Document rejeté",
+                f"Votre {doc_type_label} a été rejeté{note_suffix}. Veuillez soumettre un nouveau document.",
+            )
+
     return {
         "document_id": str(doc.id),
         "driver_id": str(doc.driver_id),

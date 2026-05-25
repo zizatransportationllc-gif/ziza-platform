@@ -16,9 +16,10 @@ from app.models.promo import PromoCode  # noqa: F401
 from app.models.payout_request import PayoutRequest  # noqa: F401
 from app.models.platform_setting import PlatformSetting  # noqa: F401
 from app.models.driver_document import DriverDocument  # noqa: F401
+from app.models.notification import Notification  # noqa: F401
 
 __all__ = [
     "Base", "User", "Driver", "Vehicle", "Trip", "TripEvent", "Estimate",
     "Rating", "AssistanceRequest", "DriverCapability", "PromoCode",
-    "PayoutRequest", "PlatformSetting", "DriverDocument",
+    "PayoutRequest", "PlatformSetting", "DriverDocument", "Notification",
 ]

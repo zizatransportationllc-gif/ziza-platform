@@ -264,3 +264,24 @@ html, body {
 .profile-input { padding: 0.6rem 0.875rem; border-radius: var(--radius-md); border: 1px solid var(--color-border, #334155); background: var(--color-surface, #1e293b); color: var(--color-fg); font-size: 0.95rem; width: 100%; }
 .profile-input:focus { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 .profile-success { color: #4ade80; font-size: 0.875rem; font-weight: 600; margin: 0; }
+
+/* ── Sprint 18 — Notifications ─────────────────────────────────────────────── */
+.dash-header-right { display: flex; align-items: center; gap: var(--space-2); }
+.bell-btn { position: relative; background: transparent; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); cursor: pointer; font-size: 1rem; color: var(--color-muted); transition: border-color 0.15s; }
+.bell-btn:hover, .bell-btn-active { border-color: var(--color-accent); color: var(--color-accent); }
+.bell-badge { position: absolute; top: -6px; right: -6px; background: var(--color-error, #ef4444); color: #fff; font-size: 0.6rem; font-weight: 700; border-radius: 999px; min-width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; padding: 0 3px; }
+.tab-badge-sm { display: inline-flex; align-items: center; justify-content: center; background: var(--color-error, #ef4444); color: #fff; font-size: 0.6rem; font-weight: 700; border-radius: 999px; min-width: 14px; height: 14px; padding: 0 3px; margin-left: 3px; }
+.notif-section { text-align: left; margin-top: var(--space-4); }
+.notif-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-3); }
+.notif-mark-btn { background: transparent; border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-muted); font-size: 0.78rem; padding: var(--space-1) var(--space-3); cursor: pointer; }
+.notif-mark-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+.notif-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.notif-item { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); }
+.notif-unread { border-left: 3px solid var(--color-accent); }
+.notif-read { opacity: 0.7; }
+.notif-item-header { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1); }
+.notif-icon { font-size: 1.1rem; flex-shrink: 0; }
+.notif-title { font-weight: 700; font-size: 0.9rem; flex: 1; }
+.notif-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-accent); flex-shrink: 0; }
+.notif-body { font-size: 0.85rem; color: var(--color-muted); margin: 0 0 var(--space-1); }
+.notif-date { font-size: 0.75rem; color: var(--color-muted); }
