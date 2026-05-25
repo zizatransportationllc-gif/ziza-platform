@@ -18,6 +18,7 @@ from app.auth.base import Claims
 from app.models.assistance import AssistanceRequest, ASSISTANCE_TYPES
 from app.models.driver import Driver
 from app.models.driver_capability import DriverCapability
+from app.models.driver_document import DriverDocument, DOCUMENT_TYPES
 from app.models.estimate import Estimate
 from app.models.payout_request import PayoutRequest as PayoutRequestModel
 from app.models.platform_setting import PlatformSetting
@@ -1719,6 +1720,156 @@ async def set_surge_multiplier(db: AsyncSession, value: float) -> float:
     await db.commit()
     await db.refresh(row)
     return float(row.value)
+
+
+# ---------------------------------------------------------------------------
+# Sprint 17 — Driver documents (KYC) & admin pending counts
+# ---------------------------------------------------------------------------
+
+_VALID_DOCUMENT_STATUSES = {"approved", "rejected"}
+
+
+async def submit_driver_document(
+    db: AsyncSession,
+    auth_user_id: str,
+    doc_type: str,
+    url: str,
+) -> DriverDocument:
+    """Driver submits a KYC document (URL to a scan).
+
+    Raises 422 if doc_type is not one of the allowed values.
+    Multiple submissions of the same type are allowed (resubmit after rejection).
+    """
+    driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
+    if doc_type not in DOCUMENT_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid document type '{doc_type}'. Valid: {sorted(DOCUMENT_TYPES)}",
+        )
+    doc = DriverDocument(
+        driver_id=driver.id,
+        type=doc_type,
+        url=url,
+        status="pending",
+    )
+    db.add(doc)
+    await db.commit()
+    await db.refresh(doc)
+    return doc
+
+
+async def list_driver_documents(
+    db: AsyncSession,
+    auth_user_id: str,
+) -> list[DriverDocument]:
+    """Return all documents submitted by the authenticated driver, newest first."""
+    driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
+    result = await db.execute(
+        select(DriverDocument)
+        .where(DriverDocument.driver_id == driver.id)
+        .order_by(DriverDocument.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def admin_list_documents(
+    db: AsyncSession, limit: int = 50, offset: int = 0
+) -> list[dict]:
+    """Return all driver documents (newest first) with driver email for admin view."""
+    result = await db.execute(
+        select(DriverDocument, Driver, User)
+        .join(Driver, DriverDocument.driver_id == Driver.id)
+        .join(User, Driver.user_id == User.id)
+        .order_by(DriverDocument.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return [
+        {
+            "document_id": str(doc.id),
+            "driver_id": str(doc.driver_id),
+            "driver_email": user.email,
+            "type": doc.type,
+            "url": doc.url,
+            "status": doc.status,
+            "note_admin": doc.note_admin,
+            "created_at": _utc(doc.created_at).isoformat(),
+            "updated_at": _utc(doc.updated_at).isoformat(),
+        }
+        for doc, driver, user in result.all()
+    ]
+
+
+async def admin_update_document_status(
+    db: AsyncSession,
+    document_id_str: str,
+    new_status: str,
+    note_admin: str | None = None,
+) -> dict:
+    """Admin approves or rejects a driver document.
+
+    Raises 422 for invalid status, 404 if not found.
+    """
+    if new_status not in _VALID_DOCUMENT_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid status '{new_status}'. Valid: {sorted(_VALID_DOCUMENT_STATUSES)}",
+        )
+    try:
+        doc_uuid = uuid.UUID(document_id_str)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid document_id format",
+        )
+    result = await db.execute(
+        select(DriverDocument).where(DriverDocument.id == doc_uuid)
+    )
+    doc: DriverDocument | None = result.scalar_one_or_none()
+    if doc is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+    doc.status = new_status
+    if note_admin is not None:
+        doc.note_admin = note_admin
+    doc.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(doc)
+    return {
+        "document_id": str(doc.id),
+        "driver_id": str(doc.driver_id),
+        "type": doc.type,
+        "url": doc.url,
+        "status": doc.status,
+        "note_admin": doc.note_admin,
+        "created_at": _utc(doc.created_at).isoformat(),
+        "updated_at": _utc(doc.updated_at).isoformat(),
+    }
+
+
+async def admin_get_pending_counts(db: AsyncSession) -> dict:
+    """Return counts of items awaiting admin action.
+
+    Currently tracks: pending payout requests and pending KYC documents.
+    """
+    r_payouts = await db.execute(
+        select(func.count(PayoutRequestModel.id))
+        .where(PayoutRequestModel.status == "pending")
+    )
+    payout_count = r_payouts.scalar() or 0
+
+    r_docs = await db.execute(
+        select(func.count(DriverDocument.id))
+        .where(DriverDocument.status == "pending")
+    )
+    doc_count = r_docs.scalar() or 0
+
+    return {
+        "payout_requests": int(payout_count),
+        "documents": int(doc_count),
+    }
 
 
 _VALID_DRIVER_STATUSES = {"active", "inactive", "suspended"}

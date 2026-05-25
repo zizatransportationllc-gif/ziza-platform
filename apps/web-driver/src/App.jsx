@@ -9,6 +9,7 @@ import {
   getMyVehicle, registerVehicle,
   getDriverProfile, setDriverOnline, listDriverTripHistory,
   createPayoutRequest, listPayoutRequests,
+  submitDocument, listMyDocuments,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -52,7 +53,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Driver</h1>
-      <p className="subtitle">Sprint 15 — Retraits de gains</p>
+      <p className="subtitle">Sprint 17 — Documents KYC</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -520,6 +521,111 @@ function PayoutSection({ token }) {
 }
 
 // ---------------------------------------------------------------------------
+// Documents section — Sprint 17
+// ---------------------------------------------------------------------------
+
+const DOCUMENT_TYPE_LABELS = {
+  license:      "🪪 Permis de conduire",
+  insurance:    "🛡️ Assurance véhicule",
+  registration: "📋 Carte grise",
+  id_card:      "🪪 Pièce d'identité",
+};
+
+const DOCUMENT_STATUS_LABELS = {
+  pending:  "⏳ En attente",
+  approved: "✅ Approuvé",
+  rejected: "✗ Rejeté",
+};
+
+const DOCUMENT_TYPES = ["license", "insurance", "registration", "id_card"];
+
+function DocumentsSection({ token }) {
+  const [docs, setDocs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [docType, setDocType] = useState("license");
+  const [url, setUrl] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(null);
+  const [error, setError] = useState(null);
+
+  const loadDocs = useCallback(() => {
+    setLoading(true);
+    listMyDocuments(token)
+      .then(setDocs)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => { loadDocs(); }, [loadDocs]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!url.trim()) { setError("L'URL du document est requise."); return; }
+    setSubmitting(true); setError(null); setSuccess(null);
+    try {
+      await submitDocument(token, docType, url.trim());
+      setUrl("");
+      setSuccess("✓ Document soumis pour vérification.");
+      loadDocs();
+    } catch (err) { setError(err.message); }
+    finally { setSubmitting(false); }
+  }
+
+  return (
+    <div className="documents-section">
+      <h3 className="doc-title">📄 Mes documents KYC</h3>
+      <form className="doc-form" onSubmit={handleSubmit}>
+        <select
+          className="doc-type-select"
+          value={docType}
+          onChange={(e) => setDocType(e.target.value)}
+        >
+          {DOCUMENT_TYPES.map((t) => (
+            <option key={t} value={t}>{DOCUMENT_TYPE_LABELS[t]}</option>
+          ))}
+        </select>
+        <input
+          className="doc-url-input"
+          type="url"
+          placeholder="URL du document (lien de stockage)"
+          value={url}
+          onChange={(e) => { setUrl(e.target.value); setError(null); }}
+          maxLength={2048}
+        />
+        {success && <p className="doc-success">{success}</p>}
+        {error   && <p className="doc-err">{error}</p>}
+        <button type="submit" className="doc-submit-btn" disabled={submitting}>
+          {submitting ? "Envoi…" : "📤 Soumettre le document"}
+        </button>
+      </form>
+
+      <div className="doc-list">
+        {loading && <p className="loading-msg">Chargement…</p>}
+        {!loading && docs.length === 0 && (
+          <p className="doc-empty">Aucun document soumis pour l&apos;instant.</p>
+        )}
+        {docs.map((d) => (
+          <div key={d.document_id} className={`doc-item doc-${d.status}`}>
+            <div className="doc-item-main">
+              <span className="doc-type">{DOCUMENT_TYPE_LABELS[d.type] ?? d.type}</span>
+              <span className={`doc-status doc-status-${d.status}`}>
+                {DOCUMENT_STATUS_LABELS[d.status] ?? d.status}
+              </span>
+            </div>
+            {d.note_admin && <p className="doc-note">💬 {d.note_admin}</p>}
+            <p className="doc-date">
+              {new Date(d.created_at).toLocaleDateString("fr-FR", {
+                day: "2-digit", month: "short", year: "numeric",
+              })}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
@@ -532,7 +638,7 @@ function Dashboard({ user, token, onLogout }) {
   const [vehicle, setVehicle] = useState(undefined); // undefined = loading, null = none
   const [isOnline, setIsOnline] = useState(false);
   const [togglingOnline, setTogglingOnline] = useState(false);
-  const [tab, setTab] = useState("dispatch"); // "dispatch" | "history" | "payouts"
+  const [tab, setTab] = useState("dispatch"); // "dispatch" | "history" | "payouts" | "documents"
 
   // On mount: parallel fetch
   useEffect(() => {
@@ -652,6 +758,12 @@ function Dashboard({ user, token, onLogout }) {
             >
               💰 Retraits
             </button>
+            <button
+              className={`driver-tab ${tab === "documents" ? "active" : ""}`}
+              onClick={() => setTab("documents")}
+            >
+              📄 Documents
+            </button>
           </div>
 
           {tab === "dispatch" && (
@@ -670,12 +782,13 @@ function Dashboard({ user, token, onLogout }) {
             )
           )}
 
-          {tab === "history" && <DriverTripHistory token={token} />}
-          {tab === "payouts" && <PayoutSection token={token} />}
+          {tab === "history"   && <DriverTripHistory token={token} />}
+          {tab === "payouts"   && <PayoutSection token={token} />}
+          {tab === "documents" && <DocumentsSection token={token} />}
         </>
       )}
 
-      <p className="footer">App: <strong>web-driver</strong> · Sprint 15</p>
+      <p className="footer">App: <strong>web-driver</strong> · Sprint 17</p>
     </div>
   );
 }

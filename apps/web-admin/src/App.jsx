@@ -6,6 +6,7 @@ import {
   adminCreatePromo, adminListPromos, adminDeactivatePromo, adminSetDriverStatus,
   adminListPayouts, adminUpdatePayoutStatus, adminListRatings,
   adminGetSurge, adminSetSurge,
+  adminListDocuments, adminUpdateDocumentStatus, adminGetPendingCounts,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -46,7 +47,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 16 — Profil & tarification dynamique</p>
+      <p className="subtitle">Sprint 17 — Documents KYC & compteurs en attente</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -59,6 +60,110 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
       )}
       {error && <p className="form-error">{error}</p>}
       <p className="hint">Dev: admin@ziza.dev / ziza2024</p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Documents Panel — Sprint 17
+// ---------------------------------------------------------------------------
+
+const DOC_TYPE_LABELS = {
+  license:      "🪪 Permis de conduire",
+  insurance:    "📋 Assurance",
+  registration: "📄 Carte grise",
+  id_card:      "🪪 Carte d'identité",
+};
+
+const DOC_STATUS_LABELS = {
+  pending:  "⏳ En attente",
+  approved: "✅ Approuvé",
+  rejected: "✗ Rejeté",
+};
+
+const PAGE_SIZE_DOCS = 10;
+
+function DocumentsPanel({ token }) {
+  const [docs, setDocs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const [acting, setActing] = useState(null);
+  const [noteInputs, setNoteInputs] = useState({});
+  const [error, setError] = useState(null);
+
+  const load = useCallback((p = 0) => {
+    setPage(p); setLoading(true); setError(null);
+    adminListDocuments(token, PAGE_SIZE_DOCS, p * PAGE_SIZE_DOCS)
+      .then(setDocs).catch((e) => setError(e.message)).finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => { load(0); }, [load]);
+
+  async function handleStatus(docId, newStatus) {
+    const note = noteInputs[docId] || null;
+    setActing(docId);
+    try {
+      const updated = await adminUpdateDocumentStatus(token, docId, newStatus, note);
+      setDocs((prev) => prev.map((d) =>
+        d.document_id === docId ? { ...d, status: updated.status, note_admin: updated.note_admin } : d
+      ));
+    } catch (e) { setError(e.message); }
+    finally { setActing(null); }
+  }
+
+  return (
+    <div className="documents-panel-admin">
+      <div className="panel-header">
+        <h2 className="panel-title">📄 Documents KYC</h2>
+        <button className="refresh-btn" onClick={() => load(page)} disabled={loading}>↻</button>
+      </div>
+      {error && <p className="form-error">{error}</p>}
+      {loading && <div className="status loading">⏳ Chargement…</div>}
+      {!loading && docs.length === 0 && <p className="muted-msg">Aucun document soumis.</p>}
+      {docs.map((d) => (
+        <div key={d.document_id} className={`doc-admin-row doc-admin-${d.status}`}>
+          <div className="doc-admin-main">
+            <span className="doc-admin-type">{DOC_TYPE_LABELS[d.type] ?? d.type}</span>
+            <span className={`doc-admin-status doc-admin-status-${d.status}`}>
+              {DOC_STATUS_LABELS[d.status] ?? d.status}
+            </span>
+          </div>
+          <div className="doc-admin-meta">
+            <span>🧑‍✈️ {d.driver_email}</span>
+            <a className="doc-admin-url" href={d.url} target="_blank" rel="noreferrer">Voir le document ↗</a>
+            <span>{new Date(d.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}</span>
+          </div>
+          {d.note_admin && <p className="doc-admin-note">💬 {d.note_admin}</p>}
+          {d.status === "pending" && (
+            <div className="doc-admin-actions">
+              <input
+                className="payout-note-input"
+                type="text"
+                placeholder="Note (optionnelle)"
+                value={noteInputs[d.document_id] ?? ""}
+                onChange={(e) => setNoteInputs((prev) => ({ ...prev, [d.document_id]: e.target.value }))}
+              />
+              <button
+                className="payout-approve-btn"
+                disabled={acting === d.document_id}
+                onClick={() => handleStatus(d.document_id, "approved")}
+              >✅ Approuver</button>
+              <button
+                className="payout-reject-btn"
+                disabled={acting === d.document_id}
+                onClick={() => handleStatus(d.document_id, "rejected")}
+              >✗ Rejeter</button>
+            </div>
+          )}
+        </div>
+      ))}
+      {(docs.length === PAGE_SIZE_DOCS || page > 0) && (
+        <div className="pagination">
+          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Précédent</button>
+          <span className="page-info">Page {page + 1}</span>
+          <button className="page-btn" onClick={() => load(page + 1)} disabled={docs.length < PAGE_SIZE_DOCS || loading}>Suivant →</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -839,14 +944,26 @@ const TABS = [
   { id: "assist",    label: "🆘 Assistances" },
   { id: "drivers",   label: "🧑‍✈️ Chauffeurs" },
   { id: "promos",    label: "🏷️ Promos" },
-  { id: "payouts",   label: "💸 Retraits" },
+  { id: "payouts",   label: "💸 Retraits",  pendingKey: "payout_requests" },
   { id: "ratings",   label: "⭐ Avis" },
+  { id: "documents", label: "📄 Documents", pendingKey: "documents" },
   { id: "settings",  label: "⚙️ Paramètres" },
   { id: "users",     label: "👥 Utilisateurs" },
 ];
 
 function Dashboard({ user, token, onLogout }) {
   const [activeTab, setActiveTab] = useState("stats");
+  const [pendingCounts, setPendingCounts] = useState({ payout_requests: 0, documents: 0 });
+
+  const loadPending = useCallback(() => {
+    adminGetPendingCounts(token)
+      .then(setPendingCounts)
+      .catch(() => {});
+  }, [token]);
+
+  useEffect(() => { loadPending(); }, [loadPending]);
+  // Refresh pending counts whenever tab changes (so badge is up to date)
+  useEffect(() => { loadPending(); }, [activeTab, loadPending]);
 
   return (
     <div className="app admin-app">
@@ -858,24 +975,29 @@ function Dashboard({ user, token, onLogout }) {
       <div className="role-badge">{user.role} · {user.provider}</div>
 
       <div className="admin-tabs">
-        {TABS.map((t) => (
-          <button key={t.id} className={`admin-tab ${activeTab === t.id ? "active" : ""}`} onClick={() => setActiveTab(t.id)}>
-            {t.label}
-          </button>
-        ))}
+        {TABS.map((t) => {
+          const count = t.pendingKey ? pendingCounts[t.pendingKey] : 0;
+          return (
+            <button key={t.id} className={`admin-tab ${activeTab === t.id ? "active" : ""}`} onClick={() => setActiveTab(t.id)}>
+              {t.label}
+              {count > 0 && <span className="tab-badge">{count}</span>}
+            </button>
+          );
+        })}
       </div>
 
-      {activeTab === "stats"    && <StatsPanel      token={token} />}
-      {activeTab === "trips"    && <TripsPanel      token={token} />}
-      {activeTab === "assist"   && <AssistancePanel token={token} />}
-      {activeTab === "drivers"  && <DriversPanel    token={token} />}
-      {activeTab === "promos"   && <PromoPanel      token={token} />}
-      {activeTab === "payouts"  && <PayoutsPanel    token={token} />}
-      {activeTab === "ratings"  && <RatingsPanel    token={token} />}
-      {activeTab === "settings" && <SurgePanel      token={token} />}
-      {activeTab === "users"    && <UsersPanel      token={token} />}
+      {activeTab === "stats"     && <StatsPanel      token={token} />}
+      {activeTab === "trips"     && <TripsPanel      token={token} />}
+      {activeTab === "assist"    && <AssistancePanel token={token} />}
+      {activeTab === "drivers"   && <DriversPanel    token={token} />}
+      {activeTab === "promos"    && <PromoPanel      token={token} />}
+      {activeTab === "payouts"   && <PayoutsPanel    token={token} />}
+      {activeTab === "ratings"   && <RatingsPanel    token={token} />}
+      {activeTab === "documents" && <DocumentsPanel  token={token} />}
+      {activeTab === "settings"  && <SurgePanel      token={token} />}
+      {activeTab === "users"     && <UsersPanel      token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 16</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 17</p>
     </div>
   );
 }

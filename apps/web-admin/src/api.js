@@ -203,6 +203,40 @@ export async function adminSetSurge(token, surgeMultiplier) {
   return _json(res); // { surge_multiplier: float }
 }
 
+// ---------------------------------------------------------------------------
+// Admin — driver documents — Sprint 17
+// ---------------------------------------------------------------------------
+
+export async function adminListDocuments(token, limit = 50, offset = 0) {
+  const res = await fetch(
+    `${API_BASE}/v1/admin/documents?limit=${limit}&offset=${offset}`,
+    { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+  );
+  return _json(res); // AdminDocumentRecord[]
+}
+
+export async function adminUpdateDocumentStatus(token, documentId, newStatus, noteAdmin = null) {
+  const body = { status: newStatus };
+  if (noteAdmin) body.note_admin = noteAdmin;
+  const res = await fetch(`${API_BASE}/v1/admin/documents/${documentId}/status`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  return _json(res); // DocumentResponse
+}
+
+export async function adminGetPendingCounts(token) {
+  const res = await fetch(`${API_BASE}/v1/admin/pending-counts`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // { payout_requests: int, documents: int }
+}
+
 export async function adminSetDriverStatus(token, driverId, newStatus) {
   const res = await fetch(`${API_BASE}/v1/admin/drivers/${driverId}/status`, {
     method: "PATCH",

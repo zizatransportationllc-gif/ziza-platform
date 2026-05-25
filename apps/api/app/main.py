@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 16.
+"""Ziza API — Sprint 17.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -57,6 +57,11 @@ Endpoints:
   GET   /v1/admin/ratings                          admin lists all ratings
   GET   /v1/admin/settings/surge                   admin reads the surge multiplier
   PATCH /v1/admin/settings/surge                   admin sets the surge multiplier (1.0-5.0)
+  POST  /v1/drivers/me/documents                   driver submits a KYC document (type + URL)
+  GET   /v1/drivers/me/documents                   driver lists their submitted documents
+  GET   /v1/admin/documents                        admin lists all driver documents (paginated)
+  PATCH /v1/admin/documents/{id}/status            admin approves or rejects a document
+  GET   /v1/admin/pending-counts                   admin pending-action item counts
 """
 from __future__ import annotations
 
@@ -1628,3 +1633,153 @@ async def admin_set_surge(
         )
     value = await crud.set_surge_multiplier(db, body.surge_multiplier)
     return SurgeResponse(surge_multiplier=value)
+
+
+# ---------------------------------------------------------------------------
+# Driver Documents (KYC) — Sprint 17
+# ---------------------------------------------------------------------------
+
+DocumentType = Literal["license", "insurance", "registration", "id_card"]
+
+
+class DocumentSubmitRequest(BaseModel):
+    type: DocumentType = Field(
+        ..., description="license | insurance | registration | id_card"
+    )
+    url: str = Field(..., min_length=1, max_length=2048, description="URL of the document scan")
+
+
+class DocumentResponse(BaseModel):
+    document_id: str
+    driver_id: str
+    type: str
+    url: str
+    status: str
+    note_admin: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class AdminDocumentRecord(BaseModel):
+    document_id: str
+    driver_id: str
+    driver_email: str
+    type: str
+    url: str
+    status: str
+    note_admin: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class AdminDocumentStatusRequest(BaseModel):
+    status: Literal["approved", "rejected"]
+    note_admin: str | None = None
+
+
+class AdminPendingCounts(BaseModel):
+    payout_requests: int
+    documents: int
+
+
+def _document_response(doc) -> DocumentResponse:
+    return DocumentResponse(
+        document_id=str(doc.id),
+        driver_id=str(doc.driver_id),
+        type=doc.type,
+        url=doc.url,
+        status=doc.status,
+        note_admin=doc.note_admin,
+        created_at=doc.created_at.isoformat(),
+        updated_at=doc.updated_at.isoformat(),
+    )
+
+
+@app.post("/v1/drivers/me/documents", tags=["documents"], status_code=201)
+async def submit_document(
+    body: DocumentSubmitRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> DocumentResponse:
+    """Driver submits a KYC document for admin review.
+
+    Type must be one of: license, insurance, registration, id_card.
+    Multiple submissions of the same type are allowed (e.g. resubmit after rejection).
+    """
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can submit documents",
+        )
+    doc = await crud.submit_driver_document(db, claims.user_id, body.type, body.url)
+    return _document_response(doc)
+
+
+@app.get("/v1/drivers/me/documents", tags=["documents"])
+async def list_my_documents(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[DocumentResponse]:
+    """Driver: list all submitted KYC documents, newest first."""
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can view their documents",
+        )
+    docs = await crud.list_driver_documents(db, claims.user_id)
+    return [_document_response(d) for d in docs]
+
+
+@app.get("/v1/admin/documents", tags=["admin"])
+async def admin_list_documents(
+    limit: int = 50,
+    offset: int = 0,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[AdminDocumentRecord]:
+    """Admin: list all KYC documents (newest first, paginated)."""
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    limit = min(limit, 200)
+    rows = await crud.admin_list_documents(db, limit=limit, offset=offset)
+    return [AdminDocumentRecord(**r) for r in rows]
+
+
+@app.patch("/v1/admin/documents/{document_id}/status", tags=["admin"])
+async def admin_update_document_status(
+    document_id: str,
+    body: AdminDocumentStatusRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> DocumentResponse:
+    """Admin: approve or reject a driver KYC document.
+
+    Optionally attach a note explaining the decision.
+    """
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    result = await crud.admin_update_document_status(
+        db, document_id, body.status, body.note_admin
+    )
+    return DocumentResponse(**result)
+
+
+@app.get("/v1/admin/pending-counts", tags=["admin"])
+async def admin_pending_counts(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AdminPendingCounts:
+    """Admin: return counts of items awaiting action (payouts + KYC documents)."""
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    counts = await crud.admin_get_pending_counts(db)
+    return AdminPendingCounts(**counts)

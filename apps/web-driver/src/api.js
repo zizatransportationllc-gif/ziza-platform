@@ -217,6 +217,30 @@ export async function listPayoutRequests(token) {
 }
 
 // ---------------------------------------------------------------------------
+// Driver documents (KYC) — Sprint 17
+// ---------------------------------------------------------------------------
+
+export async function submitDocument(token, type, url) {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/documents`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ type, url }),
+  });
+  return _json(res); // DocumentResponse
+}
+
+export async function listMyDocuments(token) {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/documents`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // DocumentResponse[]
+}
+
+// ---------------------------------------------------------------------------
 // Legacy demo (kept for compat)
 // ---------------------------------------------------------------------------
 
