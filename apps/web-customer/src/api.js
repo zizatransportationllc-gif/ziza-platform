@@ -57,7 +57,9 @@ export async function fetchEstimate(token, originLat, originLng, destLat, destLn
   return res.json();
 }
 
-export async function createTrip(token, estimateId) {
+export async function createTrip(token, estimateId, promoCode = null) {
+  const body = { estimate_id: estimateId };
+  if (promoCode) body.promo_code = promoCode;
   const res = await fetch(`${API_BASE}/v1/trips`, {
     method: "POST",
     headers: {
@@ -65,7 +67,7 @@ export async function createTrip(token, estimateId) {
       "Content-Type": "application/json",
       Accept: "application/json",
     },
-    body: JSON.stringify({ estimate_id: estimateId }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -207,6 +209,27 @@ export async function fetchDemo(token) {
   });
   if (!res.ok) throw new Error(`API error ${res.status}: ${res.statusText}`);
   return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Promo codes — Sprint 14
+// ---------------------------------------------------------------------------
+
+export async function validatePromo(token, code) {
+  const res = await fetch(`${API_BASE}/v1/promos/validate`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Promo error (${res.status})`);
+  }
+  return res.json(); // { valid, code, discount_pct }
 }
 
 // ---------------------------------------------------------------------------

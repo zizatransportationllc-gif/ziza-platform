@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import {
   login, fetchMe, fetchDemo, registerUser, fetchEstimate, createTrip, getTrip, cancelTrip, rateTrip,
   createAssistanceRequest, getAssistanceRequest, cancelAssistanceRequest, listMyAssistance, listMyTrips,
+  validatePromo,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -92,11 +93,16 @@ function EstimateSection({ token, onTripCreated }) {
   const [loading, setLoading] = useState(false);
   const [booking, setBooking] = useState(false);
   const [error, setError]   = useState(null);
+  // Promo code state — Sprint 14
+  const [promoInput, setPromoInput] = useState("");
+  const [promoValidating, setPromoValidating] = useState(false);
+  const [promoApplied, setPromoApplied] = useState(null); // { code, discount_pct }
+  const [promoError, setPromoError] = useState(null);
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (origin === dest) { setError("Choisissez deux points différents."); return; }
-    setLoading(true); setError(null); setResult(null);
+    setLoading(true); setError(null); setResult(null); setPromoApplied(null); setPromoInput("");
     try {
       const o = ABIDJAN_LOCATIONS[origin];
       const d = ABIDJAN_LOCATIONS[dest];
@@ -106,14 +112,30 @@ function EstimateSection({ token, onTripCreated }) {
     finally { setLoading(false); }
   }
 
+  async function handleValidatePromo(e) {
+    e.preventDefault();
+    if (!promoInput.trim()) return;
+    setPromoValidating(true); setPromoError(null); setPromoApplied(null);
+    try {
+      const p = await validatePromo(token, promoInput.trim());
+      setPromoApplied(p);
+    } catch (err) { setPromoError(err.message); }
+    finally { setPromoValidating(false); }
+  }
+
   async function handleBook() {
     setBooking(true); setError(null);
     try {
-      const trip = await createTrip(token, result.estimate_id);
+      const trip = await createTrip(token, result.estimate_id, promoApplied?.code ?? null);
       onTripCreated(trip);
     } catch (err) { setError(err.message); }
     finally { setBooking(false); }
   }
+
+  // Compute displayed fare (with or without promo)
+  const displayFare = promoApplied && result
+    ? Math.max(1, Math.round(result.fare_xof * (1 - promoApplied.discount_pct / 100)))
+    : result?.fare_xof;
 
   return (
     <div className="estimate-section">
@@ -140,7 +162,17 @@ function EstimateSection({ token, onTripCreated }) {
       {error && <p className="form-error">{error}</p>}
       {result && (
         <div className="fare-card">
-          <div className="fare-amount">{formatXOF(result.fare_xof)}</div>
+          {promoApplied && (
+            <div className="promo-applied-badge">
+              🏷️ Code <strong>{promoApplied.code}</strong> — {promoApplied.discount_pct}% de réduction
+            </div>
+          )}
+          <div className="fare-amount">
+            {promoApplied && (
+              <span className="fare-original">{formatXOF(result.fare_xof)}</span>
+            )}
+            {formatXOF(displayFare)}
+          </div>
           <div className="fare-meta">
             <span>🛣️ {result.distance_km.toFixed(1)} km</span>
             <span>⏱️ ~{result.duration_min} min</span>
@@ -151,6 +183,30 @@ function EstimateSection({ token, onTripCreated }) {
           <div className="fare-source">
             {result.distance_source === "google_maps" ? "🗺️ Google Maps" : "📐 Distance estimée"}
           </div>
+          {/* Promo code input */}
+          {!promoApplied && (
+            <form className="promo-form" onSubmit={handleValidatePromo}>
+              <input
+                className="promo-input"
+                placeholder="Code promo (optionnel)"
+                value={promoInput}
+                onChange={(e) => { setPromoInput(e.target.value); setPromoError(null); }}
+                maxLength={32}
+              />
+              <button type="submit" className="promo-btn" disabled={promoValidating || !promoInput.trim()}>
+                {promoValidating ? "…" : "Valider"}
+              </button>
+            </form>
+          )}
+          {promoApplied && (
+            <button
+              className="promo-remove-btn"
+              onClick={() => { setPromoApplied(null); setPromoInput(""); }}
+            >
+              ✕ Retirer le code
+            </button>
+          )}
+          {promoError && <p className="promo-error">{promoError}</p>}
           <button className="book-btn" onClick={handleBook} disabled={booking}>
             {booking ? "Réservation…" : "🚕 Réserver ce trajet"}
           </button>

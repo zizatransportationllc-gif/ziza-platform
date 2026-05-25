@@ -104,3 +104,51 @@ export async function adminListAssistance(token, limit = 50, offset = 0) {
   });
   return _json(res); // AdminAssistanceRecord[]
 }
+
+// ---------------------------------------------------------------------------
+// Admin — promo codes — Sprint 14
+// ---------------------------------------------------------------------------
+
+export async function adminCreatePromo(token, code, discountPct, maxUses, expiresAt) {
+  const body = { code, discount_pct: discountPct };
+  if (maxUses) body.max_uses = Number(maxUses);
+  if (expiresAt) body.expires_at = expiresAt;
+  const res = await fetch(`${API_BASE}/v1/admin/promos`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  return _json(res); // PromoResponse
+}
+
+export async function adminListPromos(token) {
+  const res = await fetch(`${API_BASE}/v1/admin/promos`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // PromoResponse[]
+}
+
+export async function adminDeactivatePromo(token, code) {
+  const res = await fetch(`${API_BASE}/v1/admin/promos/${encodeURIComponent(code)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // PromoResponse (active=false)
+}
+
+export async function adminSetDriverStatus(token, driverId, newStatus) {
+  const res = await fetch(`${API_BASE}/v1/admin/drivers/${driverId}/status`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ status: newStatus }),
+  });
+  return _json(res); // { driver_id, status }
+}

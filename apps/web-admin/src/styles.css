@@ -142,3 +142,28 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .page-info { font-size: 0.85rem; color: var(--color-muted); }
 .refresh-btn { background: transparent; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-1) var(--space-3); color: var(--color-muted); cursor: pointer; font-size: 0.85rem; }
 .refresh-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+
+/* ── Sprint 14: Driver status buttons ───────────────────────────────────── */
+.driver-card-actions { display: flex; gap: var(--space-2); align-items: center; }
+.suspend-btn  { background: transparent; border: 1px solid var(--color-error); border-radius: var(--radius-md); padding: var(--space-1) var(--space-2); cursor: pointer; font-size: 0.85rem; }
+.activate-btn { background: transparent; border: 1px solid var(--color-success); border-radius: var(--radius-md); padding: var(--space-1) var(--space-2); cursor: pointer; font-size: 0.85rem; }
+.suspend-btn:disabled, .activate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Sprint 14: Promo panel ─────────────────────────────────────────────── */
+.promo-panel { width: 100%; }
+.promo-create-form { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-4); }
+.promo-form-row { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
+.promo-code-input { flex: 2; min-width: 100px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--color-fg); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; outline: none; }
+.promo-pct-input, .promo-max-input { flex: 1; min-width: 80px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--color-fg); font-size: 0.9rem; outline: none; }
+.promo-code-input:focus, .promo-pct-input:focus, .promo-max-input:focus { border-color: var(--color-accent); }
+.promo-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.promo-row { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); }
+.promo-row.promo-inactive { opacity: 0.55; }
+.promo-row-main { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: 2px; }
+.promo-row-meta { font-size: 0.78rem; color: var(--color-muted); display: flex; gap: var(--space-3); flex-wrap: wrap; }
+.promo-code-badge { font-size: 0.9rem; font-weight: 700; color: var(--color-accent); letter-spacing: 0.06em; font-family: var(--font-mono); }
+.promo-pct { font-size: 1rem; font-weight: 700; color: var(--color-success); }
+.promo-status.active   { color: var(--color-success); font-size: 0.78rem; font-weight: 600; }
+.promo-status.inactive { color: var(--color-muted); font-size: 0.78rem; }
+.promo-deactivate-btn { background: transparent; border: none; color: var(--color-error); font-size: 0.78rem; cursor: pointer; text-decoration: underline; margin-top: var(--space-1); }
+.admin-tabs { flex-wrap: wrap; }

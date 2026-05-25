@@ -19,6 +19,7 @@ from app.models.assistance import AssistanceRequest, ASSISTANCE_TYPES
 from app.models.driver import Driver
 from app.models.driver_capability import DriverCapability
 from app.models.estimate import Estimate
+from app.models.promo import PromoCode
 from app.models.rating import Rating
 from app.models.trip import Trip, TripEvent
 from app.models.user import User
@@ -99,6 +100,7 @@ async def create_trip(
     db: AsyncSession,
     claims: Claims,
     estimate_id: str,
+    promo_code: str | None = None,
 ) -> Trip:
     """Create a new Trip from a valid, unexpired Estimate.
 
@@ -141,7 +143,37 @@ async def create_trip(
             detail="Estimate has expired — request a new one",
         )
 
-    # 4. Create the trip, snapshotting the fare from the estimate
+    # 4. Optionally validate and apply a promo code
+    applied_promo: PromoCode | None = None
+    applied_discount_pct: int | None = None
+    final_fare = est.fare_xof
+
+    if promo_code:
+        promo_result = await db.execute(
+            select(PromoCode).where(PromoCode.code == promo_code.upper().strip())
+        )
+        promo: PromoCode | None = promo_result.scalar_one_or_none()
+        if promo is None or not promo.active:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Promo code '{promo_code}' is invalid or inactive",
+            )
+        if promo.expires_at is not None and _utc(promo.expires_at) < datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Promo code '{promo_code}' has expired",
+            )
+        if promo.max_uses is not None and promo.uses >= promo.max_uses:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Promo code '{promo_code}' has reached its usage limit",
+            )
+        applied_promo = promo
+        applied_discount_pct = promo.discount_pct
+        if final_fare is not None:
+            final_fare = max(1, round(final_fare * (1 - promo.discount_pct / 100)))
+
+    # 5. Create the trip, snapshotting the fare from the estimate
     trip = Trip(
         customer_id=user.id,
         status="pending",
@@ -150,14 +182,20 @@ async def create_trip(
         dest_lat=est.dest_lat,
         dest_lng=est.dest_lng,
         estimate_id=est.id,
-        fare_xof=est.fare_xof,
+        fare_xof=final_fare,
         distance_km=est.distance_km,
         duration_min=est.duration_min,
+        promo_code=promo_code.upper().strip() if promo_code else None,
+        discount_pct=applied_discount_pct,
     )
     db.add(trip)
     await db.flush()  # populate trip.id without committing yet
 
-    # 5. Log the initial status_changed event
+    # 6. Increment promo usage (after flush so trip.id is available)
+    if applied_promo is not None:
+        applied_promo.uses += 1
+
+    # 7. Log the initial status_changed event
     event = TripEvent(
         trip_id=trip.id,
         event_type="status_changed",
@@ -1324,3 +1362,122 @@ async def admin_list_assistance(
         }
         for req, user in rows
     ]
+
+
+# ---------------------------------------------------------------------------
+# Sprint 14 — Promo codes & admin driver status
+# ---------------------------------------------------------------------------
+
+async def create_promo(
+    db: AsyncSession,
+    code: str,
+    discount_pct: int,
+    max_uses: int | None,
+    expires_at: datetime | None,
+) -> PromoCode:
+    """Admin creates a new promotional discount code."""
+    code_upper = code.upper().strip()
+    existing = await db.execute(
+        select(PromoCode).where(PromoCode.code == code_upper)
+    )
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Promo code '{code_upper}' already exists",
+        )
+    promo = PromoCode(
+        code=code_upper,
+        discount_pct=discount_pct,
+        max_uses=max_uses,
+        expires_at=expires_at,
+    )
+    db.add(promo)
+    await db.commit()
+    await db.refresh(promo)
+    return promo
+
+
+async def list_promos(db: AsyncSession) -> list[PromoCode]:
+    """Return all promo codes (newest first)."""
+    result = await db.execute(
+        select(PromoCode).order_by(PromoCode.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def deactivate_promo(db: AsyncSession, code: str) -> PromoCode:
+    """Admin deactivates a promo code (sets active=False)."""
+    code_upper = code.upper().strip()
+    result = await db.execute(
+        select(PromoCode).where(PromoCode.code == code_upper)
+    )
+    promo: PromoCode | None = result.scalar_one_or_none()
+    if promo is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Promo code '{code_upper}' not found",
+        )
+    promo.active = False
+    await db.commit()
+    await db.refresh(promo)
+    return promo
+
+
+async def validate_promo(db: AsyncSession, code: str) -> dict:
+    """Check whether a promo code is currently usable.
+
+    Returns {"valid": True, "code": str, "discount_pct": int} or raises 422.
+    """
+    code_upper = code.upper().strip()
+    result = await db.execute(
+        select(PromoCode).where(PromoCode.code == code_upper)
+    )
+    promo: PromoCode | None = result.scalar_one_or_none()
+    if promo is None or not promo.active:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Promo code '{code}' is invalid or inactive",
+        )
+    if promo.expires_at is not None and _utc(promo.expires_at) < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Promo code '{code}' has expired",
+        )
+    if promo.max_uses is not None and promo.uses >= promo.max_uses:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Promo code '{code}' has reached its usage limit",
+        )
+    return {"valid": True, "code": promo.code, "discount_pct": promo.discount_pct}
+
+
+_VALID_DRIVER_STATUSES = {"active", "inactive", "suspended"}
+
+
+async def admin_set_driver_status(
+    db: AsyncSession, driver_id_str: str, new_status: str
+) -> dict:
+    """Admin sets the status of a driver (active | inactive | suspended)."""
+    if new_status not in _VALID_DRIVER_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid status '{new_status}'. Valid: {sorted(_VALID_DRIVER_STATUSES)}",
+        )
+    try:
+        driver_uuid = uuid.UUID(driver_id_str)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid driver_id format",
+        )
+    result = await db.execute(select(Driver).where(Driver.id == driver_uuid))
+    driver: Driver | None = result.scalar_one_or_none()
+    if driver is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver not found",
+        )
+    driver.status = new_status
+    await db.commit()
+    await db.refresh(driver)
+    return {"driver_id": str(driver.id), "status": driver.status}

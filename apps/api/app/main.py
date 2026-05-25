@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 13.
+"""Ziza API — Sprint 14.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -43,6 +43,11 @@ Endpoints:
   GET   /v1/drivers/me/vehicle                     driver gets their current vehicle
   GET   /v1/assistance                             customer lists all their assistance requests
   GET   /v1/admin/users                            admin lists all registered users
+  POST  /v1/admin/promos                           admin creates a promo code
+  GET   /v1/admin/promos                           admin lists all promo codes
+  DELETE /v1/admin/promos/{code}                   admin deactivates a promo code
+  PATCH /v1/admin/drivers/{driver_id}/status       admin sets driver status
+  POST  /v1/promos/validate                        customer validates a promo code
 """
 from __future__ import annotations
 
@@ -264,6 +269,7 @@ async def estimate(
 
 class TripRequest(BaseModel):
     estimate_id: str
+    promo_code: str | None = None  # Sprint 14: optional promo discount
 
 
 class TripEventOut(BaseModel):
@@ -293,6 +299,8 @@ class TripResponse(BaseModel):
     dest_lat: float | None = None
     dest_lng: float | None = None
     vehicle: VehicleInfo | None = None  # populated once driver accepts — Sprint 12
+    promo_code: str | None = None       # Sprint 14: applied promo code
+    discount_pct: int | None = None     # Sprint 14: discount applied
     created_at: str
     events: list[TripEventOut] | None = None
 
@@ -317,6 +325,8 @@ def _trip_response(trip, events=None, vehicle=None) -> TripResponse:
         dest_lat=trip.dest_lat,
         dest_lng=trip.dest_lng,
         vehicle=_vehicle_info(vehicle),
+        promo_code=trip.promo_code,
+        discount_pct=trip.discount_pct,
         created_at=trip.created_at.isoformat(),
         events=[
             TripEventOut(
@@ -336,7 +346,7 @@ async def create_trip(
     db: AsyncSession = Depends(get_db),
 ) -> TripResponse:
     """Book a trip from a previously created (non-expired) estimate."""
-    trip = await crud.create_trip(db, claims, body.estimate_id)
+    trip = await crud.create_trip(db, claims, body.estimate_id, promo_code=body.promo_code)
     return _trip_response(trip)
 
 
@@ -1216,3 +1226,148 @@ async def admin_list_assistance(
     limit = min(limit, 200)
     rows = await crud.admin_list_assistance(db, limit=limit, offset=offset)
     return [AdminAssistanceRecord(**r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Promo codes — Sprint 14
+# ---------------------------------------------------------------------------
+
+class PromoRequest(BaseModel):
+    code: str = Field(..., min_length=2, max_length=32)
+    discount_pct: int = Field(..., ge=1, le=100)
+    max_uses: int | None = Field(None, ge=1)
+    expires_at: str | None = None  # ISO8601 datetime string, optional
+
+
+class PromoResponse(BaseModel):
+    promo_id: str
+    code: str
+    discount_pct: int
+    max_uses: int | None = None
+    uses: int
+    active: bool
+    expires_at: str | None = None
+    created_at: str
+
+
+def _promo_response(p) -> PromoResponse:
+    return PromoResponse(
+        promo_id=str(p.id),
+        code=p.code,
+        discount_pct=p.discount_pct,
+        max_uses=p.max_uses,
+        uses=p.uses,
+        active=p.active,
+        expires_at=p.expires_at.isoformat() if p.expires_at else None,
+        created_at=p.created_at.isoformat(),
+    )
+
+
+class PromoValidateRequest(BaseModel):
+    code: str
+
+
+class PromoValidateResponse(BaseModel):
+    valid: bool
+    code: str
+    discount_pct: int
+
+
+@app.post("/v1/admin/promos", tags=["promos"], status_code=201)
+async def admin_create_promo(
+    body: PromoRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PromoResponse:
+    """Admin: create a promotional discount code."""
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    from datetime import datetime as _dt
+    expires_at = None
+    if body.expires_at:
+        try:
+            expires_at = _dt.fromisoformat(body.expires_at.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="expires_at must be a valid ISO8601 datetime string",
+            )
+    promo = await crud.create_promo(
+        db, body.code, body.discount_pct, body.max_uses, expires_at
+    )
+    return _promo_response(promo)
+
+
+@app.get("/v1/admin/promos", tags=["promos"])
+async def admin_list_promos(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[PromoResponse]:
+    """Admin: list all promotional codes."""
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    promos = await crud.list_promos(db)
+    return [_promo_response(p) for p in promos]
+
+
+@app.delete("/v1/admin/promos/{code}", tags=["promos"])
+async def admin_deactivate_promo(
+    code: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PromoResponse:
+    """Admin: deactivate a promo code (sets active=False, preserves history)."""
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    promo = await crud.deactivate_promo(db, code)
+    return _promo_response(promo)
+
+
+@app.post("/v1/promos/validate", tags=["promos"])
+async def validate_promo(
+    body: PromoValidateRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PromoValidateResponse:
+    """Customer: check whether a promo code is valid before booking."""
+    result = await crud.validate_promo(db, body.code)
+    return PromoValidateResponse(**result)
+
+
+# ---------------------------------------------------------------------------
+# Admin driver status management — Sprint 14
+# ---------------------------------------------------------------------------
+
+class DriverStatusRequest(BaseModel):
+    status: Literal["active", "inactive", "suspended"]
+
+
+class DriverStatusResponse(BaseModel):
+    driver_id: str
+    status: str
+
+
+@app.patch("/v1/admin/drivers/{driver_id}/status", tags=["admin"])
+async def admin_set_driver_status(
+    driver_id: str,
+    body: DriverStatusRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> DriverStatusResponse:
+    """Admin: set a driver's status (active | inactive | suspended)."""
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    result = await crud.admin_set_driver_status(db, driver_id, body.status)
+    return DriverStatusResponse(**result)

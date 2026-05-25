@@ -3,6 +3,7 @@ import {
   login, fetchMe, registerUser,
   adminListDrivers, adminSetDriverCapabilities,
   adminGetStats, adminListTrips, adminListUsers, adminListAssistance,
+  adminCreatePromo, adminListPromos, adminDeactivatePromo, adminSetDriverStatus,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -43,7 +44,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 13 — Historique & présence</p>
+      <p className="subtitle">Sprint 14 — Codes promo & gestion chauffeurs</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -244,7 +245,15 @@ function CapabilityEditor({ token, driver, onSaved, onCancel }) {
 // Driver row
 // ---------------------------------------------------------------------------
 
-function DriverRow({ driver, onEdit }) {
+function DriverRow({ driver, onEdit, onStatusChange }) {
+  const [changingStatus, setChangingStatus] = useState(false);
+
+  async function handleStatus(newStatus) {
+    setChangingStatus(true);
+    try { await onStatusChange(driver.driver_id, newStatus); }
+    finally { setChangingStatus(false); }
+  }
+
   return (
     <div className="driver-card">
       <div className="driver-card-header">
@@ -252,7 +261,28 @@ function DriverRow({ driver, onEdit }) {
           <span className="driver-email">{driver.email}</span>
           <span className={`driver-status-badge ${driver.status}`}>{driver.status}</span>
         </div>
-        <button className="edit-caps-btn" onClick={() => onEdit(driver)}>Compétences</button>
+        <div className="driver-card-actions">
+          <button className="edit-caps-btn" onClick={() => onEdit(driver)}>Compétences</button>
+          {driver.status !== "suspended" ? (
+            <button
+              className="suspend-btn"
+              onClick={() => handleStatus("suspended")}
+              disabled={changingStatus}
+              title="Suspendre ce chauffeur"
+            >
+              🚫
+            </button>
+          ) : (
+            <button
+              className="activate-btn"
+              onClick={() => handleStatus("active")}
+              disabled={changingStatus}
+              title="Réactiver ce chauffeur"
+            >
+              ✅
+            </button>
+          )}
+        </div>
       </div>
       <div className="driver-caps">
         {driver.capabilities.length > 0
@@ -288,6 +318,15 @@ function DriversPanel({ token }) {
     setEditing(null);
   }
 
+  async function handleStatusChange(driverId, newStatus) {
+    try {
+      const result = await adminSetDriverStatus(token, driverId, newStatus);
+      setDrivers((prev) => prev.map((d) =>
+        d.driver_id === driverId ? { ...d, status: result.status } : d
+      ));
+    } catch (e) { setError(e.message); }
+  }
+
   return (
     <div className="drivers-panel">
       <div className="panel-header">
@@ -298,7 +337,9 @@ function DriversPanel({ token }) {
       {editing && <CapabilityEditor token={token} driver={editing} onSaved={handleSaved} onCancel={() => setEditing(null)} />}
       {!loading && drivers.length === 0 && <div className="empty-state">Aucun chauffeur enregistré.</div>}
       <div className="driver-list">
-        {drivers.map((d) => <DriverRow key={d.driver_id} driver={d} onEdit={setEditing} />)}
+        {drivers.map((d) => (
+          <DriverRow key={d.driver_id} driver={d} onEdit={setEditing} onStatusChange={handleStatusChange} />
+        ))}
       </div>
     </div>
   );
@@ -431,6 +472,122 @@ function AssistancePanel({ token }) {
 }
 
 // ---------------------------------------------------------------------------
+// Promo panel — Sprint 14
+// ---------------------------------------------------------------------------
+
+function PromoPanel({ token }) {
+  const [promos, setPromos] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  // Form state
+  const [code, setCode] = useState("");
+  const [pct, setPct] = useState("10");
+  const [maxUses, setMaxUses] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true); setError(null);
+    try { setPromos(await adminListPromos(token)); }
+    catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleCreate(e) {
+    e.preventDefault();
+    if (!code.trim()) return;
+    setCreating(true); setCreateError(null);
+    try {
+      await adminCreatePromo(token, code.trim(), Number(pct), maxUses ? Number(maxUses) : null, null);
+      setCode(""); setPct("10"); setMaxUses("");
+      await load();
+    } catch (e) { setCreateError(e.message); }
+    finally { setCreating(false); }
+  }
+
+  async function handleDeactivate(promoCode) {
+    try {
+      await adminDeactivatePromo(token, promoCode);
+      setPromos((prev) => prev.map((p) => p.code === promoCode ? { ...p, active: false } : p));
+    } catch (e) { setError(e.message); }
+  }
+
+  return (
+    <div className="promo-panel">
+      <div className="panel-header">
+        <h2 className="panel-title">Codes promo</h2>
+        <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
+      </div>
+
+      {/* Create form */}
+      <form className="promo-create-form" onSubmit={handleCreate}>
+        <div className="promo-form-row">
+          <input
+            className="promo-code-input"
+            placeholder="Code (ex: ZIZA10)"
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            maxLength={32}
+            required
+          />
+          <input
+            className="promo-pct-input"
+            type="number"
+            min="1"
+            max="100"
+            placeholder="% remise"
+            value={pct}
+            onChange={(e) => setPct(e.target.value)}
+            required
+          />
+          <input
+            className="promo-max-input"
+            type="number"
+            min="1"
+            placeholder="Max utilisations"
+            value={maxUses}
+            onChange={(e) => setMaxUses(e.target.value)}
+          />
+          <button type="submit" className="cap-save-btn" disabled={creating}>
+            {creating ? "…" : "✚ Créer"}
+          </button>
+        </div>
+        {createError && <p className="form-error">{createError}</p>}
+      </form>
+
+      {error && <p className="form-error">{error}</p>}
+      {!loading && promos.length === 0 && (
+        <div className="empty-state">Aucun code promo créé.</div>
+      )}
+      <div className="promo-list">
+        {promos.map((p) => (
+          <div key={p.promo_id} className={`promo-row ${p.active ? "" : "promo-inactive"}`}>
+            <div className="promo-row-main">
+              <span className="promo-code-badge">{p.code}</span>
+              <span className="promo-pct">-{p.discount_pct}%</span>
+              <span className={`promo-status ${p.active ? "active" : "inactive"}`}>
+                {p.active ? "Actif" : "Inactif"}
+              </span>
+            </div>
+            <div className="promo-row-meta">
+              <span>{p.uses} utilisation{p.uses !== 1 ? "s" : ""}{p.max_uses ? ` / ${p.max_uses}` : ""}</span>
+              {p.expires_at && <span>Expire: {new Date(p.expires_at).toLocaleDateString("fr-FR")}</span>}
+            </div>
+            {p.active && (
+              <button className="promo-deactivate-btn" onClick={() => handleDeactivate(p.code)}>
+                Désactiver
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard — tabbed navigation
 // ---------------------------------------------------------------------------
 
@@ -439,6 +596,7 @@ const TABS = [
   { id: "trips",     label: "🚕 Courses" },
   { id: "assist",    label: "🆘 Assistances" },
   { id: "drivers",   label: "🧑‍✈️ Chauffeurs" },
+  { id: "promos",    label: "🏷️ Promos" },
   { id: "users",     label: "👥 Utilisateurs" },
 ];
 
@@ -466,9 +624,10 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "trips"   && <TripsPanel      token={token} />}
       {activeTab === "assist"  && <AssistancePanel token={token} />}
       {activeTab === "drivers" && <DriversPanel    token={token} />}
+      {activeTab === "promos"  && <PromoPanel      token={token} />}
       {activeTab === "users"   && <UsersPanel      token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 13</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 14</p>
     </div>
   );
 }
