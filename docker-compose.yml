@@ -1,4 +1,27 @@
 services:
+  # ------------------------------------------------------------------
+  # PostgreSQL database (Sprint 4)
+  # ------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: ziza-db
+    environment:
+      POSTGRES_USER: ziza
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-ziza-local}"
+      POSTGRES_DB: ziza
+    ports:
+      - "5432:5432"
+    volumes:
+      - ziza_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ziza -d ziza"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ------------------------------------------------------------------
+  # API
+  # ------------------------------------------------------------------
   api:
     build:
       context: ./apps/api
@@ -9,14 +32,21 @@ services:
       PORT: "8000"
       AUTH_DEV_SECRET: "${AUTH_DEV_SECRET:-dev-secret-change-me}"
       AUTH_DEV_PASSWORD: "${AUTH_DEV_PASSWORD:-ziza2024}"
+      DATABASE_URL: "postgresql+asyncpg://ziza:${DB_PASSWORD:-ziza-local}@db:5432/ziza"
     ports:
       - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
       interval: 10s
       timeout: 3s
       retries: 5
 
+  # ------------------------------------------------------------------
+  # Frontends
+  # ------------------------------------------------------------------
   web-customer:
     build:
       context: ./apps/web-customer
@@ -58,3 +88,6 @@ services:
     depends_on:
       api:
         condition: service_healthy
+
+volumes:
+  ziza_pgdata:

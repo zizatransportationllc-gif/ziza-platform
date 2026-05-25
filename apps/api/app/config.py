@@ -38,5 +38,15 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     firebase_project_id: str = ""
 
+    # ------------------------------------------------------------------
+    # Database (Sprint 4)
+    # ------------------------------------------------------------------
+    # Full async-compatible connection URL.
+    # Set to empty string when running without a DB (dev / CI without Postgres).
+    # Example (local):  postgresql+asyncpg://ziza:ziza@localhost:5432/ziza
+    # Example (Cloud SQL unix socket):
+    #   postgresql+asyncpg://ziza:pass@/ziza?host=/cloudsql/proj:region:inst
+    database_url: str = ""
+
 
 settings = Settings()

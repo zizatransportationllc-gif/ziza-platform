@@ -1,18 +1,22 @@
-"""Ziza API — Sprint 3.
+"""Ziza API — Sprint 4.
 
 Endpoints:
-  GET  /health          liveness probe
-  GET  /v1/demo         Sprint 1 demo payload
-  POST /v1/token        [DEV only] exchange email+password for a JWT
-  GET  /v1/me           return normalised claims for the authenticated user
+  GET  /health             liveness probe
+  GET  /v1/demo            Sprint 1 demo payload
+  POST /v1/token           [DEV only] exchange email+password for a JWT
+  GET  /v1/me              return normalised claims for the authenticated user
+  POST /v1/auth/register   upsert user in DB and return profile
 """
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import crud
 from app.auth.base import Claims
 from app.auth.dependencies import get_current_user
 from app.config import settings
+from app.db import get_db
 
 app = FastAPI(
     title="Ziza API",
@@ -107,7 +111,7 @@ def me(claims: Claims = Depends(get_current_user)) -> MeResponse:
 
 
 # ---------------------------------------------------------------------------
-# Auth — POST /v1/auth/register  (Sprint 3)
+# Auth — POST /v1/auth/register  (Sprint 4 — real DB upsert)
 # ---------------------------------------------------------------------------
 
 class RegisterResponse(BaseModel):
@@ -115,22 +119,24 @@ class RegisterResponse(BaseModel):
     email: str
     role: str
     provider: str
-    created: bool  # True = new user, False = existing user updated
+    created: bool  # True = new user row, False = existing user (possibly updated)
 
 
 @app.post("/v1/auth/register", tags=["auth"])
-def register(claims: Claims = Depends(get_current_user)) -> RegisterResponse:
+async def register(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> RegisterResponse:
     """Upsert the authenticated user in the database.
 
     Called once after the first sign-in (any provider).
-    Sprint 3: returns a stub response.
-    Sprint 4: will write to PostgreSQL.
+    Idempotent — safe to call on every login.
     """
-    # TODO Sprint 4: upsert into `users` table
+    user, created = await crud.upsert_user(db, claims)
     return RegisterResponse(
-        user_id=claims.user_id,
-        email=claims.email,
-        role=claims.role,
-        provider=claims.provider,
-        created=True,  # Sprint 4 will detect real create vs update
+        user_id=user.user_id,
+        email=user.email,
+        role=user.role,
+        provider=user.provider,
+        created=created,
     )

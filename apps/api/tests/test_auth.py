@@ -73,7 +73,8 @@ def test_me_admin() -> None:
 
 def test_me_no_token() -> None:
     resp = client.get("/v1/me")
-    assert resp.status_code == 403
+    # 401 (newer FastAPI) or 403 (FastAPI ≤0.115) — both mean "not authenticated"
+    assert resp.status_code in {401, 403}
 
 
 def test_me_invalid_token() -> None:

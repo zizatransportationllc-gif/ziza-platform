@@ -94,7 +94,11 @@ jobs:
 
           EXTRA_FLAGS=""
           if [ "${{ matrix.app }}" = "api" ]; then
-            EXTRA_FLAGS="--set-env-vars=^|^ENVIRONMENT=dev|CORS_ORIGINS_RAW=${{ vars.ZIZA_CORS_ORIGINS }}|AUTH_DEV_SECRET=${{ secrets.AUTH_DEV_SECRET }}|AUTH_DEV_PASSWORD=${{ vars.AUTH_DEV_PASSWORD }}"
+            EXTRA_FLAGS="--set-env-vars=^|^ENVIRONMENT=dev|CORS_ORIGINS_RAW=${{ vars.ZIZA_CORS_ORIGINS }}|AUTH_DEV_SECRET=${{ secrets.AUTH_DEV_SECRET }}|AUTH_DEV_PASSWORD=${{ vars.AUTH_DEV_PASSWORD }}|DATABASE_URL=${{ secrets.DATABASE_URL }}"
+            # Attach Cloud SQL instance so the API can reach the DB via unix socket
+            if [ -n "${{ vars.CLOUD_SQL_INSTANCE }}" ]; then
+              EXTRA_FLAGS="$EXTRA_FLAGS --add-cloudsql-instances=${{ vars.CLOUD_SQL_INSTANCE }}"
+            fi
           fi
 
           gcloud run deploy "$SERVICE" \
