@@ -113,7 +113,7 @@ async def create_trip(
         est_uuid = uuid.UUID(estimate_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Invalid estimate_id format",
         )
 
@@ -132,7 +132,7 @@ async def create_trip(
         )
     if _utc(est.expires_at) < datetime.now(timezone.utc):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Estimate has expired — request a new one",
         )
 
@@ -174,7 +174,7 @@ async def get_trip(
         trip_uuid = uuid.UUID(trip_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Invalid trip_id format",
         )
 
@@ -337,7 +337,7 @@ async def _load_trip_for_driver(db: AsyncSession, trip_id: str, driver: Driver) 
         trip_uuid = uuid.UUID(trip_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Invalid trip_id format",
         )
     result = await db.execute(select(Trip).where(Trip.id == trip_uuid))
@@ -357,7 +357,7 @@ async def accept_trip(db: AsyncSession, trip_id: str, auth_user_id: str) -> Trip
         trip_uuid = uuid.UUID(trip_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Invalid trip_id format",
         )
     result = await db.execute(select(Trip).where(Trip.id == trip_uuid))
@@ -447,7 +447,7 @@ async def create_rating(
         trip_uuid = uuid.UUID(trip_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Invalid trip_id format",
         )
 
@@ -462,12 +462,12 @@ async def create_rating(
 
     if trip.status != "completed":
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Only completed trips can be rated (current status: {trip.status})",
         )
     if trip.driver_id is None:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Trip has no assigned driver",
         )
 
@@ -498,7 +498,7 @@ async def get_trip_rating(db: AsyncSession, trip_id: str) -> Rating | None:
         trip_uuid = uuid.UUID(trip_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Invalid trip_id format",
         )
     result = await db.execute(select(Rating).where(Rating.trip_id == trip_uuid))
