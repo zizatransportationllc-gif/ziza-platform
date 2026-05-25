@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 15.
+"""Ziza API — Sprint 16.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -6,6 +6,8 @@ Endpoints:
   POST  /v1/token                                  [DEV only] exchange email+password for a JWT
   GET   /v1/me                                     return normalised claims for the authenticated user
   POST  /v1/auth/register                          upsert user in DB and return profile
+  GET   /v1/profile                                authenticated user's profile (name, phone)
+  PATCH /v1/profile                                update user's name and/or phone
   POST  /v1/estimate                               fare estimate for a ride (origin → destination)
   POST  /v1/trips                                  book a trip from a valid estimate
   GET   /v1/trips                                  list customer's trips (paginated)
@@ -53,6 +55,8 @@ Endpoints:
   GET   /v1/admin/payout-requests                  admin lists all payout requests
   PATCH /v1/admin/payout-requests/{id}/status      admin approves or rejects a payout
   GET   /v1/admin/ratings                          admin lists all ratings
+  GET   /v1/admin/settings/surge                   admin reads the surge multiplier
+  PATCH /v1/admin/settings/surge                   admin sets the surge multiplier (1.0-5.0)
 """
 from __future__ import annotations
 
@@ -191,6 +195,49 @@ async def register(
 
 
 # ---------------------------------------------------------------------------
+# User Profile — GET/PATCH /v1/profile  (Sprint 16)
+# ---------------------------------------------------------------------------
+
+class UserProfileResponse(BaseModel):
+    user_id: str
+    email: str
+    role: str
+    name: str | None = None
+    phone: str | None = None
+    created_at: str
+
+
+class UserProfileUpdateRequest(BaseModel):
+    name: str | None = Field(None, max_length=128, description="Display name (null = leave unchanged)")
+    phone: str | None = Field(None, max_length=32, description="Phone number (null = leave unchanged)")
+
+
+@app.get("/v1/profile", tags=["profile"])
+async def get_profile(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserProfileResponse:
+    """Return the authenticated user's profile including optional name and phone."""
+    profile = await crud.get_user_profile(db, claims.user_id)
+    return UserProfileResponse(**profile)
+
+
+@app.patch("/v1/profile", tags=["profile"])
+async def update_profile(
+    body: UserProfileUpdateRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserProfileResponse:
+    """Update the authenticated user's display name and/or phone number.
+
+    Omit a field (or send null) to leave it unchanged.
+    Send an empty string to clear a field.
+    """
+    profile = await crud.update_user_profile(db, claims.user_id, body.name, body.phone)
+    return UserProfileResponse(**profile)
+
+
+# ---------------------------------------------------------------------------
 # Rides — POST /v1/estimate  (Sprint 5)
 # ---------------------------------------------------------------------------
 
@@ -232,7 +279,7 @@ async def estimate(
         body.origin_lat, body.origin_lng,
         body.dest_lat, body.dest_lng,
     )
-    surge = settings.fare_surge_multiplier
+    surge = await crud.get_surge_multiplier(db)  # Sprint 16: read from DB (falls back to config)
     fare = calculate_fare(route.distance_km, surge)
 
     now = datetime.now(timezone.utc)
@@ -1532,3 +1579,52 @@ async def admin_list_ratings(
     limit = min(limit, 200)
     rows = await crud.admin_list_ratings(db, limit=limit, offset=offset)
     return [AdminRatingRecord(**r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Admin Surge Pricing — Sprint 16
+# ---------------------------------------------------------------------------
+
+class SurgeResponse(BaseModel):
+    surge_multiplier: float
+
+
+class SurgeUpdateRequest(BaseModel):
+    surge_multiplier: Annotated[
+        float,
+        Field(ge=1.0, le=5.0, description="Surge multiplier (1.0 = normal, max 5.0)"),
+    ]
+
+
+@app.get("/v1/admin/settings/surge", tags=["admin"])
+async def admin_get_surge(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SurgeResponse:
+    """Admin: return the current fare surge multiplier."""
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    value = await crud.get_surge_multiplier(db)
+    return SurgeResponse(surge_multiplier=value)
+
+
+@app.patch("/v1/admin/settings/surge", tags=["admin"])
+async def admin_set_surge(
+    body: SurgeUpdateRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SurgeResponse:
+    """Admin: set the fare surge multiplier (1.0 = normal pricing, max 5.0).
+
+    The new value takes effect immediately on subsequent calls to POST /v1/estimate.
+    """
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    value = await crud.set_surge_multiplier(db, body.surge_multiplier)
+    return SurgeResponse(surge_multiplier=value)

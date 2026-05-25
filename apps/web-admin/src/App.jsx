@@ -5,6 +5,7 @@ import {
   adminGetStats, adminListTrips, adminListUsers, adminListAssistance,
   adminCreatePromo, adminListPromos, adminDeactivatePromo, adminSetDriverStatus,
   adminListPayouts, adminUpdatePayoutStatus, adminListRatings,
+  adminGetSurge, adminSetSurge,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -45,7 +46,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 15 — Retraits & avis</p>
+      <p className="subtitle">Sprint 16 — Profil & tarification dynamique</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -744,6 +745,91 @@ function RatingsPanel({ token }) {
 }
 
 // ---------------------------------------------------------------------------
+// Surge Pricing Panel — Sprint 16
+// ---------------------------------------------------------------------------
+
+function SurgePanel({ token }) {
+  const [current, setCurrent] = useState(null);
+  const [input, setInput] = useState("1.0");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true); setError(null);
+    adminGetSurge(token)
+      .then((d) => { setCurrent(d.surge_multiplier); setInput(String(d.surge_multiplier)); })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleSave(e) {
+    e.preventDefault();
+    const val = parseFloat(input);
+    if (isNaN(val)) { setError("Valeur invalide."); return; }
+    setSaving(true); setError(null); setSuccess(false);
+    try {
+      const d = await adminSetSurge(token, val);
+      setCurrent(d.surge_multiplier);
+      setInput(String(d.surge_multiplier));
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err) { setError(err.message); }
+    finally { setSaving(false); }
+  }
+
+  const surgeColor = current >= 2 ? "#ef4444" : current >= 1.5 ? "#f59e0b" : "#4ade80";
+
+  return (
+    <div className="surge-panel">
+      <div className="panel-header">
+        <h2 className="panel-title">⚙️ Tarification dynamique</h2>
+        <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
+      </div>
+      {loading && <div className="status loading">⏳ Chargement…</div>}
+      {!loading && current !== null && (
+        <div className="surge-current">
+          <span className="surge-label">Multiplicateur actuel :</span>
+          <span className="surge-value" style={{ color: surgeColor }}>×{current}</span>
+          {current === 1.0 && <span className="surge-badge normal">Prix normal</span>}
+          {current > 1.0 && current < 2.0 && <span className="surge-badge moderate">Modéré</span>}
+          {current >= 2.0 && <span className="surge-badge high">Forte demande</span>}
+        </div>
+      )}
+      <form className="surge-form" onSubmit={handleSave}>
+        <label className="surge-form-label">
+          Nouveau multiplicateur (1.0 – 5.0)
+          <div className="surge-input-row">
+            <input
+              className="surge-input"
+              type="number"
+              step="0.1"
+              min="1.0"
+              max="5.0"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              disabled={saving}
+            />
+            <button className="surge-set-btn" type="submit" disabled={saving}>
+              {saving ? "…" : "Appliquer"}
+            </button>
+          </div>
+        </label>
+        {error && <p className="form-error">{error}</p>}
+        {success && <p className="surge-success">✓ Multiplicateur mis à jour</p>}
+      </form>
+      <div className="surge-hint">
+        <p>1.0 = prix de base · 2.0 = prix doublé · max 5.0</p>
+        <p>Prend effet immédiatement sur les prochaines estimations.</p>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard — tabbed navigation
 // ---------------------------------------------------------------------------
 
@@ -755,6 +841,7 @@ const TABS = [
   { id: "promos",    label: "🏷️ Promos" },
   { id: "payouts",   label: "💸 Retraits" },
   { id: "ratings",   label: "⭐ Avis" },
+  { id: "settings",  label: "⚙️ Paramètres" },
   { id: "users",     label: "👥 Utilisateurs" },
 ];
 
@@ -778,16 +865,17 @@ function Dashboard({ user, token, onLogout }) {
         ))}
       </div>
 
-      {activeTab === "stats"   && <StatsPanel      token={token} />}
-      {activeTab === "trips"   && <TripsPanel      token={token} />}
-      {activeTab === "assist"  && <AssistancePanel token={token} />}
-      {activeTab === "drivers" && <DriversPanel    token={token} />}
+      {activeTab === "stats"    && <StatsPanel      token={token} />}
+      {activeTab === "trips"    && <TripsPanel      token={token} />}
+      {activeTab === "assist"   && <AssistancePanel token={token} />}
+      {activeTab === "drivers"  && <DriversPanel    token={token} />}
       {activeTab === "promos"   && <PromoPanel      token={token} />}
       {activeTab === "payouts"  && <PayoutsPanel    token={token} />}
       {activeTab === "ratings"  && <RatingsPanel    token={token} />}
+      {activeTab === "settings" && <SurgePanel      token={token} />}
       {activeTab === "users"    && <UsersPanel      token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 15</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 16</p>
     </div>
   );
 }

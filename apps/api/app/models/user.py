@@ -1,4 +1,4 @@
-"""User model — Sprint 4."""
+"""User model — Sprint 4 → Sprint 16."""
 from __future__ import annotations
 
 import uuid
@@ -19,6 +19,7 @@ class User(Base):
 
     ``user_id`` is the external auth identifier (Firebase UID or dev seeded ID).
     ``email`` is the canonical identity key shown to the user.
+    ``name`` and ``phone`` are optional profile fields added in Sprint 16.
     """
 
     __tablename__ = "users"
@@ -36,6 +37,9 @@ class User(Base):
         String(32), nullable=False, default="customer"
     )
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    # Sprint 16: optional display name and phone number
+    name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )

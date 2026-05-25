@@ -196,3 +196,23 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .rating-customer { font-size: 0.85rem; color: var(--color-muted); }
 .rating-comment { font-style: italic; font-size: 0.88rem; color: var(--color-fg); margin: var(--space-1) 0; }
 .rating-row-meta { font-size: 0.78rem; color: var(--color-muted); display: flex; justify-content: space-between; margin-top: var(--space-2); }
+
+
+/* ---- Surge pricing panel — Sprint 16 ---- */
+.surge-panel { padding: var(--space-4) 0; }
+.surge-current { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4); background: var(--color-surface, #1e293b); border-radius: var(--radius-md); margin-bottom: var(--space-4); flex-wrap: wrap; }
+.surge-label { font-size: 0.9rem; color: var(--color-muted); }
+.surge-value { font-size: 2rem; font-weight: 800; }
+.surge-badge { font-size: 0.75rem; font-weight: 700; border-radius: 999px; padding: 2px 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+.surge-badge.normal { background: #166534; color: #4ade80; }
+.surge-badge.moderate { background: #78350f; color: #fbbf24; }
+.surge-badge.high { background: #7f1d1d; color: #f87171; }
+.surge-form { background: var(--color-surface, #1e293b); border-radius: var(--radius-md); padding: var(--space-4); }
+.surge-form-label { display: flex; flex-direction: column; gap: var(--space-2); font-size: 0.875rem; font-weight: 600; }
+.surge-input-row { display: flex; gap: var(--space-2); align-items: center; }
+.surge-input { flex: 1; padding: 0.6rem 0.875rem; border-radius: var(--radius-md); border: 1px solid var(--color-border, #334155); background: var(--color-bg); color: var(--color-fg); font-size: 1rem; }
+.surge-set-btn { padding: 0.6rem 1.25rem; border-radius: var(--radius-md); background: var(--color-accent); color: #fff; font-weight: 700; border: none; cursor: pointer; white-space: nowrap; }
+.surge-set-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.surge-success { color: #4ade80; font-size: 0.875rem; font-weight: 600; margin: var(--space-2) 0 0; }
+.surge-hint { font-size: 0.8rem; color: var(--color-muted); margin-top: var(--space-3); line-height: 1.5; }
+.surge-hint p { margin: 0 0 var(--space-1); }

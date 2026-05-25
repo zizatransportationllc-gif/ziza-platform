@@ -1,4 +1,4 @@
-"""CRUD helpers — Sprint 4 → Sprint 12.
+"""CRUD helpers — Sprint 4 → Sprint 16.
 
 All functions are async and receive an ``AsyncSession`` from the FastAPI
 ``get_db`` dependency.
@@ -20,6 +20,7 @@ from app.models.driver import Driver
 from app.models.driver_capability import DriverCapability
 from app.models.estimate import Estimate
 from app.models.payout_request import PayoutRequest as PayoutRequestModel
+from app.models.platform_setting import PlatformSetting
 from app.models.promo import PromoCode
 from app.models.rating import Rating
 from app.models.trip import Trip, TripEvent
@@ -1616,6 +1617,108 @@ async def admin_list_ratings(
         }
         for rating, user in result.all()
     ]
+
+
+# ---------------------------------------------------------------------------
+# Sprint 16 — User profile & surge pricing
+# ---------------------------------------------------------------------------
+
+async def get_user_profile(db: AsyncSession, auth_user_id: str) -> dict:
+    """Return the authenticated user's profile including name and phone."""
+    user = await _get_user_by_auth_id(db, auth_user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found — call POST /v1/auth/register first",
+        )
+    return {
+        "user_id": user.user_id,
+        "email": user.email,
+        "role": user.role,
+        "name": user.name,
+        "phone": user.phone,
+        "created_at": _utc(user.created_at).isoformat(),
+    }
+
+
+async def update_user_profile(
+    db: AsyncSession,
+    auth_user_id: str,
+    name: str | None,
+    phone: str | None,
+) -> dict:
+    """Update the user's name and/or phone.
+
+    A ``None`` value for a field means "leave unchanged".
+    Pass an empty string to clear the field.
+    """
+    user = await _get_user_by_auth_id(db, auth_user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found — call POST /v1/auth/register first",
+        )
+    if name is not None:
+        user.name = name if name != "" else None
+    if phone is not None:
+        user.phone = phone if phone != "" else None
+    user.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(user)
+    return {
+        "user_id": user.user_id,
+        "email": user.email,
+        "role": user.role,
+        "name": user.name,
+        "phone": user.phone,
+        "created_at": _utc(user.created_at).isoformat(),
+    }
+
+
+async def get_surge_multiplier(db: AsyncSession) -> float:
+    """Return the current surge multiplier from platform_settings.
+
+    Falls back to ``settings.fare_surge_multiplier`` (default 1.0) when not set.
+    """
+    from app.config import settings as _settings  # noqa: PLC0415
+
+    result = await db.execute(
+        select(PlatformSetting).where(PlatformSetting.key == "surge_multiplier")
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        return float(_settings.fare_surge_multiplier)
+    try:
+        return float(row.value)
+    except (ValueError, TypeError):
+        return float(_settings.fare_surge_multiplier)
+
+
+async def set_surge_multiplier(db: AsyncSession, value: float) -> float:
+    """Upsert the surge multiplier in platform_settings.
+
+    Validates 1.0 ≤ value ≤ 5.0.  Returns the stored value.
+    """
+    if value < 1.0 or value > 5.0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="surge_multiplier must be between 1.0 and 5.0",
+        )
+
+    result = await db.execute(
+        select(PlatformSetting).where(PlatformSetting.key == "surge_multiplier")
+    )
+    row = result.scalar_one_or_none()
+    now = datetime.now(timezone.utc)
+    if row is None:
+        row = PlatformSetting(key="surge_multiplier", value=str(value), updated_at=now)
+        db.add(row)
+    else:
+        row.value = str(value)
+        row.updated_at = now
+    await db.commit()
+    await db.refresh(row)
+    return float(row.value)
 
 
 _VALID_DRIVER_STATUSES = {"active", "inactive", "suspended"}

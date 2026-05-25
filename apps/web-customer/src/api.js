@@ -233,6 +233,41 @@ export async function validatePromo(token, code) {
 }
 
 // ---------------------------------------------------------------------------
+// User profile — Sprint 16
+// ---------------------------------------------------------------------------
+
+export async function getProfile(token) {
+  const res = await fetch(`${API_BASE}/v1/profile`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Get profile error (${res.status})`);
+  }
+  return res.json(); // UserProfileResponse
+}
+
+export async function updateProfile(token, name, phone) {
+  const body = {};
+  if (name !== undefined) body.name = name;
+  if (phone !== undefined) body.phone = phone;
+  const res = await fetch(`${API_BASE}/v1/profile`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Update profile error (${res.status})`);
+  }
+  return res.json(); // UserProfileResponse
+}
+
+// ---------------------------------------------------------------------------
 // Customer trip history — Sprint 13
 // ---------------------------------------------------------------------------
 

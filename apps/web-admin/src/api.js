@@ -179,6 +179,30 @@ export async function adminListRatings(token, limit = 50, offset = 0) {
   return _json(res); // AdminRatingRecord[]
 }
 
+// ---------------------------------------------------------------------------
+// Admin — surge pricing — Sprint 16
+// ---------------------------------------------------------------------------
+
+export async function adminGetSurge(token) {
+  const res = await fetch(`${API_BASE}/v1/admin/settings/surge`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // { surge_multiplier: float }
+}
+
+export async function adminSetSurge(token, surgeMultiplier) {
+  const res = await fetch(`${API_BASE}/v1/admin/settings/surge`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ surge_multiplier: surgeMultiplier }),
+  });
+  return _json(res); // { surge_multiplier: float }
+}
+
 export async function adminSetDriverStatus(token, driverId, newStatus) {
   const res = await fetch(`${API_BASE}/v1/admin/drivers/${driverId}/status`, {
     method: "PATCH",

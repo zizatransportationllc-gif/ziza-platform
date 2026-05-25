@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import {
   login, fetchMe, fetchDemo, registerUser, fetchEstimate, createTrip, getTrip, cancelTrip, rateTrip,
   createAssistanceRequest, getAssistanceRequest, cancelAssistanceRequest, listMyAssistance, listMyTrips,
-  validatePromo,
+  validatePromo, getProfile, updateProfile,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -65,7 +65,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Customer</h1>
-      <p className="subtitle">Sprint 8 — Notation du trajet</p>
+      <p className="subtitle">Sprint 16 — Profil utilisateur</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -598,13 +598,95 @@ function AssistanceHistory({ token }) {
 }
 
 // ---------------------------------------------------------------------------
+// Profile section — Sprint 16
+// ---------------------------------------------------------------------------
+
+function ProfileSection({ token }) {
+  const [profile, setProfile] = useState(null);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    getProfile(token)
+      .then((p) => {
+        setProfile(p);
+        setName(p.name || "");
+        setPhone(p.phone || "");
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  async function handleSave(e) {
+    e.preventDefault();
+    setSaving(true); setError(null); setSuccess(false);
+    try {
+      const updated = await updateProfile(token, name || null, phone || null);
+      setProfile(updated);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err) { setError(err.message); }
+    finally { setSaving(false); }
+  }
+
+  if (loading) return <p className="history-empty">⏳ Chargement du profil…</p>;
+  if (error && !profile) return <p className="form-error">{error}</p>;
+
+  return (
+    <div className="profile-section">
+      <h2 className="estimate-title">👤 Mon profil</h2>
+      {profile && (
+        <div className="profile-info">
+          <span className="profile-email">✉️ {profile.email}</span>
+          <span className="profile-role">{profile.role}</span>
+        </div>
+      )}
+      <form className="profile-form" onSubmit={handleSave}>
+        <label className="profile-label">
+          <span>Nom d'affichage</span>
+          <input
+            className="profile-input"
+            type="text"
+            placeholder="Votre nom (optionnel)"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={128}
+          />
+        </label>
+        <label className="profile-label">
+          <span>Téléphone</span>
+          <input
+            className="profile-input"
+            type="tel"
+            placeholder="+225 07 00 00 00"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            maxLength={32}
+          />
+        </label>
+        {error && <p className="form-error">{error}</p>}
+        {success && <p className="profile-success">✓ Profil mis à jour</p>}
+        <button type="submit" className="estimate-btn" disabled={saving}>
+          {saving ? "Enregistrement…" : "Enregistrer"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
 function Dashboard({ user, token, onLogout }) {
   const [activeTrip, setActiveTrip] = useState(null);
   const [activeAssistance, setActiveAssistance] = useState(null);
-  const [mode, setMode] = useState("ride"); // "ride" | "assistance" | "history" | "trips"
+  const [mode, setMode] = useState("ride"); // "ride" | "assistance" | "trips" | "history" | "profile"
 
   // Derive which main section to show
   const showBooking    = activeTrip && !TERMINAL_STATUSES.has(activeTrip.status);
@@ -665,6 +747,12 @@ function Dashboard({ user, token, onLogout }) {
             >
               📋 Historique
             </button>
+            <button
+              className={`mode-tab ${mode === "profile" ? "active" : ""}`}
+              onClick={() => setMode("profile")}
+            >
+              👤 Profil
+            </button>
           </div>
           {mode === "ride" && (
             <EstimateSection token={token} onTripCreated={setActiveTrip} />
@@ -684,10 +772,11 @@ function Dashboard({ user, token, onLogout }) {
               <AssistanceHistory token={token} />
             </div>
           )}
+          {mode === "profile" && <ProfileSection token={token} />}
         </>
       )}
 
-      <p className="footer">App: <strong>web-customer</strong> · Sprint 13</p>
+      <p className="footer">App: <strong>web-customer</strong> · Sprint 16</p>
     </div>
   );
 }
