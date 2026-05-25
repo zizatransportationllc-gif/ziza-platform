@@ -1,12 +1,16 @@
-"""Ziza API — Sprint 5.
+"""Ziza API — Sprint 6.
 
 Endpoints:
-  GET  /health             liveness probe
-  GET  /v1/demo            Sprint 1 demo payload
-  POST /v1/token           [DEV only] exchange email+password for a JWT
-  GET  /v1/me              return normalised claims for the authenticated user
-  POST /v1/auth/register   upsert user in DB and return profile
-  POST /v1/estimate        fare estimate for a ride (origin → destination)
+  GET   /health                      liveness probe
+  GET   /v1/demo                     Sprint 1 demo payload
+  POST  /v1/token                    [DEV only] exchange email+password for a JWT
+  GET   /v1/me                       return normalised claims for the authenticated user
+  POST  /v1/auth/register            upsert user in DB and return profile
+  POST  /v1/estimate                 fare estimate for a ride (origin → destination)
+  POST  /v1/trips                    book a trip from a valid estimate
+  GET   /v1/trips                    list customer's trips
+  GET   /v1/trips/{trip_id}          trip detail + events
+  PATCH /v1/trips/{trip_id}/cancel   customer cancels a pending/accepted trip
 """
 from __future__ import annotations
 
@@ -220,3 +224,100 @@ async def estimate(
         distance_source=est.distance_source,
         expires_at=est.expires_at.isoformat(),
     )
+
+
+# ---------------------------------------------------------------------------
+# Rides — Trip booking (Sprint 6)
+# ---------------------------------------------------------------------------
+
+class TripRequest(BaseModel):
+    estimate_id: str
+
+
+class TripEventOut(BaseModel):
+    event_type: str
+    data: dict | None
+    created_at: str
+
+
+class TripResponse(BaseModel):
+    trip_id: str
+    status: str
+    fare_xof: int | None = None
+    distance_km: float | None = None
+    duration_min: int | None = None
+    estimate_id: str | None = None
+    origin_lat: float | None = None
+    origin_lng: float | None = None
+    dest_lat: float | None = None
+    dest_lng: float | None = None
+    created_at: str
+    events: list[TripEventOut] | None = None
+
+
+def _trip_response(trip, events=None) -> TripResponse:
+    """Convert a Trip ORM object (+ optional events list) to a TripResponse."""
+    return TripResponse(
+        trip_id=str(trip.id),
+        status=trip.status,
+        fare_xof=trip.fare_xof,
+        distance_km=trip.distance_km,
+        duration_min=trip.duration_min,
+        estimate_id=str(trip.estimate_id) if trip.estimate_id else None,
+        origin_lat=trip.origin_lat,
+        origin_lng=trip.origin_lng,
+        dest_lat=trip.dest_lat,
+        dest_lng=trip.dest_lng,
+        created_at=trip.created_at.isoformat(),
+        events=[
+            TripEventOut(
+                event_type=e.event_type,
+                data=e.data,
+                created_at=e.created_at.isoformat(),
+            )
+            for e in events
+        ] if events is not None else None,
+    )
+
+
+@app.post("/v1/trips", tags=["rides"], status_code=201)
+async def create_trip(
+    body: TripRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TripResponse:
+    """Book a trip from a previously created (non-expired) estimate."""
+    trip = await crud.create_trip(db, claims, body.estimate_id)
+    return _trip_response(trip)
+
+
+@app.get("/v1/trips", tags=["rides"])
+async def list_trips(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[TripResponse]:
+    """List all trips for the authenticated customer, newest first."""
+    trips = await crud.list_trips(db, claims.user_id)
+    return [_trip_response(t) for t in trips]
+
+
+@app.get("/v1/trips/{trip_id}", tags=["rides"])
+async def get_trip(
+    trip_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TripResponse:
+    """Return full trip detail including the ordered event log."""
+    trip, events = await crud.get_trip(db, trip_id, claims.user_id)
+    return _trip_response(trip, events)
+
+
+@app.patch("/v1/trips/{trip_id}/cancel", tags=["rides"])
+async def cancel_trip(
+    trip_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TripResponse:
+    """Cancel a pending or accepted trip (customer action)."""
+    trip = await crud.cancel_trip(db, trip_id, claims.user_id)
+    return _trip_response(trip)

@@ -57,6 +57,52 @@ export async function fetchEstimate(token, originLat, originLng, destLat, destLn
   return res.json();
 }
 
+export async function createTrip(token, estimateId) {
+  const res = await fetch(`${API_BASE}/v1/trips`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ estimate_id: estimateId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Trip creation error (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function getTrip(token, tripId) {
+  const res = await fetch(`${API_BASE}/v1/trips/${tripId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Get trip error (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function cancelTrip(token, tripId) {
+  const res = await fetch(`${API_BASE}/v1/trips/${tripId}/cancel`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Cancel trip error (${res.status})`);
+  }
+  return res.json();
+}
+
 export async function fetchDemo(token) {
   const res = await fetch(`${API_BASE}/v1/demo`, {
     headers: {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { login, fetchMe, fetchDemo, registerUser, fetchEstimate } from "./api";
+import { login, fetchMe, fetchDemo, registerUser, fetchEstimate, createTrip, getTrip, cancelTrip } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
 const REQUIRED_ROLE = "customer";
@@ -19,6 +19,20 @@ const ABIDJAN_LOCATIONS = {
 
 const LOCATION_NAMES = Object.keys(ABIDJAN_LOCATIONS);
 
+const STATUS_LABELS = {
+  pending:     "⏳ En attente d'un chauffeur",
+  accepted:    "✓ Chauffeur en route",
+  in_progress: "🚗 En cours",
+  completed:   "✅ Trajet terminé",
+  cancelled:   "✗ Trajet annulé",
+};
+
+const TERMINAL_STATUSES = new Set(["completed", "cancelled"]);
+
+function formatXOF(n) {
+  return new Intl.NumberFormat("fr-FR").format(n) + " XOF";
+}
+
 // ---------------------------------------------------------------------------
 // Login form
 // ---------------------------------------------------------------------------
@@ -29,7 +43,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Customer</h1>
-      <p className="subtitle">Sprint 5 — Estimation de tarif</p>
+      <p className="subtitle">Sprint 6 — Réservation de trajet</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -47,14 +61,15 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
 }
 
 // ---------------------------------------------------------------------------
-// Estimate form + result card
+// Estimate form + fare card + "Book" button
 // ---------------------------------------------------------------------------
 
-function EstimateSection({ token }) {
+function EstimateSection({ token, onTripCreated }) {
   const [origin, setOrigin] = useState(LOCATION_NAMES[0]);
   const [dest, setDest]     = useState(LOCATION_NAMES[1]);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [booking, setBooking] = useState(false);
   const [error, setError]   = useState(null);
 
   async function handleSubmit(e) {
@@ -66,12 +81,17 @@ function EstimateSection({ token }) {
       const d = ABIDJAN_LOCATIONS[dest];
       const data = await fetchEstimate(token, o.lat, o.lng, d.lat, d.lng);
       setResult(data);
-    } catch (e) { setError(e.message); }
+    } catch (err) { setError(err.message); }
     finally { setLoading(false); }
   }
 
-  function formatXOF(n) {
-    return new Intl.NumberFormat("fr-FR").format(n) + " XOF";
+  async function handleBook() {
+    setBooking(true); setError(null);
+    try {
+      const trip = await createTrip(token, result.estimate_id);
+      onTripCreated(trip);
+    } catch (err) { setError(err.message); }
+    finally { setBooking(false); }
   }
 
   return (
@@ -92,7 +112,7 @@ function EstimateSection({ token }) {
             </select>
           </label>
         </div>
-        <button type="submit" className="estimate-btn" disabled={loading}>
+        <button type="submit" className="estimate-btn" disabled={loading || booking}>
           {loading ? "Calcul en cours…" : "Obtenir une estimation"}
         </button>
       </form>
@@ -110,7 +130,75 @@ function EstimateSection({ token }) {
           <div className="fare-source">
             {result.distance_source === "google_maps" ? "🗺️ Google Maps" : "📐 Distance estimée"}
           </div>
+          <button className="book-btn" onClick={handleBook} disabled={booking}>
+            {booking ? "Réservation…" : "🚕 Réserver ce trajet"}
+          </button>
         </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Booking status card — shows trip state + cancel + 5-second polling
+// ---------------------------------------------------------------------------
+
+function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
+  const [cancelling, setCancelling] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Poll every 5 s until the trip reaches a terminal state
+  useEffect(() => {
+    if (TERMINAL_STATUSES.has(trip.status)) return;
+    const id = setInterval(async () => {
+      try {
+        const updated = await getTrip(token, trip.trip_id);
+        onTripUpdate(updated);
+      } catch (_) { /* swallow polling errors */ }
+    }, 5000);
+    return () => clearInterval(id);
+  }, [trip.trip_id, trip.status]);
+
+  async function handleCancel() {
+    setCancelling(true); setError(null);
+    try {
+      const updated = await cancelTrip(token, trip.trip_id);
+      onTripUpdate(updated);
+    } catch (err) { setError(err.message); }
+    finally { setCancelling(false); }
+  }
+
+  const canCancel = ["pending", "accepted"].includes(trip.status);
+
+  return (
+    <div className="booking-section">
+      <h2 className="estimate-title">Mon trajet</h2>
+      <div className={`booking-card booking-${trip.status}`}>
+        <div className="booking-status">
+          {STATUS_LABELS[trip.status] ?? trip.status}
+        </div>
+        {trip.fare_xof && (
+          <div className="booking-fare">{formatXOF(trip.fare_xof)}</div>
+        )}
+        <div className="fare-meta">
+          {trip.distance_km != null && <span>🛣️ {trip.distance_km.toFixed(1)} km</span>}
+          {trip.duration_min != null && <span>⏱️ ~{trip.duration_min} min</span>}
+        </div>
+      </div>
+      {error && <p className="form-error">{error}</p>}
+      {canCancel && (
+        <button className="cancel-btn" onClick={handleCancel} disabled={cancelling}>
+          {cancelling ? "Annulation…" : "Annuler le trajet"}
+        </button>
+      )}
+      {TERMINAL_STATUSES.has(trip.status) && (
+        <button
+          className="estimate-btn"
+          onClick={onNewEstimate}
+          style={{ marginTop: "var(--space-4)" }}
+        >
+          Nouvelle estimation
+        </button>
       )}
     </div>
   );
@@ -121,6 +209,8 @@ function EstimateSection({ token }) {
 // ---------------------------------------------------------------------------
 
 function Dashboard({ user, token, onLogout }) {
+  const [activeTrip, setActiveTrip] = useState(null);
+
   return (
     <div className="app">
       <header className="dash-header">
@@ -129,8 +219,19 @@ function Dashboard({ user, token, onLogout }) {
       </header>
       <div className="status ok">✓ Connecté — <strong>{user.email}</strong></div>
       <div className="role-badge">{user.role} · {user.provider}</div>
-      <EstimateSection token={token} />
-      <p className="footer">App: <strong>web-customer</strong> · Sprint 5</p>
+
+      {activeTrip ? (
+        <BookingSection
+          token={token}
+          trip={activeTrip}
+          onTripUpdate={setActiveTrip}
+          onNewEstimate={() => setActiveTrip(null)}
+        />
+      ) : (
+        <EstimateSection token={token} onTripCreated={setActiveTrip} />
+      )}
+
+      <p className="footer">App: <strong>web-customer</strong> · Sprint 6</p>
     </div>
   );
 }

@@ -1,10 +1,10 @@
-"""Trip and TripEvent models — Sprint 4."""
+"""Trip and TripEvent models — Sprint 4 → Sprint 6."""
 from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, JSON, String
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -17,7 +17,7 @@ def _now() -> datetime:
 class Trip(Base):
     """A single ride request from a customer, potentially fulfilled by a driver.
 
-    Lifecycle: requested → accepted → in_progress → completed | cancelled
+    Lifecycle: pending → accepted → in_progress → completed | cancelled
     """
 
     __tablename__ = "trips"
@@ -32,14 +32,19 @@ class Trip(Base):
     driver_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("drivers.id"), nullable=True, index=True
     )
-    # requested | accepted | in_progress | completed | cancelled
+    # pending | accepted | in_progress | completed | cancelled
     status: Mapped[str] = mapped_column(
-        String(32), nullable=False, default="requested", index=True
+        String(32), nullable=False, default="pending", index=True
     )
     origin_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
     origin_lng: Mapped[float | None] = mapped_column(Float, nullable=True)
     dest_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
     dest_lng: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Sprint 6: fare snapshot copied from the Estimate at booking time
+    estimate_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+    fare_xof: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    distance_km: Mapped[float | None] = mapped_column(Float, nullable=True)
+    duration_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
