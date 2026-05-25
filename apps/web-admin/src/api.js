@@ -82,3 +82,14 @@ export async function adminListTrips(token, limit = 50, offset = 0) {
   });
   return _json(res); // AdminTripRecord[]
 }
+
+// ---------------------------------------------------------------------------
+// Admin — users — Sprint 12
+// ---------------------------------------------------------------------------
+
+export async function adminListUsers(token) {
+  const res = await fetch(`${API_BASE}/v1/admin/users`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // AdminUserRecord[]
+}

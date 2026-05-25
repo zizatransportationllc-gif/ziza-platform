@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 11.
+"""Ziza API — Sprint 12.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -35,6 +35,10 @@ Endpoints:
   GET   /v1/drivers/me/earnings                    driver's earnings summary (total, today, week)
   GET   /v1/admin/stats                            platform-wide statistics
   GET   /v1/admin/trips                            all trips paginated (admin view)
+  POST  /v1/drivers/me/vehicle                     driver registers / updates their vehicle
+  GET   /v1/drivers/me/vehicle                     driver gets their current vehicle
+  GET   /v1/assistance                             customer lists all their assistance requests
+  GET   /v1/admin/users                            admin lists all registered users
 """
 from __future__ import annotations
 
@@ -264,6 +268,15 @@ class TripEventOut(BaseModel):
     created_at: str
 
 
+class VehicleInfo(BaseModel):
+    """Embedded vehicle snapshot included in trip responses once a driver is assigned."""
+    plate: str
+    make: str | None = None
+    model: str | None = None
+    year: int | None = None
+    color: str | None = None
+
+
 class TripResponse(BaseModel):
     trip_id: str
     status: str
@@ -275,12 +288,19 @@ class TripResponse(BaseModel):
     origin_lng: float | None = None
     dest_lat: float | None = None
     dest_lng: float | None = None
+    vehicle: VehicleInfo | None = None  # populated once driver accepts — Sprint 12
     created_at: str
     events: list[TripEventOut] | None = None
 
 
-def _trip_response(trip, events=None) -> TripResponse:
-    """Convert a Trip ORM object (+ optional events list) to a TripResponse."""
+def _vehicle_info(v) -> VehicleInfo | None:
+    if v is None:
+        return None
+    return VehicleInfo(plate=v.plate, make=v.make, model=v.model, year=v.year, color=v.color)
+
+
+def _trip_response(trip, events=None, vehicle=None) -> TripResponse:
+    """Convert a Trip ORM object (+ optional events list + optional vehicle) to a TripResponse."""
     return TripResponse(
         trip_id=str(trip.id),
         status=trip.status,
@@ -292,6 +312,7 @@ def _trip_response(trip, events=None) -> TripResponse:
         origin_lng=trip.origin_lng,
         dest_lat=trip.dest_lat,
         dest_lng=trip.dest_lng,
+        vehicle=_vehicle_info(vehicle),
         created_at=trip.created_at.isoformat(),
         events=[
             TripEventOut(
@@ -331,9 +352,10 @@ async def get_trip(
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TripResponse:
-    """Return full trip detail including the ordered event log."""
+    """Return full trip detail including the ordered event log and driver vehicle."""
     trip, events = await crud.get_trip(db, trip_id, claims.user_id)
-    return _trip_response(trip, events)
+    vehicle = await crud.get_vehicle_for_driver_uuid(db, trip.driver_id)
+    return _trip_response(trip, events, vehicle=vehicle)
 
 
 @app.patch("/v1/trips/{trip_id}/cancel", tags=["rides"])
@@ -419,7 +441,10 @@ async def get_driver_active_trip(
             detail="Only drivers can access this endpoint",
         )
     trip = await crud.get_driver_active_trip(db, claims.user_id)
-    return ActiveTripWrap(trip=_trip_response(trip) if trip else None)
+    if trip:
+        vehicle = await crud.get_vehicle_for_driver_uuid(db, trip.driver_id)
+        return ActiveTripWrap(trip=_trip_response(trip, vehicle=vehicle))
+    return ActiveTripWrap(trip=None)
 
 
 @app.patch("/v1/trips/{trip_id}/accept", tags=["drivers"])
@@ -935,3 +960,130 @@ async def admin_list_trips(
     limit = min(limit, 200)
     rows = await crud.admin_list_trips(db, limit=limit, offset=offset)
     return [AdminTripRecord(**r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Vehicle Management — Sprint 12
+# ---------------------------------------------------------------------------
+
+class VehicleRequest(BaseModel):
+    plate: Annotated[str, Field(min_length=2, max_length=32, description="License plate")]
+    make: str | None = Field(None, max_length=64, description="Manufacturer (e.g. Toyota)")
+    model: str | None = Field(None, max_length=64, description="Model (e.g. Corolla)")
+    year: Annotated[int | None, Field(None, ge=1980, le=2100)] = None
+    color: str | None = Field(None, max_length=32, description="Color (e.g. Blanc)")
+
+
+class VehicleResponse(BaseModel):
+    vehicle_id: str
+    plate: str
+    make: str | None = None
+    model: str | None = None
+    year: int | None = None
+    color: str | None = None
+    status: str
+    created: bool
+
+
+def _vehicle_response(v, created: bool = False) -> VehicleResponse:
+    return VehicleResponse(
+        vehicle_id=str(v.id),
+        plate=v.plate,
+        make=v.make,
+        model=v.model,
+        year=v.year,
+        color=v.color,
+        status=v.status,
+        created=created,
+    )
+
+
+# NOTE: literal paths before parameterised paths — /me/vehicle before /{trip_id}/...
+# Driver capability endpoints already registered; vehicle endpoints added here.
+
+@app.post("/v1/drivers/me/vehicle", tags=["vehicles"], status_code=201)
+async def register_vehicle(
+    body: VehicleRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> VehicleResponse:
+    """Driver registers or updates their active vehicle.
+
+    Idempotent: updates the existing vehicle if one is already registered.
+    Returns 409 if the plate belongs to another driver.
+    """
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can register a vehicle",
+        )
+    vehicle, created = await crud.upsert_vehicle(
+        db, claims.user_id,
+        plate=body.plate,
+        make=body.make,
+        model_name=body.model,
+        year=body.year,
+        color=body.color,
+    )
+    return _vehicle_response(vehicle, created=created)
+
+
+@app.get("/v1/drivers/me/vehicle", tags=["vehicles"])
+async def get_my_vehicle(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> VehicleResponse:
+    """Return the authenticated driver's current active vehicle.  404 if none registered."""
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can access this endpoint",
+        )
+    vehicle = await crud.get_driver_vehicle(db, claims.user_id)
+    if vehicle is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No vehicle registered — call POST /v1/drivers/me/vehicle",
+        )
+    return _vehicle_response(vehicle)
+
+
+# ---------------------------------------------------------------------------
+# Customer Assistance History — Sprint 12
+# ---------------------------------------------------------------------------
+
+@app.get("/v1/assistance", tags=["assistance"])
+async def list_my_assistance(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[AssistanceResponse]:
+    """Customer: list all their assistance requests, newest first."""
+    requests = await crud.list_customer_assistance(db, claims.user_id)
+    return [_assistance_response(r) for r in requests]
+
+
+# ---------------------------------------------------------------------------
+# Admin — User List — Sprint 12
+# ---------------------------------------------------------------------------
+
+class AdminUserRecord(BaseModel):
+    user_id: str
+    email: str
+    role: str
+    provider: str
+    created_at: str
+
+
+@app.get("/v1/admin/users", tags=["admin"])
+async def admin_list_users(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[AdminUserRecord]:
+    """Admin: list all registered users (newest first)."""
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    users = await crud.admin_list_users(db)
+    return [AdminUserRecord(**u) for u in users]

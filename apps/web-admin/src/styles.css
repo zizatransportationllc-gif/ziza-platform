@@ -111,3 +111,17 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .cap-cancel-btn { background: transparent; border: 1px solid var(--color-border); color: var(--color-muted); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); font-size: 1rem; cursor: pointer; transition: border-color 0.15s; }
 .cap-cancel-btn:hover { border-color: var(--color-error); color: var(--color-error); }
 .cap-cancel-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Sprint 12: Users panel ─────────────────────────────────────────────── */
+.users-panel { width: 100%; }
+.user-list { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-3); }
+.user-row { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); }
+.user-row-main { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: 2px; }
+.user-row-meta { display: flex; gap: var(--space-3); font-size: 0.78rem; color: var(--color-muted); flex-wrap: wrap; }
+.user-email { font-size: 0.9rem; color: var(--color-fg); font-weight: 500; }
+.user-provider { text-transform: capitalize; }
+.user-date { }
+.user-role-badge { display: inline-block; padding: 2px var(--space-2); border-radius: 999px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.role-admin    { background: color-mix(in srgb, #8b5cf6 15%, transparent); color: #7c3aed; }
+.role-driver   { background: color-mix(in srgb, var(--color-accent) 12%, transparent); color: var(--color-accent); }
+.role-customer { background: color-mix(in srgb, var(--color-success) 12%, transparent); color: var(--color-success); }

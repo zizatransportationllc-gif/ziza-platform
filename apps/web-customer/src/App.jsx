@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   login, fetchMe, fetchDemo, registerUser, fetchEstimate, createTrip, getTrip, cancelTrip, rateTrip,
-  createAssistanceRequest, getAssistanceRequest, cancelAssistanceRequest,
+  createAssistanceRequest, getAssistanceRequest, cancelAssistanceRequest, listMyAssistance,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -277,6 +277,17 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
           {trip.distance_km != null && <span>🛣️ {trip.distance_km.toFixed(1)} km</span>}
           {trip.duration_min != null && <span>⏱️ ~{trip.duration_min} min</span>}
         </div>
+        {trip.vehicle && (trip.status === "accepted" || trip.status === "in_progress") && (
+          <div className="vehicle-badge">
+            <span className="vehicle-badge-plate">🚗 {trip.vehicle.plate}</span>
+            {(trip.vehicle.color || trip.vehicle.make || trip.vehicle.model) && (
+              <span className="vehicle-badge-meta">
+                {[trip.vehicle.color, trip.vehicle.make, trip.vehicle.model, trip.vehicle.year]
+                  .filter(Boolean).join(" · ")}
+              </span>
+            )}
+          </div>
+        )}
       </div>
       {error && <p className="form-error">{error}</p>}
       {canCancel && (
@@ -432,17 +443,56 @@ function AssistanceStatusCard({ token, request, onRequestUpdate, onNewRequest })
 }
 
 // ---------------------------------------------------------------------------
+// Assistance history — Sprint 12
+// ---------------------------------------------------------------------------
+
+function AssistanceHistory({ token }) {
+  const [history, setHistory] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    listMyAssistance(token)
+      .then(setHistory)
+      .catch((err) => setError(err.message));
+  }, [token]);
+
+  if (error) return <p className="form-error">{error}</p>;
+  if (history === null) return <p className="history-empty">⏳ Chargement…</p>;
+  if (history.length === 0) return <p className="history-empty">Aucune demande d'assistance pour le moment.</p>;
+
+  return (
+    <div className="history-list">
+      {history.map((req) => {
+        const typeLabel = ASSISTANCE_TYPES.find((t) => t.value === req.type)?.label ?? req.type;
+        return (
+          <div key={req.request_id} className={`history-item history-item-${req.status}`}>
+            <div className="history-type">{typeLabel}</div>
+            <div className="history-status">{ASSISTANCE_STATUS_LABELS[req.status] ?? req.status}</div>
+            {req.note && <div className="history-note">{req.note}</div>}
+            <div className="history-date">
+              {new Date(req.created_at).toLocaleDateString("fr-FR", {
+                day: "2-digit", month: "short", year: "numeric",
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
 function Dashboard({ user, token, onLogout }) {
   const [activeTrip, setActiveTrip] = useState(null);
   const [activeAssistance, setActiveAssistance] = useState(null);
-  const [mode, setMode] = useState("ride"); // "ride" | "assistance"
+  const [mode, setMode] = useState("ride"); // "ride" | "assistance" | "history"
 
   // Derive which main section to show
   const showBooking    = activeTrip && !TERMINAL_STATUSES.has(activeTrip.status);
-  const showAssistCard = !showBooking && activeAssistance;
+  const showAssistCard = !showBooking && activeAssistance && !ASSISTANCE_TERMINAL.has(activeAssistance.status);
   const showTabs       = !showBooking && !showAssistCard;
 
   return (
@@ -487,16 +537,29 @@ function Dashboard({ user, token, onLogout }) {
             >
               🆘 Assistance
             </button>
+            <button
+              className={`mode-tab ${mode === "history" ? "active" : ""}`}
+              onClick={() => setMode("history")}
+            >
+              📋 Historique
+            </button>
           </div>
-          {mode === "ride" ? (
+          {mode === "ride" && (
             <EstimateSection token={token} onTripCreated={setActiveTrip} />
-          ) : (
+          )}
+          {mode === "assistance" && (
             <AssistanceSection token={token} onRequestCreated={setActiveAssistance} />
+          )}
+          {mode === "history" && (
+            <div className="history-section">
+              <h2 className="estimate-title">Mes demandes d'assistance</h2>
+              <AssistanceHistory token={token} />
+            </div>
           )}
         </>
       )}
 
-      <p className="footer">App: <strong>web-customer</strong> · Sprint 9</p>
+      <p className="footer">App: <strong>web-customer</strong> · Sprint 12</p>
     </div>
   );
 }

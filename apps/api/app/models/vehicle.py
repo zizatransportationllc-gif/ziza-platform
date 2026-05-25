@@ -34,6 +34,7 @@ class Vehicle(Base):
     make: Mapped[str | None] = mapped_column(String(64), nullable=True)
     model: Mapped[str | None] = mapped_column(String(64), nullable=True)
     year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    color: Mapped[str | None] = mapped_column(String(32), nullable=True)
     # active | inactive
     status: Mapped[str] = mapped_column(
         String(32), nullable=False, default="active"

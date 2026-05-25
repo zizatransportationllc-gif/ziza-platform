@@ -121,6 +121,31 @@ export async function getMyEarnings(token) {
 }
 
 // ---------------------------------------------------------------------------
+// Vehicle — Sprint 12
+// ---------------------------------------------------------------------------
+
+export async function getMyVehicle(token) {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/vehicle`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (res.status === 404) return null; // no vehicle yet
+  return _json(res);
+}
+
+export async function registerVehicle(token, plate, make, model, year, color) {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/vehicle`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ plate, make, model, year: year ? Number(year) : null, color }),
+  });
+  return _json(res);
+}
+
+// ---------------------------------------------------------------------------
 // Driver rating stats
 // ---------------------------------------------------------------------------
 

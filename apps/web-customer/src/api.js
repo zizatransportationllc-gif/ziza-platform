@@ -183,6 +183,21 @@ export async function getTripRating(token, tripId) {
   return res.json();
 }
 
+// ---------------------------------------------------------------------------
+// Customer assistance history — Sprint 12
+// ---------------------------------------------------------------------------
+
+export async function listMyAssistance(token) {
+  const res = await fetch(`${API_BASE}/v1/assistance`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `List assistance error (${res.status})`);
+  }
+  return res.json(); // AssistanceResponse[]
+}
+
 export async function fetchDemo(token) {
   const res = await fetch(`${API_BASE}/v1/demo`, {
     headers: {

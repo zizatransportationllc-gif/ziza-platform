@@ -1,4 +1,4 @@
-"""CRUD helpers — Sprint 4 → Sprint 11.
+"""CRUD helpers — Sprint 4 → Sprint 12.
 
 All functions are async and receive an ``AsyncSession`` from the FastAPI
 ``get_db`` dependency.
@@ -22,6 +22,7 @@ from app.models.estimate import Estimate
 from app.models.rating import Rating
 from app.models.trip import Trip, TripEvent
 from app.models.user import User
+from app.models.vehicle import Vehicle
 
 
 def _utc(dt: datetime) -> datetime:
@@ -1096,3 +1097,149 @@ async def admin_list_trips(
             "updated_at": trip.updated_at.isoformat(),
         })
     return out
+
+
+# ---------------------------------------------------------------------------
+# Vehicle Management — Sprint 12
+# ---------------------------------------------------------------------------
+
+async def _get_active_vehicle_for_driver(
+    db: AsyncSession, driver_id: uuid.UUID
+) -> Vehicle | None:
+    """Return the driver's current active vehicle (most recent), or None."""
+    result = await db.execute(
+        select(Vehicle)
+        .where(Vehicle.driver_id == driver_id, Vehicle.status == "active")
+        .order_by(Vehicle.created_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_vehicle_for_driver_uuid(
+    db: AsyncSession, driver_id: uuid.UUID | None
+) -> Vehicle | None:
+    """Public helper: look up the active vehicle for a driver UUID (used in trip responses)."""
+    if driver_id is None:
+        return None
+    return await _get_active_vehicle_for_driver(db, driver_id)
+
+
+async def get_driver_vehicle(db: AsyncSession, auth_user_id: str) -> Vehicle | None:
+    """Return the authenticated driver's active vehicle, or None if not set."""
+    driver = await _get_driver_by_auth_id(db, auth_user_id)
+    if driver is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver profile not found - call POST /v1/drivers/register first",
+        )
+    return await _get_active_vehicle_for_driver(db, driver.id)
+
+
+async def upsert_vehicle(
+    db: AsyncSession,
+    auth_user_id: str,
+    plate: str,
+    make: str | None,
+    model_name: str | None,
+    year: int | None,
+    color: str | None,
+) -> tuple[Vehicle, bool]:
+    """Create or update the driver's active vehicle.
+
+    If the driver already has an active vehicle, its fields are updated in-place.
+    Otherwise a new Vehicle row is created.
+
+    Returns (vehicle, created) where created=True for a new record.
+    Raises 409 if the plate is already used by another driver.
+    """
+    driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
+    vehicle = await _get_active_vehicle_for_driver(db, driver.id)
+
+    if vehicle is None:
+        # Check plate uniqueness across drivers
+        existing_plate = await db.execute(
+            select(Vehicle).where(Vehicle.plate == plate)
+        )
+        if existing_plate.scalar_one_or_none() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Plate '{plate}' is already registered",
+            )
+        vehicle = Vehicle(
+            driver_id=driver.id,
+            plate=plate,
+            make=make,
+            model=model_name,
+            year=year,
+            color=color,
+            status="active",
+        )
+        db.add(vehicle)
+        await db.commit()
+        await db.refresh(vehicle)
+        return vehicle, True
+
+    # Check plate uniqueness only if it changed
+    if vehicle.plate != plate:
+        existing_plate = await db.execute(
+            select(Vehicle).where(Vehicle.plate == plate)
+        )
+        if existing_plate.scalar_one_or_none() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Plate '{plate}' is already registered",
+            )
+
+    vehicle.plate = plate
+    vehicle.make = make
+    vehicle.model = model_name
+    vehicle.year = year
+    vehicle.color = color
+    await db.commit()
+    await db.refresh(vehicle)
+    return vehicle, False
+
+
+# ---------------------------------------------------------------------------
+# Customer Assistance History — Sprint 12
+# ---------------------------------------------------------------------------
+
+async def list_customer_assistance(
+    db: AsyncSession, auth_user_id: str
+) -> list[AssistanceRequest]:
+    """Return all assistance requests for the authenticated customer, newest first."""
+    user = await _get_user_by_auth_id(db, auth_user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found - call POST /v1/auth/register first",
+        )
+    result = await db.execute(
+        select(AssistanceRequest)
+        .where(AssistanceRequest.customer_id == user.id)
+        .order_by(AssistanceRequest.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+# ---------------------------------------------------------------------------
+# Admin — User List — Sprint 12
+# ---------------------------------------------------------------------------
+
+async def admin_list_users(db: AsyncSession) -> list[dict]:
+    """Return all registered users (newest first) for admin view."""
+    result = await db.execute(
+        select(User).order_by(User.created_at.desc())
+    )
+    users = result.scalars().all()
+    return [
+        {
+            "user_id": u.user_id,
+            "email": u.email,
+            "role": u.role,
+            "provider": u.provider,
+            "created_at": u.created_at.isoformat(),
+        }
+        for u in users
+    ]

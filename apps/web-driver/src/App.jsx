@@ -6,6 +6,7 @@ import {
   listAvailableAssistance, getActiveAssistance,
   acceptAssistance, startAssistance, resolveAssistance,
   getMyRating, getMyEarnings,
+  getMyVehicle, registerVehicle,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -167,6 +168,67 @@ function EarningsCard({ earnings }) {
 }
 
 // ---------------------------------------------------------------------------
+// Vehicle card — Sprint 12
+// ---------------------------------------------------------------------------
+
+function VehicleCard({ token, vehicle, onSaved }) {
+  const [editing, setEditing] = useState(!vehicle);
+  const [plate, setPlate]   = useState(vehicle?.plate ?? "");
+  const [make, setMake]     = useState(vehicle?.make ?? "");
+  const [model, setModel]   = useState(vehicle?.model ?? "");
+  const [year, setYear]     = useState(vehicle?.year ?? "");
+  const [color, setColor]   = useState(vehicle?.color ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState(null);
+
+  async function handleSave(e) {
+    e.preventDefault();
+    setSaving(true); setError(null);
+    try {
+      const v = await registerVehicle(token, plate.trim(), make.trim() || null, model.trim() || null, year || null, color.trim() || null);
+      onSaved(v);
+      setEditing(false);
+    } catch (err) { setError(err.message); }
+    finally { setSaving(false); }
+  }
+
+  if (!editing && vehicle) {
+    return (
+      <div className="vehicle-card">
+        <div className="vehicle-label">Mon véhicule</div>
+        <div className="vehicle-plate">{vehicle.plate}</div>
+        <div className="vehicle-meta">
+          {[vehicle.color, vehicle.make, vehicle.model, vehicle.year].filter(Boolean).join(" · ")}
+        </div>
+        <button className="vehicle-edit-btn" onClick={() => setEditing(true)}>Modifier</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="vehicle-card vehicle-card-form">
+      <div className="vehicle-label">{vehicle ? "Modifier le véhicule" : "Enregistrer mon véhicule"}</div>
+      <form className="vehicle-form" onSubmit={handleSave}>
+        <input className="vehicle-input" placeholder="Plaque *" value={plate} onChange={(e) => setPlate(e.target.value)} required />
+        <div className="vehicle-row">
+          <input className="vehicle-input" placeholder="Marque" value={make}  onChange={(e) => setMake(e.target.value)} />
+          <input className="vehicle-input" placeholder="Modèle" value={model} onChange={(e) => setModel(e.target.value)} />
+        </div>
+        <div className="vehicle-row">
+          <input className="vehicle-input" placeholder="Année" type="number" min="1980" max="2100" value={year} onChange={(e) => setYear(e.target.value)} />
+          <input className="vehicle-input" placeholder="Couleur" value={color} onChange={(e) => setColor(e.target.value)} />
+        </div>
+        {error && <p className="form-error">{error}</p>}
+        <div className="vehicle-form-actions">
+          <button type="submit" className="action-btn accept-btn" disabled={saving}>{saving ? "…" : "✓ Enregistrer"}</button>
+          {vehicle && <button type="button" className="logout-btn" onClick={() => setEditing(false)}>Annuler</button>}
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Active assistance card — shown when driver has an ongoing intervention
 // ---------------------------------------------------------------------------
 
@@ -309,14 +371,16 @@ function Dashboard({ user, token, onLogout }) {
   const [initialized, setInitialized] = useState(false);
   const [ratingStats, setRatingStats] = useState(null);
   const [earnings, setEarnings] = useState(null);
+  const [vehicle, setVehicle] = useState(undefined); // undefined = loading, null = none
 
-  // On mount: check active trip + active assistance + rating stats + earnings in parallel
+  // On mount: check active trip + active assistance + rating stats + earnings + vehicle in parallel
   useEffect(() => {
     Promise.all([
       getActiveTrip(token).then(({ trip }) => { setActiveTrip(trip); }),
       getActiveAssistance(token).then(({ request }) => { setActiveAssistance(request); }).catch(() => {}),
       getMyRating(token).then(setRatingStats).catch(() => {}),
       getMyEarnings(token).then(setEarnings).catch(() => {}),
+      getMyVehicle(token).then(setVehicle).catch(() => setVehicle(null)),
     ]).finally(() => setInitialized(true));
   }, [token]);
 
@@ -371,6 +435,7 @@ function Dashboard({ user, token, onLogout }) {
       <div className="status ok">✓ Connecté — <strong>{user.email}</strong></div>
       <div className="role-badge">{user.role} · {user.provider}</div>
 
+      <VehicleCard token={token} vehicle={vehicle} onSaved={setVehicle} />
       <EarningsCard earnings={earnings} />
       <RatingStats stats={ratingStats} />
 

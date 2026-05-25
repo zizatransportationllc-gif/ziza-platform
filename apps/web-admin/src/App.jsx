@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import {
   login, fetchMe, registerUser,
   adminListDrivers, adminSetDriverCapabilities,
-  adminGetStats, adminListTrips,
+  adminGetStats, adminListTrips, adminListUsers,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -304,6 +304,56 @@ function DriversPanel({ token }) {
 }
 
 // ---------------------------------------------------------------------------
+// Users panel — Sprint 12
+// ---------------------------------------------------------------------------
+
+const ROLE_COLORS = { admin: "role-admin", driver: "role-driver", customer: "role-customer" };
+
+function UserRow({ u }) {
+  return (
+    <div className="user-row">
+      <div className="user-row-main">
+        <span className={`user-role-badge ${ROLE_COLORS[u.role] ?? ""}`}>{u.role}</span>
+        <span className="user-email">{u.email}</span>
+      </div>
+      <div className="user-row-meta">
+        <span className="user-provider">{u.provider}</span>
+        <span className="user-date">{new Date(u.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}</span>
+      </div>
+    </div>
+  );
+}
+
+function UsersPanel({ token }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true); setError(null);
+    try { setUsers(await adminListUsers(token)); }
+    catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <div className="users-panel">
+      <div className="panel-header">
+        <h2 className="panel-title">Utilisateurs enregistrés</h2>
+        <button className="refresh-btn" onClick={load} disabled={loading}>{loading ? "…" : "↻"}</button>
+      </div>
+      {error && <p className="form-error">{error}</p>}
+      {!loading && users.length === 0 && <div className="empty-state">Aucun utilisateur enregistré.</div>}
+      <div className="user-list">
+        {users.map((u) => <UserRow key={u.user_id} u={u} />)}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard — tabbed navigation
 // ---------------------------------------------------------------------------
 
@@ -311,6 +361,7 @@ const TABS = [
   { id: "stats",   label: "📊 Stats" },
   { id: "trips",   label: "🚕 Courses" },
   { id: "drivers", label: "🧑‍✈️ Chauffeurs" },
+  { id: "users",   label: "👥 Utilisateurs" },
 ];
 
 function Dashboard({ user, token, onLogout }) {
@@ -336,8 +387,9 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "stats"   && <StatsPanel   token={token} />}
       {activeTab === "trips"   && <TripsPanel   token={token} />}
       {activeTab === "drivers" && <DriversPanel token={token} />}
+      {activeTab === "users"   && <UsersPanel   token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 11</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 12</p>
     </div>
   );
 }
