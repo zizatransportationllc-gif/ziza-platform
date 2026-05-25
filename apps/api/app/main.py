@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 7.
+"""Ziza API — Sprint 8.
 
 Endpoints:
   GET   /health                          liveness probe
@@ -17,6 +17,9 @@ Endpoints:
   PATCH /v1/trips/{trip_id}/start        driver starts an accepted trip
   PATCH /v1/trips/{trip_id}/complete     driver completes an in_progress trip
   POST  /v1/drivers/register             create/upsert driver profile
+  POST  /v1/trips/{trip_id}/rate         customer rates a completed trip (1-5 stars)
+  GET   /v1/trips/{trip_id}/rating       get the rating for a trip
+  GET   /v1/drivers/me/rating            driver's own rating statistics
 """
 from __future__ import annotations
 
@@ -450,3 +453,85 @@ async def complete_trip(
         )
     trip = await crud.complete_trip(db, trip_id, claims.user_id)
     return _trip_response(trip)
+
+
+# ---------------------------------------------------------------------------
+# Ratings — Sprint 8
+# ---------------------------------------------------------------------------
+
+class RatingRequest(BaseModel):
+    stars: Annotated[int, Field(ge=1, le=5, description="Rating score (1 = worst, 5 = best)")]
+    comment: str | None = None
+
+
+class RatingResponse(BaseModel):
+    rating_id: str
+    trip_id: str
+    stars: int
+    comment: str | None = None
+    created_at: str
+
+
+class DriverRatingStats(BaseModel):
+    driver_id: str
+    average_stars: float | None = None   # None when no ratings yet
+    total_ratings: int
+
+
+def _rating_response(r) -> RatingResponse:
+    return RatingResponse(
+        rating_id=str(r.id),
+        trip_id=str(r.trip_id),
+        stars=r.stars,
+        comment=r.comment,
+        created_at=r.created_at.isoformat(),
+    )
+
+
+@app.post("/v1/trips/{trip_id}/rate", tags=["ratings"], status_code=201)
+async def rate_trip(
+    trip_id: str,
+    body: RatingRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> RatingResponse:
+    """Customer submits a 1–5 star rating for a completed trip.
+
+    Only the customer who took the trip may rate it.
+    Each trip can only be rated once (409 on duplicate).
+    """
+    r = await crud.create_rating(db, claims, trip_id, body.stars, body.comment)
+    return _rating_response(r)
+
+
+@app.get("/v1/trips/{trip_id}/rating", tags=["ratings"])
+async def get_trip_rating(
+    trip_id: str,
+    claims: Claims = Depends(get_current_user),  # noqa: ARG001 — auth guard only
+    db: AsyncSession = Depends(get_db),
+) -> RatingResponse:
+    """Return the rating for a completed trip.  404 if not yet rated."""
+    r = await crud.get_trip_rating(db, trip_id)
+    if r is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not rated yet")
+    return _rating_response(r)
+
+
+@app.get("/v1/drivers/me/rating", tags=["ratings"])
+async def get_my_rating(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> DriverRatingStats:
+    """Return the authenticated driver's average rating and total review count."""
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can access this endpoint",
+        )
+    avg, total = await crud.get_driver_rating_stats(db, claims.user_id)
+    # Return driver_id as the auth string for simplicity (driver knows their own id)
+    return DriverRatingStats(
+        driver_id=claims.user_id,
+        average_stars=round(avg, 2) if avg is not None else None,
+        total_ratings=total,
+    )

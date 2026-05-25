@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { login, fetchMe, fetchDemo, registerUser, fetchEstimate, createTrip, getTrip, cancelTrip } from "./api";
+import { login, fetchMe, fetchDemo, registerUser, fetchEstimate, createTrip, getTrip, cancelTrip, rateTrip } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
 const REQUIRED_ROLE = "customer";
@@ -43,7 +43,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Customer</h1>
-      <p className="subtitle">Sprint 6 — Réservation de trajet</p>
+      <p className="subtitle">Sprint 8 — Notation du trajet</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -140,6 +140,78 @@ function EstimateSection({ token, onTripCreated }) {
 }
 
 // ---------------------------------------------------------------------------
+// Rating form — shown after trip is completed
+// ---------------------------------------------------------------------------
+
+function RatingForm({ token, tripId }) {
+  const [stars, setStars] = useState(0);
+  const [hover, setHover] = useState(0);
+  const [comment, setComment] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [rated, setRated] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (stars === 0) { setError("Veuillez choisir une note."); return; }
+    setLoading(true); setError(null);
+    try {
+      await rateTrip(token, tripId, stars, comment || undefined);
+      setRated(true);
+    } catch (err) {
+      // 409 = already rated — treat as success
+      if (err.message.includes("409") || err.message.toLowerCase().includes("already")) {
+        setRated(true);
+      } else {
+        setError(err.message);
+      }
+    } finally { setLoading(false); }
+  }
+
+  if (rated) {
+    return (
+      <div className="rating-success">
+        <div className="rating-success-icon">⭐</div>
+        <p>Merci pour votre avis&nbsp;!</p>
+      </div>
+    );
+  }
+
+  return (
+    <form className="rating-form" onSubmit={handleSubmit}>
+      <h3 className="rating-title">Évaluer votre chauffeur</h3>
+      <div className="star-picker">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            className={`star ${n <= (hover || stars) ? "filled" : ""}`}
+            onMouseEnter={() => setHover(n)}
+            onMouseLeave={() => setHover(0)}
+            onClick={() => setStars(n)}
+            aria-label={`${n} étoile${n > 1 ? "s" : ""}`}
+          >
+            ★
+          </button>
+        ))}
+      </div>
+      <textarea
+        className="rating-comment"
+        placeholder="Commentaire (optionnel)"
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+        rows={2}
+        maxLength={500}
+      />
+      {error && <p className="form-error">{error}</p>}
+      <button type="submit" className="estimate-btn" disabled={loading || stars === 0}>
+        {loading ? "Envoi…" : "Envoyer"}
+      </button>
+    </form>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Booking status card — shows trip state + cancel + 5-second polling
 // ---------------------------------------------------------------------------
 
@@ -191,6 +263,9 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
           {cancelling ? "Annulation…" : "Annuler le trajet"}
         </button>
       )}
+      {trip.status === "completed" && (
+        <RatingForm token={token} tripId={trip.trip_id} />
+      )}
       {TERMINAL_STATUSES.has(trip.status) && (
         <button
           className="estimate-btn"
@@ -231,7 +306,7 @@ function Dashboard({ user, token, onLogout }) {
         <EstimateSection token={token} onTripCreated={setActiveTrip} />
       )}
 
-      <p className="footer">App: <strong>web-customer</strong> · Sprint 6</p>
+      <p className="footer">App: <strong>web-customer</strong> · Sprint 8</p>
     </div>
   );
 }

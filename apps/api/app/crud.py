@@ -1,4 +1,4 @@
-"""CRUD helpers — Sprint 4 → Sprint 6.
+"""CRUD helpers — Sprint 4 → Sprint 8.
 
 All functions are async and receive an ``AsyncSession`` from the FastAPI
 ``get_db`` dependency.
@@ -9,12 +9,13 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.base import Claims
 from app.models.driver import Driver
 from app.models.estimate import Estimate
+from app.models.rating import Rating
 from app.models.trip import Trip, TripEvent
 from app.models.user import User
 
@@ -112,7 +113,7 @@ async def create_trip(
         est_uuid = uuid.UUID(estimate_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Invalid estimate_id format",
         )
 
@@ -131,7 +132,7 @@ async def create_trip(
         )
     if _utc(est.expires_at) < datetime.now(timezone.utc):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Estimate has expired — request a new one",
         )
 
@@ -173,7 +174,7 @@ async def get_trip(
         trip_uuid = uuid.UUID(trip_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Invalid trip_id format",
         )
 
@@ -336,7 +337,7 @@ async def _load_trip_for_driver(db: AsyncSession, trip_id: str, driver: Driver) 
         trip_uuid = uuid.UUID(trip_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Invalid trip_id format",
         )
     result = await db.execute(select(Trip).where(Trip.id == trip_uuid))
@@ -356,7 +357,7 @@ async def accept_trip(db: AsyncSession, trip_id: str, auth_user_id: str) -> Trip
         trip_uuid = uuid.UUID(trip_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Invalid trip_id format",
         )
     result = await db.execute(select(Trip).where(Trip.id == trip_uuid))
@@ -424,3 +425,106 @@ async def complete_trip(db: AsyncSession, trip_id: str, auth_user_id: str) -> Tr
     await db.commit()
     await db.refresh(trip)
     return trip
+
+
+# ---------------------------------------------------------------------------
+# Ratings � Sprint 8
+# ---------------------------------------------------------------------------
+
+async def create_rating(
+    db: AsyncSession,
+    claims: Claims,
+    trip_id: str,
+    stars: int,
+    comment: str | None,
+) -> Rating:
+    """Customer submits a 1-5 star rating for a completed trip.
+
+    Validates: trip exists, customer owns it, trip is completed,
+    not already rated.
+    """
+    try:
+        trip_uuid = uuid.UUID(trip_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Invalid trip_id format",
+        )
+
+    trip_result = await db.execute(select(Trip).where(Trip.id == trip_uuid))
+    trip: Trip | None = trip_result.scalar_one_or_none()
+    if trip is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+
+    user = await _get_user_by_auth_id(db, claims.user_id)
+    if user is None or trip.customer_id != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your trip")
+
+    if trip.status != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Only completed trips can be rated (current status: {trip.status})",
+        )
+    if trip.driver_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Trip has no assigned driver",
+        )
+
+    # Check for duplicate rating
+    existing = await db.execute(select(Rating).where(Rating.trip_id == trip_uuid))
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Trip already rated",
+        )
+
+    rating = Rating(
+        trip_id=trip.id,
+        driver_id=trip.driver_id,
+        customer_id=user.id,
+        stars=stars,
+        comment=comment,
+    )
+    db.add(rating)
+    await db.commit()
+    await db.refresh(rating)
+    return rating
+
+
+async def get_trip_rating(db: AsyncSession, trip_id: str) -> Rating | None:
+    """Return the Rating for a trip, or None if not yet rated."""
+    try:
+        trip_uuid = uuid.UUID(trip_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Invalid trip_id format",
+        )
+    result = await db.execute(select(Rating).where(Rating.trip_id == trip_uuid))
+    return result.scalar_one_or_none()
+
+
+async def get_driver_rating_stats(
+    db: AsyncSession,
+    auth_user_id: str,
+) -> tuple[float | None, int]:
+    """Return (average_stars, total_ratings) for the authenticated driver.
+
+    Returns (None, 0) when no ratings exist yet.
+    """
+    driver = await _get_driver_by_auth_id(db, auth_user_id)
+    if driver is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver profile not found - call POST /v1/drivers/register first",
+        )
+
+    result = await db.execute(
+        select(func.avg(Rating.stars), func.count(Rating.id))
+        .where(Rating.driver_id == driver.id)
+    )
+    row = result.one()
+    avg = float(row[0]) if row[0] is not None else None
+    count = row[1]
+    return avg, count

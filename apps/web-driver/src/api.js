@@ -87,6 +87,17 @@ export const startTrip   = (token, id) => _patch(token, `${API_BASE}/v1/trips/${
 export const completeTrip = (token, id) => _patch(token, `${API_BASE}/v1/trips/${id}/complete`);
 
 // ---------------------------------------------------------------------------
+// Driver rating stats
+// ---------------------------------------------------------------------------
+
+export async function getMyRating(token) {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/rating`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // { average_stars: float|null, total_ratings: int }
+}
+
+// ---------------------------------------------------------------------------
 // Legacy demo (kept for compat)
 // ---------------------------------------------------------------------------
 

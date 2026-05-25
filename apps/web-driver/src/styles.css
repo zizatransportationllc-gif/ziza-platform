@@ -57,3 +57,13 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .trip-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); }
 .trip-card-fare { font-size: 1.5rem; font-weight: 700; color: var(--color-accent); margin-bottom: var(--space-2); }
 .trip-card-meta { display: flex; gap: var(--space-4); color: var(--color-muted); font-size: 0.9rem; margin-bottom: var(--space-3); flex-wrap: wrap; }
+
+/* ── Sprint 8: Rating stats ─────────────────────────────────────────────── */
+.rating-stats-card { margin-bottom: var(--space-4); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); text-align: center; }
+.rating-stats-label { font-size: 0.78rem; color: var(--color-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: var(--space-2); }
+.rating-stars-row { display: flex; justify-content: center; gap: 2px; margin-bottom: var(--space-1); }
+.stat-star { font-size: 1.4rem; color: var(--color-border); line-height: 1; }
+.stat-star.filled { color: #f59e0b; }
+.rating-avg { font-size: 1.3rem; font-weight: 700; color: var(--color-fg); }
+.rating-count { font-size: 0.85rem; font-weight: 400; color: var(--color-muted); }
+.rating-stats-empty { font-size: 0.9rem; color: var(--color-muted); }

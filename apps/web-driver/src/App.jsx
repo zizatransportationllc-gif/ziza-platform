@@ -3,6 +3,7 @@ import {
   login, fetchMe, registerUser, registerDriver,
   listAvailableTrips, getActiveTrip,
   acceptTrip, startTrip, completeTrip,
+  getMyRating,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -31,7 +32,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Driver</h1>
-      <p className="subtitle">Sprint 7 — Tableau de bord chauffeur</p>
+      <p className="subtitle">Sprint 8 — Notation & tableau de bord chauffeur</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -81,6 +82,39 @@ function ActiveTripCard({ token, trip, onUpdate }) {
         <button className="action-btn complete-btn" onClick={() => handleAction(completeTrip)} disabled={busy}>
           {busy ? "…" : "🏁 Terminer la course"}
         </button>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Driver rating stats card
+// ---------------------------------------------------------------------------
+
+function RatingStats({ stats }) {
+  if (!stats) return null;
+  const { average_stars, total_ratings } = stats;
+
+  function renderStars(avg) {
+    if (avg === null) return null;
+    return [1, 2, 3, 4, 5].map((n) => (
+      <span key={n} className={`stat-star ${n <= Math.round(avg) ? "filled" : ""}`}>★</span>
+    ));
+  }
+
+  return (
+    <div className="rating-stats-card">
+      <div className="rating-stats-label">Ma note</div>
+      {total_ratings === 0 ? (
+        <div className="rating-stats-empty">Aucune évaluation pour l'instant</div>
+      ) : (
+        <>
+          <div className="rating-stars-row">{renderStars(average_stars)}</div>
+          <div className="rating-avg">
+            {average_stars !== null ? average_stars.toFixed(1) : "—"}
+            <span className="rating-count"> / 5 · {total_ratings} avis</span>
+          </div>
+        </>
       )}
     </div>
   );
@@ -159,13 +193,14 @@ function AvailableTripsSection({ token, onTripAccepted }) {
 function Dashboard({ user, token, onLogout }) {
   const [activeTrip, setActiveTrip] = useState(null);
   const [initialized, setInitialized] = useState(false);
+  const [ratingStats, setRatingStats] = useState(null);
 
-  // On mount: check if driver already has an active trip
+  // On mount: check active trip + fetch rating stats in parallel
   useEffect(() => {
-    getActiveTrip(token)
-      .then(({ trip }) => { setActiveTrip(trip); })
-      .catch(() => {})
-      .finally(() => setInitialized(true));
+    Promise.all([
+      getActiveTrip(token).then(({ trip }) => { setActiveTrip(trip); }),
+      getMyRating(token).then(setRatingStats).catch(() => {}),
+    ]).finally(() => setInitialized(true));
   }, [token]);
 
   // Poll active trip status every 5s (if active)
@@ -183,6 +218,12 @@ function Dashboard({ user, token, onLogout }) {
   function handleTripUpdate(updated) {
     setActiveTrip(updated);
     if (["completed", "cancelled"].includes(updated.status)) {
+      // Refresh rating stats after trip completion (customer may have rated)
+      if (updated.status === "completed") {
+        setTimeout(() => {
+          getMyRating(token).then(setRatingStats).catch(() => {});
+        }, 2000);
+      }
       // Clear active trip after a short delay so driver sees final status
       setTimeout(() => setActiveTrip(null), 3000);
     }
@@ -205,13 +246,15 @@ function Dashboard({ user, token, onLogout }) {
       <div className="status ok">✓ Connecté — <strong>{user.email}</strong></div>
       <div className="role-badge">{user.role} · {user.provider}</div>
 
+      <RatingStats stats={ratingStats} />
+
       {activeTrip && !["completed", "cancelled"].includes(activeTrip.status) ? (
         <ActiveTripCard token={token} trip={activeTrip} onUpdate={handleTripUpdate} />
       ) : (
         <AvailableTripsSection token={token} onTripAccepted={setActiveTrip} />
       )}
 
-      <p className="footer">App: <strong>web-driver</strong> · Sprint 7</p>
+      <p className="footer">App: <strong>web-driver</strong> · Sprint 8</p>
     </div>
   );
 }

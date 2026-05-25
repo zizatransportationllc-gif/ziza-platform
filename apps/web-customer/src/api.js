@@ -103,6 +103,40 @@ export async function cancelTrip(token, tripId) {
   return res.json();
 }
 
+export async function rateTrip(token, tripId, stars, comment) {
+  const body = { stars };
+  if (comment) body.comment = comment;
+  const res = await fetch(`${API_BASE}/v1/trips/${tripId}/rate`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Rate trip error (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function getTripRating(token, tripId) {
+  const res = await fetch(`${API_BASE}/v1/trips/${tripId}/rating`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    },
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Get rating error (${res.status})`);
+  }
+  return res.json();
+}
+
 export async function fetchDemo(token) {
   const res = await fetch(`${API_BASE}/v1/demo`, {
     headers: {

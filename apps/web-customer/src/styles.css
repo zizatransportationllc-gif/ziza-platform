@@ -169,3 +169,16 @@ html, body {
 .cancel-btn { display: block; width: 100%; margin-top: var(--space-4); background: transparent; border: 1px solid var(--color-error); color: var(--color-error); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); font-size: 1rem; cursor: pointer; font-weight: 600; transition: background 0.15s, color 0.15s; }
 .cancel-btn:hover { background: var(--color-error); color: #fff; }
 .cancel-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Sprint 8: Rating form ────────────────────────────────────────────── */
+.rating-form { margin-top: var(--space-5); padding: var(--space-4); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); text-align: center; }
+.rating-title { font-size: 1rem; font-weight: 600; color: var(--color-fg); margin: 0 0 var(--space-3); }
+.star-picker { display: flex; justify-content: center; gap: var(--space-2); margin-bottom: var(--space-3); }
+.star { background: none; border: none; font-size: 2rem; cursor: pointer; color: var(--color-border); transition: color 0.1s, transform 0.1s; padding: 0; line-height: 1; }
+.star.filled { color: #f59e0b; }
+.star:hover { transform: scale(1.2); }
+.rating-comment { width: 100%; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--color-fg); font-size: 0.9rem; resize: vertical; margin-bottom: var(--space-3); font-family: var(--font-stack); }
+.rating-comment:focus { outline: none; border-color: var(--color-accent); }
+.rating-success { margin-top: var(--space-5); padding: var(--space-5); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); text-align: center; }
+.rating-success-icon { font-size: 2.5rem; margin-bottom: var(--space-2); }
+.rating-success p { color: var(--color-success); font-weight: 600; margin: 0; }
