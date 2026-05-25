@@ -67,6 +67,17 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .assist-note { font-size: 0.85rem; color: var(--color-muted); font-style: italic; margin: var(--space-1) 0 var(--space-2); }
 .assist-type-chip { display: inline-block; background: color-mix(in srgb, #f59e0b 12%, transparent); color: #b45309; border-radius: 999px; padding: var(--space-1) var(--space-3); font-size: 0.85rem; font-weight: 700; margin-bottom: var(--space-2); }
 
+/* ── Sprint 11: Earnings card ───────────────────────────────────────────── */
+.earnings-card { margin-bottom: var(--space-3); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); text-align: center; }
+.earnings-label { font-size: 0.78rem; color: var(--color-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: var(--space-1); }
+.earnings-total { font-size: 1.8rem; font-weight: 700; color: var(--color-accent); line-height: 1.2; }
+.earnings-count { font-size: 0.82rem; color: var(--color-muted); margin-bottom: var(--space-3); }
+.earnings-periods { display: flex; gap: var(--space-3); justify-content: center; }
+.earnings-period { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; }
+.period-label { font-size: 0.72rem; color: var(--color-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+.period-value { font-size: 1rem; font-weight: 700; color: var(--color-fg); }
+.period-trips { font-size: 0.72rem; color: var(--color-muted); }
+
 /* ── Sprint 8: Rating stats ─────────────────────────────────────────────── */
 .rating-stats-card { margin-bottom: var(--space-4); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); text-align: center; }
 .rating-stats-label { font-size: 0.78rem; color: var(--color-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: var(--space-2); }

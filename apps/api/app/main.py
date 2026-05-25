@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 10.
+"""Ziza API — Sprint 11.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -32,6 +32,9 @@ Endpoints:
   PATCH /v1/assistance/{req_id}/resolve            driver resolves the intervention
   GET   /v1/admin/drivers                          admin lists all drivers + capabilities
   PUT   /v1/admin/drivers/{driver_id}/capabilities admin sets capabilities for a driver
+  GET   /v1/drivers/me/earnings                    driver's earnings summary (total, today, week)
+  GET   /v1/admin/stats                            platform-wide statistics
+  GET   /v1/admin/trips                            all trips paginated (admin view)
 """
 from __future__ import annotations
 
@@ -816,3 +819,119 @@ async def admin_set_driver_capabilities(
         )
     caps = await crud.admin_set_driver_capabilities(db, driver_id, body.capabilities)
     return CapabilitiesResponse(capabilities=caps)
+
+
+# ---------------------------------------------------------------------------
+# Driver Earnings — Sprint 11
+# ---------------------------------------------------------------------------
+
+class EarningsTripRecord(BaseModel):
+    trip_id: str
+    fare_xof: int | None
+    distance_km: float | None
+    duration_min: int | None
+    completed_at: str
+
+
+class DriverEarningsSummary(BaseModel):
+    total_xof: int
+    total_trips: int
+    today_xof: int
+    today_trips: int
+    week_xof: int
+    week_trips: int
+    recent_trips: list[EarningsTripRecord]
+
+
+@app.get("/v1/drivers/me/earnings", tags=["earnings"])
+async def get_my_earnings(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> DriverEarningsSummary:
+    """Return the authenticated driver's earnings summary.
+
+    Includes all-time totals, today (UTC), and current week (Mon–Sun),
+    plus the last 10 completed trips.
+    """
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can access this endpoint",
+        )
+    data = await crud.get_driver_earnings(db, claims.user_id)
+    return DriverEarningsSummary(
+        total_xof=data["total_xof"],
+        total_trips=data["total_trips"],
+        today_xof=data["today_xof"],
+        today_trips=data["today_trips"],
+        week_xof=data["week_xof"],
+        week_trips=data["week_trips"],
+        recent_trips=[
+            EarningsTripRecord(
+                trip_id=str(t.id),
+                fare_xof=t.fare_xof,
+                distance_km=t.distance_km,
+                duration_min=t.duration_min,
+                completed_at=t.updated_at.isoformat(),
+            )
+            for t in data["recent_trips"]
+        ],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Admin Statistics & Trip List — Sprint 11
+# ---------------------------------------------------------------------------
+
+class AdminStats(BaseModel):
+    trips: dict
+    assistance: dict
+    drivers: dict
+
+
+class AdminTripRecord(BaseModel):
+    trip_id: str
+    status: str
+    fare_xof: int | None = None
+    distance_km: float | None = None
+    duration_min: int | None = None
+    customer_email: str
+    driver_id: str | None = None
+    created_at: str
+    updated_at: str
+
+
+@app.get("/v1/admin/stats", tags=["admin"])
+async def admin_get_stats(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AdminStats:
+    """Admin: platform-wide statistics (trips, assistance, drivers, revenue)."""
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    stats = await crud.admin_get_stats(db)
+    return AdminStats(**stats)
+
+
+@app.get("/v1/admin/trips", tags=["admin"])
+async def admin_list_trips(
+    limit: int = 50,
+    offset: int = 0,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[AdminTripRecord]:
+    """Admin: all trips newest first, with customer email.
+
+    Query params: limit (default 50, max 200) and offset for pagination.
+    """
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    limit = min(limit, 200)
+    rows = await crud.admin_list_trips(db, limit=limit, offset=offset)
+    return [AdminTripRecord(**r) for r in rows]

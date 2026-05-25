@@ -5,7 +5,7 @@ import {
   acceptTrip, startTrip, completeTrip,
   listAvailableAssistance, getActiveAssistance,
   acceptAssistance, startAssistance, resolveAssistance,
-  getMyRating,
+  getMyRating, getMyEarnings,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -49,7 +49,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Driver</h1>
-      <p className="subtitle">Sprint 9 — Dispatch unifié (trajets + assistance)</p>
+      <p className="subtitle">Sprint 11 — Gains & statistiques</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -133,6 +133,35 @@ function RatingStats({ stats }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Earnings card — Sprint 11
+// ---------------------------------------------------------------------------
+
+function EarningsCard({ earnings }) {
+  if (!earnings) return null;
+  const { total_xof, total_trips, today_xof, today_trips, week_xof, week_trips } = earnings;
+
+  return (
+    <div className="earnings-card">
+      <div className="earnings-label">Mes gains</div>
+      <div className="earnings-total">{formatXOF(total_xof)}</div>
+      <div className="earnings-count">{total_trips} course{total_trips !== 1 ? "s" : ""} complétée{total_trips !== 1 ? "s" : ""}</div>
+      <div className="earnings-periods">
+        <div className="earnings-period">
+          <span className="period-label">Aujourd'hui</span>
+          <span className="period-value">{formatXOF(today_xof)}</span>
+          <span className="period-trips">{today_trips} course{today_trips !== 1 ? "s" : ""}</span>
+        </div>
+        <div className="earnings-period">
+          <span className="period-label">Cette semaine</span>
+          <span className="period-value">{formatXOF(week_xof)}</span>
+          <span className="period-trips">{week_trips} course{week_trips !== 1 ? "s" : ""}</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -279,13 +308,15 @@ function Dashboard({ user, token, onLogout }) {
   const [activeAssistance, setActiveAssistance] = useState(null);
   const [initialized, setInitialized] = useState(false);
   const [ratingStats, setRatingStats] = useState(null);
+  const [earnings, setEarnings] = useState(null);
 
-  // On mount: check active trip + active assistance + rating stats in parallel
+  // On mount: check active trip + active assistance + rating stats + earnings in parallel
   useEffect(() => {
     Promise.all([
       getActiveTrip(token).then(({ trip }) => { setActiveTrip(trip); }),
       getActiveAssistance(token).then(({ request }) => { setActiveAssistance(request); }).catch(() => {}),
       getMyRating(token).then(setRatingStats).catch(() => {}),
+      getMyEarnings(token).then(setEarnings).catch(() => {}),
     ]).finally(() => setInitialized(true));
   }, [token]);
 
@@ -301,13 +332,16 @@ function Dashboard({ user, token, onLogout }) {
     return () => clearInterval(id);
   }, [activeTrip?.trip_id, activeTrip?.status]);
 
+  function refreshStats() {
+    getMyRating(token).then(setRatingStats).catch(() => {});
+    getMyEarnings(token).then(setEarnings).catch(() => {});
+  }
+
   function handleTripUpdate(updated) {
     setActiveTrip(updated);
     if (["completed", "cancelled"].includes(updated.status)) {
       if (updated.status === "completed") {
-        setTimeout(() => {
-          getMyRating(token).then(setRatingStats).catch(() => {});
-        }, 2000);
+        setTimeout(refreshStats, 2000);
       }
       setTimeout(() => setActiveTrip(null), 3000);
     }
@@ -337,6 +371,7 @@ function Dashboard({ user, token, onLogout }) {
       <div className="status ok">✓ Connecté — <strong>{user.email}</strong></div>
       <div className="role-badge">{user.role} · {user.provider}</div>
 
+      <EarningsCard earnings={earnings} />
       <RatingStats stats={ratingStats} />
 
       {activeTrip && !["completed", "cancelled"].includes(activeTrip.status) ? (
@@ -351,7 +386,7 @@ function Dashboard({ user, token, onLogout }) {
         />
       )}
 
-      <p className="footer">App: <strong>web-driver</strong> · Sprint 9</p>
+      <p className="footer">App: <strong>web-driver</strong> · Sprint 11</p>
     </div>
   );
 }

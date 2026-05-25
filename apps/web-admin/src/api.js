@@ -63,3 +63,22 @@ export async function adminSetDriverCapabilities(token, driverId, capabilities) 
   });
   return _json(res); // { capabilities: string[] }
 }
+
+// ---------------------------------------------------------------------------
+// Admin — statistics & trips — Sprint 11
+// ---------------------------------------------------------------------------
+
+export async function adminGetStats(token) {
+  const res = await fetch(`${API_BASE}/v1/admin/stats`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+  // { trips: { total, by_status, total_revenue_xof }, assistance: { total, by_status }, drivers: { total, by_status } }
+}
+
+export async function adminListTrips(token, limit = 50, offset = 0) {
+  const res = await fetch(`${API_BASE}/v1/admin/trips?limit=${limit}&offset=${offset}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // AdminTripRecord[]
+}

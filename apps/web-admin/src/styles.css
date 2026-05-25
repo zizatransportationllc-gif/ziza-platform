@@ -28,6 +28,45 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .footer { margin-top: var(--space-8); color: var(--color-muted); font-size: 0.85rem; }
 .empty-state { text-align: center; color: var(--color-muted); font-size: 0.9rem; padding: var(--space-6) 0; }
 
+/* ── Sprint 11: Admin tabs, stats, trip list ─────────────────────────────── */
+
+/* Admin tabs */
+.admin-tabs { display: flex; gap: var(--space-2); margin: var(--space-4) 0; }
+.admin-tab { flex: 1; background: var(--color-surface); border: 1px solid var(--color-border); color: var(--color-muted); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.88rem; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.admin-tab.active { background: var(--color-accent-strong); border-color: var(--color-accent-strong); color: #fff; }
+
+/* Stats grid */
+.stats-panel { margin-top: var(--space-2); }
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-top: var(--space-3); }
+.stat-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); text-align: center; }
+.stat-label { font-size: 0.72rem; color: var(--color-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: var(--space-1); }
+.stat-value { font-size: 1.5rem; font-weight: 700; color: var(--color-accent); line-height: 1.2; }
+.stat-sub { font-size: 0.75rem; color: var(--color-muted); margin-top: var(--space-1); }
+
+/* Trip list */
+.trips-panel { margin-top: var(--space-2); }
+.trip-list-admin { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-3); }
+.trip-row { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); }
+.trip-row-main { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-bottom: 4px; }
+.trip-row-meta { display: flex; gap: var(--space-3); font-size: 0.78rem; color: var(--color-muted); flex-wrap: wrap; }
+.trip-customer { font-size: 0.88rem; font-weight: 600; flex: 1; }
+.trip-fare { font-weight: 700; color: var(--color-accent); font-size: 0.9rem; }
+.trip-date { margin-left: auto; }
+.trip-status-badge { display: inline-block; font-size: 0.7rem; font-weight: 700; padding: 2px var(--space-2); border-radius: 999px; text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
+.status-pending     { background: color-mix(in srgb, #f59e0b 15%, transparent); color: #92400e; }
+.status-accepted    { background: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success); }
+.status-in_progress { background: color-mix(in srgb, #3b82f6 15%, transparent); color: #1d4ed8; }
+.status-completed   { background: color-mix(in srgb, var(--color-muted) 15%, transparent); color: var(--color-muted); }
+.status-cancelled   { background: color-mix(in srgb, var(--color-error) 15%, transparent); color: var(--color-error); }
+
+/* Pagination */
+.pagination { display: flex; align-items: center; justify-content: center; gap: var(--space-3); margin-top: var(--space-4); }
+.page-btn { background: var(--color-surface); border: 1px solid var(--color-border); color: var(--color-fg); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); cursor: pointer; font-size: 0.85rem; transition: border-color 0.15s; }
+.page-btn:hover:not(:disabled) { border-color: var(--color-accent); color: var(--color-accent); }
+.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.page-info { font-size: 0.85rem; color: var(--color-muted); }
+.panel-actions { display: flex; gap: var(--space-2); }
+
 /* ── Sprint 10: Admin dashboard ─────────────────────────────────────────── */
 
 /* Wider layout for the admin view */

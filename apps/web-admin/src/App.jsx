@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import {
   login, fetchMe, registerUser,
   adminListDrivers, adminSetDriverCapabilities,
+  adminGetStats, adminListTrips,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -18,6 +19,19 @@ const TYPE_LABELS = {
   lockout:   "🔑 Clés perdues",
 };
 
+const STATUS_LABELS = {
+  pending:     "En attente",
+  accepted:    "Acceptée",
+  in_progress: "En cours",
+  completed:   "Terminée",
+  cancelled:   "Annulée",
+};
+
+function formatXOF(n) {
+  if (n == null) return "—";
+  return new Intl.NumberFormat("fr-FR").format(n) + " XOF";
+}
+
 // ---------------------------------------------------------------------------
 // Login form
 // ---------------------------------------------------------------------------
@@ -28,7 +42,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 10 — Driver capability management</p>
+      <p className="subtitle">Sprint 11 — Statistiques & gestion des chauffeurs</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -46,7 +60,141 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
 }
 
 // ---------------------------------------------------------------------------
-// Capability editor — inline modal for a single driver
+// Stats panel — Sprint 11
+// ---------------------------------------------------------------------------
+
+function StatCard({ label, value, sub }) {
+  return (
+    <div className="stat-card">
+      <div className="stat-label">{label}</div>
+      <div className="stat-value">{value}</div>
+      {sub && <div className="stat-sub">{sub}</div>}
+    </div>
+  );
+}
+
+function StatsPanel({ token }) {
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true); setError(null);
+    try { setStats(await adminGetStats(token)); }
+    catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (loading && !stats) return <div className="status loading">⏳ Chargement statistiques…</div>;
+  if (error) return <p className="form-error">{error}</p>;
+  if (!stats) return null;
+
+  const { trips, assistance, drivers } = stats;
+
+  return (
+    <div className="stats-panel">
+      <div className="panel-header">
+        <h2 className="panel-title">Vue d'ensemble</h2>
+        <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
+      </div>
+      <div className="stats-grid">
+        <StatCard
+          label="Courses totales"
+          value={trips.total}
+          sub={`${trips.by_status?.completed ?? 0} terminées · ${trips.by_status?.pending ?? 0} en attente`}
+        />
+        <StatCard
+          label="Chiffre d'affaires"
+          value={formatXOF(trips.total_revenue_xof)}
+          sub="Courses terminées"
+        />
+        <StatCard
+          label="Assistances"
+          value={assistance.total}
+          sub={`${assistance.by_status?.resolved ?? 0} résolues · ${assistance.by_status?.pending ?? 0} en attente`}
+        />
+        <StatCard
+          label="Chauffeurs"
+          value={drivers.total}
+          sub={`${drivers.by_status?.active ?? 0} actifs`}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Trip list panel — Sprint 11
+// ---------------------------------------------------------------------------
+
+function TripRow({ trip }) {
+  return (
+    <div className="trip-row">
+      <div className="trip-row-main">
+        <span className={`trip-status-badge status-${trip.status}`}>
+          {STATUS_LABELS[trip.status] ?? trip.status}
+        </span>
+        <span className="trip-customer">{trip.customer_email}</span>
+        {trip.fare_xof && <span className="trip-fare">{formatXOF(trip.fare_xof)}</span>}
+      </div>
+      <div className="trip-row-meta">
+        {trip.distance_km != null && <span>🛣️ {trip.distance_km.toFixed(1)} km</span>}
+        {trip.duration_min != null && <span>⏱️ {trip.duration_min} min</span>}
+        <span className="trip-date">{new Date(trip.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}</span>
+      </div>
+    </div>
+  );
+}
+
+function TripsPanel({ token }) {
+  const [trips, setTrips] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(0);
+  const [error, setError] = useState(null);
+  const PAGE_SIZE = 10;
+
+  const load = useCallback(async (p = 0) => {
+    setLoading(true); setError(null);
+    try {
+      const data = await adminListTrips(token, PAGE_SIZE, p * PAGE_SIZE);
+      setTrips(data);
+      setPage(p);
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { load(0); }, [load]);
+
+  return (
+    <div className="trips-panel">
+      <div className="panel-header">
+        <h2 className="panel-title">Toutes les courses</h2>
+        <div className="panel-actions">
+          <button className="refresh-btn" onClick={() => load(page)} disabled={loading}>↻</button>
+        </div>
+      </div>
+      {error && <p className="form-error">{error}</p>}
+      {!loading && trips.length === 0 && (
+        <div className="empty-state">Aucune course enregistrée.</div>
+      )}
+      <div className="trip-list-admin">
+        {trips.map((t) => <TripRow key={t.trip_id} trip={t} />)}
+      </div>
+      {(trips.length === PAGE_SIZE || page > 0) && (
+        <div className="pagination">
+          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Précédent</button>
+          <span className="page-info">Page {page + 1}</span>
+          <button className="page-btn" onClick={() => load(page + 1)} disabled={trips.length < PAGE_SIZE || loading}>Suivant →</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Capability editor — inline for a single driver
 // ---------------------------------------------------------------------------
 
 function CapabilityEditor({ token, driver, onSaved, onCancel }) {
@@ -57,8 +205,7 @@ function CapabilityEditor({ token, driver, onSaved, onCancel }) {
   function toggle(type) {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(type)) next.delete(type);
-      else next.add(type);
+      if (next.has(type)) next.delete(type); else next.add(type);
       return next;
     });
   }
@@ -66,8 +213,7 @@ function CapabilityEditor({ token, driver, onSaved, onCancel }) {
   async function handleSave() {
     setSaving(true); setError(null);
     try {
-      const caps = Array.from(selected);
-      const result = await adminSetDriverCapabilities(token, driver.driver_id, caps);
+      const result = await adminSetDriverCapabilities(token, driver.driver_id, Array.from(selected));
       onSaved({ ...driver, capabilities: result.capabilities });
     } catch (e) { setError(e.message); }
     finally { setSaving(false); }
@@ -75,31 +221,19 @@ function CapabilityEditor({ token, driver, onSaved, onCancel }) {
 
   return (
     <div className="cap-editor">
-      <div className="cap-editor-title">
-        Modifier les compétences — <strong>{driver.email}</strong>
-      </div>
-      <div className="cap-hint">
-        Vide = le chauffeur voit toutes les demandes d'assistance.
-      </div>
+      <div className="cap-editor-title">Compétences — <strong>{driver.email}</strong></div>
+      <div className="cap-hint">Vide = le chauffeur voit toutes les demandes d'assistance.</div>
       <div className="cap-grid">
         {ASSISTANCE_TYPES.map((type) => (
-          <button
-            key={type}
-            className={`cap-btn ${selected.has(type) ? "selected" : ""}`}
-            onClick={() => toggle(type)}
-          >
+          <button key={type} className={`cap-btn ${selected.has(type) ? "selected" : ""}`} onClick={() => toggle(type)}>
             {TYPE_LABELS[type]}
           </button>
         ))}
       </div>
       {error && <p className="form-error">{error}</p>}
       <div className="cap-actions">
-        <button className="cap-save-btn" onClick={handleSave} disabled={saving}>
-          {saving ? "Enregistrement…" : "✓ Enregistrer"}
-        </button>
-        <button className="cap-cancel-btn" onClick={onCancel} disabled={saving}>
-          Annuler
-        </button>
+        <button className="cap-save-btn" onClick={handleSave} disabled={saving}>{saving ? "Enregistrement…" : "✓ Enregistrer"}</button>
+        <button className="cap-cancel-btn" onClick={onCancel} disabled={saving}>Annuler</button>
       </div>
     </div>
   );
@@ -110,7 +244,6 @@ function CapabilityEditor({ token, driver, onSaved, onCancel }) {
 // ---------------------------------------------------------------------------
 
 function DriverRow({ driver, onEdit }) {
-  const hasCaps = driver.capabilities.length > 0;
   return (
     <div className="driver-card">
       <div className="driver-card-header">
@@ -118,18 +251,13 @@ function DriverRow({ driver, onEdit }) {
           <span className="driver-email">{driver.email}</span>
           <span className={`driver-status-badge ${driver.status}`}>{driver.status}</span>
         </div>
-        <button className="edit-caps-btn" onClick={() => onEdit(driver)}>
-          Compétences
-        </button>
+        <button className="edit-caps-btn" onClick={() => onEdit(driver)}>Compétences</button>
       </div>
       <div className="driver-caps">
-        {hasCaps ? (
-          driver.capabilities.map((c) => (
-            <span key={c} className="cap-chip">{TYPE_LABELS[c] ?? c}</span>
-          ))
-        ) : (
-          <span className="cap-all">Toutes les demandes</span>
-        )}
+        {driver.capabilities.length > 0
+          ? driver.capabilities.map((c) => <span key={c} className="cap-chip">{TYPE_LABELS[c] ?? c}</span>)
+          : <span className="cap-all">Toutes les demandes</span>
+        }
       </div>
     </div>
   );
@@ -142,14 +270,13 @@ function DriverRow({ driver, onEdit }) {
 function DriversPanel({ token }) {
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [editing, setEditing] = useState(null); // driver object being edited
+  const [editing, setEditing] = useState(null);
   const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
-    try {
-      setDrivers(await adminListDrivers(token));
-    } catch (e) { setError(e.message); }
+    try { setDrivers(await adminListDrivers(token)); }
+    catch (e) { setError(e.message); }
     finally { setLoading(false); }
   }, [token]);
 
@@ -164,40 +291,31 @@ function DriversPanel({ token }) {
     <div className="drivers-panel">
       <div className="panel-header">
         <h2 className="panel-title">Chauffeurs enregistrés</h2>
-        <button className="refresh-btn" onClick={load} disabled={loading}>
-          {loading ? "…" : "↻ Actualiser"}
-        </button>
+        <button className="refresh-btn" onClick={load} disabled={loading}>{loading ? "…" : "↻ Actualiser"}</button>
       </div>
-
       {error && <p className="form-error">{error}</p>}
-
-      {editing && (
-        <CapabilityEditor
-          token={token}
-          driver={editing}
-          onSaved={handleSaved}
-          onCancel={() => setEditing(null)}
-        />
-      )}
-
-      {!loading && drivers.length === 0 && (
-        <div className="empty-state">Aucun chauffeur enregistré.</div>
-      )}
-
+      {editing && <CapabilityEditor token={token} driver={editing} onSaved={handleSaved} onCancel={() => setEditing(null)} />}
+      {!loading && drivers.length === 0 && <div className="empty-state">Aucun chauffeur enregistré.</div>}
       <div className="driver-list">
-        {drivers.map((d) => (
-          <DriverRow key={d.driver_id} driver={d} onEdit={setEditing} />
-        ))}
+        {drivers.map((d) => <DriverRow key={d.driver_id} driver={d} onEdit={setEditing} />)}
       </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Dashboard
+// Dashboard — tabbed navigation
 // ---------------------------------------------------------------------------
 
+const TABS = [
+  { id: "stats",   label: "📊 Stats" },
+  { id: "trips",   label: "🚕 Courses" },
+  { id: "drivers", label: "🧑‍✈️ Chauffeurs" },
+];
+
 function Dashboard({ user, token, onLogout }) {
+  const [activeTab, setActiveTab] = useState("stats");
+
   return (
     <div className="app admin-app">
       <header className="dash-header">
@@ -207,9 +325,19 @@ function Dashboard({ user, token, onLogout }) {
       <div className="status ok">✓ Connecté — <strong>{user.email}</strong></div>
       <div className="role-badge">{user.role} · {user.provider}</div>
 
-      <DriversPanel token={token} />
+      <div className="admin-tabs">
+        {TABS.map((t) => (
+          <button key={t.id} className={`admin-tab ${activeTab === t.id ? "active" : ""}`} onClick={() => setActiveTab(t.id)}>
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 10</p>
+      {activeTab === "stats"   && <StatsPanel   token={token} />}
+      {activeTab === "trips"   && <TripsPanel   token={token} />}
+      {activeTab === "drivers" && <DriversPanel token={token} />}
+
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 11</p>
     </div>
   );
 }

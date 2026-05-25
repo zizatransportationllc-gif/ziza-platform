@@ -1,4 +1,4 @@
-"""CRUD helpers — Sprint 4 → Sprint 10.
+"""CRUD helpers — Sprint 4 → Sprint 11.
 
 All functions are async and receive an ``AsyncSession`` from the FastAPI
 ``get_db`` dependency.
@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import math
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import sqlalchemy as sa
 from fastapi import HTTPException, status
@@ -943,8 +943,156 @@ async def admin_set_driver_capabilities(
     await db.execute(
         sa.delete(DriverCapability).where(DriverCapability.driver_id == driver.id)
     )
-    unique_types = list(set(types))
-    for t in unique_types:
+    unique_types_admin = list(set(types))
+    for t in unique_types_admin:
         db.add(DriverCapability(driver_id=driver.id, type=t))
     await db.commit()
-    return sorted(unique_types)
+    return sorted(unique_types_admin)
+
+
+# ---------------------------------------------------------------------------
+# Driver Earnings — Sprint 11
+# ---------------------------------------------------------------------------
+
+async def get_driver_earnings(db: AsyncSession, auth_user_id: str) -> dict:
+    """Return an earnings summary for the authenticated driver.
+
+    Includes total, today (UTC), current week (Mon–Sun), and the 10 most
+    recent completed trips.
+    """
+    driver = await _get_driver_by_auth_id(db, auth_user_id)
+    if driver is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver profile not found - call POST /v1/drivers/register first",
+        )
+
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday())  # Monday
+
+    def _sum_count(row) -> tuple[int, int]:
+        return (int(row[0]) if row[0] is not None else 0, row[1])
+
+    # All-time
+    r_total = await db.execute(
+        select(func.sum(Trip.fare_xof), func.count(Trip.id))
+        .where(Trip.driver_id == driver.id, Trip.status == "completed")
+    )
+    total_xof, total_trips = _sum_count(r_total.one())
+
+    # Today
+    r_today = await db.execute(
+        select(func.sum(Trip.fare_xof), func.count(Trip.id))
+        .where(
+            Trip.driver_id == driver.id,
+            Trip.status == "completed",
+            Trip.updated_at >= today_start,
+        )
+    )
+    today_xof, today_trips = _sum_count(r_today.one())
+
+    # This week
+    r_week = await db.execute(
+        select(func.sum(Trip.fare_xof), func.count(Trip.id))
+        .where(
+            Trip.driver_id == driver.id,
+            Trip.status == "completed",
+            Trip.updated_at >= week_start,
+        )
+    )
+    week_xof, week_trips = _sum_count(r_week.one())
+
+    # Last 10 completed trips
+    r_hist = await db.execute(
+        select(Trip)
+        .where(Trip.driver_id == driver.id, Trip.status == "completed")
+        .order_by(Trip.updated_at.desc())
+        .limit(10)
+    )
+    recent = list(r_hist.scalars().all())
+
+    return {
+        "total_xof": total_xof,
+        "total_trips": total_trips,
+        "today_xof": today_xof,
+        "today_trips": today_trips,
+        "week_xof": week_xof,
+        "week_trips": week_trips,
+        "recent_trips": recent,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Admin Statistics — Sprint 11
+# ---------------------------------------------------------------------------
+
+async def admin_get_stats(db: AsyncSession) -> dict:
+    """Platform-wide statistics for admin dashboard."""
+
+    # Trip counts by status + total revenue
+    r_trips = await db.execute(
+        select(Trip.status, func.count(Trip.id)).group_by(Trip.status)
+    )
+    trips_by_status: dict[str, int] = dict(r_trips.all())
+
+    r_rev = await db.execute(
+        select(func.sum(Trip.fare_xof)).where(Trip.status == "completed")
+    )
+    total_revenue_xof = int(r_rev.scalar() or 0)
+
+    # Assistance counts by status
+    r_assist = await db.execute(
+        select(AssistanceRequest.status, func.count(AssistanceRequest.id))
+        .group_by(AssistanceRequest.status)
+    )
+    assist_by_status: dict[str, int] = dict(r_assist.all())
+
+    # Driver counts by status
+    r_drivers = await db.execute(
+        select(Driver.status, func.count(Driver.id)).group_by(Driver.status)
+    )
+    drivers_by_status: dict[str, int] = dict(r_drivers.all())
+
+    return {
+        "trips": {
+            "total": sum(trips_by_status.values()),
+            "by_status": trips_by_status,
+            "total_revenue_xof": total_revenue_xof,
+        },
+        "assistance": {
+            "total": sum(assist_by_status.values()),
+            "by_status": assist_by_status,
+        },
+        "drivers": {
+            "total": sum(drivers_by_status.values()),
+            "by_status": drivers_by_status,
+        },
+    }
+
+
+async def admin_list_trips(
+    db: AsyncSession, limit: int = 50, offset: int = 0
+) -> list[dict]:
+    """All trips with customer email, newest first (admin view)."""
+    r = await db.execute(
+        select(Trip, User)
+        .join(User, Trip.customer_id == User.id)
+        .order_by(Trip.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    out = []
+    for trip, customer in r.all():
+        out.append({
+            "trip_id": str(trip.id),
+            "status": trip.status,
+            "fare_xof": trip.fare_xof,
+            "distance_km": trip.distance_km,
+            "duration_min": trip.duration_min,
+            "customer_email": customer.email,
+            "driver_id": str(trip.driver_id) if trip.driver_id else None,
+            "created_at": trip.created_at.isoformat(),
+            "updated_at": trip.updated_at.isoformat(),
+        })
+    return out

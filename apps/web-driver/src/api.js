@@ -109,6 +109,18 @@ export const startAssistance   = (token, id) => _patch(token, `${API_BASE}/v1/as
 export const resolveAssistance = (token, id) => _patch(token, `${API_BASE}/v1/assistance/${id}/resolve`);
 
 // ---------------------------------------------------------------------------
+// Driver earnings — Sprint 11
+// ---------------------------------------------------------------------------
+
+export async function getMyEarnings(token) {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/earnings`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+  // { total_xof, total_trips, today_xof, today_trips, week_xof, week_trips, recent_trips }
+}
+
+// ---------------------------------------------------------------------------
 // Driver rating stats
 // ---------------------------------------------------------------------------
 
