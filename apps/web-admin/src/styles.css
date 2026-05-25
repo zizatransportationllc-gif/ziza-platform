@@ -125,3 +125,20 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .role-admin    { background: color-mix(in srgb, #8b5cf6 15%, transparent); color: #7c3aed; }
 .role-driver   { background: color-mix(in srgb, var(--color-accent) 12%, transparent); color: var(--color-accent); }
 .role-customer { background: color-mix(in srgb, var(--color-success) 12%, transparent); color: var(--color-success); }
+
+/* ── Sprint 13: Assistance panel ────────────────────────────────────────── */
+.assist-panel { width: 100%; }
+.assist-row { background: var(--color-surface); border: 1px solid var(--color-border); border-left: 3px solid #f59e0b; border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-2); }
+.assist-row-main { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: 2px; }
+.assist-row-meta { display: flex; gap: var(--space-3); font-size: 0.78rem; color: var(--color-muted); flex-wrap: wrap; }
+.assist-type-label { font-size: 0.88rem; font-weight: 600; color: #b45309; }
+.assist-note-admin { font-style: italic; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status-resolved { background: color-mix(in srgb, var(--color-success) 12%, transparent); color: var(--color-success); }
+
+/* Reusable pagination (shared across panels) */
+.pagination { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-4); }
+.page-btn { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--color-fg); cursor: pointer; font-size: 0.85rem; }
+.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.page-info { font-size: 0.85rem; color: var(--color-muted); }
+.refresh-btn { background: transparent; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-1) var(--space-3); color: var(--color-muted); cursor: pointer; font-size: 0.85rem; }
+.refresh-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }

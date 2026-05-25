@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 12.
+"""Ziza API — Sprint 13.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -8,15 +8,18 @@ Endpoints:
   POST  /v1/auth/register                          upsert user in DB and return profile
   POST  /v1/estimate                               fare estimate for a ride (origin → destination)
   POST  /v1/trips                                  book a trip from a valid estimate
-  GET   /v1/trips                                  list customer's trips
+  GET   /v1/trips                                  list customer's trips (paginated)
   GET   /v1/trips/driver/available                 pending trips (driver view)
   GET   /v1/trips/driver/active                    driver's current active trip
+  GET   /v1/trips/driver/history                   driver's completed/cancelled trips (paginated)
   GET   /v1/trips/{trip_id}                        trip detail + events
   PATCH /v1/trips/{trip_id}/cancel                 customer cancels a pending/accepted trip
   PATCH /v1/trips/{trip_id}/accept                 driver accepts a pending trip
   PATCH /v1/trips/{trip_id}/start                  driver starts an accepted trip
   PATCH /v1/trips/{trip_id}/complete               driver completes an in_progress trip
   POST  /v1/drivers/register                       create/upsert driver profile
+  GET   /v1/drivers/me/profile                     driver profile (is_online, status)
+  PUT   /v1/drivers/me/online                      toggle driver online/offline presence
   GET   /v1/drivers/me/capabilities                driver reads their capability set
   PUT   /v1/drivers/me/capabilities                driver replaces their capability set
   POST  /v1/trips/{trip_id}/rate                   customer rates a completed trip (1-5 stars)
@@ -35,6 +38,7 @@ Endpoints:
   GET   /v1/drivers/me/earnings                    driver's earnings summary (total, today, week)
   GET   /v1/admin/stats                            platform-wide statistics
   GET   /v1/admin/trips                            all trips paginated (admin view)
+  GET   /v1/admin/assistance                       all assistance requests paginated (admin view)
   POST  /v1/drivers/me/vehicle                     driver registers / updates their vehicle
   GET   /v1/drivers/me/vehicle                     driver gets their current vehicle
   GET   /v1/assistance                             customer lists all their assistance requests
@@ -338,11 +342,14 @@ async def create_trip(
 
 @app.get("/v1/trips", tags=["rides"])
 async def list_trips(
+    limit: int = 50,
+    offset: int = 0,
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[TripResponse]:
-    """List all trips for the authenticated customer, newest first."""
-    trips = await crud.list_trips(db, claims.user_id)
+    """List all trips for the authenticated customer, newest first (paginated)."""
+    limit = min(limit, 200)
+    trips = await crud.list_trips(db, claims.user_id, limit=limit, offset=offset)
     return [_trip_response(t) for t in trips]
 
 
@@ -411,6 +418,53 @@ async def register_driver(
     )
 
 
+class DriverProfileResponse(BaseModel):
+    driver_id: str
+    status: str
+    is_online: bool
+    registered_at: str
+
+
+@app.get("/v1/drivers/me/profile", tags=["drivers"])
+async def get_driver_profile(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> DriverProfileResponse:
+    """Return the driver's profile including online status."""
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can access this endpoint",
+        )
+    profile = await crud.get_driver_profile(db, claims.user_id)
+    return DriverProfileResponse(**profile)
+
+
+class DriverOnlineRequest(BaseModel):
+    online: bool
+
+
+class DriverOnlineResponse(BaseModel):
+    driver_id: str
+    is_online: bool
+
+
+@app.put("/v1/drivers/me/online", tags=["drivers"])
+async def set_driver_online(
+    body: DriverOnlineRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> DriverOnlineResponse:
+    """Toggle the driver's online/offline presence flag."""
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can update online status",
+        )
+    result = await crud.set_driver_online(db, claims.user_id, body.online)
+    return DriverOnlineResponse(**result)
+
+
 @app.get("/v1/trips/driver/available", tags=["drivers"])
 async def list_available_trips(
     claims: Claims = Depends(get_current_user),
@@ -445,6 +499,45 @@ async def get_driver_active_trip(
         vehicle = await crud.get_vehicle_for_driver_uuid(db, trip.driver_id)
         return ActiveTripWrap(trip=_trip_response(trip, vehicle=vehicle))
     return ActiveTripWrap(trip=None)
+
+
+class DriverTripRecord(BaseModel):
+    trip_id: str
+    status: str
+    fare_xof: int | None = None
+    distance_km: float | None = None
+    duration_min: int | None = None
+    created_at: str
+    updated_at: str
+
+
+@app.get("/v1/trips/driver/history", tags=["drivers"])
+async def list_driver_trip_history(
+    limit: int = 20,
+    offset: int = 0,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[DriverTripRecord]:
+    """Return the driver's completed/cancelled trips, newest first."""
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can access this endpoint",
+        )
+    limit = min(limit, 100)
+    trips = await crud.list_driver_trip_history(db, claims.user_id, limit=limit, offset=offset)
+    return [
+        DriverTripRecord(
+            trip_id=str(t.id),
+            status=t.status,
+            fare_xof=t.fare_xof,
+            distance_km=t.distance_km,
+            duration_min=t.duration_min,
+            created_at=t.created_at.isoformat(),
+            updated_at=t.updated_at.isoformat(),
+        )
+        for t in trips
+    ]
 
 
 @app.patch("/v1/trips/{trip_id}/accept", tags=["drivers"])
@@ -1087,3 +1180,39 @@ async def admin_list_users(
         )
     users = await crud.admin_list_users(db)
     return [AdminUserRecord(**u) for u in users]
+
+
+# ---------------------------------------------------------------------------
+# Admin — Assistance List — Sprint 13
+# ---------------------------------------------------------------------------
+
+class AdminAssistanceRecord(BaseModel):
+    request_id: str
+    type: str
+    status: str
+    lat: float
+    lng: float
+    note: str | None = None
+    eta_min: int | None = None
+    customer_email: str
+    driver_id: str | None = None
+    created_at: str
+    updated_at: str
+
+
+@app.get("/v1/admin/assistance", tags=["admin"])
+async def admin_list_assistance(
+    limit: int = 50,
+    offset: int = 0,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[AdminAssistanceRecord]:
+    """Admin: list all assistance requests (newest first, paginated)."""
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    limit = min(limit, 200)
+    rows = await crud.admin_list_assistance(db, limit=limit, offset=offset)
+    return [AdminAssistanceRecord(**r) for r in rows]

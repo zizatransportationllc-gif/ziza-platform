@@ -205,6 +205,8 @@ async def get_trip(
 async def list_trips(
     db: AsyncSession,
     auth_user_id: str,
+    limit: int = 50,
+    offset: int = 0,
 ) -> list[Trip]:
     """Return all trips for the authenticated customer, newest first."""
     user = await _get_user_by_auth_id(db, auth_user_id)
@@ -215,6 +217,8 @@ async def list_trips(
         select(Trip)
         .where(Trip.customer_id == user.id)
         .order_by(Trip.created_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
     return list(result.scalars().all())
 
@@ -1242,4 +1246,81 @@ async def admin_list_users(db: AsyncSession) -> list[dict]:
             "created_at": u.created_at.isoformat(),
         }
         for u in users
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Sprint 13 — Driver presence, driver trip history, admin assistance list
+# ---------------------------------------------------------------------------
+
+async def get_driver_profile(db: AsyncSession, auth_user_id: str) -> dict:
+    """Return minimal driver profile including online status."""
+    driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
+    return {
+        "driver_id": str(driver.id),
+        "status": driver.status,
+        "is_online": driver.is_online,
+        "registered_at": _utc(driver.created_at).isoformat(),
+    }
+
+
+async def set_driver_online(
+    db: AsyncSession, auth_user_id: str, online: bool
+) -> dict:
+    """Toggle the driver's online/offline presence flag."""
+    driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
+    driver.is_online = online
+    await db.commit()
+    await db.refresh(driver)
+    return {"driver_id": str(driver.id), "is_online": driver.is_online}
+
+
+async def list_driver_trip_history(
+    db: AsyncSession,
+    auth_user_id: str,
+    limit: int = 20,
+    offset: int = 0,
+) -> list[Trip]:
+    """Return the driver's completed or cancelled trips, newest first."""
+    driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
+    result = await db.execute(
+        select(Trip)
+        .where(
+            Trip.driver_id == driver.id,
+            Trip.status.in_(["completed", "cancelled"]),
+        )
+        .order_by(Trip.updated_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return list(result.scalars().all())
+
+
+async def admin_list_assistance(
+    db: AsyncSession, limit: int = 50, offset: int = 0
+) -> list[dict]:
+    """Return all assistance requests (newest first) for admin view."""
+    result = await db.execute(
+        select(AssistanceRequest, User)
+        .join(User, AssistanceRequest.customer_id == User.id)
+        .order_by(AssistanceRequest.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    rows = result.all()
+    return [
+        {
+            "request_id": str(req.id),
+            "type": req.type,
+            "status": req.status,
+            "lat": req.lat,
+            "lng": req.lng,
+            "note": req.note,
+            "eta_min": req.eta_min,
+            "customer_email": user.email,
+            "driver_id": str(req.driver_id) if req.driver_id else None,
+            "created_at": _utc(req.created_at).isoformat(),
+            "updated_at": _utc(req.updated_at).isoformat(),
+        }
+        for req, user in rows
     ]

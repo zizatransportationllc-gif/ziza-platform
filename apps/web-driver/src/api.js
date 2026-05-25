@@ -157,6 +157,42 @@ export async function getMyRating(token) {
 }
 
 // ---------------------------------------------------------------------------
+// Driver presence & profile — Sprint 13
+// ---------------------------------------------------------------------------
+
+export async function getDriverProfile(token) {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/profile`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // { driver_id, status, is_online, registered_at }
+}
+
+export async function setDriverOnline(token, online) {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/online`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ online }),
+  });
+  return _json(res); // { driver_id, is_online }
+}
+
+// ---------------------------------------------------------------------------
+// Driver trip history — Sprint 13
+// ---------------------------------------------------------------------------
+
+export async function listDriverTripHistory(token, limit = 20, offset = 0) {
+  const res = await fetch(
+    `${API_BASE}/v1/trips/driver/history?limit=${limit}&offset=${offset}`,
+    { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+  );
+  return _json(res); // DriverTripRecord[]
+}
+
+// ---------------------------------------------------------------------------
 // Legacy demo (kept for compat)
 // ---------------------------------------------------------------------------
 

@@ -7,6 +7,7 @@ import {
   acceptAssistance, startAssistance, resolveAssistance,
   getMyRating, getMyEarnings,
   getMyVehicle, registerVehicle,
+  getDriverProfile, setDriverOnline, listDriverTripHistory,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -50,7 +51,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Driver</h1>
-      <p className="subtitle">Sprint 11 — Gains & statistiques</p>
+      <p className="subtitle">Sprint 13 — Présence & historique</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -362,6 +363,68 @@ function AvailableTripsSection({ token, onTripAccepted, onAssistanceAccepted }) 
 }
 
 // ---------------------------------------------------------------------------
+// Driver trip history — Sprint 13
+// ---------------------------------------------------------------------------
+
+const TRIP_HISTORY_PAGE = 10;
+
+function DriverTripHistory({ token }) {
+  const [trips, setTrips] = useState([]);
+  const [page, setPage] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(async (p = 0) => {
+    setLoading(true); setError(null);
+    try {
+      const data = await listDriverTripHistory(token, TRIP_HISTORY_PAGE, p * TRIP_HISTORY_PAGE);
+      setTrips(data);
+      setPage(p);
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { load(0); }, [load]);
+
+  if (loading && trips.length === 0) return <div className="status loading">⏳ Chargement…</div>;
+  if (error) return <p className="form-error">{error}</p>;
+
+  return (
+    <div className="driver-history">
+      <div className="available-header">
+        <h2 className="section-title">Mes courses terminées</h2>
+        <button className="refresh-btn" onClick={() => load(page)} disabled={loading}>↻</button>
+      </div>
+      {trips.length === 0 && (
+        <div className="empty-state">Aucune course terminée pour le moment.</div>
+      )}
+      <div className="trip-list">
+        {trips.map((t) => (
+          <div key={t.trip_id} className={`trip-card history-trip-${t.status}`}>
+            <div className={`dispatch-tag ${t.status === "completed" ? "tag-ride" : "tag-cancelled"}`}>
+              {t.status === "completed" ? "✅ Terminée" : "✗ Annulée"}
+            </div>
+            {t.fare_xof && <div className="trip-card-fare">{formatXOF(t.fare_xof)}</div>}
+            <div className="trip-card-meta">
+              {t.distance_km != null && <span>🛣️ {t.distance_km.toFixed(1)} km</span>}
+              {t.duration_min != null && <span>⏱️ {t.duration_min} min</span>}
+              <span>{new Date(t.updated_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      {(trips.length === TRIP_HISTORY_PAGE || page > 0) && (
+        <div className="pagination">
+          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Précédent</button>
+          <span className="page-info">Page {page + 1}</span>
+          <button className="page-btn" onClick={() => load(page + 1)} disabled={trips.length < TRIP_HISTORY_PAGE || loading}>Suivant →</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
@@ -372,8 +435,11 @@ function Dashboard({ user, token, onLogout }) {
   const [ratingStats, setRatingStats] = useState(null);
   const [earnings, setEarnings] = useState(null);
   const [vehicle, setVehicle] = useState(undefined); // undefined = loading, null = none
+  const [isOnline, setIsOnline] = useState(false);
+  const [togglingOnline, setTogglingOnline] = useState(false);
+  const [tab, setTab] = useState("dispatch"); // "dispatch" | "history"
 
-  // On mount: check active trip + active assistance + rating stats + earnings + vehicle in parallel
+  // On mount: parallel fetch
   useEffect(() => {
     Promise.all([
       getActiveTrip(token).then(({ trip }) => { setActiveTrip(trip); }),
@@ -381,6 +447,7 @@ function Dashboard({ user, token, onLogout }) {
       getMyRating(token).then(setRatingStats).catch(() => {}),
       getMyEarnings(token).then(setEarnings).catch(() => {}),
       getMyVehicle(token).then(setVehicle).catch(() => setVehicle(null)),
+      getDriverProfile(token).then((p) => setIsOnline(p.is_online)).catch(() => {}),
     ]).finally(() => setInitialized(true));
   }, [token]);
 
@@ -401,6 +468,15 @@ function Dashboard({ user, token, onLogout }) {
     getMyEarnings(token).then(setEarnings).catch(() => {});
   }
 
+  async function handleToggleOnline() {
+    setTogglingOnline(true);
+    try {
+      const result = await setDriverOnline(token, !isOnline);
+      setIsOnline(result.is_online);
+    } catch (_) { /* swallow */ }
+    finally { setTogglingOnline(false); }
+  }
+
   function handleTripUpdate(updated) {
     setActiveTrip(updated);
     if (["completed", "cancelled"].includes(updated.status)) {
@@ -417,6 +493,9 @@ function Dashboard({ user, token, onLogout }) {
       setTimeout(() => setActiveAssistance(null), 3000);
     }
   }
+
+  const hasActive = (activeTrip && !["completed", "cancelled"].includes(activeTrip.status))
+    || (activeAssistance && !["resolved", "cancelled"].includes(activeAssistance.status));
 
   if (!initialized) {
     return (
@@ -435,23 +514,66 @@ function Dashboard({ user, token, onLogout }) {
       <div className="status ok">✓ Connecté — <strong>{user.email}</strong></div>
       <div className="role-badge">{user.role} · {user.provider}</div>
 
+      {/* Online/Offline toggle */}
+      <button
+        className={`online-toggle ${isOnline ? "online" : "offline"}`}
+        onClick={handleToggleOnline}
+        disabled={togglingOnline}
+      >
+        <span className="online-dot" />
+        {togglingOnline ? "…" : isOnline ? "En ligne" : "Hors ligne"}
+      </button>
+
       <VehicleCard token={token} vehicle={vehicle} onSaved={setVehicle} />
       <EarningsCard earnings={earnings} />
       <RatingStats stats={ratingStats} />
 
-      {activeTrip && !["completed", "cancelled"].includes(activeTrip.status) ? (
-        <ActiveTripCard token={token} trip={activeTrip} onUpdate={handleTripUpdate} />
-      ) : activeAssistance && !["resolved", "cancelled"].includes(activeAssistance.status) ? (
-        <ActiveAssistanceCard token={token} request={activeAssistance} onUpdate={handleAssistanceUpdate} />
+      {/* Active mission always shown regardless of tab */}
+      {hasActive ? (
+        activeTrip && !["completed", "cancelled"].includes(activeTrip.status) ? (
+          <ActiveTripCard token={token} trip={activeTrip} onUpdate={handleTripUpdate} />
+        ) : (
+          <ActiveAssistanceCard token={token} request={activeAssistance} onUpdate={handleAssistanceUpdate} />
+        )
       ) : (
-        <AvailableTripsSection
-          token={token}
-          onTripAccepted={setActiveTrip}
-          onAssistanceAccepted={setActiveAssistance}
-        />
+        <>
+          {/* Tabs: Dispatch / Historique */}
+          <div className="driver-tabs">
+            <button
+              className={`driver-tab ${tab === "dispatch" ? "active" : ""}`}
+              onClick={() => setTab("dispatch")}
+            >
+              🚕 Dispatch
+            </button>
+            <button
+              className={`driver-tab ${tab === "history" ? "active" : ""}`}
+              onClick={() => setTab("history")}
+            >
+              📋 Historique
+            </button>
+          </div>
+
+          {tab === "dispatch" && (
+            isOnline ? (
+              <AvailableTripsSection
+                token={token}
+                onTripAccepted={setActiveTrip}
+                onAssistanceAccepted={setActiveAssistance}
+              />
+            ) : (
+              <div className="offline-notice">
+                <div className="offline-icon">📴</div>
+                <p>Vous êtes hors ligne.</p>
+                <p className="offline-sub">Passez en ligne pour voir les missions disponibles.</p>
+              </div>
+            )
+          )}
+
+          {tab === "history" && <DriverTripHistory token={token} />}
+        </>
       )}
 
-      <p className="footer">App: <strong>web-driver</strong> · Sprint 11</p>
+      <p className="footer">App: <strong>web-driver</strong> · Sprint 13</p>
     </div>
   );
 }

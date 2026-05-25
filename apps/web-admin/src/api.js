@@ -93,3 +93,14 @@ export async function adminListUsers(token) {
   });
   return _json(res); // AdminUserRecord[]
 }
+
+// ---------------------------------------------------------------------------
+// Admin — assistance list — Sprint 13
+// ---------------------------------------------------------------------------
+
+export async function adminListAssistance(token, limit = 50, offset = 0) {
+  const res = await fetch(`${API_BASE}/v1/admin/assistance?limit=${limit}&offset=${offset}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // AdminAssistanceRecord[]
+}

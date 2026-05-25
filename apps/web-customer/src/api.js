@@ -208,3 +208,18 @@ export async function fetchDemo(token) {
   if (!res.ok) throw new Error(`API error ${res.status}: ${res.statusText}`);
   return res.json();
 }
+
+// ---------------------------------------------------------------------------
+// Customer trip history — Sprint 13
+// ---------------------------------------------------------------------------
+
+export async function listMyTrips(token, limit = 20, offset = 0) {
+  const res = await fetch(`${API_BASE}/v1/trips?limit=${limit}&offset=${offset}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `List trips error (${res.status})`);
+  }
+  return res.json(); // TripResponse[]
+}

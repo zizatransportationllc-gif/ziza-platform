@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import {
   login, fetchMe, registerUser,
   adminListDrivers, adminSetDriverCapabilities,
-  adminGetStats, adminListTrips, adminListUsers,
+  adminGetStats, adminListTrips, adminListUsers, adminListAssistance,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -25,6 +25,7 @@ const STATUS_LABELS = {
   in_progress: "En cours",
   completed:   "Terminée",
   cancelled:   "Annulée",
+  resolved:    "Résolue",
 };
 
 function formatXOF(n) {
@@ -42,7 +43,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 11 — Statistiques & gestion des chauffeurs</p>
+      <p className="subtitle">Sprint 13 — Historique & présence</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -354,14 +355,91 @@ function UsersPanel({ token }) {
 }
 
 // ---------------------------------------------------------------------------
+// Assistance panel — Sprint 13
+// ---------------------------------------------------------------------------
+
+const ASSIST_TYPE_LABELS = {
+  breakdown: "🔧 Panne",
+  flat_tyre: "🔴 Pneu",
+  tow:       "🚛 Remorquage",
+  fuel:      "⛽ Carburant",
+  lockout:   "🔑 Clés",
+};
+
+function AssistanceRow({ req }) {
+  return (
+    <div className="assist-row">
+      <div className="assist-row-main">
+        <span className={`trip-status-badge status-${req.status}`}>
+          {STATUS_LABELS[req.status] ?? req.status}
+        </span>
+        <span className="assist-type-label">{ASSIST_TYPE_LABELS[req.type] ?? req.type}</span>
+        <span className="trip-customer">{req.customer_email}</span>
+      </div>
+      <div className="assist-row-meta">
+        {req.eta_min != null && <span>⏱️ ETA {req.eta_min} min</span>}
+        {req.note && <span className="assist-note-admin">"{req.note}"</span>}
+        <span className="trip-date">{new Date(req.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}</span>
+      </div>
+    </div>
+  );
+}
+
+function AssistancePanel({ token }) {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(0);
+  const [error, setError] = useState(null);
+  const PAGE_SIZE = 10;
+
+  const load = useCallback(async (p = 0) => {
+    setLoading(true); setError(null);
+    try {
+      const data = await adminListAssistance(token, PAGE_SIZE, p * PAGE_SIZE);
+      setRequests(data);
+      setPage(p);
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { load(0); }, [load]);
+
+  return (
+    <div className="assist-panel">
+      <div className="panel-header">
+        <h2 className="panel-title">Demandes d'assistance</h2>
+        <div className="panel-actions">
+          <button className="refresh-btn" onClick={() => load(page)} disabled={loading}>↻</button>
+        </div>
+      </div>
+      {error && <p className="form-error">{error}</p>}
+      {!loading && requests.length === 0 && (
+        <div className="empty-state">Aucune demande enregistrée.</div>
+      )}
+      <div className="trip-list-admin">
+        {requests.map((r) => <AssistanceRow key={r.request_id} req={r} />)}
+      </div>
+      {(requests.length === PAGE_SIZE || page > 0) && (
+        <div className="pagination">
+          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Précédent</button>
+          <span className="page-info">Page {page + 1}</span>
+          <button className="page-btn" onClick={() => load(page + 1)} disabled={requests.length < PAGE_SIZE || loading}>Suivant →</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard — tabbed navigation
 // ---------------------------------------------------------------------------
 
 const TABS = [
-  { id: "stats",   label: "📊 Stats" },
-  { id: "trips",   label: "🚕 Courses" },
-  { id: "drivers", label: "🧑‍✈️ Chauffeurs" },
-  { id: "users",   label: "👥 Utilisateurs" },
+  { id: "stats",     label: "📊 Stats" },
+  { id: "trips",     label: "🚕 Courses" },
+  { id: "assist",    label: "🆘 Assistances" },
+  { id: "drivers",   label: "🧑‍✈️ Chauffeurs" },
+  { id: "users",     label: "👥 Utilisateurs" },
 ];
 
 function Dashboard({ user, token, onLogout }) {
@@ -384,12 +462,13 @@ function Dashboard({ user, token, onLogout }) {
         ))}
       </div>
 
-      {activeTab === "stats"   && <StatsPanel   token={token} />}
-      {activeTab === "trips"   && <TripsPanel   token={token} />}
-      {activeTab === "drivers" && <DriversPanel token={token} />}
-      {activeTab === "users"   && <UsersPanel   token={token} />}
+      {activeTab === "stats"   && <StatsPanel      token={token} />}
+      {activeTab === "trips"   && <TripsPanel      token={token} />}
+      {activeTab === "assist"  && <AssistancePanel token={token} />}
+      {activeTab === "drivers" && <DriversPanel    token={token} />}
+      {activeTab === "users"   && <UsersPanel      token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 12</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 13</p>
     </div>
   );
 }

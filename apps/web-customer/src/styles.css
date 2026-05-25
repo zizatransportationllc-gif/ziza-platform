@@ -229,3 +229,14 @@ html, body {
 .history-note { font-size: 0.82rem; color: var(--color-muted); font-style: italic; }
 .history-date { font-size: 0.78rem; color: var(--color-muted); margin-top: var(--space-1); }
 .history-empty { text-align: center; color: var(--color-muted); font-size: 0.9rem; padding: var(--space-6) 0; margin: 0; }
+
+/* ── Sprint 13: Trip history (customer) ─────────────────────────────────── */
+.history-fare { font-size: 1.1rem; font-weight: 700; color: var(--color-accent); margin: 2px 0; }
+.history-meta { display: flex; gap: var(--space-3); font-size: 0.82rem; color: var(--color-muted); flex-wrap: wrap; }
+.trip-history-pagination { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-top: var(--space-4); }
+.page-btn-sm { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-1) var(--space-3); color: var(--color-fg); cursor: pointer; font-size: 0.82rem; }
+.page-btn-sm:disabled { opacity: 0.4; cursor: not-allowed; }
+.page-info-sm { font-size: 0.82rem; color: var(--color-muted); }
+
+/* 4-tab mode-tabs: allow wrapping on small screens */
+.mode-tabs { flex-wrap: wrap; }

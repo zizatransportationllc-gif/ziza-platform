@@ -101,3 +101,32 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .rating-avg { font-size: 1.3rem; font-weight: 700; color: var(--color-fg); }
 .rating-count { font-size: 0.85rem; font-weight: 400; color: var(--color-muted); }
 .rating-stats-empty { font-size: 0.9rem; color: var(--color-muted); }
+
+/* ── Sprint 13: Online/offline toggle ──────────────────────────────────── */
+.online-toggle { display: flex; align-items: center; gap: var(--space-2); width: 100%; margin-bottom: var(--space-3); padding: var(--space-2) var(--space-4); border-radius: 999px; border: none; cursor: pointer; font-size: 0.9rem; font-weight: 700; transition: background 0.2s, opacity 0.2s; }
+.online-toggle:disabled { opacity: 0.6; cursor: not-allowed; }
+.online-toggle.online  { background: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success); border: 2px solid var(--color-success); }
+.online-toggle.offline { background: color-mix(in srgb, var(--color-muted) 15%, transparent); color: var(--color-muted); border: 2px solid var(--color-muted); }
+.online-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.online-toggle.online  .online-dot { background: var(--color-success); box-shadow: 0 0 6px var(--color-success); }
+.online-toggle.offline .online-dot { background: var(--color-muted); }
+
+/* ── Sprint 13: Driver tabs ─────────────────────────────────────────────── */
+.driver-tabs { display: flex; gap: var(--space-2); margin: var(--space-4) 0 var(--space-2); }
+.driver-tab { flex: 1; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-muted); font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+.driver-tab.active { background: var(--color-accent-strong); color: #fff; border-color: transparent; }
+
+/* ── Sprint 13: Offline notice ──────────────────────────────────────────── */
+.offline-notice { text-align: center; padding: var(--space-8) var(--space-4); color: var(--color-muted); }
+.offline-icon { font-size: 2.5rem; margin-bottom: var(--space-3); }
+.offline-sub { font-size: 0.85rem; margin-top: var(--space-1); }
+
+/* ── Sprint 13: Driver trip history ─────────────────────────────────────── */
+.driver-history { margin-top: var(--space-2); }
+.tag-cancelled { background: color-mix(in srgb, var(--color-error) 12%, transparent); color: var(--color-error); }
+.pagination { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-4); }
+.page-btn { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--color-fg); cursor: pointer; font-size: 0.85rem; }
+.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.page-info { font-size: 0.85rem; color: var(--color-muted); }
+.refresh-btn { background: transparent; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-1) var(--space-3); color: var(--color-muted); cursor: pointer; font-size: 0.85rem; }
+.refresh-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
