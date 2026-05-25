@@ -8,5 +8,6 @@ from app.models.user import User  # noqa: F401
 from app.models.driver import Driver  # noqa: F401
 from app.models.vehicle import Vehicle  # noqa: F401
 from app.models.trip import Trip, TripEvent  # noqa: F401
+from app.models.estimate import Estimate  # noqa: F401
 
-__all__ = ["Base", "User", "Driver", "Vehicle", "Trip", "TripEvent"]
+__all__ = ["Base", "User", "Driver", "Vehicle", "Trip", "TripEvent", "Estimate"]

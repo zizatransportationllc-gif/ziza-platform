@@ -1,9 +1,27 @@
 import { useEffect, useState } from "react";
-import { login, fetchMe, fetchDemo, registerUser } from "./api";
+import { login, fetchMe, fetchDemo, registerUser, fetchEstimate } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
 const REQUIRED_ROLE = "customer";
 const TOKEN_KEY = "ziza_token";
+
+// Predefined Abidjan landmarks for the estimate form
+const ABIDJAN_LOCATIONS = {
+  "Plateau (Centre-ville)": { lat: 5.3207, lng: -4.0175 },
+  "Cocody":                 { lat: 5.3600, lng: -3.9801 },
+  "Yopougon":               { lat: 5.3386, lng: -4.0721 },
+  "Abobo":                  { lat: 5.4154, lng: -4.0243 },
+  "Marcory":                { lat: 5.2997, lng: -3.9904 },
+  "Treichville":            { lat: 5.2975, lng: -4.0119 },
+  "Adjamé":                 { lat: 5.3612, lng: -4.0288 },
+  "Aéroport (Port-Bouët)":  { lat: 5.2537, lng: -3.9268 },
+};
+
+const LOCATION_NAMES = Object.keys(ABIDJAN_LOCATIONS);
+
+// ---------------------------------------------------------------------------
+// Login form
+// ---------------------------------------------------------------------------
 
 function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   const [email, setEmail] = useState("customer@ziza.dev");
@@ -11,10 +29,10 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Customer</h1>
-      <p className="subtitle">Sprint 3 — Auth DEV + Firebase</p>
+      <p className="subtitle">Sprint 5 — Estimation de tarif</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
+        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
         <button type="submit" disabled={loading}>{loading ? "Connexion…" : "Se connecter"}</button>
       </form>
       {firebaseEnabled && (
@@ -28,7 +46,81 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   );
 }
 
-function Dashboard({ user, demo, onLogout }) {
+// ---------------------------------------------------------------------------
+// Estimate form + result card
+// ---------------------------------------------------------------------------
+
+function EstimateSection({ token }) {
+  const [origin, setOrigin] = useState(LOCATION_NAMES[0]);
+  const [dest, setDest]     = useState(LOCATION_NAMES[1]);
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]   = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (origin === dest) { setError("Choisissez deux points différents."); return; }
+    setLoading(true); setError(null); setResult(null);
+    try {
+      const o = ABIDJAN_LOCATIONS[origin];
+      const d = ABIDJAN_LOCATIONS[dest];
+      const data = await fetchEstimate(token, o.lat, o.lng, d.lat, d.lng);
+      setResult(data);
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  }
+
+  function formatXOF(n) {
+    return new Intl.NumberFormat("fr-FR").format(n) + " XOF";
+  }
+
+  return (
+    <div className="estimate-section">
+      <h2 className="estimate-title">Estimer mon trajet</h2>
+      <form className="estimate-form" onSubmit={handleSubmit}>
+        <div className="estimate-row">
+          <label>
+            <span className="estimate-label">📍 Départ</span>
+            <select value={origin} onChange={(e) => setOrigin(e.target.value)}>
+              {LOCATION_NAMES.map((n) => <option key={n}>{n}</option>)}
+            </select>
+          </label>
+          <label>
+            <span className="estimate-label">🏁 Arrivée</span>
+            <select value={dest} onChange={(e) => setDest(e.target.value)}>
+              {LOCATION_NAMES.map((n) => <option key={n}>{n}</option>)}
+            </select>
+          </label>
+        </div>
+        <button type="submit" className="estimate-btn" disabled={loading}>
+          {loading ? "Calcul en cours…" : "Obtenir une estimation"}
+        </button>
+      </form>
+      {error && <p className="form-error">{error}</p>}
+      {result && (
+        <div className="fare-card">
+          <div className="fare-amount">{formatXOF(result.fare_xof)}</div>
+          <div className="fare-meta">
+            <span>🛣️ {result.distance_km.toFixed(1)} km</span>
+            <span>⏱️ ~{result.duration_min} min</span>
+            {result.surge_multiplier > 1 && (
+              <span className="surge">🔥 ×{result.surge_multiplier} surge</span>
+            )}
+          </div>
+          <div className="fare-source">
+            {result.distance_source === "google_maps" ? "🗺️ Google Maps" : "📐 Distance estimée"}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------------
+
+function Dashboard({ user, token, onLogout }) {
   return (
     <div className="app">
       <header className="dash-header">
@@ -37,8 +129,8 @@ function Dashboard({ user, demo, onLogout }) {
       </header>
       <div className="status ok">✓ Connecté — <strong>{user.email}</strong></div>
       <div className="role-badge">{user.role} · {user.provider}</div>
-      <pre className="payload">{JSON.stringify({ user, demo }, null, 2)}</pre>
-      <p className="footer">App: <strong>web-customer</strong> · Sprint 3</p>
+      <EstimateSection token={token} />
+      <p className="footer">App: <strong>web-customer</strong> · Sprint 5</p>
     </div>
   );
 }
@@ -53,22 +145,24 @@ function AccessDenied({ role, onLogout }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Root
+// ---------------------------------------------------------------------------
+
 export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
   const [user, setUser] = useState(null);
-  const [demo, setDemo] = useState(null);
   const [loginError, setLoginError] = useState(null);
   const [loginLoading, setLoginLoading] = useState(false);
 
   useEffect(() => {
-    if (!token) { setUser(null); setDemo(null); return; }
+    if (!token) { setUser(null); return; }
     fetchMe(token).then(setUser).catch(() => { localStorage.removeItem(TOKEN_KEY); setToken(null); });
   }, [token]);
 
   useEffect(() => {
     if (!user || user.role !== REQUIRED_ROLE) return;
     registerUser(token).catch(() => {});
-    fetchDemo(token).then(setDemo).catch(() => {});
   }, [user]);
 
   async function handleEmailLogin(email, password) {
@@ -93,11 +187,11 @@ export default function App() {
 
   async function handleLogout() {
     await firebaseSignOut();
-    localStorage.removeItem(TOKEN_KEY); setToken(null); setUser(null); setDemo(null);
+    localStorage.removeItem(TOKEN_KEY); setToken(null); setUser(null);
   }
 
   if (!token) return <LoginForm onEmailLogin={handleEmailLogin} onGoogleLogin={handleGoogleLogin} error={loginError} loading={loginLoading} />;
-  if (!user) return <div className="app"><div className="status loading">⏳ Chargement…</div></div>;
+  if (!user)  return <div className="app"><div className="status loading">⏳ Chargement…</div></div>;
   if (user.role !== REQUIRED_ROLE) return <AccessDenied role={user.role} onLogout={handleLogout} />;
-  return <Dashboard user={user} demo={demo} onLogout={handleLogout} />;
+  return <Dashboard user={user} token={token} onLogout={handleLogout} />;
 }

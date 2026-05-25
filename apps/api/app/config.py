@@ -39,6 +39,18 @@ class Settings(BaseSettings):
     firebase_project_id: str = ""
 
     # ------------------------------------------------------------------
+    # Pricing — Sprint 5 (currency: XOF, West African CFA Franc)
+    # ------------------------------------------------------------------
+    fare_base_xof: int = 500          # minimum / base fare (~$0.85)
+    fare_per_km_xof: int = 150        # rate per km (~$0.25)
+    fare_surge_multiplier: float = 1.0  # 1.0 = no surge; set > 1 during peak
+    fare_estimate_ttl_minutes: int = 15  # how long an estimate is valid
+
+    # Optional: Google Maps Distance Matrix API key for real road distances.
+    # Leave empty to use the Haversine straight-line fallback.
+    google_maps_api_key: str = ""
+
+    # ------------------------------------------------------------------
     # Database (Sprint 4)
     # ------------------------------------------------------------------
     # Full async-compatible connection URL.

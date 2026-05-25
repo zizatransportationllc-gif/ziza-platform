@@ -35,6 +35,28 @@ export async function registerUser(token) {
   return res.json();
 }
 
+export async function fetchEstimate(token, originLat, originLng, destLat, destLng) {
+  const res = await fetch(`${API_BASE}/v1/estimate`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      origin_lat: originLat,
+      origin_lng: originLng,
+      dest_lat: destLat,
+      dest_lng: destLng,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Estimate error (${res.status})`);
+  }
+  return res.json();
+}
+
 export async function fetchDemo(token) {
   const res = await fetch(`${API_BASE}/v1/demo`, {
     headers: {
