@@ -1,33 +1,37 @@
-"""Ziza API — Sprint 9.
+"""Ziza API — Sprint 10.
 
 Endpoints:
-  GET   /health                          liveness probe
-  GET   /v1/demo                         Sprint 1 demo payload
-  POST  /v1/token                        [DEV only] exchange email+password for a JWT
-  GET   /v1/me                           return normalised claims for the authenticated user
-  POST  /v1/auth/register                upsert user in DB and return profile
-  POST  /v1/estimate                     fare estimate for a ride (origin → destination)
-  POST  /v1/trips                        book a trip from a valid estimate
-  GET   /v1/trips                        list customer's trips
-  GET   /v1/trips/driver/available       pending trips (driver view)
-  GET   /v1/trips/driver/active          driver's current active trip
-  GET   /v1/trips/{trip_id}              trip detail + events
-  PATCH /v1/trips/{trip_id}/cancel       customer cancels a pending/accepted trip
-  PATCH /v1/trips/{trip_id}/accept       driver accepts a pending trip
-  PATCH /v1/trips/{trip_id}/start        driver starts an accepted trip
-  PATCH /v1/trips/{trip_id}/complete     driver completes an in_progress trip
-  POST  /v1/drivers/register             create/upsert driver profile
-  POST  /v1/trips/{trip_id}/rate         customer rates a completed trip (1-5 stars)
-  GET   /v1/trips/{trip_id}/rating       get the rating for a trip
-  GET   /v1/drivers/me/rating            driver's own rating statistics
-  POST  /v1/assistance                   customer creates a roadside assistance request
-  GET   /v1/assistance/driver/available  pending assistance requests (driver view)
-  GET   /v1/assistance/driver/active     driver's current active assistance request
-  GET   /v1/assistance/{req_id}          customer views their assistance request
-  PATCH /v1/assistance/{req_id}/cancel   customer cancels a pending request
-  PATCH /v1/assistance/{req_id}/accept   driver accepts a pending request
-  PATCH /v1/assistance/{req_id}/start    driver starts the intervention
-  PATCH /v1/assistance/{req_id}/resolve  driver resolves the intervention
+  GET   /health                                    liveness probe
+  GET   /v1/demo                                   Sprint 1 demo payload
+  POST  /v1/token                                  [DEV only] exchange email+password for a JWT
+  GET   /v1/me                                     return normalised claims for the authenticated user
+  POST  /v1/auth/register                          upsert user in DB and return profile
+  POST  /v1/estimate                               fare estimate for a ride (origin → destination)
+  POST  /v1/trips                                  book a trip from a valid estimate
+  GET   /v1/trips                                  list customer's trips
+  GET   /v1/trips/driver/available                 pending trips (driver view)
+  GET   /v1/trips/driver/active                    driver's current active trip
+  GET   /v1/trips/{trip_id}                        trip detail + events
+  PATCH /v1/trips/{trip_id}/cancel                 customer cancels a pending/accepted trip
+  PATCH /v1/trips/{trip_id}/accept                 driver accepts a pending trip
+  PATCH /v1/trips/{trip_id}/start                  driver starts an accepted trip
+  PATCH /v1/trips/{trip_id}/complete               driver completes an in_progress trip
+  POST  /v1/drivers/register                       create/upsert driver profile
+  GET   /v1/drivers/me/capabilities                driver reads their capability set
+  PUT   /v1/drivers/me/capabilities                driver replaces their capability set
+  POST  /v1/trips/{trip_id}/rate                   customer rates a completed trip (1-5 stars)
+  GET   /v1/trips/{trip_id}/rating                 get the rating for a trip
+  GET   /v1/drivers/me/rating                      driver's own rating statistics
+  POST  /v1/assistance                             customer creates a roadside assistance request
+  GET   /v1/assistance/driver/available            pending assistance requests, filtered by capabilities
+  GET   /v1/assistance/driver/active               driver's current active assistance request
+  GET   /v1/assistance/{req_id}                    customer views their assistance request
+  PATCH /v1/assistance/{req_id}/cancel             customer cancels a pending request
+  PATCH /v1/assistance/{req_id}/accept             driver accepts a pending request (stores ETA)
+  PATCH /v1/assistance/{req_id}/start              driver starts the intervention
+  PATCH /v1/assistance/{req_id}/resolve            driver resolves the intervention
+  GET   /v1/admin/drivers                          admin lists all drivers + capabilities
+  PUT   /v1/admin/drivers/{driver_id}/capabilities admin sets capabilities for a driver
 """
 from __future__ import annotations
 
@@ -464,6 +468,59 @@ async def complete_trip(
 
 
 # ---------------------------------------------------------------------------
+# Driver Capabilities — Sprint 10
+# ---------------------------------------------------------------------------
+
+class CapabilitiesRequest(BaseModel):
+    capabilities: list[str] = Field(
+        default_factory=list,
+        description="Assistance types this driver handles. Empty = handles all.",
+    )
+
+
+class CapabilitiesResponse(BaseModel):
+    capabilities: list[str]
+
+
+@app.get("/v1/drivers/me/capabilities", tags=["capabilities"])
+async def get_my_capabilities(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CapabilitiesResponse:
+    """Return the authenticated driver's declared capability set.
+
+    Empty list means the driver handles all assistance types.
+    """
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can access this endpoint",
+        )
+    caps = await crud.get_driver_capabilities(db, claims.user_id)
+    return CapabilitiesResponse(capabilities=caps)
+
+
+@app.put("/v1/drivers/me/capabilities", tags=["capabilities"])
+async def set_my_capabilities(
+    body: CapabilitiesRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CapabilitiesResponse:
+    """Replace the authenticated driver's capability set.
+
+    Send an empty list to remove all filters (handle everything).
+    Valid types: breakdown, flat_tyre, tow, fuel, lockout.
+    """
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can update capabilities",
+        )
+    caps = await crud.set_driver_capabilities(db, claims.user_id, body.capabilities)
+    return CapabilitiesResponse(capabilities=caps)
+
+
+# ---------------------------------------------------------------------------
 # Ratings — Sprint 8
 # ---------------------------------------------------------------------------
 
@@ -566,6 +623,7 @@ class AssistanceResponse(BaseModel):
     lat: float
     lng: float
     note: str | None = None
+    eta_min: int | None = None   # set when driver accepts (Sprint 10)
     created_at: str
 
 
@@ -582,6 +640,7 @@ def _assistance_response(req) -> AssistanceResponse:
         lat=req.lat,
         lng=req.lng,
         note=req.note,
+        eta_min=req.eta_min,
         created_at=req.created_at.isoformat(),
     )
 
@@ -610,16 +669,17 @@ async def list_available_assistance(
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[AssistanceResponse]:
-    """List all pending assistance requests (driver marketplace view).
+    """List pending assistance requests filtered by the driver's declared capabilities.
 
     Only drivers may call this endpoint.
+    If the driver has no capabilities declared, all pending requests are returned.
     """
     if claims.role != "driver":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only drivers can view available assistance requests",
         )
-    requests = await crud.list_available_assistance(db)
+    requests = await crud.list_available_assistance(db, auth_user_id=claims.user_id)
     return [_assistance_response(r) for r in requests]
 
 
@@ -706,3 +766,53 @@ async def resolve_assistance(
         )
     req = await crud.resolve_assistance(db, req_id, claims.user_id)
     return _assistance_response(req)
+
+
+# ---------------------------------------------------------------------------
+# Admin — Sprint 10
+# ---------------------------------------------------------------------------
+
+class AdminDriverRecord(BaseModel):
+    driver_id: str
+    user_id: str
+    email: str
+    status: str
+    license_number: str | None = None
+    capabilities: list[str]
+    created_at: str
+
+
+@app.get("/v1/admin/drivers", tags=["admin"])
+async def admin_list_drivers(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[AdminDriverRecord]:
+    """Admin: list all registered drivers with their capability sets."""
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    rows = await crud.admin_list_drivers(db)
+    return [AdminDriverRecord(**r) for r in rows]
+
+
+@app.put("/v1/admin/drivers/{driver_id}/capabilities", tags=["admin"])
+async def admin_set_driver_capabilities(
+    driver_id: str,
+    body: CapabilitiesRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CapabilitiesResponse:
+    """Admin: replace the capability set for any driver.
+
+    Valid types: breakdown, flat_tyre, tow, fuel, lockout.
+    Empty list removes all filters (driver handles everything).
+    """
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    caps = await crud.admin_set_driver_capabilities(db, driver_id, body.capabilities)
+    return CapabilitiesResponse(capabilities=caps)

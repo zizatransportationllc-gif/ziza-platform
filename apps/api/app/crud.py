@@ -1,13 +1,15 @@
-"""CRUD helpers — Sprint 4 → Sprint 8.
+"""CRUD helpers — Sprint 4 → Sprint 10.
 
 All functions are async and receive an ``AsyncSession`` from the FastAPI
 ``get_db`` dependency.
 """
 from __future__ import annotations
 
+import math
 import uuid
 from datetime import datetime, timezone
 
+import sqlalchemy as sa
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.base import Claims
 from app.models.assistance import AssistanceRequest, ASSISTANCE_TYPES
 from app.models.driver import Driver
+from app.models.driver_capability import DriverCapability
 from app.models.estimate import Estimate
 from app.models.rating import Rating
 from app.models.trip import Trip, TripEvent
@@ -610,13 +613,34 @@ async def cancel_assistance(
     return req
 
 
-async def list_available_assistance(db: AsyncSession) -> list[AssistanceRequest]:
-    """All pending assistance requests, newest first (driver marketplace view)."""
-    result = await db.execute(
+async def list_available_assistance(
+    db: AsyncSession, auth_user_id: str | None = None
+) -> list[AssistanceRequest]:
+    """All pending assistance requests, filtered by driver capabilities if set.
+
+    If ``auth_user_id`` is provided and the driver has declared capabilities,
+    only requests of matching types are returned.
+    Empty capabilities = no filter (driver handles all types).
+    """
+    query = (
         select(AssistanceRequest)
         .where(AssistanceRequest.status == "pending")
         .order_by(AssistanceRequest.created_at.desc())
     )
+
+    if auth_user_id is not None:
+        driver = await _get_driver_by_auth_id(db, auth_user_id)
+        if driver is not None:
+            caps_result = await db.execute(
+                select(DriverCapability.type).where(
+                    DriverCapability.driver_id == driver.id
+                )
+            )
+            caps = list(caps_result.scalars().all())
+            if caps:  # non-empty → filter by declared capabilities
+                query = query.where(AssistanceRequest.type.in_(caps))
+
+    result = await db.execute(query)
     return list(result.scalars().all())
 
 
@@ -700,6 +724,8 @@ async def accept_assistance(
     req.status = "accepted"
     req.driver_id = driver.id
     req.updated_at = datetime.now(timezone.utc)
+    # ETA: haversine distance from Abidjan dispatch centre to customer location
+    req.eta_min = _compute_eta_min(_ABIDJAN_LAT, _ABIDJAN_LNG, req.lat, req.lng)
     await db.commit()
     await db.refresh(req)
     return req
@@ -768,3 +794,157 @@ async def get_driver_rating_stats(
     avg = float(row[0]) if row[0] is not None else None
     count = row[1]
     return avg, count
+
+
+# ---------------------------------------------------------------------------
+# Driver Capabilities — Sprint 10
+# ---------------------------------------------------------------------------
+
+# Abidjan city centre used as the default dispatch origin for ETA calculation
+_ABIDJAN_LAT: float = 5.345317
+_ABIDJAN_LNG: float = -4.024429
+
+
+def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """Return great-circle distance in km between two WGS-84 coordinates."""
+    R = 6371.0
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlam = math.radians(lng2 - lng1)
+    a = (
+        math.sin(dphi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(dlam / 2) ** 2
+    )
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def _compute_eta_min(
+    driver_lat: float, driver_lng: float, req_lat: float, req_lng: float
+) -> int:
+    """Estimated arrival time: 30 km/h average + 5 min base, minimum 5 min."""
+    dist_km = _haversine_km(driver_lat, driver_lng, req_lat, req_lng)
+    return max(5, round(dist_km / 30 * 60) + 5)
+
+
+async def get_driver_capabilities(
+    db: AsyncSession, auth_user_id: str
+) -> list[str]:
+    """Return the list of assistance types the driver has declared.
+
+    Empty list means no filter — driver sees all pending requests.
+    """
+    driver = await _get_driver_by_auth_id(db, auth_user_id)
+    if driver is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver profile not found - call POST /v1/drivers/register first",
+        )
+    result = await db.execute(
+        select(DriverCapability.type).where(
+            DriverCapability.driver_id == driver.id
+        )
+    )
+    return sorted(result.scalars().all())
+
+
+async def set_driver_capabilities(
+    db: AsyncSession, auth_user_id: str, types: list[str]
+) -> list[str]:
+    """Replace the driver's capability set with the given list.
+
+    Validates all types against ASSISTANCE_TYPES.
+    Empty list = clears filter (driver handles all types).
+    Returns the new sorted capability list.
+    """
+    driver = await _get_driver_by_auth_id(db, auth_user_id)
+    if driver is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver profile not found - call POST /v1/drivers/register first",
+        )
+
+    invalid = [t for t in types if t not in ASSISTANCE_TYPES]
+    if invalid:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid types: {invalid}. Must be from: {sorted(ASSISTANCE_TYPES)}",
+        )
+
+    # Replace all capabilities atomically
+    await db.execute(
+        sa.delete(DriverCapability).where(DriverCapability.driver_id == driver.id)
+    )
+    unique_types = list(set(types))
+    for t in unique_types:
+        db.add(DriverCapability(driver_id=driver.id, type=t))
+    await db.commit()
+    return sorted(unique_types)
+
+
+async def admin_list_drivers(db: AsyncSession) -> list[dict]:
+    """Return all driver profiles with user info and capabilities (admin view)."""
+    result = await db.execute(
+        select(Driver, User)
+        .join(User, Driver.user_id == User.id)
+        .order_by(Driver.created_at.desc())
+    )
+    rows = result.all()
+
+    out = []
+    for driver, user in rows:
+        caps_result = await db.execute(
+            select(DriverCapability.type).where(
+                DriverCapability.driver_id == driver.id
+            )
+        )
+        capabilities = sorted(caps_result.scalars().all())
+        out.append({
+            "driver_id": str(driver.id),
+            "user_id": user.user_id,
+            "email": user.email,
+            "status": driver.status,
+            "license_number": driver.license_number,
+            "capabilities": capabilities,
+            "created_at": driver.created_at.isoformat(),
+        })
+    return out
+
+
+async def admin_set_driver_capabilities(
+    db: AsyncSession, driver_id_str: str, types: list[str]
+) -> list[str]:
+    """Admin replaces capabilities for any driver (identified by UUID string).
+
+    Returns the new sorted capability list.
+    """
+    try:
+        driver_uuid = uuid.UUID(driver_id_str)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid driver_id format",
+        )
+
+    result = await db.execute(select(Driver).where(Driver.id == driver_uuid))
+    driver: Driver | None = result.scalar_one_or_none()
+    if driver is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver not found",
+        )
+
+    invalid = [t for t in types if t not in ASSISTANCE_TYPES]
+    if invalid:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid types: {invalid}. Must be from: {sorted(ASSISTANCE_TYPES)}",
+        )
+
+    await db.execute(
+        sa.delete(DriverCapability).where(DriverCapability.driver_id == driver.id)
+    )
+    unique_types = list(set(types))
+    for t in unique_types:
+        db.add(DriverCapability(driver_id=driver.id, type=t))
+    await db.commit()
+    return sorted(unique_types)

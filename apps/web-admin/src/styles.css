@@ -11,7 +11,7 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .login-form input:focus { border-color: var(--color-accent); }
 .login-form button { background: var(--color-accent-strong); color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); font-size: 1rem; cursor: pointer; font-weight: 600; }
 .login-form button:disabled { opacity: 0.5; cursor: not-allowed; }
-.form-error { color: var(--color-error); font-size: 0.9rem; }
+.form-error { color: var(--color-error); font-size: 0.9rem; margin: var(--space-2) 0; }
 .google-btn { display: flex; align-items: center; justify-content: center; gap: var(--space-2); width: 100%; background: #fff; color: #333; border: 1px solid #dadce0; border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); font-size: 1rem; cursor: pointer; font-weight: 500; margin-top: var(--space-2); }
 .google-btn span { font-weight: 700; color: #4285f4; font-size: 1.1rem; }
 .google-btn:hover { background: #f8f9fa; }
@@ -25,5 +25,50 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .status.error { color: var(--color-error); }
 .status.loading { color: var(--color-muted); }
 .role-badge { display: inline-block; background: var(--color-accent-strong); color: #fff; padding: var(--space-1) var(--space-3); border-radius: 999px; font-size: 0.8rem; font-weight: 600; margin-bottom: var(--space-6); text-transform: uppercase; letter-spacing: 0.05em; }
-.payload { text-align: left; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); font-family: var(--font-mono); font-size: 0.85rem; overflow-x: auto; }
 .footer { margin-top: var(--space-8); color: var(--color-muted); font-size: 0.85rem; }
+.empty-state { text-align: center; color: var(--color-muted); font-size: 0.9rem; padding: var(--space-6) 0; }
+
+/* ── Sprint 10: Admin dashboard ─────────────────────────────────────────── */
+
+/* Wider layout for the admin view */
+.admin-app { max-width: 640px; text-align: left; }
+.admin-app h1 { text-align: center; }
+
+/* Drivers panel */
+.drivers-panel { margin-top: var(--space-4); }
+.panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4); }
+.panel-title { font-size: 1.1rem; font-weight: 600; margin: 0; }
+.refresh-btn { background: transparent; border: 1px solid var(--color-border); color: var(--color-muted); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); cursor: pointer; font-size: 0.85rem; transition: border-color 0.15s; }
+.refresh-btn:hover { border-color: var(--color-accent); color: var(--color-fg); }
+.refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Driver card */
+.driver-list { display: flex; flex-direction: column; gap: var(--space-3); }
+.driver-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); }
+.driver-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-3); gap: var(--space-2); }
+.driver-email { font-weight: 600; font-size: 0.95rem; margin-right: var(--space-2); }
+.driver-status-badge { display: inline-block; font-size: 0.72rem; font-weight: 700; padding: 2px var(--space-2); border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em; }
+.driver-status-badge.active     { background: color-mix(in srgb, var(--color-success) 12%, transparent); color: var(--color-success); }
+.driver-status-badge.inactive   { background: color-mix(in srgb, var(--color-muted) 12%, transparent); color: var(--color-muted); }
+.driver-status-badge.suspended  { background: color-mix(in srgb, var(--color-error) 12%, transparent); color: var(--color-error); }
+.edit-caps-btn { background: var(--color-accent-strong); color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.82rem; cursor: pointer; font-weight: 600; white-space: nowrap; transition: opacity 0.15s; }
+.edit-caps-btn:hover { opacity: 0.85; }
+
+/* Capability chips */
+.driver-caps { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.cap-chip { display: inline-block; background: color-mix(in srgb, #f59e0b 12%, transparent); color: #b45309; border-radius: 999px; padding: 2px var(--space-3); font-size: 0.78rem; font-weight: 600; }
+.cap-all  { font-size: 0.82rem; color: var(--color-muted); font-style: italic; }
+
+/* Capability editor */
+.cap-editor { background: var(--color-surface); border: 2px solid var(--color-accent); border-radius: var(--radius-md); padding: var(--space-5); margin-bottom: var(--space-4); }
+.cap-editor-title { font-size: 1rem; font-weight: 600; margin-bottom: var(--space-2); }
+.cap-hint { font-size: 0.8rem; color: var(--color-muted); margin-bottom: var(--space-4); }
+.cap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); margin-bottom: var(--space-4); }
+.cap-btn { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.88rem; cursor: pointer; color: var(--color-fg); text-align: left; transition: all 0.15s; }
+.cap-btn.selected { border-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 10%, transparent); color: var(--color-accent); font-weight: 600; }
+.cap-actions { display: flex; gap: var(--space-3); }
+.cap-save-btn { flex: 1; background: var(--color-accent-strong); color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); font-size: 1rem; cursor: pointer; font-weight: 600; transition: opacity 0.15s; }
+.cap-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.cap-cancel-btn { background: transparent; border: 1px solid var(--color-border); color: var(--color-muted); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); font-size: 1rem; cursor: pointer; transition: border-color 0.15s; }
+.cap-cancel-btn:hover { border-color: var(--color-error); color: var(--color-error); }
+.cap-cancel-btn:disabled { opacity: 0.5; cursor: not-allowed; }
