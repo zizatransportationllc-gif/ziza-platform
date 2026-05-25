@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 18.
+"""Ziza API — Sprint 19.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -65,12 +65,15 @@ Endpoints:
   GET   /v1/notifications                          list user's notifications (newest first)
   GET   /v1/notifications/unread-count             count of unread notifications
   PATCH /v1/notifications/read-all                 mark all notifications as read
+  GET   /v1/admin/trips (filters)                  status, customer_email, date_from, date_to
+  GET   /v1/admin/users (filters)                  role, email
 """
 from __future__ import annotations
 
-from datetime import timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Literal
 
+import sqlalchemy as _sa
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -81,6 +84,7 @@ from app.auth.base import Claims
 from app.auth.dependencies import get_current_user
 from app.config import settings
 from app.db import get_db
+from app.middleware.logging import RequestLoggingMiddleware
 
 app = FastAPI(
     title="Ziza API",
@@ -88,6 +92,7 @@ app = FastAPI(
     description="Ziza Transportation backend API",
 )
 
+# Middleware order: CORSMiddleware first (outermost), then logging
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -95,6 +100,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RequestLoggingMiddleware)
 
 
 # ---------------------------------------------------------------------------
@@ -102,9 +108,25 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 
 @app.get("/health", tags=["system"])
-def health() -> dict[str, str]:
-    """Liveness probe used by Cloud Run and CI smoke tests."""
-    return {"status": "ok"}
+async def health(db: AsyncSession = Depends(get_db)) -> dict:
+    """Liveness + readiness probe — Sprint 19.
+
+    Returns app metadata and a live DB connectivity check.
+    Cloud Run health checks hit this endpoint; CI smoke tests assert
+    ``status == "ok"``.
+    """
+    db_status = "ok"
+    try:
+        await db.execute(_sa.text("SELECT 1"))
+    except Exception:
+        db_status = "error"
+
+    return {
+        "status": "ok",
+        "version": settings.app_version,
+        "environment": settings.environment,
+        "db": db_status,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -1112,12 +1134,19 @@ async def admin_get_stats(
 async def admin_list_trips(
     limit: int = 50,
     offset: int = 0,
+    status_filter: str | None = None,
+    customer_email: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[AdminTripRecord]:
     """Admin: all trips newest first, with customer email.
 
-    Query params: limit (default 50, max 200) and offset for pagination.
+    Optional filters (Sprint 19):
+      - status_filter: pending|accepted|in_progress|completed|cancelled
+      - customer_email: partial case-insensitive match
+      - date_from / date_to: ISO-8601 datetime (e.g. 2024-01-01T00:00:00)
     """
     if claims.role != "admin":
         raise HTTPException(
@@ -1125,7 +1154,15 @@ async def admin_list_trips(
             detail="Admin access required",
         )
     limit = min(limit, 200)
-    rows = await crud.admin_list_trips(db, limit=limit, offset=offset)
+    rows = await crud.admin_list_trips(
+        db,
+        limit=limit,
+        offset=offset,
+        status=status_filter,
+        customer_email=customer_email,
+        date_from=date_from,
+        date_to=date_to,
+    )
     return [AdminTripRecord(**r) for r in rows]
 
 
@@ -1243,16 +1280,23 @@ class AdminUserRecord(BaseModel):
 
 @app.get("/v1/admin/users", tags=["admin"])
 async def admin_list_users(
+    role: str | None = None,
+    email: str | None = None,
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[AdminUserRecord]:
-    """Admin: list all registered users (newest first)."""
+    """Admin: list all registered users (newest first).
+
+    Optional filters (Sprint 19):
+      - role: admin|driver|customer
+      - email: partial case-insensitive match
+    """
     if claims.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",
         )
-    users = await crud.admin_list_users(db)
+    users = await crud.admin_list_users(db, role=role, email=email)
     return [AdminUserRecord(**u) for u in users]
 
 

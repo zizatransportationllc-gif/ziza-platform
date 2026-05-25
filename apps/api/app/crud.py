@@ -1221,16 +1221,33 @@ async def admin_get_stats(db: AsyncSession) -> dict:
 
 
 async def admin_list_trips(
-    db: AsyncSession, limit: int = 50, offset: int = 0
+    db: AsyncSession,
+    limit: int = 50,
+    offset: int = 0,
+    status: str | None = None,
+    customer_email: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
 ) -> list[dict]:
-    """All trips with customer email, newest first (admin view)."""
-    r = await db.execute(
-        select(Trip, User)
-        .join(User, Trip.customer_id == User.id)
-        .order_by(Trip.created_at.desc())
-        .limit(limit)
-        .offset(offset)
-    )
+    """All trips with customer email, newest first (admin view).
+
+    Optional filters (Sprint 19):
+      - status: exact match (pending|accepted|in_progress|completed|cancelled)
+      - customer_email: case-insensitive partial match
+      - date_from / date_to: filter on created_at (inclusive)
+    """
+    q = select(Trip, User).join(User, Trip.customer_id == User.id)
+    if status:
+        q = q.where(Trip.status == status)
+    if customer_email:
+        q = q.where(User.email.ilike(f"%{customer_email}%"))
+    if date_from:
+        q = q.where(Trip.created_at >= date_from)
+    if date_to:
+        q = q.where(Trip.created_at <= date_to)
+    q = q.order_by(Trip.created_at.desc()).limit(limit).offset(offset)
+
+    r = await db.execute(q)
     out = []
     for trip, customer in r.all():
         out.append({
@@ -1375,11 +1392,24 @@ async def list_customer_assistance(
 # Admin — User List — Sprint 12
 # ---------------------------------------------------------------------------
 
-async def admin_list_users(db: AsyncSession) -> list[dict]:
-    """Return all registered users (newest first) for admin view."""
-    result = await db.execute(
-        select(User).order_by(User.created_at.desc())
-    )
+async def admin_list_users(
+    db: AsyncSession,
+    role: str | None = None,
+    email: str | None = None,
+) -> list[dict]:
+    """Return all registered users (newest first) for admin view.
+
+    Optional filters (Sprint 19):
+      - role: exact match (admin|driver|customer)
+      - email: case-insensitive partial match
+    """
+    q = select(User)
+    if role:
+        q = q.where(User.role == role)
+    if email:
+        q = q.where(User.email.ilike(f"%{email}%"))
+    q = q.order_by(User.created_at.desc())
+    result = await db.execute(q)
     users = result.scalars().all()
     return [
         {

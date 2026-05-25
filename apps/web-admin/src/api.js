@@ -1,5 +1,5 @@
 /**
- * API client for web-admin — Sprint 10.
+ * API client for web-admin — Sprint 19.
  * NOT shared across frontends (isolation rule).
  */
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -76,8 +76,28 @@ export async function adminGetStats(token) {
   // { trips: { total, by_status, total_revenue_xof }, assistance: { total, by_status }, drivers: { total, by_status } }
 }
 
-export async function adminListTrips(token, limit = 50, offset = 0) {
-  const res = await fetch(`${API_BASE}/v1/admin/trips?limit=${limit}&offset=${offset}`, {
+/**
+ * Sprint 19: added status_filter, customer_email, date_from, date_to filters.
+ * @param {string|null} statusFilter - "pending"|"accepted"|"in_progress"|"completed"|"cancelled"|null
+ * @param {string|null} customerEmail - partial match (case-insensitive)
+ * @param {string|null} dateFrom - ISO date string (YYYY-MM-DD)
+ * @param {string|null} dateTo   - ISO date string (YYYY-MM-DD)
+ */
+export async function adminListTrips(
+  token,
+  limit = 50,
+  offset = 0,
+  statusFilter = null,
+  customerEmail = null,
+  dateFrom = null,
+  dateTo = null,
+) {
+  const params = new URLSearchParams({ limit, offset });
+  if (statusFilter)  params.set("status_filter",  statusFilter);
+  if (customerEmail) params.set("customer_email", customerEmail);
+  if (dateFrom)      params.set("date_from",       dateFrom);
+  if (dateTo)        params.set("date_to",         dateTo);
+  const res = await fetch(`${API_BASE}/v1/admin/trips?${params}`, {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
   });
   return _json(res); // AdminTripRecord[]
@@ -87,8 +107,17 @@ export async function adminListTrips(token, limit = 50, offset = 0) {
 // Admin — users — Sprint 12
 // ---------------------------------------------------------------------------
 
-export async function adminListUsers(token) {
-  const res = await fetch(`${API_BASE}/v1/admin/users`, {
+/**
+ * Sprint 19: added role and email filters.
+ * @param {string|null} role  - "admin"|"driver"|"customer"|null
+ * @param {string|null} email - partial match (case-insensitive)
+ */
+export async function adminListUsers(token, role = null, email = null) {
+  const params = new URLSearchParams();
+  if (role)  params.set("role",  role);
+  if (email) params.set("email", email);
+  const qs = params.toString();
+  const res = await fetch(`${API_BASE}/v1/admin/users${qs ? `?${qs}` : ""}`, {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
   });
   return _json(res); // AdminUserRecord[]

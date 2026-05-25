@@ -47,7 +47,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 17 — Documents KYC & compteurs en attente</p>
+      <p className="subtitle">Sprint 19 — Observabilité & filtres admin</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -257,33 +257,113 @@ function TripRow({ trip }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Trip filter bar — Sprint 19
+// ---------------------------------------------------------------------------
+
+const TRIP_STATUSES = [
+  { value: "",            label: "Tous les statuts" },
+  { value: "pending",     label: "En attente" },
+  { value: "accepted",    label: "Acceptée" },
+  { value: "in_progress", label: "En cours" },
+  { value: "completed",   label: "Terminée" },
+  { value: "cancelled",   label: "Annulée" },
+];
+
+function TripFilterBar({ filters, onChange, onSearch, onReset, loading }) {
+  return (
+    <div className="filter-bar">
+      <select
+        className="filter-select"
+        value={filters.status}
+        onChange={(e) => onChange("status", e.target.value)}
+      >
+        {TRIP_STATUSES.map((s) => (
+          <option key={s.value} value={s.value}>{s.label}</option>
+        ))}
+      </select>
+      <input
+        className="filter-input"
+        type="text"
+        placeholder="Email client…"
+        value={filters.customerEmail}
+        onChange={(e) => onChange("customerEmail", e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && onSearch()}
+      />
+      <input
+        className="filter-input filter-date"
+        type="date"
+        value={filters.dateFrom}
+        onChange={(e) => onChange("dateFrom", e.target.value)}
+        title="Date début"
+      />
+      <input
+        className="filter-input filter-date"
+        type="date"
+        value={filters.dateTo}
+        onChange={(e) => onChange("dateTo", e.target.value)}
+        title="Date fin"
+      />
+      <button className="filter-search-btn" onClick={onSearch} disabled={loading}>🔍</button>
+      <button className="filter-reset-btn" onClick={onReset} disabled={loading} title="Réinitialiser">✕</button>
+    </div>
+  );
+}
+
 function TripsPanel({ token }) {
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [error, setError] = useState(null);
+  const [filters, setFilters] = useState({ status: "", customerEmail: "", dateFrom: "", dateTo: "" });
+  const [activeFilters, setActiveFilters] = useState({ status: "", customerEmail: "", dateFrom: "", dateTo: "" });
   const PAGE_SIZE = 10;
 
-  const load = useCallback(async (p = 0) => {
+  function updateFilter(key, value) {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+  }
+
+  const load = useCallback(async (p = 0, f = activeFilters) => {
     setLoading(true); setError(null);
     try {
-      const data = await adminListTrips(token, PAGE_SIZE, p * PAGE_SIZE);
+      const data = await adminListTrips(
+        token, PAGE_SIZE, p * PAGE_SIZE,
+        f.status || null,
+        f.customerEmail.trim() || null,
+        f.dateFrom || null,
+        f.dateTo || null,
+      );
       setTrips(data);
       setPage(p);
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
-  }, [token]);
+  }, [token, activeFilters]);
 
-  useEffect(() => { load(0); }, [load]);
+  useEffect(() => { load(0, activeFilters); }, [activeFilters]); // eslint-disable-line
+
+  function handleSearch() {
+    setActiveFilters({ ...filters });
+  }
+
+  function handleReset() {
+    const empty = { status: "", customerEmail: "", dateFrom: "", dateTo: "" };
+    setFilters(empty);
+    setActiveFilters(empty);
+  }
 
   return (
     <div className="trips-panel">
       <div className="panel-header">
         <h2 className="panel-title">Toutes les courses</h2>
-        <div className="panel-actions">
-          <button className="refresh-btn" onClick={() => load(page)} disabled={loading}>↻</button>
-        </div>
+        <button className="refresh-btn" onClick={() => load(page)} disabled={loading}>↻</button>
       </div>
+      <TripFilterBar
+        filters={filters}
+        onChange={updateFilter}
+        onSearch={handleSearch}
+        onReset={handleReset}
+        loading={loading}
+      />
       {error && <p className="form-error">{error}</p>}
       {!loading && trips.length === 0 && (
         <div className="empty-state">Aucune course enregistrée.</div>
@@ -473,26 +553,75 @@ function UserRow({ u }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// User filter bar — Sprint 19
+// ---------------------------------------------------------------------------
+
+const USER_ROLES = [
+  { value: "",         label: "Tous les rôles" },
+  { value: "admin",    label: "Admin" },
+  { value: "driver",   label: "Chauffeur" },
+  { value: "customer", label: "Client" },
+];
+
 function UsersPanel({ token }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [roleFilter, setRoleFilter] = useState("");
+  const [emailFilter, setEmailFilter] = useState("");
+  const [activeRole, setActiveRole] = useState("");
+  const [activeEmail, setActiveEmail] = useState("");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (role = activeRole, email = activeEmail) => {
     setLoading(true); setError(null);
-    try { setUsers(await adminListUsers(token)); }
+    try { setUsers(await adminListUsers(token, role || null, email.trim() || null)); }
     catch (e) { setError(e.message); }
     finally { setLoading(false); }
-  }, [token]);
+  }, [token, activeRole, activeEmail]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(activeRole, activeEmail); }, [activeRole, activeEmail]); // eslint-disable-line
+
+  function handleSearch() {
+    setActiveRole(roleFilter);
+    setActiveEmail(emailFilter);
+  }
+
+  function handleReset() {
+    setRoleFilter(""); setEmailFilter("");
+    setActiveRole(""); setActiveEmail("");
+  }
 
   return (
     <div className="users-panel">
       <div className="panel-header">
         <h2 className="panel-title">Utilisateurs enregistrés</h2>
-        <button className="refresh-btn" onClick={load} disabled={loading}>{loading ? "…" : "↻"}</button>
+        <button className="refresh-btn" onClick={() => load(activeRole, activeEmail)} disabled={loading}>{loading ? "…" : "↻"}</button>
       </div>
+
+      {/* Sprint 19: user search bar */}
+      <div className="filter-bar">
+        <select
+          className="filter-select"
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value)}
+        >
+          {USER_ROLES.map((r) => (
+            <option key={r.value} value={r.value}>{r.label}</option>
+          ))}
+        </select>
+        <input
+          className="filter-input"
+          type="text"
+          placeholder="Email…"
+          value={emailFilter}
+          onChange={(e) => setEmailFilter(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+        />
+        <button className="filter-search-btn" onClick={handleSearch} disabled={loading}>🔍</button>
+        <button className="filter-reset-btn" onClick={handleReset} disabled={loading} title="Réinitialiser">✕</button>
+      </div>
+
       {error && <p className="form-error">{error}</p>}
       {!loading && users.length === 0 && <div className="empty-state">Aucun utilisateur enregistré.</div>}
       <div className="user-list">
@@ -997,7 +1126,7 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "settings"  && <SurgePanel      token={token} />}
       {activeTab === "users"     && <UsersPanel      token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 17</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 19</p>
     </div>
   );
 }

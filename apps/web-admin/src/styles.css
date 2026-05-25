@@ -238,3 +238,17 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .doc-admin-url:hover { text-decoration: underline; }
 .doc-admin-note { font-size: 0.82rem; color: var(--color-muted); font-style: italic; margin: var(--space-1) 0; }
 .doc-admin-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; margin-top: var(--space-2); }
+
+/* ── Sprint 19: Filter bar (trips + users) ─────────────────────────────── */
+.filter-bar { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; margin-bottom: var(--space-3); padding: var(--space-3) var(--space-3); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.filter-select { background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-fg); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.85rem; cursor: pointer; outline: none; }
+.filter-select:focus { border-color: var(--color-accent); }
+.filter-input { background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-fg); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.85rem; outline: none; flex: 1; min-width: 120px; }
+.filter-input:focus { border-color: var(--color-accent); }
+.filter-date { flex: 0 0 auto; min-width: unset; width: 140px; }
+.filter-search-btn { background: var(--color-accent-strong); color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.95rem; cursor: pointer; font-weight: 600; }
+.filter-search-btn:hover { opacity: 0.9; }
+.filter-search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.filter-reset-btn { background: transparent; color: var(--color-muted); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.9rem; cursor: pointer; }
+.filter-reset-btn:hover { border-color: var(--color-error); color: var(--color-error); }
+.filter-reset-btn:disabled { opacity: 0.4; cursor: not-allowed; }
