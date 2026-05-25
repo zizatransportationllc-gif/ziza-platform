@@ -103,6 +103,52 @@ export async function cancelTrip(token, tripId) {
   return res.json();
 }
 
+// ---------------------------------------------------------------------------
+// Roadside assistance
+// ---------------------------------------------------------------------------
+
+export async function createAssistanceRequest(token, type, lat, lng, note) {
+  const body = { type, lat, lng };
+  if (note) body.note = note;
+  const res = await fetch(`${API_BASE}/v1/assistance`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Assistance error (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function getAssistanceRequest(token, reqId) {
+  const res = await fetch(`${API_BASE}/v1/assistance/${reqId}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Get assistance error (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function cancelAssistanceRequest(token, reqId) {
+  const res = await fetch(`${API_BASE}/v1/assistance/${reqId}/cancel`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Cancel assistance error (${res.status})`);
+  }
+  return res.json();
+}
+
 export async function rateTrip(token, tripId, stars, comment) {
   const body = { stars };
   if (comment) body.comment = comment;

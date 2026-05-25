@@ -3,6 +3,8 @@ import {
   login, fetchMe, registerUser, registerDriver,
   listAvailableTrips, getActiveTrip,
   acceptTrip, startTrip, completeTrip,
+  listAvailableAssistance, getActiveAssistance,
+  acceptAssistance, startAssistance, resolveAssistance,
   getMyRating,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
@@ -16,6 +18,21 @@ const STATUS_LABELS = {
   in_progress: "🚗 Course en cours",
   completed:   "✅ Course terminée",
   cancelled:   "✗ Course annulée par le client",
+};
+
+const ASSISTANCE_TYPE_LABELS = {
+  breakdown: "🔧 Panne mécanique",
+  flat_tyre: "🔴 Pneu crevé",
+  tow:       "🚛 Remorquage",
+  fuel:      "⛽ Carburant",
+  lockout:   "🔑 Clés perdues",
+};
+
+const ASSISTANCE_STATUS_LABELS = {
+  accepted:    "✓ Intervention acceptée — en route",
+  in_progress: "🔧 Intervention en cours",
+  resolved:    "✅ Intervention terminée",
+  cancelled:   "✗ Annulée par le client",
 };
 
 function formatXOF(n) {
@@ -32,7 +49,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Driver</h1>
-      <p className="subtitle">Sprint 8 — Notation & tableau de bord chauffeur</p>
+      <p className="subtitle">Sprint 9 — Dispatch unifié (trajets + assistance)</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -121,19 +138,63 @@ function RatingStats({ stats }) {
 }
 
 // ---------------------------------------------------------------------------
-// Available trips list — shown when driver is free
+// Active assistance card — shown when driver has an ongoing intervention
 // ---------------------------------------------------------------------------
 
-function AvailableTripsSection({ token, onTripAccepted }) {
+function ActiveAssistanceCard({ token, request, onUpdate }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function handleAction(fn) {
+    setBusy(true); setError(null);
+    try { const updated = await fn(token, request.request_id); onUpdate(updated); }
+    catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  }
+
+  const typeLabel = ASSISTANCE_TYPE_LABELS[request.type] ?? request.type;
+
+  return (
+    <div className={`active-trip-card active-${request.status}`}>
+      <div className="assist-type-chip">{typeLabel}</div>
+      <div className="active-status">{ASSISTANCE_STATUS_LABELS[request.status] ?? request.status}</div>
+      {request.note && <p className="assist-note">{request.note}</p>}
+      {error && <p className="form-error">{error}</p>}
+      {request.status === "accepted" && (
+        <button className="action-btn start-btn" onClick={() => handleAction(startAssistance)} disabled={busy}>
+          {busy ? "…" : "🔧 Démarrer l'intervention"}
+        </button>
+      )}
+      {request.status === "in_progress" && (
+        <button className="action-btn complete-btn" onClick={() => handleAction(resolveAssistance)} disabled={busy}>
+          {busy ? "…" : "✅ Terminer l'intervention"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Unified dispatch list — pending trips + assistance requests
+// ---------------------------------------------------------------------------
+
+function AvailableTripsSection({ token, onTripAccepted, onAssistanceAccepted }) {
   const [trips, setTrips] = useState([]);
+  const [assistance, setAssistance] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [accepting, setAccepting] = useState(null); // trip_id being accepted
+  const [accepting, setAccepting] = useState(null);
   const [error, setError] = useState(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    try { setTrips(await listAvailableTrips(token)); }
-    catch (_) { /* silent */ }
+    try {
+      const [t, a] = await Promise.all([
+        listAvailableTrips(token),
+        listAvailableAssistance(token),
+      ]);
+      setTrips(t);
+      setAssistance(a);
+    } catch (_) { /* silent */ }
     finally { setLoading(false); }
   }, [token]);
 
@@ -143,30 +204,37 @@ function AvailableTripsSection({ token, onTripAccepted }) {
     return () => clearInterval(id);
   }, [refresh]);
 
-  async function handleAccept(tripId) {
+  async function handleAcceptTrip(tripId) {
     setAccepting(tripId); setError(null);
-    try {
-      const trip = await acceptTrip(token, tripId);
-      onTripAccepted(trip);
-    } catch (e) { setError(e.message); setAccepting(null); }
+    try { onTripAccepted(await acceptTrip(token, tripId)); }
+    catch (e) { setError(e.message); setAccepting(null); }
   }
+
+  async function handleAcceptAssistance(reqId) {
+    setAccepting(reqId); setError(null);
+    try { onAssistanceAccepted(await acceptAssistance(token, reqId)); }
+    catch (e) { setError(e.message); setAccepting(null); }
+  }
+
+  const totalItems = trips.length + assistance.length;
 
   return (
     <div className="available-section">
       <div className="available-header">
-        <h2 className="section-title">Courses disponibles</h2>
+        <h2 className="section-title">Dispatch</h2>
         <span className="live-badge">● Live</span>
       </div>
       {error && <p className="form-error">{error}</p>}
-      {loading && trips.length === 0 && (
+      {loading && totalItems === 0 && (
         <div className="status loading">⏳ Chargement…</div>
       )}
-      {!loading && trips.length === 0 && (
-        <div className="empty-state">Aucune course disponible pour le moment.</div>
+      {!loading && totalItems === 0 && (
+        <div className="empty-state">Aucune mission disponible pour le moment.</div>
       )}
       <div className="trip-list">
         {trips.map((t) => (
           <div key={t.trip_id} className="trip-card">
+            <div className="dispatch-tag tag-ride">🚕 Trajet</div>
             <div className="trip-card-fare">{t.fare_xof ? formatXOF(t.fare_xof) : "—"}</div>
             <div className="trip-card-meta">
               {t.distance_km != null && <span>🛣️ {t.distance_km.toFixed(1)} km</span>}
@@ -174,10 +242,26 @@ function AvailableTripsSection({ token, onTripAccepted }) {
             </div>
             <button
               className="action-btn accept-btn"
-              onClick={() => handleAccept(t.trip_id)}
+              onClick={() => handleAcceptTrip(t.trip_id)}
               disabled={accepting === t.trip_id}
             >
               {accepting === t.trip_id ? "Acceptation…" : "✓ Accepter"}
+            </button>
+          </div>
+        ))}
+        {assistance.map((a) => (
+          <div key={a.request_id} className="trip-card assist-card">
+            <div className="dispatch-tag tag-assist">🆘 Assistance</div>
+            <div className="trip-card-fare assist-type">
+              {ASSISTANCE_TYPE_LABELS[a.type] ?? a.type}
+            </div>
+            {a.note && <div className="trip-card-meta"><span>{a.note}</span></div>}
+            <button
+              className="action-btn accept-btn"
+              onClick={() => handleAcceptAssistance(a.request_id)}
+              disabled={accepting === a.request_id}
+            >
+              {accepting === a.request_id ? "Acceptation…" : "✓ Accepter"}
             </button>
           </div>
         ))}
@@ -192,13 +276,15 @@ function AvailableTripsSection({ token, onTripAccepted }) {
 
 function Dashboard({ user, token, onLogout }) {
   const [activeTrip, setActiveTrip] = useState(null);
+  const [activeAssistance, setActiveAssistance] = useState(null);
   const [initialized, setInitialized] = useState(false);
   const [ratingStats, setRatingStats] = useState(null);
 
-  // On mount: check active trip + fetch rating stats in parallel
+  // On mount: check active trip + active assistance + rating stats in parallel
   useEffect(() => {
     Promise.all([
       getActiveTrip(token).then(({ trip }) => { setActiveTrip(trip); }),
+      getActiveAssistance(token).then(({ request }) => { setActiveAssistance(request); }).catch(() => {}),
       getMyRating(token).then(setRatingStats).catch(() => {}),
     ]).finally(() => setInitialized(true));
   }, [token]);
@@ -218,14 +304,19 @@ function Dashboard({ user, token, onLogout }) {
   function handleTripUpdate(updated) {
     setActiveTrip(updated);
     if (["completed", "cancelled"].includes(updated.status)) {
-      // Refresh rating stats after trip completion (customer may have rated)
       if (updated.status === "completed") {
         setTimeout(() => {
           getMyRating(token).then(setRatingStats).catch(() => {});
         }, 2000);
       }
-      // Clear active trip after a short delay so driver sees final status
       setTimeout(() => setActiveTrip(null), 3000);
+    }
+  }
+
+  function handleAssistanceUpdate(updated) {
+    setActiveAssistance(updated);
+    if (["resolved", "cancelled"].includes(updated.status)) {
+      setTimeout(() => setActiveAssistance(null), 3000);
     }
   }
 
@@ -250,11 +341,17 @@ function Dashboard({ user, token, onLogout }) {
 
       {activeTrip && !["completed", "cancelled"].includes(activeTrip.status) ? (
         <ActiveTripCard token={token} trip={activeTrip} onUpdate={handleTripUpdate} />
+      ) : activeAssistance && !["resolved", "cancelled"].includes(activeAssistance.status) ? (
+        <ActiveAssistanceCard token={token} request={activeAssistance} onUpdate={handleAssistanceUpdate} />
       ) : (
-        <AvailableTripsSection token={token} onTripAccepted={setActiveTrip} />
+        <AvailableTripsSection
+          token={token}
+          onTripAccepted={setActiveTrip}
+          onAssistanceAccepted={setActiveAssistance}
+        />
       )}
 
-      <p className="footer">App: <strong>web-driver</strong> · Sprint 8</p>
+      <p className="footer">App: <strong>web-driver</strong> · Sprint 9</p>
     </div>
   );
 }

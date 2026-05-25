@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 8.
+"""Ziza API — Sprint 9.
 
 Endpoints:
   GET   /health                          liveness probe
@@ -20,11 +20,19 @@ Endpoints:
   POST  /v1/trips/{trip_id}/rate         customer rates a completed trip (1-5 stars)
   GET   /v1/trips/{trip_id}/rating       get the rating for a trip
   GET   /v1/drivers/me/rating            driver's own rating statistics
+  POST  /v1/assistance                   customer creates a roadside assistance request
+  GET   /v1/assistance/driver/available  pending assistance requests (driver view)
+  GET   /v1/assistance/driver/active     driver's current active assistance request
+  GET   /v1/assistance/{req_id}          customer views their assistance request
+  PATCH /v1/assistance/{req_id}/cancel   customer cancels a pending request
+  PATCH /v1/assistance/{req_id}/accept   driver accepts a pending request
+  PATCH /v1/assistance/{req_id}/start    driver starts the intervention
+  PATCH /v1/assistance/{req_id}/resolve  driver resolves the intervention
 """
 from __future__ import annotations
 
 from datetime import timedelta, timezone
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -535,3 +543,166 @@ async def get_my_rating(
         average_stars=round(avg, 2) if avg is not None else None,
         total_ratings=total,
     )
+
+
+# ---------------------------------------------------------------------------
+# Roadside Assistance — Sprint 9
+# ---------------------------------------------------------------------------
+
+AssistanceType = Literal["breakdown", "flat_tyre", "tow", "fuel", "lockout"]
+
+
+class AssistanceCreateRequest(BaseModel):
+    type: AssistanceType = Field(..., description="breakdown | flat_tyre | tow | fuel | lockout")
+    lat: Annotated[float, Field(ge=-90, le=90, description="Customer latitude")]
+    lng: Annotated[float, Field(ge=-180, le=180, description="Customer longitude")]
+    note: str | None = Field(None, max_length=500)
+
+
+class AssistanceResponse(BaseModel):
+    request_id: str
+    type: str
+    status: str
+    lat: float
+    lng: float
+    note: str | None = None
+    created_at: str
+
+
+class ActiveAssistanceWrap(BaseModel):
+    """Wraps the driver's active assistance request (or None when the driver is free)."""
+    request: AssistanceResponse | None = None
+
+
+def _assistance_response(req) -> AssistanceResponse:
+    return AssistanceResponse(
+        request_id=str(req.id),
+        type=req.type,
+        status=req.status,
+        lat=req.lat,
+        lng=req.lng,
+        note=req.note,
+        created_at=req.created_at.isoformat(),
+    )
+
+
+@app.post("/v1/assistance", tags=["assistance"], status_code=201)
+async def create_assistance_request(
+    body: AssistanceCreateRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AssistanceResponse:
+    """Customer creates a roadside assistance request.
+
+    Type must be one of: breakdown, flat_tyre, tow, fuel, lockout.
+    """
+    req = await crud.create_assistance_request(
+        db, claims, body.type, body.lat, body.lng, body.note
+    )
+    return _assistance_response(req)
+
+
+# IMPORTANT: literal paths (/driver/available, /driver/active) must be
+# registered BEFORE the parameterised path (/{req_id}) to avoid shadowing.
+
+@app.get("/v1/assistance/driver/available", tags=["assistance"])
+async def list_available_assistance(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[AssistanceResponse]:
+    """List all pending assistance requests (driver marketplace view).
+
+    Only drivers may call this endpoint.
+    """
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can view available assistance requests",
+        )
+    requests = await crud.list_available_assistance(db)
+    return [_assistance_response(r) for r in requests]
+
+
+@app.get("/v1/assistance/driver/active", tags=["assistance"])
+async def get_driver_active_assistance(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ActiveAssistanceWrap:
+    """Return the driver's current assistance request (accepted or in_progress), or null."""
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can access this endpoint",
+        )
+    req = await crud.get_driver_active_assistance(db, claims.user_id)
+    return ActiveAssistanceWrap(request=_assistance_response(req) if req else None)
+
+
+@app.get("/v1/assistance/{req_id}", tags=["assistance"])
+async def get_assistance_request(
+    req_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AssistanceResponse:
+    """Return the customer's assistance request detail."""
+    req = await crud.get_assistance_request(db, req_id, claims.user_id)
+    return _assistance_response(req)
+
+
+@app.patch("/v1/assistance/{req_id}/cancel", tags=["assistance"])
+async def cancel_assistance(
+    req_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AssistanceResponse:
+    """Customer cancels a pending assistance request."""
+    req = await crud.cancel_assistance(db, req_id, claims.user_id)
+    return _assistance_response(req)
+
+
+@app.patch("/v1/assistance/{req_id}/accept", tags=["assistance"])
+async def accept_assistance(
+    req_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AssistanceResponse:
+    """Driver accepts a pending assistance request → accepted."""
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can accept assistance requests",
+        )
+    req = await crud.accept_assistance(db, req_id, claims.user_id)
+    return _assistance_response(req)
+
+
+@app.patch("/v1/assistance/{req_id}/start", tags=["assistance"])
+async def start_assistance(
+    req_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AssistanceResponse:
+    """Driver starts the intervention → in_progress."""
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can start an assistance",
+        )
+    req = await crud.start_assistance(db, req_id, claims.user_id)
+    return _assistance_response(req)
+
+
+@app.patch("/v1/assistance/{req_id}/resolve", tags=["assistance"])
+async def resolve_assistance(
+    req_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AssistanceResponse:
+    """Driver resolves the intervention → resolved."""
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can resolve an assistance",
+        )
+    req = await crud.resolve_assistance(db, req_id, claims.user_id)
+    return _assistance_response(req)

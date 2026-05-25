@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { login, fetchMe, fetchDemo, registerUser, fetchEstimate, createTrip, getTrip, cancelTrip, rateTrip } from "./api";
+import {
+  login, fetchMe, fetchDemo, registerUser, fetchEstimate, createTrip, getTrip, cancelTrip, rateTrip,
+  createAssistanceRequest, getAssistanceRequest, cancelAssistanceRequest,
+} from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
 const REQUIRED_ROLE = "customer";
@@ -28,6 +31,24 @@ const STATUS_LABELS = {
 };
 
 const TERMINAL_STATUSES = new Set(["completed", "cancelled"]);
+
+const ASSISTANCE_TYPES = [
+  { value: "breakdown", label: "🔧 Panne mécanique" },
+  { value: "flat_tyre", label: "🔴 Pneu crevé" },
+  { value: "tow",       label: "🚛 Remorquage" },
+  { value: "fuel",      label: "⛽ Manque de carburant" },
+  { value: "lockout",   label: "🔑 Clés à l'intérieur" },
+];
+
+const ASSISTANCE_STATUS_LABELS = {
+  pending:     "⏳ En attente d'un technicien",
+  accepted:    "✓ Technicien en route",
+  in_progress: "🔧 Intervention en cours",
+  resolved:    "✅ Problème résolu",
+  cancelled:   "✗ Demande annulée",
+};
+
+const ASSISTANCE_TERMINAL = new Set(["resolved", "cancelled"]);
 
 function formatXOF(n) {
   return new Intl.NumberFormat("fr-FR").format(n) + " XOF";
@@ -280,11 +301,149 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
 }
 
 // ---------------------------------------------------------------------------
+// Assistance request form
+// ---------------------------------------------------------------------------
+
+function AssistanceSection({ token, onRequestCreated }) {
+  const [type, setType] = useState(ASSISTANCE_TYPES[0].value);
+  const [location, setLocation] = useState(LOCATION_NAMES[0]);
+  const [note, setNote] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setLoading(true); setError(null);
+    try {
+      const coords = ABIDJAN_LOCATIONS[location];
+      const req = await createAssistanceRequest(token, type, coords.lat, coords.lng, note || undefined);
+      onRequestCreated(req);
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <div className="assistance-section">
+      <h2 className="estimate-title">🆘 Demande d'assistance</h2>
+      <form className="assistance-form" onSubmit={handleSubmit}>
+        <div className="assistance-field">
+          <span className="estimate-label">Type de problème</span>
+          <div className="type-grid">
+            {ASSISTANCE_TYPES.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                className={`type-btn ${type === value ? "selected" : ""}`}
+                onClick={() => setType(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="assistance-field">
+          <span className="estimate-label">📍 Ma position</span>
+          <select
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            className="assistance-select"
+          >
+            {LOCATION_NAMES.map((n) => <option key={n}>{n}</option>)}
+          </select>
+        </div>
+        <div className="assistance-field">
+          <span className="estimate-label">Note (optionnel)</span>
+          <textarea
+            className="assistance-note"
+            placeholder="Décrivez votre problème…"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={2}
+            maxLength={500}
+          />
+        </div>
+        {error && <p className="form-error">{error}</p>}
+        <button type="submit" className="estimate-btn" disabled={loading}>
+          {loading ? "Envoi…" : "🆘 Demander de l'aide"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Assistance status card — shown while request is active
+// ---------------------------------------------------------------------------
+
+function AssistanceStatusCard({ token, request, onRequestUpdate, onNewRequest }) {
+  const [cancelling, setCancelling] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Poll every 5 s until terminal status
+  useEffect(() => {
+    if (ASSISTANCE_TERMINAL.has(request.status)) return;
+    const id = setInterval(async () => {
+      try {
+        const updated = await getAssistanceRequest(token, request.request_id);
+        onRequestUpdate(updated);
+      } catch (_) { /* swallow */ }
+    }, 5000);
+    return () => clearInterval(id);
+  }, [request.request_id, request.status]);
+
+  async function handleCancel() {
+    setCancelling(true); setError(null);
+    try {
+      const updated = await cancelAssistanceRequest(token, request.request_id);
+      onRequestUpdate(updated);
+    } catch (err) { setError(err.message); }
+    finally { setCancelling(false); }
+  }
+
+  const typeLabel = ASSISTANCE_TYPES.find((t) => t.value === request.type)?.label ?? request.type;
+
+  return (
+    <div className="assistance-status-section">
+      <h2 className="estimate-title">🆘 Mon assistance</h2>
+      <div className={`assistance-card assistance-${request.status}`}>
+        <div className="assistance-type-badge">{typeLabel}</div>
+        <div className="assistance-status-label">
+          {ASSISTANCE_STATUS_LABELS[request.status] ?? request.status}
+        </div>
+        {request.note && <p className="assistance-note-display">{request.note}</p>}
+      </div>
+      {error && <p className="form-error">{error}</p>}
+      {request.status === "pending" && (
+        <button className="cancel-btn" onClick={handleCancel} disabled={cancelling}>
+          {cancelling ? "Annulation…" : "Annuler la demande"}
+        </button>
+      )}
+      {ASSISTANCE_TERMINAL.has(request.status) && (
+        <button
+          className="estimate-btn"
+          onClick={onNewRequest}
+          style={{ marginTop: "var(--space-4)" }}
+        >
+          Nouvelle demande
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
 function Dashboard({ user, token, onLogout }) {
   const [activeTrip, setActiveTrip] = useState(null);
+  const [activeAssistance, setActiveAssistance] = useState(null);
+  const [mode, setMode] = useState("ride"); // "ride" | "assistance"
+
+  // Derive which main section to show
+  const showBooking    = activeTrip && !TERMINAL_STATUSES.has(activeTrip.status);
+  const showAssistCard = !showBooking && activeAssistance;
+  const showTabs       = !showBooking && !showAssistCard;
 
   return (
     <div className="app">
@@ -295,18 +454,49 @@ function Dashboard({ user, token, onLogout }) {
       <div className="status ok">✓ Connecté — <strong>{user.email}</strong></div>
       <div className="role-badge">{user.role} · {user.provider}</div>
 
-      {activeTrip ? (
+      {showBooking && (
         <BookingSection
           token={token}
           trip={activeTrip}
           onTripUpdate={setActiveTrip}
           onNewEstimate={() => setActiveTrip(null)}
         />
-      ) : (
-        <EstimateSection token={token} onTripCreated={setActiveTrip} />
       )}
 
-      <p className="footer">App: <strong>web-customer</strong> · Sprint 8</p>
+      {showAssistCard && (
+        <AssistanceStatusCard
+          token={token}
+          request={activeAssistance}
+          onRequestUpdate={setActiveAssistance}
+          onNewRequest={() => setActiveAssistance(null)}
+        />
+      )}
+
+      {showTabs && (
+        <>
+          <div className="mode-tabs">
+            <button
+              className={`mode-tab ${mode === "ride" ? "active" : ""}`}
+              onClick={() => setMode("ride")}
+            >
+              🚕 Trajet
+            </button>
+            <button
+              className={`mode-tab ${mode === "assistance" ? "active" : ""}`}
+              onClick={() => setMode("assistance")}
+            >
+              🆘 Assistance
+            </button>
+          </div>
+          {mode === "ride" ? (
+            <EstimateSection token={token} onTripCreated={setActiveTrip} />
+          ) : (
+            <AssistanceSection token={token} onRequestCreated={setActiveAssistance} />
+          )}
+        </>
+      )}
+
+      <p className="footer">App: <strong>web-customer</strong> · Sprint 9</p>
     </div>
   );
 }

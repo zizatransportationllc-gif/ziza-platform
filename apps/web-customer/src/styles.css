@@ -170,6 +170,33 @@ html, body {
 .cancel-btn:hover { background: var(--color-error); color: #fff; }
 .cancel-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* ── Sprint 9: Assistance ────────────────────────────────────────────── */
+.mode-tabs { display: flex; gap: var(--space-2); margin-top: var(--space-4); margin-bottom: var(--space-2); }
+.mode-tab { flex: 1; background: var(--color-surface); border: 1px solid var(--color-border); color: var(--color-muted); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.9rem; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.mode-tab.active { background: var(--color-accent-strong); border-color: var(--color-accent-strong); color: #fff; }
+
+.assistance-section { margin-top: var(--space-4); text-align: left; }
+.assistance-form { display: flex; flex-direction: column; gap: var(--space-4); }
+.assistance-field { display: flex; flex-direction: column; gap: var(--space-2); }
+.type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+.type-btn { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.88rem; cursor: pointer; color: var(--color-fg); text-align: left; transition: all 0.15s; }
+.type-btn.selected { border-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 10%, transparent); color: var(--color-accent); font-weight: 600; }
+.assistance-select { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); color: var(--color-fg); font-size: 0.95rem; outline: none; width: 100%; }
+.assistance-select:focus { border-color: var(--color-accent); }
+.assistance-note { width: 100%; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--color-fg); font-size: 0.9rem; resize: vertical; font-family: var(--font-stack); }
+.assistance-note:focus { outline: none; border-color: var(--color-accent); }
+
+.assistance-status-section { margin-top: var(--space-4); text-align: left; }
+.assistance-card { margin-top: var(--space-3); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-5); text-align: center; }
+.assistance-type-badge { display: inline-block; background: color-mix(in srgb, var(--color-accent) 12%, transparent); color: var(--color-accent); border-radius: 999px; padding: var(--space-1) var(--space-3); font-size: 0.85rem; font-weight: 600; margin-bottom: var(--space-3); }
+.assistance-status-label { font-size: 1.05rem; font-weight: 600; margin-bottom: var(--space-2); }
+.assistance-pending   .assistance-status-label { color: #f59e0b; }
+.assistance-accepted  .assistance-status-label { color: var(--color-success); }
+.assistance-in_progress .assistance-status-label { color: #3b82f6; }
+.assistance-resolved  .assistance-status-label { color: var(--color-muted); }
+.assistance-cancelled .assistance-status-label { color: var(--color-error); }
+.assistance-note-display { font-size: 0.88rem; color: var(--color-muted); font-style: italic; margin-top: var(--space-2); }
+
 /* ── Sprint 8: Rating form ────────────────────────────────────────────── */
 .rating-form { margin-top: var(--space-5); padding: var(--space-4); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); text-align: center; }
 .rating-title { font-size: 1rem; font-weight: 600; color: var(--color-fg); margin: 0 0 var(--space-3); }

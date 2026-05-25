@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.base import Claims
+from app.models.assistance import AssistanceRequest, ASSISTANCE_TYPES
 from app.models.driver import Driver
 from app.models.estimate import Estimate
 from app.models.rating import Rating
@@ -503,6 +504,245 @@ async def get_trip_rating(db: AsyncSession, trip_id: str) -> Rating | None:
         )
     result = await db.execute(select(Rating).where(Rating.trip_id == trip_uuid))
     return result.scalar_one_or_none()
+
+
+# ---------------------------------------------------------------------------
+# Assistance — Sprint 9
+# ---------------------------------------------------------------------------
+
+_ASSISTANCE_CANCELLABLE = frozenset({"pending"})
+
+
+async def create_assistance_request(
+    db: AsyncSession,
+    claims: Claims,
+    req_type: str,
+    lat: float,
+    lng: float,
+    note: str | None,
+) -> AssistanceRequest:
+    """Create a new roadside assistance request for the authenticated customer.
+
+    Raises 422 if the type is not one of the allowed values.
+    """
+    user = await _get_user_by_auth_id(db, claims.user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found - call POST /v1/auth/register first",
+        )
+
+    if req_type not in ASSISTANCE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid type '{req_type}'. Must be one of: {sorted(ASSISTANCE_TYPES)}",
+        )
+
+    req = AssistanceRequest(
+        customer_id=user.id,
+        type=req_type,
+        status="pending",
+        lat=lat,
+        lng=lng,
+        note=note,
+    )
+    db.add(req)
+    await db.commit()
+    await db.refresh(req)
+    return req
+
+
+async def get_assistance_request(
+    db: AsyncSession,
+    req_id: str,
+    auth_user_id: str,
+) -> AssistanceRequest:
+    """Return an assistance request, verified to belong to the calling customer."""
+    try:
+        req_uuid = uuid.UUID(req_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid request_id format",
+        )
+
+    result = await db.execute(
+        select(AssistanceRequest).where(AssistanceRequest.id == req_uuid)
+    )
+    req: AssistanceRequest | None = result.scalar_one_or_none()
+    if req is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assistance request not found",
+        )
+
+    user = await _get_user_by_auth_id(db, auth_user_id)
+    if user is None or req.customer_id != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not your request",
+        )
+
+    return req
+
+
+async def cancel_assistance(
+    db: AsyncSession,
+    req_id: str,
+    auth_user_id: str,
+) -> AssistanceRequest:
+    """Customer cancels a pending assistance request.
+
+    Only allowed from 'pending' status. Raises 409 otherwise.
+    """
+    req = await get_assistance_request(db, req_id, auth_user_id)
+
+    if req.status not in _ASSISTANCE_CANCELLABLE:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot cancel a request in '{req.status}' status",
+        )
+
+    req.status = "cancelled"
+    req.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(req)
+    return req
+
+
+async def list_available_assistance(db: AsyncSession) -> list[AssistanceRequest]:
+    """All pending assistance requests, newest first (driver marketplace view)."""
+    result = await db.execute(
+        select(AssistanceRequest)
+        .where(AssistanceRequest.status == "pending")
+        .order_by(AssistanceRequest.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def get_driver_active_assistance(
+    db: AsyncSession, auth_user_id: str
+) -> AssistanceRequest | None:
+    """Return the driver's current assistance request in accepted or in_progress state."""
+    driver = await _get_driver_by_auth_id(db, auth_user_id)
+    if driver is None:
+        return None
+    result = await db.execute(
+        select(AssistanceRequest)
+        .where(
+            AssistanceRequest.driver_id == driver.id,
+            AssistanceRequest.status.in_(["accepted", "in_progress"]),
+        )
+        .order_by(AssistanceRequest.created_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _load_assistance_for_driver(
+    db: AsyncSession, req_id: str, driver: Driver
+) -> AssistanceRequest:
+    """Load an assistance request and verify it is assigned to this driver."""
+    try:
+        req_uuid = uuid.UUID(req_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid request_id format",
+        )
+
+    result = await db.execute(
+        select(AssistanceRequest).where(AssistanceRequest.id == req_uuid)
+    )
+    req: AssistanceRequest | None = result.scalar_one_or_none()
+    if req is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assistance request not found",
+        )
+    if req.driver_id != driver.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not your request",
+        )
+    return req
+
+
+async def accept_assistance(
+    db: AsyncSession, req_id: str, auth_user_id: str
+) -> AssistanceRequest:
+    """Driver accepts a pending assistance request → accepted.  Sets driver_id."""
+    driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
+
+    try:
+        req_uuid = uuid.UUID(req_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid request_id format",
+        )
+
+    result = await db.execute(
+        select(AssistanceRequest).where(AssistanceRequest.id == req_uuid)
+    )
+    req: AssistanceRequest | None = result.scalar_one_or_none()
+    if req is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assistance request not found",
+        )
+    if req.status != "pending":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Assistance request is not available (status: {req.status})",
+        )
+
+    req.status = "accepted"
+    req.driver_id = driver.id
+    req.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(req)
+    return req
+
+
+async def start_assistance(
+    db: AsyncSession, req_id: str, auth_user_id: str
+) -> AssistanceRequest:
+    """Driver starts an accepted assistance request → in_progress."""
+    driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
+    req = await _load_assistance_for_driver(db, req_id, driver)
+
+    if req.status != "accepted":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot start a request in '{req.status}' status",
+        )
+
+    req.status = "in_progress"
+    req.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(req)
+    return req
+
+
+async def resolve_assistance(
+    db: AsyncSession, req_id: str, auth_user_id: str
+) -> AssistanceRequest:
+    """Driver resolves an in_progress assistance request → resolved."""
+    driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
+    req = await _load_assistance_for_driver(db, req_id, driver)
+
+    if req.status != "in_progress":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot resolve a request in '{req.status}' status",
+        )
+
+    req.status = "resolved"
+    req.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(req)
+    return req
 
 
 async def get_driver_rating_stats(
