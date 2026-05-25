@@ -1,8 +1,20 @@
 /**
- * API client for web-driver — Sprint 2.
+ * API client for web-driver — Sprint 7.
  * NOT shared across frontends (isolation rule).
  */
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
+async function _json(res) {
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
 
 export async function login(email, password) {
   const res = await fetch(`${API_BASE}/v1/token`, {
@@ -10,19 +22,14 @@ export async function login(email, password) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Login failed (${res.status})`);
-  }
-  return res.json();
+  return _json(res);
 }
 
 export async function fetchMe(token) {
   const res = await fetch(`${API_BASE}/v1/me`, {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
   });
-  if (!res.ok) throw new Error(`/v1/me error ${res.status}`);
-  return res.json();
+  return _json(res);
 }
 
 export async function registerUser(token) {
@@ -30,14 +37,62 @@ export async function registerUser(token) {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
   });
-  if (!res.ok) throw new Error(`/v1/auth/register error ${res.status}`);
-  return res.json();
+  return _json(res);
 }
+
+// ---------------------------------------------------------------------------
+// Driver profile
+// ---------------------------------------------------------------------------
+
+export async function registerDriver(token) {
+  const res = await fetch(`${API_BASE}/v1/drivers/register`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
+// ---------------------------------------------------------------------------
+// Trip marketplace
+// ---------------------------------------------------------------------------
+
+export async function listAvailableTrips(token) {
+  const res = await fetch(`${API_BASE}/v1/trips/driver/available`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
+export async function getActiveTrip(token) {
+  const res = await fetch(`${API_BASE}/v1/trips/driver/active`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // { trip: TripResponse | null }
+}
+
+// ---------------------------------------------------------------------------
+// Trip state transitions
+// ---------------------------------------------------------------------------
+
+async function _patch(token, url) {
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
+export const acceptTrip  = (token, id) => _patch(token, `${API_BASE}/v1/trips/${id}/accept`);
+export const startTrip   = (token, id) => _patch(token, `${API_BASE}/v1/trips/${id}/start`);
+export const completeTrip = (token, id) => _patch(token, `${API_BASE}/v1/trips/${id}/complete`);
+
+// ---------------------------------------------------------------------------
+// Legacy demo (kept for compat)
+// ---------------------------------------------------------------------------
 
 export async function fetchDemo(token) {
   const res = await fetch(`${API_BASE}/v1/demo`, {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
   });
-  if (!res.ok) throw new Error(`API error ${res.status}`);
-  return res.json();
+  return _json(res);
 }

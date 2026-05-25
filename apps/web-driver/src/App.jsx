@@ -1,9 +1,29 @@
-import { useEffect, useState } from "react";
-import { login, fetchMe, fetchDemo, registerUser } from "./api";
+import { useEffect, useState, useCallback } from "react";
+import {
+  login, fetchMe, registerUser, registerDriver,
+  listAvailableTrips, getActiveTrip,
+  acceptTrip, startTrip, completeTrip,
+} from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
 const REQUIRED_ROLE = "driver";
 const TOKEN_KEY = "ziza_token";
+const POLL_MS = 5000;
+
+const STATUS_LABELS = {
+  accepted:    "✓ Course acceptée — en route vers le client",
+  in_progress: "🚗 Course en cours",
+  completed:   "✅ Course terminée",
+  cancelled:   "✗ Course annulée par le client",
+};
+
+function formatXOF(n) {
+  return new Intl.NumberFormat("fr-FR").format(n) + " XOF";
+}
+
+// ---------------------------------------------------------------------------
+// Login form
+// ---------------------------------------------------------------------------
 
 function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   const [email, setEmail] = useState("driver@ziza.dev");
@@ -11,10 +31,10 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Driver</h1>
-      <p className="subtitle">Sprint 3 — Auth DEV + Firebase</p>
+      <p className="subtitle">Sprint 7 — Tableau de bord chauffeur</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
+        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
         <button type="submit" disabled={loading}>{loading ? "Connexion…" : "Se connecter"}</button>
       </form>
       {firebaseEnabled && (
@@ -28,7 +48,154 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   );
 }
 
-function Dashboard({ user, demo, onLogout }) {
+// ---------------------------------------------------------------------------
+// Active trip card — shown when driver has an ongoing ride
+// ---------------------------------------------------------------------------
+
+function ActiveTripCard({ token, trip, onUpdate }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function handleAction(fn) {
+    setBusy(true); setError(null);
+    try { const updated = await fn(token, trip.trip_id); onUpdate(updated); }
+    catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className={`active-trip-card active-${trip.status}`}>
+      <div className="active-status">{STATUS_LABELS[trip.status] ?? trip.status}</div>
+      {trip.fare_xof && <div className="active-fare">{formatXOF(trip.fare_xof)}</div>}
+      <div className="fare-meta">
+        {trip.distance_km != null && <span>🛣️ {trip.distance_km.toFixed(1)} km</span>}
+        {trip.duration_min != null && <span>⏱️ ~{trip.duration_min} min</span>}
+      </div>
+      {error && <p className="form-error">{error}</p>}
+      {trip.status === "accepted" && (
+        <button className="action-btn start-btn" onClick={() => handleAction(startTrip)} disabled={busy}>
+          {busy ? "…" : "🚦 Démarrer la course"}
+        </button>
+      )}
+      {trip.status === "in_progress" && (
+        <button className="action-btn complete-btn" onClick={() => handleAction(completeTrip)} disabled={busy}>
+          {busy ? "…" : "🏁 Terminer la course"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Available trips list — shown when driver is free
+// ---------------------------------------------------------------------------
+
+function AvailableTripsSection({ token, onTripAccepted }) {
+  const [trips, setTrips] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [accepting, setAccepting] = useState(null); // trip_id being accepted
+  const [error, setError] = useState(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try { setTrips(await listAvailableTrips(token)); }
+    catch (_) { /* silent */ }
+    finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => {
+    refresh();
+    const id = setInterval(refresh, POLL_MS);
+    return () => clearInterval(id);
+  }, [refresh]);
+
+  async function handleAccept(tripId) {
+    setAccepting(tripId); setError(null);
+    try {
+      const trip = await acceptTrip(token, tripId);
+      onTripAccepted(trip);
+    } catch (e) { setError(e.message); setAccepting(null); }
+  }
+
+  return (
+    <div className="available-section">
+      <div className="available-header">
+        <h2 className="section-title">Courses disponibles</h2>
+        <span className="live-badge">● Live</span>
+      </div>
+      {error && <p className="form-error">{error}</p>}
+      {loading && trips.length === 0 && (
+        <div className="status loading">⏳ Chargement…</div>
+      )}
+      {!loading && trips.length === 0 && (
+        <div className="empty-state">Aucune course disponible pour le moment.</div>
+      )}
+      <div className="trip-list">
+        {trips.map((t) => (
+          <div key={t.trip_id} className="trip-card">
+            <div className="trip-card-fare">{t.fare_xof ? formatXOF(t.fare_xof) : "—"}</div>
+            <div className="trip-card-meta">
+              {t.distance_km != null && <span>🛣️ {t.distance_km.toFixed(1)} km</span>}
+              {t.duration_min != null && <span>⏱️ ~{t.duration_min} min</span>}
+            </div>
+            <button
+              className="action-btn accept-btn"
+              onClick={() => handleAccept(t.trip_id)}
+              disabled={accepting === t.trip_id}
+            >
+              {accepting === t.trip_id ? "Acceptation…" : "✓ Accepter"}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------------
+
+function Dashboard({ user, token, onLogout }) {
+  const [activeTrip, setActiveTrip] = useState(null);
+  const [initialized, setInitialized] = useState(false);
+
+  // On mount: check if driver already has an active trip
+  useEffect(() => {
+    getActiveTrip(token)
+      .then(({ trip }) => { setActiveTrip(trip); })
+      .catch(() => {})
+      .finally(() => setInitialized(true));
+  }, [token]);
+
+  // Poll active trip status every 5s (if active)
+  useEffect(() => {
+    if (!activeTrip) return;
+    if (["completed", "cancelled"].includes(activeTrip.status)) return;
+    const id = setInterval(() => {
+      getActiveTrip(token)
+        .then(({ trip }) => setActiveTrip(trip))
+        .catch(() => {});
+    }, POLL_MS);
+    return () => clearInterval(id);
+  }, [activeTrip?.trip_id, activeTrip?.status]);
+
+  function handleTripUpdate(updated) {
+    setActiveTrip(updated);
+    if (["completed", "cancelled"].includes(updated.status)) {
+      // Clear active trip after a short delay so driver sees final status
+      setTimeout(() => setActiveTrip(null), 3000);
+    }
+  }
+
+  if (!initialized) {
+    return (
+      <div className="app">
+        <div className="status loading">⏳ Chargement…</div>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <header className="dash-header">
@@ -37,8 +204,14 @@ function Dashboard({ user, demo, onLogout }) {
       </header>
       <div className="status ok">✓ Connecté — <strong>{user.email}</strong></div>
       <div className="role-badge">{user.role} · {user.provider}</div>
-      <pre className="payload">{JSON.stringify({ user, demo }, null, 2)}</pre>
-      <p className="footer">App: <strong>web-driver</strong> · Sprint 3</p>
+
+      {activeTrip && !["completed", "cancelled"].includes(activeTrip.status) ? (
+        <ActiveTripCard token={token} trip={activeTrip} onUpdate={handleTripUpdate} />
+      ) : (
+        <AvailableTripsSection token={token} onTripAccepted={setActiveTrip} />
+      )}
+
+      <p className="footer">App: <strong>web-driver</strong> · Sprint 7</p>
     </div>
   );
 }
@@ -53,22 +226,27 @@ function AccessDenied({ role, onLogout }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Root
+// ---------------------------------------------------------------------------
+
 export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
   const [user, setUser] = useState(null);
-  const [demo, setDemo] = useState(null);
   const [loginError, setLoginError] = useState(null);
   const [loginLoading, setLoginLoading] = useState(false);
 
   useEffect(() => {
-    if (!token) { setUser(null); setDemo(null); return; }
+    if (!token) { setUser(null); return; }
     fetchMe(token).then(setUser).catch(() => { localStorage.removeItem(TOKEN_KEY); setToken(null); });
   }, [token]);
 
+  // After login: upsert user row + driver profile
   useEffect(() => {
     if (!user || user.role !== REQUIRED_ROLE) return;
-    registerUser(token).catch(() => {});
-    fetchDemo(token).then(setDemo).catch(() => {});
+    registerUser(token)
+      .then(() => registerDriver(token))
+      .catch(() => {});
   }, [user]);
 
   async function handleEmailLogin(email, password) {
@@ -93,11 +271,11 @@ export default function App() {
 
   async function handleLogout() {
     await firebaseSignOut();
-    localStorage.removeItem(TOKEN_KEY); setToken(null); setUser(null); setDemo(null);
+    localStorage.removeItem(TOKEN_KEY); setToken(null); setUser(null);
   }
 
   if (!token) return <LoginForm onEmailLogin={handleEmailLogin} onGoogleLogin={handleGoogleLogin} error={loginError} loading={loginLoading} />;
-  if (!user) return <div className="app"><div className="status loading">⏳ Chargement…</div></div>;
+  if (!user)  return <div className="app"><div className="status loading">⏳ Chargement…</div></div>;
   if (user.role !== REQUIRED_ROLE) return <AccessDenied role={user.role} onLogout={handleLogout} />;
-  return <Dashboard user={user} demo={demo} onLogout={handleLogout} />;
+  return <Dashboard user={user} token={token} onLogout={handleLogout} />;
 }

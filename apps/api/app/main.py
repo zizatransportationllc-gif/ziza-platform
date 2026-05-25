@@ -1,16 +1,22 @@
-"""Ziza API — Sprint 6.
+"""Ziza API — Sprint 7.
 
 Endpoints:
-  GET   /health                      liveness probe
-  GET   /v1/demo                     Sprint 1 demo payload
-  POST  /v1/token                    [DEV only] exchange email+password for a JWT
-  GET   /v1/me                       return normalised claims for the authenticated user
-  POST  /v1/auth/register            upsert user in DB and return profile
-  POST  /v1/estimate                 fare estimate for a ride (origin → destination)
-  POST  /v1/trips                    book a trip from a valid estimate
-  GET   /v1/trips                    list customer's trips
-  GET   /v1/trips/{trip_id}          trip detail + events
-  PATCH /v1/trips/{trip_id}/cancel   customer cancels a pending/accepted trip
+  GET   /health                          liveness probe
+  GET   /v1/demo                         Sprint 1 demo payload
+  POST  /v1/token                        [DEV only] exchange email+password for a JWT
+  GET   /v1/me                           return normalised claims for the authenticated user
+  POST  /v1/auth/register                upsert user in DB and return profile
+  POST  /v1/estimate                     fare estimate for a ride (origin → destination)
+  POST  /v1/trips                        book a trip from a valid estimate
+  GET   /v1/trips                        list customer's trips
+  GET   /v1/trips/driver/available       pending trips (driver view)
+  GET   /v1/trips/driver/active          driver's current active trip
+  GET   /v1/trips/{trip_id}              trip detail + events
+  PATCH /v1/trips/{trip_id}/cancel       customer cancels a pending/accepted trip
+  PATCH /v1/trips/{trip_id}/accept       driver accepts a pending trip
+  PATCH /v1/trips/{trip_id}/start        driver starts an accepted trip
+  PATCH /v1/trips/{trip_id}/complete     driver completes an in_progress trip
+  POST  /v1/drivers/register             create/upsert driver profile
 """
 from __future__ import annotations
 
@@ -320,4 +326,127 @@ async def cancel_trip(
 ) -> TripResponse:
     """Cancel a pending or accepted trip (customer action)."""
     trip = await crud.cancel_trip(db, trip_id, claims.user_id)
+    return _trip_response(trip)
+
+
+# ---------------------------------------------------------------------------
+# Drivers — Sprint 7
+# ---------------------------------------------------------------------------
+
+class DriverResponse(BaseModel):
+    driver_id: str
+    user_id: str          # auth string (e.g. "usr_002")
+    status: str
+    license_number: str | None = None
+    created: bool
+
+
+class ActiveTripWrap(BaseModel):
+    """Wraps the driver's active trip (or None when the driver is free)."""
+    trip: TripResponse | None = None
+
+
+@app.post("/v1/drivers/register", tags=["drivers"])
+async def register_driver(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> DriverResponse:
+    """Create or return the Driver profile for the authenticated user.
+
+    Only users with role='driver' may call this endpoint.
+    Idempotent — safe to call on every login.
+    """
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only driver accounts can register a driver profile",
+        )
+    driver, created = await crud.upsert_driver(db, claims)
+    return DriverResponse(
+        driver_id=str(driver.id),
+        user_id=claims.user_id,
+        status=driver.status,
+        license_number=driver.license_number,
+        created=created,
+    )
+
+
+@app.get("/v1/trips/driver/available", tags=["drivers"])
+async def list_available_trips(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[TripResponse]:
+    """List all pending trips (driver marketplace view).
+
+    Only drivers may call this endpoint.
+    """
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can view available trips",
+        )
+    trips = await crud.list_available_trips(db)
+    return [_trip_response(t) for t in trips]
+
+
+@app.get("/v1/trips/driver/active", tags=["drivers"])
+async def get_driver_active_trip(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ActiveTripWrap:
+    """Return the driver's current trip (accepted or in_progress), or null."""
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can access this endpoint",
+        )
+    trip = await crud.get_driver_active_trip(db, claims.user_id)
+    return ActiveTripWrap(trip=_trip_response(trip) if trip else None)
+
+
+@app.patch("/v1/trips/{trip_id}/accept", tags=["drivers"])
+async def accept_trip(
+    trip_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TripResponse:
+    """Driver accepts a pending trip → accepted."""
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can accept trips",
+        )
+    trip = await crud.accept_trip(db, trip_id, claims.user_id)
+    return _trip_response(trip)
+
+
+@app.patch("/v1/trips/{trip_id}/start", tags=["drivers"])
+async def start_trip(
+    trip_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TripResponse:
+    """Driver starts their accepted trip → in_progress."""
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can start trips",
+        )
+    trip = await crud.start_trip(db, trip_id, claims.user_id)
+    return _trip_response(trip)
+
+
+@app.patch("/v1/trips/{trip_id}/complete", tags=["drivers"])
+async def complete_trip(
+    trip_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TripResponse:
+    """Driver completes their in_progress trip → completed."""
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can complete trips",
+        )
+    trip = await crud.complete_trip(db, trip_id, claims.user_id)
     return _trip_response(trip)

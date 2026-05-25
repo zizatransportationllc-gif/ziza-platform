@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.base import Claims
+from app.models.driver import Driver
 from app.models.estimate import Estimate
 from app.models.trip import Trip, TripEvent
 from app.models.user import User
@@ -240,6 +241,186 @@ async def cancel_trip(
         data={"from": prev_status, "to": "cancelled"},
     )
     db.add(event)
+    await db.commit()
+    await db.refresh(trip)
+    return trip
+
+
+# ---------------------------------------------------------------------------
+# Drivers — Sprint 7
+# ---------------------------------------------------------------------------
+
+async def upsert_driver(db: AsyncSession, claims: Claims) -> tuple[Driver, bool]:
+    """Create or return the Driver profile for an authenticated driver user.
+
+    The user row must already exist (call POST /v1/auth/register first).
+    Returns ``(driver, created)`` — idempotent.
+    """
+    user = await _get_user_by_auth_id(db, claims.user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found — call POST /v1/auth/register first",
+        )
+
+    result = await db.execute(select(Driver).where(Driver.user_id == user.id))
+    driver: Driver | None = result.scalar_one_or_none()
+    if driver is not None:
+        return driver, False
+
+    driver = Driver(user_id=user.id, status="active")
+    db.add(driver)
+    await db.commit()
+    await db.refresh(driver)
+    return driver, True
+
+
+async def _get_driver_by_auth_id(db: AsyncSession, auth_user_id: str) -> Driver | None:
+    """Internal: look up Driver row via auth user_id string."""
+    user = await _get_user_by_auth_id(db, auth_user_id)
+    if user is None:
+        return None
+    result = await db.execute(select(Driver).where(Driver.user_id == user.id))
+    return result.scalar_one_or_none()
+
+
+# ---------------------------------------------------------------------------
+# Trip state transitions — driver side (Sprint 7)
+# ---------------------------------------------------------------------------
+
+async def list_available_trips(db: AsyncSession) -> list[Trip]:
+    """All pending trips, newest first (driver marketplace view)."""
+    result = await db.execute(
+        select(Trip)
+        .where(Trip.status == "pending")
+        .order_by(Trip.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def get_driver_active_trip(db: AsyncSession, auth_user_id: str) -> Trip | None:
+    """Return the driver's current trip in accepted or in_progress state."""
+    driver = await _get_driver_by_auth_id(db, auth_user_id)
+    if driver is None:
+        return None
+    result = await db.execute(
+        select(Trip)
+        .where(
+            Trip.driver_id == driver.id,
+            Trip.status.in_(["accepted", "in_progress"]),
+        )
+        .order_by(Trip.created_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+def _require_driver(driver: Driver | None) -> Driver:
+    """Raise if driver is None or inactive."""
+    if driver is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver profile not found — call POST /v1/drivers/register first",
+        )
+    if driver.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Driver account is not active",
+        )
+    return driver
+
+
+async def _load_trip_for_driver(db: AsyncSession, trip_id: str, driver: Driver) -> Trip:
+    """Load a trip and verify it is owned by this driver."""
+    try:
+        trip_uuid = uuid.UUID(trip_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid trip_id format",
+        )
+    result = await db.execute(select(Trip).where(Trip.id == trip_uuid))
+    trip: Trip | None = result.scalar_one_or_none()
+    if trip is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+    if trip.driver_id != driver.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your trip")
+    return trip
+
+
+async def accept_trip(db: AsyncSession, trip_id: str, auth_user_id: str) -> Trip:
+    """Driver accepts a pending trip → accepted.  Sets trip.driver_id."""
+    driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
+
+    try:
+        trip_uuid = uuid.UUID(trip_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid trip_id format",
+        )
+    result = await db.execute(select(Trip).where(Trip.id == trip_uuid))
+    trip: Trip | None = result.scalar_one_or_none()
+    if trip is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+    if trip.status != "pending":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Trip is not available (status: {trip.status})",
+        )
+
+    trip.status = "accepted"
+    trip.driver_id = driver.id
+    trip.updated_at = datetime.now(timezone.utc)
+    db.add(TripEvent(
+        trip_id=trip.id,
+        event_type="status_changed",
+        data={"from": "pending", "to": "accepted", "driver_id": str(driver.id)},
+    ))
+    await db.commit()
+    await db.refresh(trip)
+    return trip
+
+
+async def start_trip(db: AsyncSession, trip_id: str, auth_user_id: str) -> Trip:
+    """Driver starts an accepted trip → in_progress."""
+    driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
+    trip = await _load_trip_for_driver(db, trip_id, driver)
+    if trip.status != "accepted":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot start a trip in '{trip.status}' status",
+        )
+
+    trip.status = "in_progress"
+    trip.updated_at = datetime.now(timezone.utc)
+    db.add(TripEvent(
+        trip_id=trip.id,
+        event_type="status_changed",
+        data={"from": "accepted", "to": "in_progress"},
+    ))
+    await db.commit()
+    await db.refresh(trip)
+    return trip
+
+
+async def complete_trip(db: AsyncSession, trip_id: str, auth_user_id: str) -> Trip:
+    """Driver completes an in_progress trip → completed."""
+    driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
+    trip = await _load_trip_for_driver(db, trip_id, driver)
+    if trip.status != "in_progress":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot complete a trip in '{trip.status}' status",
+        )
+
+    trip.status = "completed"
+    trip.updated_at = datetime.now(timezone.utc)
+    db.add(TripEvent(
+        trip_id=trip.id,
+        event_type="status_changed",
+        data={"from": "in_progress", "to": "completed"},
+    ))
     await db.commit()
     await db.refresh(trip)
     return trip
