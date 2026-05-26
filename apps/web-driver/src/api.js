@@ -1,5 +1,5 @@
 /**
- * API client for web-driver — Sprint 7.
+ * API client for web-driver — Sprint 21.
  * NOT shared across frontends (isolation rule).
  */
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -132,7 +132,7 @@ export async function getMyVehicle(token) {
   return _json(res);
 }
 
-export async function registerVehicle(token, plate, make, model, year, color) {
+export async function registerVehicle(token, plate, make, model, year, color, category = "economy") {
   const res = await fetch(`${API_BASE}/v1/drivers/me/vehicle`, {
     method: "POST",
     headers: {
@@ -140,9 +140,20 @@ export async function registerVehicle(token, plate, make, model, year, color) {
       "Content-Type": "application/json",
       Accept: "application/json",
     },
-    body: JSON.stringify({ plate, make, model, year: year ? Number(year) : null, color }),
+    body: JSON.stringify({ plate, make, model, year: year ? Number(year) : null, color, category }),
   });
   return _json(res);
+}
+
+// ---------------------------------------------------------------------------
+// Vehicle categories — Sprint 21
+// ---------------------------------------------------------------------------
+
+export async function listCategories(token) {
+  const res = await fetch(`${API_BASE}/v1/categories`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // CategoryInfo[]
 }
 
 // ---------------------------------------------------------------------------

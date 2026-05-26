@@ -1,4 +1,4 @@
-"""Vehicle model — Sprint 4."""
+"""Vehicle model — Sprint 4 → Sprint 21."""
 from __future__ import annotations
 
 import uuid
@@ -35,6 +35,10 @@ class Vehicle(Base):
     model: Mapped[str | None] = mapped_column(String(64), nullable=True)
     year: Mapped[int | None] = mapped_column(Integer, nullable=True)
     color: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # Sprint 21: vehicle category — economy | comfort | premium
+    category: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="economy", server_default="economy"
+    )
     # active | inactive
     status: Mapped[str] = mapped_column(
         String(32), nullable=False, default="active"

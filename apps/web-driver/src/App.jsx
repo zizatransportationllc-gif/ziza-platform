@@ -11,12 +11,20 @@ import {
   createPayoutRequest, listPayoutRequests,
   submitDocument, listMyDocuments,
   listNotifications, getUnreadCount, markAllRead,
+  listCategories,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
 const REQUIRED_ROLE = "driver";
 const TOKEN_KEY = "ziza_token";
 const POLL_MS = 5000;
+
+// Sprint 21 — vehicle category constants
+const VEHICLE_CATEGORIES = [
+  { value: "economy", label: "🚗 Économique" },
+  { value: "comfort", label: "🚙 Confort" },
+  { value: "premium", label: "🏎️ Premium" },
+];
 
 const STATUS_LABELS = {
   accepted:    "✓ Course acceptée — en route vers le client",
@@ -54,7 +62,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Driver</h1>
-      <p className="subtitle">Sprint 18 — Notifications in-app</p>
+      <p className="subtitle">Sprint 21 — Catégories de véhicules</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -177,24 +185,30 @@ function EarningsCard({ earnings }) {
 
 function VehicleCard({ token, vehicle, onSaved }) {
   const [editing, setEditing] = useState(!vehicle);
-  const [plate, setPlate]   = useState(vehicle?.plate ?? "");
-  const [make, setMake]     = useState(vehicle?.make ?? "");
-  const [model, setModel]   = useState(vehicle?.model ?? "");
-  const [year, setYear]     = useState(vehicle?.year ?? "");
-  const [color, setColor]   = useState(vehicle?.color ?? "");
-  const [saving, setSaving] = useState(false);
-  const [error, setError]   = useState(null);
+  const [plate, setPlate]       = useState(vehicle?.plate ?? "");
+  const [make, setMake]         = useState(vehicle?.make ?? "");
+  const [model, setModel]       = useState(vehicle?.model ?? "");
+  const [year, setYear]         = useState(vehicle?.year ?? "");
+  const [color, setColor]       = useState(vehicle?.color ?? "");
+  const [category, setCategory] = useState(vehicle?.category ?? "economy"); // Sprint 21
+  const [saving, setSaving]     = useState(false);
+  const [error, setError]       = useState(null);
 
   async function handleSave(e) {
     e.preventDefault();
     setSaving(true); setError(null);
     try {
-      const v = await registerVehicle(token, plate.trim(), make.trim() || null, model.trim() || null, year || null, color.trim() || null);
+      const v = await registerVehicle(
+        token, plate.trim(), make.trim() || null, model.trim() || null,
+        year || null, color.trim() || null, category,
+      );
       onSaved(v);
       setEditing(false);
     } catch (err) { setError(err.message); }
     finally { setSaving(false); }
   }
+
+  const categoryLabel = VEHICLE_CATEGORIES.find((c) => c.value === (vehicle?.category ?? "economy"))?.label ?? "🚗 Économique";
 
   if (!editing && vehicle) {
     return (
@@ -204,6 +218,7 @@ function VehicleCard({ token, vehicle, onSaved }) {
         <div className="vehicle-meta">
           {[vehicle.color, vehicle.make, vehicle.model, vehicle.year].filter(Boolean).join(" · ")}
         </div>
+        <div className="vehicle-category-badge">{categoryLabel}</div>
         <button className="vehicle-edit-btn" onClick={() => setEditing(true)}>Modifier</button>
       </div>
     );
@@ -221,6 +236,22 @@ function VehicleCard({ token, vehicle, onSaved }) {
         <div className="vehicle-row">
           <input className="vehicle-input" placeholder="Année" type="number" min="1980" max="2100" value={year} onChange={(e) => setYear(e.target.value)} />
           <input className="vehicle-input" placeholder="Couleur" value={color} onChange={(e) => setColor(e.target.value)} />
+        </div>
+        {/* Sprint 21: category selector */}
+        <div className="vehicle-category-row">
+          <span className="vehicle-category-label">Catégorie</span>
+          <div className="vehicle-category-btns">
+            {VEHICLE_CATEGORIES.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                className={`vehicle-cat-btn ${category === value ? "vehicle-cat-btn-selected" : ""}`}
+                onClick={() => setCategory(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
         {error && <p className="form-error">{error}</p>}
         <div className="vehicle-form-actions">
@@ -330,6 +361,11 @@ function AvailableTripsSection({ token, onTripAccepted, onAssistanceAccepted }) 
         {trips.map((t) => (
           <div key={t.trip_id} className="trip-card">
             <div className="dispatch-tag tag-ride">🚕 Trajet</div>
+            {t.category && t.category !== "economy" && (
+              <div className={`dispatch-category dispatch-cat-${t.category}`}>
+                {VEHICLE_CATEGORIES.find((c) => c.value === t.category)?.label ?? t.category}
+              </div>
+            )}
             <div className="trip-card-fare">{t.fare_xof ? formatXOF(t.fare_xof) : "—"}</div>
             <div className="trip-card-meta">
               {t.distance_km != null && <span>🛣️ {t.distance_km.toFixed(1)} km</span>}
@@ -893,7 +929,7 @@ function Dashboard({ user, token, onLogout }) {
         </>
       )}
 
-      <p className="footer">App: <strong>web-driver</strong> · Sprint 18</p>
+      <p className="footer">App: <strong>web-driver</strong> · Sprint 21</p>
     </div>
   );
 }

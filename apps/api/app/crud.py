@@ -1,4 +1,4 @@
-"""CRUD helpers — Sprint 4 → Sprint 16.
+"""CRUD helpers — Sprint 4 → Sprint 21.
 
 All functions are async and receive an ``AsyncSession`` from the FastAPI
 ``get_db`` dependency.
@@ -29,6 +29,32 @@ from app.models.rating import Rating
 from app.models.trip import Trip, TripEvent
 from app.models.user import User
 from app.models.vehicle import Vehicle
+
+
+# ---------------------------------------------------------------------------
+# Sprint 21 — Vehicle category constants
+# ---------------------------------------------------------------------------
+
+VEHICLE_CATEGORIES = {"economy", "comfort", "premium"}
+
+#: Fare multiplier applied on top of the base (economy) fare.
+CATEGORY_MULTIPLIERS: dict[str, float] = {
+    "economy": 1.0,
+    "comfort": 1.4,
+    "premium": 2.0,
+}
+
+CATEGORY_LABELS: dict[str, str] = {
+    "economy": "Économique",
+    "comfort": "Confort",
+    "premium": "Premium",
+}
+
+CATEGORY_DESCRIPTIONS: dict[str, str] = {
+    "economy": "Trajet standard au meilleur prix",
+    "comfort": "Véhicule spacieux et climatisé",
+    "premium": "Berline haut de gamme",
+}
 
 
 def _utc(dt: datetime) -> datetime:
@@ -183,12 +209,20 @@ async def create_trip(
     claims: Claims,
     estimate_id: str,
     promo_code: str | None = None,
+    category: str = "economy",
 ) -> Trip:
     """Create a new Trip from a valid, unexpired Estimate.
 
     The caller must already have a users row (call POST /v1/auth/register first).
+    ``category`` selects the vehicle class (economy / comfort / premium) and
+    applies the corresponding fare multiplier on top of the base estimate fare.
     Raises HTTPException on any validation failure.
     """
+    if category not in VEHICLE_CATEGORIES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid category '{category}'. Valid: {sorted(VEHICLE_CATEGORIES)}",
+        )
     # 1. Resolve the caller's DB user row (need the UUID for the FK)
     user = await _get_user_by_auth_id(db, claims.user_id)
     if user is None:
@@ -225,10 +259,14 @@ async def create_trip(
             detail="Estimate has expired — request a new one",
         )
 
-    # 4. Optionally validate and apply a promo code
+    # 4a. Apply category multiplier to the base economy fare (Sprint 21)
+    cat_multiplier = CATEGORY_MULTIPLIERS[category]
+    base_fare = max(1, round(est.fare_xof * cat_multiplier)) if est.fare_xof else est.fare_xof
+
+    # 4b. Optionally validate and apply a promo code
     applied_promo: PromoCode | None = None
     applied_discount_pct: int | None = None
-    final_fare = est.fare_xof
+    final_fare = base_fare
 
     if promo_code:
         promo_result = await db.execute(
@@ -269,6 +307,7 @@ async def create_trip(
         duration_min=est.duration_min,
         promo_code=promo_code.upper().strip() if promo_code else None,
         discount_pct=applied_discount_pct,
+        category=category,
     )
     db.add(trip)
     await db.flush()  # populate trip.id without committing yet
@@ -1259,6 +1298,7 @@ async def admin_list_trips(
             "duration_min": trip.duration_min,
             "customer_email": customer.email,
             "driver_id": str(trip.driver_id) if trip.driver_id else None,
+            "category": getattr(trip, "category", "economy"),
             "created_at": trip.created_at.isoformat(),
             "updated_at": trip.updated_at.isoformat(),
         })
@@ -1310,6 +1350,7 @@ async def upsert_vehicle(
     model_name: str | None,
     year: int | None,
     color: str | None,
+    category: str = "economy",
 ) -> tuple[Vehicle, bool]:
     """Create or update the driver's active vehicle.
 
@@ -1318,7 +1359,13 @@ async def upsert_vehicle(
 
     Returns (vehicle, created) where created=True for a new record.
     Raises 409 if the plate is already used by another driver.
+    Raises 422 if category is not in VEHICLE_CATEGORIES.
     """
+    if category not in VEHICLE_CATEGORIES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid category '{category}'. Valid: {sorted(VEHICLE_CATEGORIES)}",
+        )
     driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
     vehicle = await _get_active_vehicle_for_driver(db, driver.id)
 
@@ -1339,6 +1386,7 @@ async def upsert_vehicle(
             model=model_name,
             year=year,
             color=color,
+            category=category,
             status="active",
         )
         db.add(vehicle)
@@ -1362,6 +1410,7 @@ async def upsert_vehicle(
     vehicle.model = model_name
     vehicle.year = year
     vehicle.color = color
+    vehicle.category = category
     await db.commit()
     await db.refresh(vehicle)
     return vehicle, False

@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 20.
+"""Ziza API — Sprint 21.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -71,6 +71,7 @@ Endpoints:
   POST  /v1/places                                 create a saved place (max 10)
   PATCH /v1/places/{place_id}                      update a saved place (label/name/lat/lng)
   DELETE /v1/places/{place_id}                     delete a saved place
+  GET   /v1/categories                             list vehicle categories + fare multipliers
 """
 from __future__ import annotations
 
@@ -282,15 +283,25 @@ class EstimateRequest(BaseModel):
     dest_lng: Annotated[float, Field(ge=-180, le=180, description="Destination longitude")]
 
 
+class CategoryFareOption(BaseModel):
+    """Per-category fare info returned inside EstimateResponse."""
+    fare_xof: int
+    label: str        # "Économique" / "Confort" / "Premium"
+    description: str  # short description
+    multiplier: float
+
+
 class EstimateResponse(BaseModel):
     estimate_id: str
     distance_km: float
     duration_min: int
-    fare_xof: int
+    fare_xof: int          # economy fare (backward compat)
     currency: str = "XOF"
     surge_multiplier: float
-    distance_source: str  # "google_maps" | "haversine"
-    expires_at: str       # ISO-8601 UTC
+    distance_source: str   # "google_maps" | "haversine"
+    expires_at: str        # ISO-8601 UTC
+    # Sprint 21: per-category fare options
+    categories: dict[str, CategoryFareOption]
 
 
 @app.post("/v1/estimate", tags=["rides"])
@@ -337,6 +348,17 @@ async def estimate(
     await db.commit()
     await db.refresh(est)
 
+    # Sprint 21: compute per-category fares
+    category_options = {
+        cat: CategoryFareOption(
+            fare_xof=max(1, round(est.fare_xof * mult)),
+            label=crud.CATEGORY_LABELS[cat],
+            description=crud.CATEGORY_DESCRIPTIONS[cat],
+            multiplier=mult,
+        )
+        for cat, mult in crud.CATEGORY_MULTIPLIERS.items()
+    }
+
     return EstimateResponse(
         estimate_id=str(est.id),
         distance_km=est.distance_km,
@@ -346,6 +368,7 @@ async def estimate(
         surge_multiplier=est.surge_multiplier,
         distance_source=est.distance_source,
         expires_at=est.expires_at.isoformat(),
+        categories=category_options,
     )
 
 
@@ -356,6 +379,7 @@ async def estimate(
 class TripRequest(BaseModel):
     estimate_id: str
     promo_code: str | None = None  # Sprint 14: optional promo discount
+    category: str = "economy"      # Sprint 21: vehicle category
 
 
 class TripEventOut(BaseModel):
@@ -371,6 +395,7 @@ class VehicleInfo(BaseModel):
     model: str | None = None
     year: int | None = None
     color: str | None = None
+    category: str = "economy"  # Sprint 21
 
 
 class TripResponse(BaseModel):
@@ -387,6 +412,7 @@ class TripResponse(BaseModel):
     vehicle: VehicleInfo | None = None  # populated once driver accepts — Sprint 12
     promo_code: str | None = None       # Sprint 14: applied promo code
     discount_pct: int | None = None     # Sprint 14: discount applied
+    category: str = "economy"           # Sprint 21: chosen vehicle category
     created_at: str
     events: list[TripEventOut] | None = None
 
@@ -394,7 +420,10 @@ class TripResponse(BaseModel):
 def _vehicle_info(v) -> VehicleInfo | None:
     if v is None:
         return None
-    return VehicleInfo(plate=v.plate, make=v.make, model=v.model, year=v.year, color=v.color)
+    return VehicleInfo(
+        plate=v.plate, make=v.make, model=v.model, year=v.year, color=v.color,
+        category=getattr(v, "category", "economy"),
+    )
 
 
 def _trip_response(trip, events=None, vehicle=None) -> TripResponse:
@@ -413,6 +442,7 @@ def _trip_response(trip, events=None, vehicle=None) -> TripResponse:
         vehicle=_vehicle_info(vehicle),
         promo_code=trip.promo_code,
         discount_pct=trip.discount_pct,
+        category=getattr(trip, "category", "economy"),
         created_at=trip.created_at.isoformat(),
         events=[
             TripEventOut(
@@ -431,8 +461,16 @@ async def create_trip(
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TripResponse:
-    """Book a trip from a previously created (non-expired) estimate."""
-    trip = await crud.create_trip(db, claims, body.estimate_id, promo_code=body.promo_code)
+    """Book a trip from a previously created (non-expired) estimate.
+
+    ``category`` selects the vehicle class (economy / comfort / premium) and
+    adjusts the fare accordingly.  Defaults to economy.
+    """
+    trip = await crud.create_trip(
+        db, claims, body.estimate_id,
+        promo_code=body.promo_code,
+        category=body.category,
+    )
     return _trip_response(trip)
 
 
@@ -1115,6 +1153,7 @@ class AdminTripRecord(BaseModel):
     duration_min: int | None = None
     customer_email: str
     driver_id: str | None = None
+    category: str = "economy"  # Sprint 21
     created_at: str
     updated_at: str
 
@@ -1180,6 +1219,7 @@ class VehicleRequest(BaseModel):
     model: str | None = Field(None, max_length=64, description="Model (e.g. Corolla)")
     year: Annotated[int | None, Field(None, ge=1980, le=2100)] = None
     color: str | None = Field(None, max_length=32, description="Color (e.g. Blanc)")
+    category: str = "economy"  # Sprint 21: economy | comfort | premium
 
 
 class VehicleResponse(BaseModel):
@@ -1190,6 +1230,7 @@ class VehicleResponse(BaseModel):
     year: int | None = None
     color: str | None = None
     status: str
+    category: str = "economy"  # Sprint 21
     created: bool
 
 
@@ -1202,6 +1243,7 @@ def _vehicle_response(v, created: bool = False) -> VehicleResponse:
         year=v.year,
         color=v.color,
         status=v.status,
+        category=getattr(v, "category", "economy"),
         created=created,
     )
 
@@ -1232,6 +1274,7 @@ async def register_vehicle(
         model_name=body.model,
         year=body.year,
         color=body.color,
+        category=body.category,
     )
     return _vehicle_response(vehicle, created=created)
 
@@ -1992,3 +2035,33 @@ async def delete_place(
 ) -> None:
     """Delete a saved place.  Only the owner can delete their own places."""
     await crud.delete_saved_place(db, claims.user_id, place_id)
+
+
+# ---------------------------------------------------------------------------
+# Vehicle categories — Sprint 21
+# ---------------------------------------------------------------------------
+
+class CategoryInfo(BaseModel):
+    category: str
+    label: str
+    description: str
+    multiplier: float
+
+
+@app.get("/v1/categories", tags=["rides"])
+async def list_categories(
+    _: Claims = Depends(get_current_user),
+) -> list[CategoryInfo]:
+    """Return the list of available vehicle categories with their fare multipliers.
+
+    Useful for clients that want to display options before requesting an estimate.
+    """
+    return [
+        CategoryInfo(
+            category=cat,
+            label=crud.CATEGORY_LABELS[cat],
+            description=crud.CATEGORY_DESCRIPTIONS[cat],
+            multiplier=crud.CATEGORY_MULTIPLIERS[cat],
+        )
+        for cat in ("economy", "comfort", "premium")
+    ]

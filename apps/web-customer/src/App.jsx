@@ -5,6 +5,7 @@ import {
   validatePromo, getProfile, updateProfile,
   listNotifications, getUnreadCount, markAllRead,
   listPlaces, createPlace, updatePlace, deletePlace,
+  listCategories,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -28,6 +29,10 @@ const LOCATION_NAMES = Object.keys(ABIDJAN_LOCATIONS);
 // Sprint 20 — saved places constants
 const PLACE_LABEL_ICONS = { home: "🏠", work: "💼", other: "📍" };
 const PLACE_LABEL_NAMES = { home: "Domicile", work: "Travail", other: "Autre" };
+
+// Sprint 21 — vehicle category constants
+const CATEGORY_ICONS  = { economy: "🚗", comfort: "🚙", premium: "🏎️" };
+const CATEGORY_ORDER  = ["economy", "comfort", "premium"];
 
 const STATUS_LABELS = {
   pending:     "⏳ En attente d'un chauffeur",
@@ -71,7 +76,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Customer</h1>
-      <p className="subtitle">Sprint 18 — Notifications in-app</p>
+      <p className="subtitle">Sprint 21 — Catégories de véhicules</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -109,6 +114,8 @@ function EstimateSection({ token, onTripCreated }) {
   const [customOrigin, setCustomOrigin] = useState(null); // { name, lat, lng } | null
   const [customDest, setCustomDest]     = useState(null);
   const [showPlacePicker, setShowPlacePicker] = useState(false);
+  // Sprint 21: vehicle category
+  const [selectedCategory, setSelectedCategory] = useState("economy");
 
   useEffect(() => {
     listPlaces(token).then(setSavedPlaces).catch(() => {});
@@ -119,7 +126,7 @@ function EstimateSection({ token, onTripCreated }) {
     const o = customOrigin ?? ABIDJAN_LOCATIONS[origin];
     const d = customDest   ?? ABIDJAN_LOCATIONS[dest];
     if (o.lat === d.lat && o.lng === d.lng) { setError("Choisissez deux points différents."); return; }
-    setLoading(true); setError(null); setResult(null); setPromoApplied(null); setPromoInput("");
+    setLoading(true); setError(null); setResult(null); setPromoApplied(null); setPromoInput(""); setSelectedCategory("economy");
     try {
       const data = await fetchEstimate(token, o.lat, o.lng, d.lat, d.lng);
       setResult(data);
@@ -141,16 +148,18 @@ function EstimateSection({ token, onTripCreated }) {
   async function handleBook() {
     setBooking(true); setError(null);
     try {
-      const trip = await createTrip(token, result.estimate_id, promoApplied?.code ?? null);
+      const trip = await createTrip(token, result.estimate_id, promoApplied?.code ?? null, selectedCategory);
       onTripCreated(trip);
     } catch (err) { setError(err.message); }
     finally { setBooking(false); }
   }
 
+  // Sprint 21: use category-specific fare as the base
+  const baseFare = result?.categories?.[selectedCategory]?.fare_xof ?? result?.fare_xof;
   // Compute displayed fare (with or without promo)
   const displayFare = promoApplied && result
-    ? Math.max(1, Math.round(result.fare_xof * (1 - promoApplied.discount_pct / 100)))
-    : result?.fare_xof;
+    ? Math.max(1, Math.round(baseFare * (1 - promoApplied.discount_pct / 100)))
+    : baseFare;
 
   return (
     <div className="estimate-section">
@@ -248,7 +257,7 @@ function EstimateSection({ token, onTripCreated }) {
           )}
           <div className="fare-amount">
             {promoApplied && (
-              <span className="fare-original">{formatXOF(result.fare_xof)}</span>
+              <span className="fare-original">{formatXOF(baseFare)}</span>
             )}
             {formatXOF(displayFare)}
           </div>
@@ -262,6 +271,34 @@ function EstimateSection({ token, onTripCreated }) {
           <div className="fare-source">
             {result.distance_source === "google_maps" ? "🗺️ Google Maps" : "📐 Distance estimée"}
           </div>
+
+          {/* Sprint 21: category picker */}
+          {result.categories && (
+            <div className="category-picker">
+              <div className="category-picker-label">Choisissez votre catégorie</div>
+              <div className="category-cards">
+                {CATEGORY_ORDER.map((cat) => {
+                  const opt = result.categories[cat];
+                  if (!opt) return null;
+                  const isSelected = selectedCategory === cat;
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      className={`category-card category-card-${cat} ${isSelected ? "category-card-selected" : ""}`}
+                      onClick={() => setSelectedCategory(cat)}
+                    >
+                      <span className="category-card-icon">{CATEGORY_ICONS[cat]}</span>
+                      <span className="category-card-name">{opt.label}</span>
+                      <span className="category-card-fare">{formatXOF(opt.fare_xof)}</span>
+                      <span className="category-card-desc">{opt.description}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Promo code input */}
           {!promoApplied && (
             <form className="promo-form" onSubmit={handleValidatePromo}>
@@ -412,6 +449,11 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
           {trip.distance_km != null && <span>🛣️ {trip.distance_km.toFixed(1)} km</span>}
           {trip.duration_min != null && <span>⏱️ ~{trip.duration_min} min</span>}
         </div>
+        {trip.category && (
+          <div className={`booking-category booking-category-${trip.category}`}>
+            {CATEGORY_ICONS[trip.category] ?? "🚗"} {trip.category.charAt(0).toUpperCase() + trip.category.slice(1)}
+          </div>
+        )}
         {trip.vehicle && (trip.status === "accepted" || trip.status === "in_progress") && (
           <div className="vehicle-badge">
             <span className="vehicle-badge-plate">🚗 {trip.vehicle.plate}</span>
@@ -1160,7 +1202,7 @@ function Dashboard({ user, token, onLogout }) {
         </>
       )}
 
-      <p className="footer">App: <strong>web-customer</strong> · Sprint 20</p>
+      <p className="footer">App: <strong>web-customer</strong> · Sprint 21</p>
     </div>
   );
 }

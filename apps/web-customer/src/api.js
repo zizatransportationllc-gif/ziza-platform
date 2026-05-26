@@ -1,5 +1,5 @@
 /**
- * API client for web-customer — Sprint 20.
+ * API client for web-customer — Sprint 21.
  * NOT shared across frontends (isolation rule).
  */
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -57,8 +57,8 @@ export async function fetchEstimate(token, originLat, originLng, destLat, destLn
   return res.json();
 }
 
-export async function createTrip(token, estimateId, promoCode = null) {
-  const body = { estimate_id: estimateId };
+export async function createTrip(token, estimateId, promoCode = null, category = "economy") {
+  const body = { estimate_id: estimateId, category };
   if (promoCode) body.promo_code = promoCode;
   const res = await fetch(`${API_BASE}/v1/trips`, {
     method: "POST",
@@ -364,4 +364,15 @@ export async function deletePlace(token, placeId) {
     throw new Error(err.detail || `Delete place error (${res.status})`);
   }
   // 204 No Content — no body
+}
+
+// ---------------------------------------------------------------------------
+// Vehicle categories — Sprint 21
+// ---------------------------------------------------------------------------
+
+export async function listCategories(token) {
+  const res = await fetch(`${API_BASE}/v1/categories`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // CategoryInfo[]
 }

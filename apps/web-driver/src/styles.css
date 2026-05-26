@@ -201,3 +201,17 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .notif-body { font-size: 0.82rem; color: var(--color-muted); margin: 0 0 var(--space-1); }
 .notif-date { font-size: 0.72rem; color: var(--color-muted); }
 .muted { color: var(--color-muted); font-size: 0.88rem; text-align: center; padding: var(--space-4) 0; }
+
+/* ── Sprint 21: Vehicle category ───────────────────────────────────────── */
+.vehicle-category-badge { display: inline-block; font-size: 0.78rem; font-weight: 700; color: var(--color-accent); margin-bottom: var(--space-2); }
+.vehicle-category-row { margin-bottom: var(--space-3); }
+.vehicle-category-label { display: block; font-size: 0.78rem; font-weight: 600; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: var(--space-2); }
+.vehicle-category-btns { display: flex; gap: var(--space-2); }
+.vehicle-cat-btn { flex: 1; background: var(--color-bg, #0f172a); border: 2px solid var(--color-border); color: var(--color-muted); border-radius: var(--radius-md); padding: var(--space-2) var(--space-1); font-size: 0.8rem; cursor: pointer; transition: border-color 0.15s; white-space: nowrap; }
+.vehicle-cat-btn:hover { border-color: var(--color-accent); color: var(--color-fg); }
+.vehicle-cat-btn-selected { border-color: var(--color-accent-strong); color: var(--color-fg); background: color-mix(in srgb, var(--color-accent) 12%, transparent); }
+
+/* Dispatch category chip */
+.dispatch-category { display: inline-block; font-size: 0.72rem; font-weight: 700; border-radius: 999px; padding: 1px var(--space-2); margin-bottom: var(--space-1); }
+.dispatch-cat-comfort { background: color-mix(in srgb, #60a5fa 15%, transparent); color: #60a5fa; border: 1px solid #60a5fa; }
+.dispatch-cat-premium { background: color-mix(in srgb, #f59e0b 15%, transparent); color: #f59e0b; border: 1px solid #f59e0b; }
