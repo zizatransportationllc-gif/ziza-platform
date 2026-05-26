@@ -20,6 +20,7 @@ from app.models.driver import Driver
 from app.models.driver_capability import DriverCapability
 from app.models.driver_document import DriverDocument, DOCUMENT_TYPES
 from app.models.notification import Notification
+from app.models.saved_place import SavedPlace
 from app.models.estimate import Estimate
 from app.models.payout_request import PayoutRequest as PayoutRequestModel
 from app.models.platform_setting import PlatformSetting
@@ -2052,3 +2053,138 @@ async def admin_set_driver_status(
     await db.commit()
     await db.refresh(driver)
     return {"driver_id": str(driver.id), "status": driver.status}
+
+
+# ---------------------------------------------------------------------------
+# Sprint 20 — Saved places (customer address book)
+# ---------------------------------------------------------------------------
+
+MAX_SAVED_PLACES = 10
+_VALID_PLACE_LABELS = {"home", "work", "other"}
+
+
+async def list_saved_places(
+    db: AsyncSession,
+    auth_user_id: str,
+) -> list[SavedPlace]:
+    """Return all saved places for the authenticated user, oldest first."""
+    user = await _get_user_by_auth_id(db, auth_user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    result = await db.execute(
+        select(SavedPlace)
+        .where(SavedPlace.user_id == user.id)
+        .order_by(SavedPlace.created_at.asc())
+    )
+    return list(result.scalars().all())
+
+
+async def create_saved_place(
+    db: AsyncSession,
+    auth_user_id: str,
+    label: str,
+    name: str,
+    lat: float,
+    lng: float,
+) -> SavedPlace:
+    """Create a saved place for the authenticated user.
+
+    Raises 422 if label is invalid or the user already has MAX_SAVED_PLACES places.
+    """
+    if label not in _VALID_PLACE_LABELS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid label '{label}'. Valid: {sorted(_VALID_PLACE_LABELS)}",
+        )
+    user = await _get_user_by_auth_id(db, auth_user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    count_result = await db.execute(
+        select(func.count(SavedPlace.id)).where(SavedPlace.user_id == user.id)
+    )
+    count = count_result.scalar() or 0
+    if count >= MAX_SAVED_PLACES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Maximum of {MAX_SAVED_PLACES} saved places reached",
+        )
+    place = SavedPlace(user_id=user.id, label=label, name=name, lat=lat, lng=lng)
+    db.add(place)
+    await db.commit()
+    await db.refresh(place)
+    return place
+
+
+async def update_saved_place(
+    db: AsyncSession,
+    auth_user_id: str,
+    place_id: str,
+    label: str | None = None,
+    name: str | None = None,
+    lat: float | None = None,
+    lng: float | None = None,
+) -> SavedPlace:
+    """Update one or more fields of a saved place.
+
+    Only the owner can update their own places.  Returns 404 if not found or
+    if the place belongs to a different user.
+    """
+    if label is not None and label not in _VALID_PLACE_LABELS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid label '{label}'. Valid: {sorted(_VALID_PLACE_LABELS)}",
+        )
+    user = await _get_user_by_auth_id(db, auth_user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    try:
+        place_uuid = uuid.UUID(place_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid place_id format",
+        )
+    result = await db.execute(
+        select(SavedPlace).where(SavedPlace.id == place_uuid, SavedPlace.user_id == user.id)
+    )
+    place: SavedPlace | None = result.scalar_one_or_none()
+    if place is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Saved place not found")
+    if label is not None:
+        place.label = label
+    if name is not None:
+        place.name = name
+    if lat is not None:
+        place.lat = lat
+    if lng is not None:
+        place.lng = lng
+    await db.commit()
+    await db.refresh(place)
+    return place
+
+
+async def delete_saved_place(
+    db: AsyncSession,
+    auth_user_id: str,
+    place_id: str,
+) -> None:
+    """Delete a saved place.  Only the owner can delete their own places."""
+    user = await _get_user_by_auth_id(db, auth_user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    try:
+        place_uuid = uuid.UUID(place_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid place_id format",
+        )
+    result = await db.execute(
+        select(SavedPlace).where(SavedPlace.id == place_uuid, SavedPlace.user_id == user.id)
+    )
+    place: SavedPlace | None = result.scalar_one_or_none()
+    if place is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Saved place not found")
+    await db.delete(place)
+    await db.commit()

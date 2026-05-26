@@ -1,5 +1,5 @@
 /**
- * API client for web-customer — Sprint 2.
+ * API client for web-customer — Sprint 20.
  * NOT shared across frontends (isolation rule).
  */
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -314,4 +314,54 @@ export async function listMyTrips(token, limit = 20, offset = 0) {
     throw new Error(err.detail || `List trips error (${res.status})`);
   }
   return res.json(); // TripResponse[]
+}
+
+// ---------------------------------------------------------------------------
+// Saved places — Sprint 20
+// ---------------------------------------------------------------------------
+
+export async function listPlaces(token) {
+  const res = await fetch(`${API_BASE}/v1/places`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // SavedPlaceResponse[]
+}
+
+export async function createPlace(token, label, name, lat, lng) {
+  const res = await fetch(`${API_BASE}/v1/places`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ label, name, lat, lng }),
+  });
+  return _json(res); // SavedPlaceResponse
+}
+
+export async function updatePlace(token, placeId, fields) {
+  // fields: { label?, name?, lat?, lng? }
+  const res = await fetch(`${API_BASE}/v1/places/${placeId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(fields),
+  });
+  return _json(res); // SavedPlaceResponse
+}
+
+export async function deletePlace(token, placeId) {
+  const res = await fetch(`${API_BASE}/v1/places/${placeId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (!res.ok && res.status !== 204) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Delete place error (${res.status})`);
+  }
+  // 204 No Content — no body
 }

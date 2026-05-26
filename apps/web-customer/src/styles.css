@@ -285,3 +285,57 @@ html, body {
 .notif-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-accent); flex-shrink: 0; }
 .notif-body { font-size: 0.85rem; color: var(--color-muted); margin: 0 0 var(--space-1); }
 .notif-date { font-size: 0.75rem; color: var(--color-muted); }
+
+/* ── Sprint 20: Saved places — quick-picker in EstimateSection ─────────── */
+.place-picker-bar { margin-bottom: var(--space-3); }
+.place-picker-toggle { width: 100%; background: var(--color-surface); border: 1px solid var(--color-border); color: var(--color-accent); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.85rem; font-weight: 600; cursor: pointer; text-align: left; }
+.place-picker-toggle:hover { border-color: var(--color-accent); }
+.place-picker-list { background: var(--color-surface); border: 1px solid var(--color-border); border-top: none; border-radius: 0 0 var(--radius-md) var(--radius-md); padding: var(--space-2); display: flex; flex-direction: column; gap: var(--space-1); max-height: 200px; overflow-y: auto; }
+.place-picker-item { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); }
+.place-picker-item:hover { background: color-mix(in srgb, var(--color-accent) 6%, transparent); }
+.place-picker-name { flex: 1; font-size: 0.85rem; color: var(--color-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.place-picker-btn { background: var(--color-surface); border: 1px solid var(--color-border); color: var(--color-muted); border-radius: var(--radius-sm); padding: 2px var(--space-2); font-size: 0.75rem; cursor: pointer; white-space: nowrap; }
+.place-picker-btn:hover, .place-picker-btn.active { background: var(--color-accent-strong); border-color: var(--color-accent-strong); color: #fff; }
+.place-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+.place-chip { display: inline-flex; align-items: center; gap: var(--space-1); background: color-mix(in srgb, var(--color-accent) 12%, transparent); border: 1px solid var(--color-accent); color: var(--color-fg); border-radius: 999px; padding: 3px var(--space-3); font-size: 0.8rem; }
+.place-chip-clear { background: none; border: none; color: var(--color-muted); cursor: pointer; font-size: 0.85rem; padding: 0; margin-left: var(--space-1); line-height: 1; }
+.place-chip-clear:hover { color: var(--color-error); }
+
+/* ── Sprint 20: Saved places section ──────────────────────────────────── */
+.places-section { text-align: left; }
+.places-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-3); }
+.places-add-btn { background: var(--color-accent-strong); color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.85rem; font-weight: 700; cursor: pointer; }
+.places-add-btn:hover { opacity: 0.9; }
+
+/* Place form */
+.place-form { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-4); }
+.place-form-title { font-size: 0.95rem; font-weight: 700; margin: 0 0 var(--space-3); color: var(--color-fg); }
+.place-form-row { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-3); }
+.place-form-label { font-size: 0.78rem; font-weight: 600; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.place-form-input, .place-form-select { background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-fg); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.9rem; width: 100%; outline: none; }
+.place-form-input:focus, .place-form-select:focus { border-color: var(--color-accent); }
+.place-form-coords { display: flex; gap: var(--space-2); margin-bottom: var(--space-3); }
+.place-form-coord-input { background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-fg); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.85rem; flex: 1; outline: none; }
+.place-form-coord-input:focus { border-color: var(--color-accent); }
+.place-form-actions { display: flex; gap: var(--space-2); }
+.place-save-btn { background: var(--color-accent-strong); color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-2) var(--space-4); font-size: 0.9rem; font-weight: 700; cursor: pointer; flex: 1; }
+.place-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.place-cancel-btn { background: transparent; border: 1px solid var(--color-border); color: var(--color-muted); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.9rem; cursor: pointer; }
+
+/* Place list cards */
+.place-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.place-card { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); }
+.place-card-home  { border-left: 3px solid #4ade80; }
+.place-card-work  { border-left: 3px solid #60a5fa; }
+.place-card-other { border-left: 3px solid var(--color-accent); }
+.place-card-main { display: flex; align-items: center; gap: var(--space-3); flex: 1; min-width: 0; }
+.place-card-icon { font-size: 1.4rem; flex-shrink: 0; }
+.place-card-info { display: flex; flex-direction: column; min-width: 0; }
+.place-card-name { font-size: 0.9rem; font-weight: 600; color: var(--color-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.place-card-meta { font-size: 0.75rem; color: var(--color-muted); }
+.place-card-actions { display: flex; gap: var(--space-2); flex-shrink: 0; }
+.place-edit-btn { background: transparent; border: 1px solid var(--color-border); color: var(--color-muted); border-radius: var(--radius-sm); padding: var(--space-1) var(--space-2); font-size: 0.9rem; cursor: pointer; }
+.place-edit-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+.place-delete-btn { background: transparent; border: 1px solid var(--color-border); color: var(--color-muted); border-radius: var(--radius-sm); padding: var(--space-1) var(--space-2); font-size: 0.9rem; cursor: pointer; }
+.place-delete-btn:hover { border-color: var(--color-error); color: var(--color-error); }
+.place-limit-hint { font-size: 0.8rem; color: var(--color-muted); text-align: center; margin-top: var(--space-2); }

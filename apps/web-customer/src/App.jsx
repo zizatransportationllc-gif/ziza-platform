@@ -4,6 +4,7 @@ import {
   createAssistanceRequest, getAssistanceRequest, cancelAssistanceRequest, listMyAssistance, listMyTrips,
   validatePromo, getProfile, updateProfile,
   listNotifications, getUnreadCount, markAllRead,
+  listPlaces, createPlace, updatePlace, deletePlace,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -23,6 +24,10 @@ const ABIDJAN_LOCATIONS = {
 };
 
 const LOCATION_NAMES = Object.keys(ABIDJAN_LOCATIONS);
+
+// Sprint 20 — saved places constants
+const PLACE_LABEL_ICONS = { home: "🏠", work: "💼", other: "📍" };
+const PLACE_LABEL_NAMES = { home: "Domicile", work: "Travail", other: "Autre" };
 
 const STATUS_LABELS = {
   pending:     "⏳ En attente d'un chauffeur",
@@ -99,14 +104,23 @@ function EstimateSection({ token, onTripCreated }) {
   const [promoValidating, setPromoValidating] = useState(false);
   const [promoApplied, setPromoApplied] = useState(null); // { code, discount_pct }
   const [promoError, setPromoError] = useState(null);
+  // Sprint 20: saved-places quick-pick
+  const [savedPlaces, setSavedPlaces] = useState([]);
+  const [customOrigin, setCustomOrigin] = useState(null); // { name, lat, lng } | null
+  const [customDest, setCustomDest]     = useState(null);
+  const [showPlacePicker, setShowPlacePicker] = useState(false);
+
+  useEffect(() => {
+    listPlaces(token).then(setSavedPlaces).catch(() => {});
+  }, [token]);
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (origin === dest) { setError("Choisissez deux points différents."); return; }
+    const o = customOrigin ?? ABIDJAN_LOCATIONS[origin];
+    const d = customDest   ?? ABIDJAN_LOCATIONS[dest];
+    if (o.lat === d.lat && o.lng === d.lng) { setError("Choisissez deux points différents."); return; }
     setLoading(true); setError(null); setResult(null); setPromoApplied(null); setPromoInput("");
     try {
-      const o = ABIDJAN_LOCATIONS[origin];
-      const d = ABIDJAN_LOCATIONS[dest];
       const data = await fetchEstimate(token, o.lat, o.lng, d.lat, d.lng);
       setResult(data);
     } catch (err) { setError(err.message); }
@@ -141,17 +155,81 @@ function EstimateSection({ token, onTripCreated }) {
   return (
     <div className="estimate-section">
       <h2 className="estimate-title">Estimer mon trajet</h2>
+
+      {/* Sprint 20: saved-places quick-pick */}
+      {savedPlaces.length > 0 && (
+        <div className="place-picker-bar">
+          <button
+            type="button"
+            className="place-picker-toggle"
+            onClick={() => setShowPlacePicker((v) => !v)}
+          >
+            📍 Mes lieux enregistrés {showPlacePicker ? "▲" : "▼"}
+          </button>
+          {showPlacePicker && (
+            <div className="place-picker-list">
+              {savedPlaces.map((p) => (
+                <div key={p.place_id} className="place-picker-item">
+                  <span className="place-picker-name">
+                    {PLACE_LABEL_ICONS[p.label]} {p.name}
+                  </span>
+                  <button
+                    type="button"
+                    className={`place-picker-btn ${customOrigin?.place_id === p.place_id ? "active" : ""}`}
+                    onClick={() => { setCustomOrigin({ ...p }); setShowPlacePicker(false); }}
+                  >
+                    Départ
+                  </button>
+                  <button
+                    type="button"
+                    className={`place-picker-btn ${customDest?.place_id === p.place_id ? "active" : ""}`}
+                    onClick={() => { setCustomDest({ ...p }); setShowPlacePicker(false); }}
+                  >
+                    Arrivée
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Active custom-place chips */}
+          <div className="place-chips">
+            {customOrigin && (
+              <span className="place-chip">
+                📍 Départ : <strong>{customOrigin.name}</strong>
+                <button className="place-chip-clear" onClick={() => setCustomOrigin(null)}>✕</button>
+              </span>
+            )}
+            {customDest && (
+              <span className="place-chip">
+                🏁 Arrivée : <strong>{customDest.name}</strong>
+                <button className="place-chip-clear" onClick={() => setCustomDest(null)}>✕</button>
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       <form className="estimate-form" onSubmit={handleSubmit}>
         <div className="estimate-row">
           <label>
             <span className="estimate-label">📍 Départ</span>
-            <select value={origin} onChange={(e) => setOrigin(e.target.value)}>
+            <select
+              value={origin}
+              onChange={(e) => { setOrigin(e.target.value); setCustomOrigin(null); }}
+              disabled={!!customOrigin}
+              style={customOrigin ? { opacity: 0.4 } : {}}
+            >
               {LOCATION_NAMES.map((n) => <option key={n}>{n}</option>)}
             </select>
           </label>
           <label>
             <span className="estimate-label">🏁 Arrivée</span>
-            <select value={dest} onChange={(e) => setDest(e.target.value)}>
+            <select
+              value={dest}
+              onChange={(e) => { setDest(e.target.value); setCustomDest(null); }}
+              disabled={!!customDest}
+              style={customDest ? { opacity: 0.4 } : {}}
+            >
               {LOCATION_NAMES.map((n) => <option key={n}>{n}</option>)}
             </select>
           </label>
@@ -765,13 +843,201 @@ function NotificationsSection({ token, onRead }) {
 }
 
 // ---------------------------------------------------------------------------
+// Saved places section — Sprint 20
+// ---------------------------------------------------------------------------
+
+function SavedPlacesSection({ token }) {
+  const [places, setPlaces] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  // Form fields
+  const [formLabel, setFormLabel] = useState("home");
+  const [formName, setFormName] = useState("");
+  const [formLandmark, setFormLandmark] = useState(LOCATION_NAMES[0]);
+  const [formLat, setFormLat] = useState("5.3207");
+  const [formLng, setFormLng] = useState("-4.0175");
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true); setError(null);
+    try { setPlaces(await listPlaces(token)); }
+    catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  function handleLandmarkChange(name) {
+    setFormLandmark(name);
+    const c = ABIDJAN_LOCATIONS[name];
+    setFormLat(String(c.lat));
+    setFormLng(String(c.lng));
+  }
+
+  function openNew() {
+    setEditingId(null);
+    setFormLabel("home");
+    setFormName("");
+    setFormLandmark(LOCATION_NAMES[0]);
+    setFormLat("5.3207");
+    setFormLng("-4.0175");
+    setFormError(null);
+    setShowForm(true);
+  }
+
+  function openEdit(p) {
+    setEditingId(p.place_id);
+    setFormLabel(p.label);
+    setFormName(p.name);
+    setFormLandmark(LOCATION_NAMES[0]); // keep dropdown for reference
+    setFormLat(String(p.lat));
+    setFormLng(String(p.lng));
+    setFormError(null);
+    setShowForm(true);
+  }
+
+  function cancelForm() { setShowForm(false); setEditingId(null); }
+
+  async function handleSave(e) {
+    e.preventDefault();
+    const lat = parseFloat(formLat);
+    const lng = parseFloat(formLng);
+    if (isNaN(lat) || isNaN(lng)) { setFormError("Coordonnées invalides."); return; }
+    setSaving(true); setFormError(null);
+    try {
+      if (editingId) {
+        const updated = await updatePlace(token, editingId, {
+          label: formLabel, name: formName.trim(), lat, lng,
+        });
+        setPlaces((prev) => prev.map((p) => p.place_id === editingId ? updated : p));
+      } else {
+        const created = await createPlace(token, formLabel, formName.trim(), lat, lng);
+        setPlaces((prev) => [...prev, created]);
+      }
+      setShowForm(false); setEditingId(null);
+    } catch (e) { setFormError(e.message); }
+    finally { setSaving(false); }
+  }
+
+  async function handleDelete(placeId) {
+    try {
+      await deletePlace(token, placeId);
+      setPlaces((prev) => prev.filter((p) => p.place_id !== placeId));
+    } catch (e) { setError(e.message); }
+  }
+
+  return (
+    <div className="places-section">
+      <div className="places-header">
+        <h2 className="estimate-title">📍 Mes lieux</h2>
+        {!showForm && places.length < 10 && (
+          <button className="places-add-btn" onClick={openNew}>✚ Ajouter</button>
+        )}
+      </div>
+
+      {error && <p className="form-error">{error}</p>}
+
+      {showForm && (
+        <form className="place-form" onSubmit={handleSave}>
+          <h3 className="place-form-title">
+            {editingId ? "✎ Modifier le lieu" : "✚ Nouveau lieu"}
+          </h3>
+          <div className="place-form-row">
+            <label className="place-form-label">Type</label>
+            <select className="place-form-select" value={formLabel} onChange={(e) => setFormLabel(e.target.value)}>
+              <option value="home">🏠 Domicile</option>
+              <option value="work">💼 Travail</option>
+              <option value="other">📍 Autre</option>
+            </select>
+          </div>
+          <div className="place-form-row">
+            <label className="place-form-label">Nom</label>
+            <input
+              className="place-form-input"
+              type="text"
+              placeholder="Ex: Appartement Cocody, Bureau Plateau…"
+              value={formName}
+              onChange={(e) => setFormName(e.target.value)}
+              required maxLength={256}
+            />
+          </div>
+          <div className="place-form-row">
+            <label className="place-form-label">Quartier</label>
+            <select
+              className="place-form-select"
+              value={formLandmark}
+              onChange={(e) => handleLandmarkChange(e.target.value)}
+            >
+              {LOCATION_NAMES.map((n) => <option key={n}>{n}</option>)}
+            </select>
+          </div>
+          <div className="place-form-coords">
+            <input
+              className="place-form-coord-input"
+              type="number" step="0.0001" placeholder="Latitude"
+              value={formLat} onChange={(e) => setFormLat(e.target.value)} required
+            />
+            <input
+              className="place-form-coord-input"
+              type="number" step="0.0001" placeholder="Longitude"
+              value={formLng} onChange={(e) => setFormLng(e.target.value)} required
+            />
+          </div>
+          {formError && <p className="form-error">{formError}</p>}
+          <div className="place-form-actions">
+            <button type="submit" className="place-save-btn" disabled={saving}>
+              {saving ? "…" : (editingId ? "✓ Mettre à jour" : "✚ Enregistrer")}
+            </button>
+            <button type="button" className="place-cancel-btn" onClick={cancelForm} disabled={saving}>
+              Annuler
+            </button>
+          </div>
+        </form>
+      )}
+
+      {loading && <p className="history-empty">⏳ Chargement…</p>}
+      {!loading && places.length === 0 && !showForm && (
+        <p className="history-empty">
+          Aucun lieu enregistré. Cliquez sur <strong>✚ Ajouter</strong> pour sauvegarder vos adresses fréquentes.
+        </p>
+      )}
+
+      <div className="place-list">
+        {places.map((p) => (
+          <div key={p.place_id} className={`place-card place-card-${p.label}`}>
+            <div className="place-card-main">
+              <span className="place-card-icon">{PLACE_LABEL_ICONS[p.label] ?? "📍"}</span>
+              <div className="place-card-info">
+                <span className="place-card-name">{p.name}</span>
+                <span className="place-card-meta">{PLACE_LABEL_NAMES[p.label] ?? p.label}</span>
+              </div>
+            </div>
+            <div className="place-card-actions">
+              <button className="place-edit-btn" onClick={() => openEdit(p)} title="Modifier">✎</button>
+              <button className="place-delete-btn" onClick={() => handleDelete(p.place_id)} title="Supprimer">🗑</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {places.length >= 10 && !showForm && (
+        <p className="place-limit-hint">Limite de 10 lieux atteinte.</p>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
 function Dashboard({ user, token, onLogout }) {
   const [activeTrip, setActiveTrip] = useState(null);
   const [activeAssistance, setActiveAssistance] = useState(null);
-  const [mode, setMode] = useState("ride"); // "ride" | "assistance" | "trips" | "history" | "notifications" | "profile"
+  const [mode, setMode] = useState("ride"); // "ride" | "assistance" | "trips" | "history" | "notifications" | "profile" | "places"
   const [unreadCount, setUnreadCount] = useState(0);
 
   const refreshUnread = useCallback(() => {
@@ -861,6 +1127,12 @@ function Dashboard({ user, token, onLogout }) {
             >
               🔔 Notifs{unreadCount > 0 && <span className="tab-badge-sm">{unreadCount}</span>}
             </button>
+            <button
+              className={`mode-tab ${mode === "places" ? "active" : ""}`}
+              onClick={() => setMode("places")}
+            >
+              📍 Lieux
+            </button>
           </div>
           {mode === "ride" && (
             <EstimateSection token={token} onTripCreated={setActiveTrip} />
@@ -884,10 +1156,11 @@ function Dashboard({ user, token, onLogout }) {
           {mode === "notifications" && (
             <NotificationsSection token={token} onRead={refreshUnread} />
           )}
+          {mode === "places" && <SavedPlacesSection token={token} />}
         </>
       )}
 
-      <p className="footer">App: <strong>web-customer</strong> · Sprint 18</p>
+      <p className="footer">App: <strong>web-customer</strong> · Sprint 20</p>
     </div>
   );
 }

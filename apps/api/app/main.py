@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 19.
+"""Ziza API — Sprint 20.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -67,6 +67,10 @@ Endpoints:
   PATCH /v1/notifications/read-all                 mark all notifications as read
   GET   /v1/admin/trips (filters)                  status, customer_email, date_from, date_to
   GET   /v1/admin/users (filters)                  role, email
+  GET   /v1/places                                 list authenticated user's saved places
+  POST  /v1/places                                 create a saved place (max 10)
+  PATCH /v1/places/{place_id}                      update a saved place (label/name/lat/lng)
+  DELETE /v1/places/{place_id}                     delete a saved place
 """
 from __future__ import annotations
 
@@ -1896,3 +1900,95 @@ async def mark_all_notifications_read(
     """Mark all of the authenticated user's unread notifications as read."""
     marked = await crud.mark_all_notifications_read(db, claims.user_id)
     return MarkReadResponse(marked=marked)
+
+
+# ---------------------------------------------------------------------------
+# Saved places — Sprint 20
+# ---------------------------------------------------------------------------
+
+class SavedPlaceResponse(BaseModel):
+    place_id: str
+    label: str          # "home" | "work" | "other"
+    name: str           # human-readable address
+    lat: float
+    lng: float
+    created_at: str
+
+
+class CreateSavedPlaceRequest(BaseModel):
+    label: str = "other"
+    name: str
+    lat: float
+    lng: float
+
+
+class UpdateSavedPlaceRequest(BaseModel):
+    label: str | None = None
+    name: str | None = None
+    lat: float | None = None
+    lng: float | None = None
+
+
+def _place_to_response(p) -> SavedPlaceResponse:
+    return SavedPlaceResponse(
+        place_id=str(p.id),
+        label=p.label,
+        name=p.name,
+        lat=p.lat,
+        lng=p.lng,
+        created_at=p.created_at.isoformat(),
+    )
+
+
+@app.get("/v1/places", tags=["places"])
+async def list_places(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[SavedPlaceResponse]:
+    """List the authenticated user's saved places (oldest first, max 10)."""
+    places = await crud.list_saved_places(db, claims.user_id)
+    return [_place_to_response(p) for p in places]
+
+
+@app.post("/v1/places", tags=["places"], status_code=201)
+async def create_place(
+    body: CreateSavedPlaceRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SavedPlaceResponse:
+    """Create a saved place for the authenticated user.
+
+    Returns 422 if the label is invalid or the user already has 10 saved places.
+    """
+    place = await crud.create_saved_place(
+        db, claims.user_id, body.label, body.name, body.lat, body.lng
+    )
+    return _place_to_response(place)
+
+
+@app.patch("/v1/places/{place_id}", tags=["places"])
+async def update_place(
+    place_id: str,
+    body: UpdateSavedPlaceRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SavedPlaceResponse:
+    """Update one or more fields of a saved place.
+
+    Only the owner can update their own places.  Returns 404 if not found.
+    """
+    place = await crud.update_saved_place(
+        db, claims.user_id, place_id,
+        label=body.label, name=body.name, lat=body.lat, lng=body.lng,
+    )
+    return _place_to_response(place)
+
+
+@app.delete("/v1/places/{place_id}", tags=["places"], status_code=204)
+async def delete_place(
+    place_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Delete a saved place.  Only the owner can delete their own places."""
+    await crud.delete_saved_place(db, claims.user_id, place_id)
