@@ -515,3 +515,40 @@ export async function getApplicationStatus(token) {
   });
   return _json(res); // ApplicationResponse | null
 }
+
+// ---------------------------------------------------------------------------
+// Sprint 33 — Wallet
+// ---------------------------------------------------------------------------
+
+/** Get the current user's wallet balance. */
+export async function getWallet(token) {
+  const res = await fetch(`${API_BASE}/v1/wallet`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // WalletResponse
+}
+
+/** Top-up the wallet with a given amount (XOF). */
+export async function topupWallet(token, amountXof, referenceId = null) {
+  const body = { amount_xof: amountXof };
+  if (referenceId) body.reference_id = referenceId;
+  const res = await fetch(`${API_BASE}/v1/wallet/topup`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  return _json(res); // WalletWithTxResponse
+}
+
+/** Get wallet transaction history (newest first). */
+export async function getWalletTransactions(token, limit = 20, offset = 0) {
+  const res = await fetch(
+    `${API_BASE}/v1/wallet/transactions?limit=${limit}&offset=${offset}`,
+    { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+  );
+  return _json(res); // WalletTransactionResponse[]
+}

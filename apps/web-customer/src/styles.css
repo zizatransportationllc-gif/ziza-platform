@@ -414,3 +414,26 @@ html, body {
 .application-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .application-submit-btn { background: var(--color-accent); color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-3) var(--space-5); font-size: 0.95rem; font-weight: 700; cursor: pointer; }
 .application-submit-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ── Sprint 33 — Wallet ── */
+.wallet-section { width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: var(--space-5); }
+.wallet-balance-card { background: linear-gradient(135deg, var(--color-accent), #f97316); color: #fff; border-radius: var(--radius-lg); padding: var(--space-5); text-align: center; }
+.wallet-balance-label { font-size: 0.85rem; opacity: .85; margin-bottom: var(--space-1); }
+.wallet-balance-amount { font-size: 2.2rem; font-weight: 800; }
+.wallet-currency { font-size: 1rem; font-weight: 400; opacity: .8; }
+.wallet-topup-form { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--space-4); }
+.wallet-subtitle { font-size: 1rem; font-weight: 700; margin-bottom: var(--space-3); }
+.wallet-topup-row { display: flex; gap: var(--space-2); margin-bottom: var(--space-2); }
+.wallet-amount-input { flex: 1; padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: 0.95rem; background: var(--color-bg); color: var(--color-fg); }
+.wallet-note { font-size: 0.8rem; color: var(--color-muted); margin-top: var(--space-1); }
+.wallet-history { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--space-4); }
+.wallet-tx-row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border); }
+.wallet-tx-row:last-child { border-bottom: none; }
+.wallet-tx-icon { font-size: 1.2rem; flex: 0 0 24px; }
+.wallet-tx-details { flex: 1; }
+.wallet-tx-reason { display: block; font-weight: 600; font-size: 0.85rem; text-transform: capitalize; }
+.wallet-tx-ref { font-size: 0.75rem; color: var(--color-muted); font-family: monospace; }
+.wallet-tx-amount { font-weight: 700; font-size: 0.9rem; white-space: nowrap; }
+.wallet-tx-time { font-size: 0.75rem; color: var(--color-muted); white-space: nowrap; }
+.form-success { color: #16a34a; font-size: 0.85rem; background: color-mix(in srgb, #16a34a 10%, transparent); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); margin: var(--space-2) 0; }
+.muted-text { color: var(--color-muted); font-size: 0.85rem; text-align: center; padding: var(--space-3) 0; }

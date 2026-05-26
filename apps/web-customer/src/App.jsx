@@ -9,6 +9,7 @@ import {
   createPaymentIntent, getTripPayment, simulatePayment,
   registerDeviceToken,
   submitApplication, getApplicationStatus, // Sprint 30
+  getWallet, topupWallet, getWalletTransactions, // Sprint 33
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -79,7 +80,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Customer</h1>
-      <p className="subtitle">Sprint 32 — Multi-ville &amp; géofencing</p>
+      <p className="subtitle">Sprint 33 — Portefeuille client</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -1421,10 +1422,114 @@ function ApplicationSection({ token }) {
 // Dashboard
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// WalletSection — Sprint 33
+// ---------------------------------------------------------------------------
+
+function WalletSection({ token }) {
+  const [wallet, setWallet] = useState(null);
+  const [txs, setTxs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [topupAmount, setTopupAmount] = useState("");
+  const [topping, setTopping] = useState(false);
+  const [topupSuccess, setTopupSuccess] = useState(null);
+  const [topupError, setTopupError] = useState(null);
+
+  const TX_ICONS = { credit: "⬆️", debit: "⬇️", refund: "↩️" };
+  const TX_COLORS = { credit: "#16a34a", debit: "#dc2626", refund: "#2563eb" };
+
+  const load = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const [w, t] = await Promise.all([getWallet(token), getWalletTransactions(token, 10)]);
+      setWallet(w); setTxs(t);
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleTopup(e) {
+    e.preventDefault();
+    const amount = parseFloat(topupAmount);
+    if (!amount || amount <= 0) return;
+    setTopping(true); setTopupError(null); setTopupSuccess(null);
+    try {
+      const result = await topupWallet(token, amount);
+      setWallet(result.wallet);
+      setTxs((prev) => [result.transaction, ...prev]);
+      setTopupAmount("");
+      setTopupSuccess(`✅ Rechargement de ${amount.toLocaleString("fr-FR")} XOF effectué !`);
+    } catch (err) { setTopupError(err.message); }
+    finally { setTopping(false); }
+  }
+
+  if (loading) return <div className="status loading">⏳ Chargement du portefeuille…</div>;
+  if (error) return <p className="form-error">{error}</p>;
+
+  return (
+    <div className="wallet-section">
+      <h2 className="estimate-title">💰 Mon portefeuille</h2>
+
+      {wallet && (
+        <div className="wallet-balance-card">
+          <p className="wallet-balance-label">Solde disponible</p>
+          <p className="wallet-balance-amount">
+            {wallet.balance_xof.toLocaleString("fr-FR")} <span className="wallet-currency">XOF</span>
+          </p>
+        </div>
+      )}
+
+      <form className="wallet-topup-form" onSubmit={handleTopup}>
+        <h3 className="wallet-subtitle">Recharger via Mobile Money</h3>
+        {topupError && <p className="form-error">{topupError}</p>}
+        {topupSuccess && <p className="form-success">{topupSuccess}</p>}
+        <div className="wallet-topup-row">
+          <input
+            type="number"
+            min="100"
+            step="100"
+            className="wallet-amount-input"
+            placeholder="Montant (XOF)"
+            value={topupAmount}
+            onChange={(e) => setTopupAmount(e.target.value)}
+            required
+          />
+          <button type="submit" className="booking-btn" disabled={topping}>
+            {topping ? "Rechargement…" : "Recharger"}
+          </button>
+        </div>
+        <p className="wallet-note">💳 Orange Money · MTN MoMo · Carte bancaire</p>
+      </form>
+
+      <div className="wallet-history">
+        <h3 className="wallet-subtitle">Historique des transactions</h3>
+        {txs.length === 0 && <p className="muted-text">Aucune transaction pour le moment.</p>}
+        {txs.map((tx) => (
+          <div key={tx.tx_id} className="wallet-tx-row">
+            <span className="wallet-tx-icon">{TX_ICONS[tx.tx_type] ?? "•"}</span>
+            <div className="wallet-tx-details">
+              <span className="wallet-tx-reason">{tx.reason.replace("_", " ")}</span>
+              {tx.reference_id && <span className="wallet-tx-ref">#{tx.reference_id.slice(-8)}</span>}
+            </div>
+            <span className="wallet-tx-amount" style={{ color: TX_COLORS[tx.tx_type] }}>
+              {tx.tx_type === "debit" ? "−" : "+"}{tx.amount_xof.toLocaleString("fr-FR")} XOF
+            </span>
+            <span className="wallet-tx-time">
+              {new Date(tx.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Dashboard({ user, token, onLogout }) {
   const [activeTrip, setActiveTrip] = useState(null);
   const [activeAssistance, setActiveAssistance] = useState(null);
-  const [mode, setMode] = useState("ride"); // "ride" | "assistance" | "trips" | "history" | "notifications" | "profile" | "places" | "apply"
+  const [mode, setMode] = useState("ride"); // "ride" | "assistance" | "trips" | "history" | "notifications" | "profile" | "places" | "apply" | "wallet"
   const [unreadCount, setUnreadCount] = useState(0);
 
   const refreshUnread = useCallback(() => {
@@ -1526,6 +1631,12 @@ function Dashboard({ user, token, onLogout }) {
             >
               🧑‍✈️ Devenir chauffeur
             </button>
+            <button
+              className={`mode-tab ${mode === "wallet" ? "active" : ""}`}
+              onClick={() => setMode("wallet")}
+            >
+              💰 Portefeuille
+            </button>
           </div>
           {mode === "ride" && (
             <EstimateSection token={token} onTripCreated={setActiveTrip} />
@@ -1551,10 +1662,11 @@ function Dashboard({ user, token, onLogout }) {
           )}
           {mode === "places" && <SavedPlacesSection token={token} />}
           {mode === "apply" && <ApplicationSection token={token} />}
+          {mode === "wallet" && <WalletSection token={token} />}
         </>
       )}
 
-      <p className="footer">App: <strong>web-customer</strong> · Sprint 32</p>
+      <p className="footer">App: <strong>web-customer</strong> · Sprint 33</p>
     </div>
   );
 }

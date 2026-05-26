@@ -52,7 +52,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 32 — Multi-ville &amp; géofencing</p>
+      <p className="subtitle">Sprint 33 — Portefeuille client</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -1798,7 +1798,7 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "settings"     && <SurgePanel          token={token} />}
       {activeTab === "users"        && <UsersPanel          token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 32</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 33</p>
     </div>
   );
 }

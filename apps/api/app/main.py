@@ -3198,3 +3198,127 @@ async def point_in_service(
         city_name=city.name,
         city_id=str(city.id),
     )
+
+
+# ===========================================================================
+# Sprint 33 — Customer Wallet Pydantic models & endpoints
+# ===========================================================================
+
+class WalletResponse(BaseModel):
+    wallet_id: str
+    user_id: str
+    balance_xof: float
+    created_at: str
+    updated_at: str
+
+
+class WalletTransactionResponse(BaseModel):
+    tx_id: str
+    wallet_id: str
+    tx_type: str      # credit | debit | refund
+    amount_xof: float
+    reason: str
+    reference_id: str | None = None
+    note: str | None = None
+    balance_after: float
+    created_at: str
+
+
+class TopupRequest(BaseModel):
+    amount_xof: float
+    reference_id: str | None = None
+    note: str | None = None
+
+
+class WalletPayTripRequest(BaseModel):
+    trip_id: str
+    amount_xof: float
+
+
+class AdminWalletAdjustRequest(BaseModel):
+    amount_xof: float   # positive = credit, negative = debit
+    note: str | None = None
+
+
+class WalletWithTxResponse(BaseModel):
+    wallet: WalletResponse
+    transaction: WalletTransactionResponse
+
+
+@app.get("/v1/wallet", response_model=WalletResponse,
+         summary="Get current user's wallet (Sprint 33)")
+async def get_my_wallet(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Returns wallet for the authenticated user (creates if first access)."""
+    result = await crud.get_wallet(db, claims.user_id)
+    return WalletResponse(**result)
+
+
+@app.post("/v1/wallet/topup", response_model=WalletWithTxResponse,
+          summary="Top up wallet via mobile money (Sprint 33)")
+async def topup_wallet(
+    body: TopupRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Credit the authenticated user's wallet. 422 if amount <= 0."""
+    result = await crud.wallet_topup(
+        db, claims.user_id, body.amount_xof, body.reference_id, body.note
+    )
+    return WalletWithTxResponse(
+        wallet=WalletResponse(**result["wallet"]),
+        transaction=WalletTransactionResponse(**result["transaction"]),
+    )
+
+
+@app.post("/v1/wallet/pay-trip", response_model=WalletWithTxResponse,
+          summary="Pay a trip from wallet (Sprint 33)")
+async def wallet_pay_trip(
+    body: WalletPayTripRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Debit wallet to pay for a trip. 402 if insufficient balance."""
+    try:
+        trip_uuid = uuid.UUID(body.trip_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid trip_id UUID")
+    result = await crud.wallet_pay_trip(db, claims.user_id, trip_uuid, body.amount_xof)
+    return WalletWithTxResponse(
+        wallet=WalletResponse(**result["wallet"]),
+        transaction=WalletTransactionResponse(**result["transaction"]),
+    )
+
+
+@app.get("/v1/wallet/transactions", response_model=list[WalletTransactionResponse],
+         summary="Get wallet transaction history (Sprint 33)")
+async def get_wallet_transactions(
+    limit: int = 20,
+    offset: int = 0,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Returns paginated transaction history, newest first."""
+    rows = await crud.get_wallet_transactions(db, claims.user_id, limit, offset)
+    return [WalletTransactionResponse(**r) for r in rows]
+
+
+@app.post("/v1/admin/wallets/{user_id}/adjust", response_model=WalletResponse,
+          summary="Admin manual wallet adjustment (Sprint 33)")
+async def admin_adjust_wallet(
+    user_id: str,
+    body: AdminWalletAdjustRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only. Positive amount = credit, negative = debit. 422 if balance would go negative."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid UUID")
+    result = await crud.admin_adjust_wallet(db, uid, body.amount_xof, body.note)
+    return WalletResponse(**result)

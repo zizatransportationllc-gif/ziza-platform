@@ -3806,3 +3806,202 @@ async def find_city_for_point(
         if point_in_city_radius(lat, lng, city):
             return city
     return None
+
+
+# ---------------------------------------------------------------------------
+# Sprint 33 — Customer Wallet
+# ---------------------------------------------------------------------------
+
+from app.models.wallet import Wallet, WalletTransaction  # noqa: E402
+from datetime import datetime as _dt, timezone as _tz  # noqa: E402
+
+
+def _wallet_to_dict(wallet: Wallet) -> dict:
+    return {
+        "wallet_id": str(wallet.id),
+        "user_id": str(wallet.user_id),
+        "balance_xof": wallet.balance_xof,
+        "created_at": wallet.created_at.isoformat(),
+        "updated_at": wallet.updated_at.isoformat(),
+    }
+
+
+def _tx_to_dict(tx: WalletTransaction) -> dict:
+    return {
+        "tx_id": str(tx.id),
+        "wallet_id": str(tx.wallet_id),
+        "tx_type": tx.tx_type,
+        "amount_xof": tx.amount_xof,
+        "reason": tx.reason,
+        "reference_id": tx.reference_id,
+        "note": tx.note,
+        "balance_after": tx.balance_after,
+        "created_at": tx.created_at.isoformat(),
+    }
+
+
+async def _get_or_create_wallet(db: AsyncSession, user_id: uuid.UUID) -> Wallet:
+    """Return existing wallet or create a new one with 0 balance."""
+    wallet = await db.scalar(select(Wallet).where(Wallet.user_id == user_id))
+    if wallet is None:
+        wallet = Wallet(user_id=user_id, balance_xof=0.0)
+        db.add(wallet)
+        await db.commit()
+        await db.refresh(wallet)
+    return wallet
+
+
+async def get_wallet(db: AsyncSession, user_id: uuid.UUID) -> dict:
+    """Return the user's wallet (creates it if it doesn't exist)."""
+    wallet = await _get_or_create_wallet(db, user_id)
+    return _wallet_to_dict(wallet)
+
+
+async def wallet_topup(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    amount_xof: float,
+    reference_id: str | None = None,
+    note: str | None = None,
+) -> dict:
+    """Credit the wallet (top-up via mobile money or admin)."""
+    if amount_xof <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Le montant du rechargement doit être positif.",
+        )
+    wallet = await _get_or_create_wallet(db, user_id)
+    wallet.balance_xof += amount_xof
+    wallet.updated_at = _dt.now(_tz.utc)
+    tx = WalletTransaction(
+        wallet_id=wallet.id,
+        tx_type="credit",
+        amount_xof=amount_xof,
+        reason="topup",
+        reference_id=reference_id,
+        note=note,
+        balance_after=wallet.balance_xof,
+    )
+    db.add(tx)
+    await db.commit()
+    await db.refresh(wallet)
+    await db.refresh(tx)
+    return {"wallet": _wallet_to_dict(wallet), "transaction": _tx_to_dict(tx)}
+
+
+async def wallet_pay_trip(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    trip_id: uuid.UUID,
+    amount_xof: float,
+) -> dict:
+    """Debit wallet for a trip payment. 402 if insufficient balance."""
+    if amount_xof <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Le montant du paiement doit être positif.",
+        )
+    wallet = await _get_or_create_wallet(db, user_id)
+    if wallet.balance_xof < amount_xof:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=f"Solde insuffisant: {wallet.balance_xof:.0f} XOF disponible, {amount_xof:.0f} XOF requis.",
+        )
+    wallet.balance_xof -= amount_xof
+    wallet.updated_at = _dt.now(_tz.utc)
+    tx = WalletTransaction(
+        wallet_id=wallet.id,
+        tx_type="debit",
+        amount_xof=amount_xof,
+        reason="trip_payment",
+        reference_id=str(trip_id),
+        balance_after=wallet.balance_xof,
+    )
+    db.add(tx)
+    await db.commit()
+    await db.refresh(wallet)
+    await db.refresh(tx)
+    return {"wallet": _wallet_to_dict(wallet), "transaction": _tx_to_dict(tx)}
+
+
+async def wallet_refund(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    amount_xof: float,
+    reason: str = "trip_refund",
+    reference_id: str | None = None,
+    note: str | None = None,
+) -> dict:
+    """Credit wallet with a refund (e.g. cancelled trip)."""
+    if amount_xof <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Le montant du remboursement doit être positif.",
+        )
+    wallet = await _get_or_create_wallet(db, user_id)
+    wallet.balance_xof += amount_xof
+    wallet.updated_at = _dt.now(_tz.utc)
+    tx = WalletTransaction(
+        wallet_id=wallet.id,
+        tx_type="refund",
+        amount_xof=amount_xof,
+        reason=reason,
+        reference_id=reference_id,
+        note=note,
+        balance_after=wallet.balance_xof,
+    )
+    db.add(tx)
+    await db.commit()
+    await db.refresh(wallet)
+    await db.refresh(tx)
+    return {"wallet": _wallet_to_dict(wallet), "transaction": _tx_to_dict(tx)}
+
+
+async def get_wallet_transactions(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    limit: int = 20,
+    offset: int = 0,
+) -> list[dict]:
+    """Return paginated transaction history for the user's wallet."""
+    wallet = await _get_or_create_wallet(db, user_id)
+    stmt = (
+        select(WalletTransaction)
+        .where(WalletTransaction.wallet_id == wallet.id)
+        .order_by(WalletTransaction.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    txs = (await db.scalars(stmt)).all()
+    return [_tx_to_dict(t) for t in txs]
+
+
+async def admin_adjust_wallet(
+    db: AsyncSession,
+    target_user_id: uuid.UUID,
+    amount_xof: float,
+    note: str | None = None,
+) -> dict:
+    """Admin manual credit (positive) or debit (negative) to a wallet."""
+    wallet = await _get_or_create_wallet(db, target_user_id)
+    new_balance = wallet.balance_xof + amount_xof
+    if new_balance < 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"L'ajustement ne peut pas amener le solde sous zéro (solde actuel: {wallet.balance_xof:.0f} XOF).",
+        )
+    wallet.balance_xof = new_balance
+    wallet.updated_at = _dt.now(_tz.utc)
+    tx_type = "credit" if amount_xof >= 0 else "debit"
+    tx = WalletTransaction(
+        wallet_id=wallet.id,
+        tx_type=tx_type,
+        amount_xof=abs(amount_xof),
+        reason="admin_debit" if amount_xof < 0 else "topup",
+        note=note,
+        balance_after=wallet.balance_xof,
+    )
+    db.add(tx)
+    await db.commit()
+    await db.refresh(wallet)
+    return _wallet_to_dict(wallet)
