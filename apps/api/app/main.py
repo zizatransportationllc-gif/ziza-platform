@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 31.
+"""Ziza API — Sprint 32.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -2876,6 +2876,62 @@ class UseInviteCodeRequest(BaseModel):
     code: str
 
 
+# ── Sprint 32 — Multi-city & Geofencing ────────────────────────────────────
+
+class CityResponse(BaseModel):
+    city_id: str
+    name: str
+    country: str
+    center_lat: float
+    center_lng: float
+    radius_km: float
+    active: bool
+    created_at: str
+
+
+class CreateCityRequest(BaseModel):
+    name: str
+    country: str = "Côte d'Ivoire"
+    center_lat: float
+    center_lng: float
+    radius_km: float = 30.0
+    active: bool = True
+
+
+class UpdateCityRequest(BaseModel):
+    name: str | None = None
+    country: str | None = None
+    center_lat: float | None = None
+    center_lng: float | None = None
+    radius_km: float | None = None
+    active: bool | None = None
+
+
+class ServiceZoneResponse(BaseModel):
+    zone_id: str
+    city_id: str
+    city_name: str
+    name: str
+    polygon_geojson: str | None = None
+    active: bool
+    created_at: str
+
+
+class CreateServiceZoneRequest(BaseModel):
+    city_id: str
+    name: str
+    polygon_geojson: str | None = None
+    active: bool = True
+
+
+class PointInCityResponse(BaseModel):
+    lat: float
+    lng: float
+    in_service: bool
+    city_name: str | None = None
+    city_id: str | None = None
+
+
 @app.get("/v1/admin/flags", response_model=list[FeatureFlagResponse],
          summary="List all feature flags (Sprint 31)")
 async def admin_list_flags(
@@ -2974,3 +3030,171 @@ async def use_invite_code(
     """Any authenticated user can consume an invite code. 422 on invalid/exhausted."""
     result = await crud.use_invite_code(db, body.code)
     return InviteCodeResponse(**result)
+
+
+# ===========================================================================
+# Sprint 32 — Multi-city & Geofencing endpoints
+# ===========================================================================
+
+@app.get("/v1/cities", response_model=list[CityResponse],
+         summary="List active cities (Sprint 32)")
+async def list_cities(
+    db: AsyncSession = Depends(get_db),
+):
+    """Public endpoint. Returns only active cities."""
+    rows = await crud.list_cities(db, include_inactive=False)
+    return [CityResponse(**r) for r in rows]
+
+
+@app.get("/v1/admin/cities", response_model=list[CityResponse],
+         summary="Admin: list all cities including inactive (Sprint 32)")
+async def admin_list_cities(
+    include_inactive: bool = True,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only. Returns all cities."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    rows = await crud.list_cities(db, include_inactive=include_inactive)
+    return [CityResponse(**r) for r in rows]
+
+
+@app.post("/v1/admin/cities", response_model=CityResponse, status_code=201,
+          summary="Admin: create a new city (Sprint 32)")
+async def admin_create_city(
+    body: CreateCityRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only. 409 if city name already exists."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    result = await crud.create_city(
+        db,
+        name=body.name,
+        country=body.country,
+        center_lat=body.center_lat,
+        center_lng=body.center_lng,
+        radius_km=body.radius_km,
+        active=body.active,
+    )
+    return CityResponse(**result)
+
+
+@app.patch("/v1/admin/cities/{city_id}", response_model=CityResponse,
+           summary="Admin: update a city (Sprint 32)")
+async def admin_update_city(
+    city_id: str,
+    body: UpdateCityRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only. Partial update — only non-null fields are changed."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    try:
+        cid = uuid.UUID(city_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid UUID")
+    result = await crud.update_city(
+        db, cid, **body.model_dump(exclude_none=True)
+    )
+    return CityResponse(**result)
+
+
+@app.get("/v1/cities/{city_id}", response_model=CityResponse,
+         summary="Get a single city (Sprint 32)")
+async def get_city(
+    city_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Public. 404 if not found."""
+    try:
+        cid = uuid.UUID(city_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid UUID")
+    result = await crud.get_city(db, cid)
+    return CityResponse(**result)
+
+
+@app.get("/v1/service-zones", response_model=list[ServiceZoneResponse],
+         summary="List active service zones (Sprint 32)")
+async def list_service_zones(
+    city_id: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Public. Optionally filter by city_id."""
+    cid: uuid.UUID | None = None
+    if city_id:
+        try:
+            cid = uuid.UUID(city_id)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid city_id UUID")
+    rows = await crud.list_service_zones(db, city_id=cid, include_inactive=False)
+    return [ServiceZoneResponse(**r) for r in rows]
+
+
+@app.post("/v1/admin/service-zones", response_model=ServiceZoneResponse, status_code=201,
+          summary="Admin: create a service zone (Sprint 32)")
+async def admin_create_service_zone(
+    body: CreateServiceZoneRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only. 404 if the city does not exist."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    try:
+        cid = uuid.UUID(body.city_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid city_id UUID")
+    result = await crud.create_service_zone(
+        db,
+        city_id=cid,
+        name=body.name,
+        polygon_geojson=body.polygon_geojson,
+        active=body.active,
+    )
+    return ServiceZoneResponse(**result)
+
+
+@app.get("/v1/admin/service-zones", response_model=list[ServiceZoneResponse],
+         summary="Admin: list all service zones including inactive (Sprint 32)")
+async def admin_list_service_zones(
+    city_id: str | None = None,
+    include_inactive: bool = True,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    cid: uuid.UUID | None = None
+    if city_id:
+        try:
+            cid = uuid.UUID(city_id)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid city_id UUID")
+    rows = await crud.list_service_zones(db, city_id=cid, include_inactive=include_inactive)
+    return [ServiceZoneResponse(**r) for r in rows]
+
+
+@app.get("/v1/geo/point-in-service", response_model=PointInCityResponse,
+         summary="Check if a lat/lng is within any active city's service area (Sprint 32)")
+async def point_in_service(
+    lat: float,
+    lng: float,
+    db: AsyncSession = Depends(get_db),
+):
+    """Public. Returns in_service=True and city info if the point is covered."""
+    city = await crud.find_city_for_point(db, lat, lng)
+    if city is None:
+        return PointInCityResponse(lat=lat, lng=lng, in_service=False)
+    return PointInCityResponse(
+        lat=lat,
+        lng=lng,
+        in_service=True,
+        city_name=city.name,
+        city_id=str(city.id),
+    )

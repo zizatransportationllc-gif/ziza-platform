@@ -425,3 +425,59 @@ export async function adminCreateInviteCode(token, code, maxUses = 1) {
   });
   return _json(res); // InviteCodeResponse
 }
+
+// ---------------------------------------------------------------------------
+// Sprint 32 — Multi-city & Geofencing
+// ---------------------------------------------------------------------------
+
+/** List all cities including inactive (admin). */
+export async function adminListCities(token) {
+  const res = await fetch(`${API_BASE}/v1/admin/cities`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // CityResponse[]
+}
+
+/** Create a new city (admin). */
+export async function adminCreateCity(token, cityData) {
+  const res = await fetch(`${API_BASE}/v1/admin/cities`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(cityData),
+  });
+  return _json(res); // CityResponse
+}
+
+/** Update a city (admin). */
+export async function adminUpdateCity(token, cityId, updates) {
+  const res = await fetch(`${API_BASE}/v1/admin/cities/${cityId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(updates),
+  });
+  return _json(res); // CityResponse
+}
+
+/** List active cities (public). */
+export async function listCities() {
+  const res = await fetch(`${API_BASE}/v1/cities`, {
+    headers: { Accept: "application/json" },
+  });
+  return _json(res); // CityResponse[]
+}
+
+/** Check if a lat/lng point is within any active city service area (public). */
+export async function checkPointInService(lat, lng) {
+  const res = await fetch(`${API_BASE}/v1/geo/point-in-service?lat=${lat}&lng=${lng}`, {
+    headers: { Accept: "application/json" },
+  });
+  return _json(res); // PointInCityResponse
+}

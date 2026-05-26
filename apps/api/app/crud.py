@@ -1,4 +1,4 @@
-"""CRUD helpers — Sprint 4 → Sprint 26.
+"""CRUD helpers — Sprint 4 → Sprint 32.
 
 All functions are async and receive an ``AsyncSession`` from the FastAPI
 ``get_db`` dependency.
@@ -3634,3 +3634,175 @@ def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
          + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2))
          * math.sin(dlng / 2) ** 2)
     return R * 2 * math.asin(math.sqrt(a))
+
+
+# ---------------------------------------------------------------------------
+# Sprint 32 — Multi-city & Geofencing
+# ---------------------------------------------------------------------------
+
+from app.models.city import City, ServiceZone, DEFAULT_CITIES  # noqa: E402
+
+
+def _city_to_dict(city: City) -> dict:
+    return {
+        "city_id": str(city.id),
+        "name": city.name,
+        "country": city.country,
+        "center_lat": city.center_lat,
+        "center_lng": city.center_lng,
+        "radius_km": city.radius_km,
+        "active": city.active,
+        "created_at": city.created_at.isoformat(),
+    }
+
+
+def _zone_to_dict(zone: ServiceZone, city_name: str = "") -> dict:
+    return {
+        "zone_id": str(zone.id),
+        "city_id": str(zone.city_id),
+        "city_name": city_name,
+        "name": zone.name,
+        "polygon_geojson": zone.polygon_geojson,
+        "active": zone.active,
+        "created_at": zone.created_at.isoformat(),
+    }
+
+
+async def _ensure_city_defaults(db: AsyncSession) -> None:
+    """Seed default cities on first call (idempotent)."""
+    count = await db.scalar(select(func.count()).select_from(City))
+    if count and count > 0:
+        return
+    for c in DEFAULT_CITIES:
+        city = City(**c)
+        db.add(city)
+    await db.commit()
+
+
+async def list_cities(db: AsyncSession, include_inactive: bool = False) -> list[dict]:
+    """List cities. Public: active only. Admin: all."""
+    await _ensure_city_defaults(db)
+    stmt = select(City)
+    if not include_inactive:
+        stmt = stmt.where(City.active.is_(True))
+    stmt = stmt.order_by(City.name)
+    rows = (await db.scalars(stmt)).all()
+    return [_city_to_dict(c) for c in rows]
+
+
+async def get_city(db: AsyncSession, city_id: uuid.UUID) -> dict:
+    """Get a single city by ID (404 if not found)."""
+    city = await db.scalar(select(City).where(City.id == city_id))
+    if city is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ville introuvable.")
+    return _city_to_dict(city)
+
+
+async def create_city(
+    db: AsyncSession,
+    name: str,
+    country: str,
+    center_lat: float,
+    center_lng: float,
+    radius_km: float,
+    active: bool = True,
+) -> dict:
+    """Create a new city. 409 if name already exists."""
+    existing = await db.scalar(select(City).where(City.name == name))
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Une ville nommée «{name}» existe déjà.",
+        )
+    city = City(
+        name=name,
+        country=country,
+        center_lat=center_lat,
+        center_lng=center_lng,
+        radius_km=radius_km,
+        active=active,
+    )
+    db.add(city)
+    await db.commit()
+    await db.refresh(city)
+    return _city_to_dict(city)
+
+
+async def update_city(
+    db: AsyncSession,
+    city_id: uuid.UUID,
+    **updates: object,
+) -> dict:
+    """Update city fields. Returns updated city dict. 404 if not found."""
+    city = await db.scalar(select(City).where(City.id == city_id))
+    if city is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ville introuvable.")
+    allowed = {"name", "country", "center_lat", "center_lng", "radius_km", "active"}
+    for key, val in updates.items():
+        if key in allowed and val is not None:
+            setattr(city, key, val)
+    await db.commit()
+    await db.refresh(city)
+    return _city_to_dict(city)
+
+
+async def list_service_zones(
+    db: AsyncSession,
+    city_id: uuid.UUID | None = None,
+    include_inactive: bool = False,
+) -> list[dict]:
+    """List service zones, optionally filtered by city."""
+    stmt = (
+        select(ServiceZone, City.name.label("city_name"))
+        .join(City, ServiceZone.city_id == City.id)
+    )
+    if city_id:
+        stmt = stmt.where(ServiceZone.city_id == city_id)
+    if not include_inactive:
+        stmt = stmt.where(ServiceZone.active.is_(True))
+    stmt = stmt.order_by(City.name, ServiceZone.name)
+    rows = (await db.execute(stmt)).all()
+    return [_zone_to_dict(zone, city_name) for zone, city_name in rows]
+
+
+async def create_service_zone(
+    db: AsyncSession,
+    city_id: uuid.UUID,
+    name: str,
+    polygon_geojson: str | None = None,
+    active: bool = True,
+) -> dict:
+    """Create a service zone. 404 if city doesn't exist."""
+    city = await db.scalar(select(City).where(City.id == city_id))
+    if city is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ville introuvable.")
+    zone = ServiceZone(
+        city_id=city_id,
+        name=name,
+        polygon_geojson=polygon_geojson,
+        active=active,
+    )
+    db.add(zone)
+    await db.commit()
+    await db.refresh(zone)
+    return _zone_to_dict(zone, city.name)
+
+
+def point_in_city_radius(lat: float, lng: float, city: City) -> bool:
+    """Return True if the point is within the city's service radius."""
+    dist = _haversine_km(lat, lng, city.center_lat, city.center_lng)
+    return dist <= city.radius_km
+
+
+async def find_city_for_point(
+    db: AsyncSession,
+    lat: float,
+    lng: float,
+) -> City | None:
+    """Return the first active city whose radius covers the given point, or None."""
+    stmt = select(City).where(City.active.is_(True))
+    cities = (await db.scalars(stmt)).all()
+    for city in cities:
+        if point_in_city_radius(lat, lng, city):
+            return city
+    return None

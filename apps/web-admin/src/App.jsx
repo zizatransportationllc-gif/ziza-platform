@@ -11,6 +11,7 @@ import {
   adminListApplications, adminReviewApplication, // Sprint 30
   adminListFlags, adminSetFlag, // Sprint 31
   adminListLiveDrivers, adminSetUserRole, adminCreateInviteCode, // Sprint 31
+  adminListCities, adminCreateCity, adminUpdateCity, // Sprint 32
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -51,7 +52,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 31 — Performance, SRE &amp; GA</p>
+      <p className="subtitle">Sprint 32 — Multi-ville &amp; géofencing</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -1592,6 +1593,139 @@ function FlagsPanel({ token }) {
 }
 
 // ---------------------------------------------------------------------------
+// CitiesPanel — Sprint 32
+// ---------------------------------------------------------------------------
+
+const COUNTRY_DEFAULT = "Côte d'Ivoire";
+
+function CitiesPanel({ token }) {
+  const [cities, setCities] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+  const [form, setForm] = useState({
+    name: "", country: COUNTRY_DEFAULT,
+    center_lat: "", center_lng: "", radius_km: "30", active: true,
+  });
+
+  const load = useCallback(() => {
+    setLoading(true); setError(null);
+    adminListCities(token)
+      .then(setCities)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleCreate(e) {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    setSaving(true); setSaveError(null);
+    try {
+      const created = await adminCreateCity(token, {
+        name: form.name.trim(),
+        country: form.country,
+        center_lat: parseFloat(form.center_lat),
+        center_lng: parseFloat(form.center_lng),
+        radius_km: parseFloat(form.radius_km),
+        active: form.active,
+      });
+      setCities((prev) => [...prev, created]);
+      setShowForm(false);
+      setForm({ name: "", country: COUNTRY_DEFAULT, center_lat: "", center_lng: "", radius_km: "30", active: true });
+    } catch (err) { setSaveError(err.message); }
+    finally { setSaving(false); }
+  }
+
+  async function handleToggleActive(city) {
+    try {
+      const updated = await adminUpdateCity(token, city.city_id, { active: !city.active });
+      setCities((prev) => prev.map((c) => c.city_id === city.city_id ? updated : c));
+    } catch (err) { setError(err.message); }
+  }
+
+  const STATUS_COLOR = { true: "#16a34a", false: "#94a3b8" };
+
+  return (
+    <div className="cities-panel">
+      <div className="panel-header">
+        <h2 className="panel-title">🌍 Villes desservies</h2>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
+          <button className="batch-run-btn" onClick={() => setShowForm((v) => !v)}>
+            {showForm ? "✕ Annuler" : "+ Nouvelle ville"}
+          </button>
+        </div>
+      </div>
+
+      {error && <p className="form-error">{error}</p>}
+      {loading && <div className="status loading">⏳ Chargement…</div>}
+
+      {showForm && (
+        <form className="city-form" onSubmit={handleCreate}>
+          <h3 className="section-subtitle">Ajouter une ville</h3>
+          {saveError && <p className="form-error">{saveError}</p>}
+          <div className="city-form-grid">
+            <label>Nom
+              <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Abidjan" />
+            </label>
+            <label>Pays
+              <input value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} />
+            </label>
+            <label>Latitude centre
+              <input type="number" step="any" required value={form.center_lat} onChange={(e) => setForm({ ...form, center_lat: e.target.value })} placeholder="5.3364" />
+            </label>
+            <label>Longitude centre
+              <input type="number" step="any" required value={form.center_lng} onChange={(e) => setForm({ ...form, center_lng: e.target.value })} placeholder="-4.0267" />
+            </label>
+            <label>Rayon (km)
+              <input type="number" step="1" min="1" value={form.radius_km} onChange={(e) => setForm({ ...form, radius_km: e.target.value })} />
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
+              Active
+            </label>
+          </div>
+          <button type="submit" className="batch-run-btn" disabled={saving}>
+            {saving ? "Création…" : "Créer la ville"}
+          </button>
+        </form>
+      )}
+
+      <div className="cities-grid">
+        {cities.map((city) => (
+          <div key={city.city_id} className={`city-row ${city.active ? "city-active" : "city-inactive"}`}>
+            <div className="city-main">
+              <span className="city-name">🌍 {city.name}</span>
+              <span className="city-country">{city.country}</span>
+            </div>
+            <div className="city-meta">
+              <span>📍 {city.center_lat.toFixed(4)}, {city.center_lng.toFixed(4)}</span>
+              <span>📏 {city.radius_km} km</span>
+            </div>
+            <div className="city-footer-row">
+              <span style={{ color: STATUS_COLOR[city.active], fontWeight: 600 }}>
+                {city.active ? "🟢 Active" : "⚪ Inactive"}
+              </span>
+              <button
+                className={city.active ? "payout-reject-btn" : "payout-approve-btn"}
+                style={{ fontSize: ".8rem", padding: "4px 10px" }}
+                onClick={() => handleToggleActive(city)}
+              >
+                {city.active ? "Désactiver" : "Activer"}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard — tabbed navigation
 // ---------------------------------------------------------------------------
 
@@ -1601,6 +1735,7 @@ const TABS = [
   { id: "assist",       label: "🆘 Assistances" },
   { id: "drivers",      label: "🧑‍✈️ Chauffeurs" },
   { id: "live",         label: "🗺️ Live" },
+  { id: "cities",       label: "🌍 Villes" },
   { id: "promos",       label: "🏷️ Promos" },
   { id: "payouts",      label: "💸 Retraits",    pendingKey: "payout_requests" },
   { id: "ratings",      label: "⭐ Avis" },
@@ -1658,11 +1793,12 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "commission"   && <CommissionPanel    token={token} />}
       {activeTab === "applications" && <ApplicationsPanel  token={token} />}
       {activeTab === "live"         && <LiveMapPanel        token={token} />}
+      {activeTab === "cities"       && <CitiesPanel          token={token} />}
       {activeTab === "flags"        && <FlagsPanel          token={token} />}
       {activeTab === "settings"     && <SurgePanel          token={token} />}
       {activeTab === "users"        && <UsersPanel          token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 31</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 32</p>
     </div>
   );
 }

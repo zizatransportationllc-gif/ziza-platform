@@ -24,6 +24,7 @@ from app.models.refresh_token import RefreshToken  # noqa: F401  — Sprint 25
 from app.models.device_token import DeviceToken  # noqa: F401  — Sprint 26
 from app.models.application import DriverApplication  # noqa: F401  — Sprint 30
 from app.models.flag import FeatureFlag, InviteCode  # noqa: F401  — Sprint 31
+from app.models.city import City, ServiceZone  # noqa: F401  — Sprint 32
 
 __all__ = [
     "Base", "User", "Driver", "Vehicle", "Trip", "TripEvent", "Estimate",
@@ -31,4 +32,5 @@ __all__ = [
     "PayoutRequest", "CommissionSetting", "PlatformSetting", "DriverDocument", "Notification",
     "SavedPlace", "DriverLocation", "PaymentIntent", "RefreshToken",
     "DeviceToken", "DriverApplication", "FeatureFlag", "InviteCode",
+    "City", "ServiceZone",
 ]
