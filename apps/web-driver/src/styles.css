@@ -215,3 +215,22 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .dispatch-category { display: inline-block; font-size: 0.72rem; font-weight: 700; border-radius: 999px; padding: 1px var(--space-2); margin-bottom: var(--space-1); }
 .dispatch-cat-comfort { background: color-mix(in srgb, #60a5fa 15%, transparent); color: #60a5fa; border: 1px solid #60a5fa; }
 .dispatch-cat-premium { background: color-mix(in srgb, #f59e0b 15%, transparent); color: #f59e0b; border: 1px solid #f59e0b; }
+
+/* ── Sprint 22: Driver location section ────────────────────────────────── */
+.location-section { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-4); text-align: left; }
+.location-current { display: flex; align-items: center; gap: var(--space-2); font-size: 0.85rem; color: var(--color-muted); margin-bottom: var(--space-3); background: color-mix(in srgb, #4ade80 8%, transparent); border: 1px solid #4ade80; border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3); }
+.location-current-dot { color: #4ade80; font-size: 0.6rem; flex-shrink: 0; }
+.location-current-time { margin-left: auto; font-size: 0.75rem; color: var(--color-muted); }
+.location-row { display: flex; gap: var(--space-2); margin-bottom: var(--space-2); }
+.location-select { flex: 1; background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-fg); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.85rem; outline: none; }
+.location-select:focus { border-color: var(--color-accent); }
+.location-push-btn { background: var(--color-accent-strong); color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.85rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.location-push-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.location-gps-btn { width: 100%; background: transparent; border: 1px solid var(--color-accent); color: var(--color-accent); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.85rem; cursor: pointer; margin-bottom: var(--space-2); }
+.location-gps-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.location-manual { margin-top: var(--space-2); }
+.location-manual-toggle { font-size: 0.8rem; color: var(--color-muted); cursor: pointer; }
+.location-manual-form { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
+.location-coord-input { flex: 1; background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-fg); border-radius: var(--radius-md); padding: var(--space-2); font-size: 0.82rem; outline: none; }
+.location-coord-input:focus { border-color: var(--color-accent); }
+.location-success { color: #4ade80; font-size: 0.85rem; margin-top: var(--space-2); }

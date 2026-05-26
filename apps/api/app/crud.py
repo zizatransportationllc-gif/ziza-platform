@@ -1,4 +1,4 @@
-"""CRUD helpers — Sprint 4 → Sprint 21.
+"""CRUD helpers — Sprint 4 → Sprint 22.
 
 All functions are async and receive an ``AsyncSession`` from the FastAPI
 ``get_db`` dependency.
@@ -20,6 +20,7 @@ from app.models.driver import Driver
 from app.models.driver_capability import DriverCapability
 from app.models.driver_document import DriverDocument, DOCUMENT_TYPES
 from app.models.notification import Notification
+from app.models.driver_location import DriverLocation
 from app.models.saved_place import SavedPlace
 from app.models.estimate import Estimate
 from app.models.payout_request import PayoutRequest as PayoutRequestModel
@@ -2237,3 +2238,150 @@ async def delete_saved_place(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Saved place not found")
     await db.delete(place)
     await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Sprint 22 — Driver location & ETA
+# ---------------------------------------------------------------------------
+
+#: Average city speed used for ETA estimation (km/h).
+CITY_SPEED_KMH: float = 30.0
+
+
+def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """Great-circle distance between two WGS-84 coordinates (km)."""
+    R = 6371.0
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lng2 - lng1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+async def upsert_driver_location(
+    db: AsyncSession,
+    claims: Claims,
+    lat: float,
+    lng: float,
+) -> DriverLocation:
+    """Create or update the driver's current GPS position."""
+    driver = await _get_driver_by_auth_id(db, claims.user_id)
+    if driver is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Driver not found")
+
+    result = await db.execute(
+        select(DriverLocation).where(DriverLocation.driver_id == driver.id)
+    )
+    loc: DriverLocation | None = result.scalar_one_or_none()
+    now = datetime.now(timezone.utc)
+
+    if loc is None:
+        loc = DriverLocation(driver_id=driver.id, lat=lat, lng=lng, updated_at=now)
+        db.add(loc)
+    else:
+        loc.lat = lat
+        loc.lng = lng
+        loc.updated_at = now
+
+    await db.commit()
+    await db.refresh(loc)
+    return loc
+
+
+async def get_driver_location(
+    db: AsyncSession,
+    claims: Claims,
+) -> DriverLocation:
+    """Return the driver's last known location (404 if not set yet)."""
+    driver = await _get_driver_by_auth_id(db, claims.user_id)
+    if driver is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Driver not found")
+
+    result = await db.execute(
+        select(DriverLocation).where(DriverLocation.driver_id == driver.id)
+    )
+    loc: DriverLocation | None = result.scalar_one_or_none()
+    if loc is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No location recorded yet",
+        )
+    return loc
+
+
+async def get_trip_eta(
+    db: AsyncSession,
+    claims: Claims,
+    trip_id: str,
+) -> dict:
+    """Return driver distance & ETA for an active trip.
+
+    Only the trip's customer can call this.
+    Returns: {distance_km, eta_min, driver_lat, driver_lng, updated_at}
+    """
+    try:
+        trip_uuid = uuid.UUID(trip_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid trip_id format",
+        )
+
+    # Resolve requesting user
+    user = await _get_user_by_auth_id(db, claims.user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Load trip
+    trip_result = await db.execute(select(Trip).where(Trip.id == trip_uuid))
+    trip: Trip | None = trip_result.scalar_one_or_none()
+    if trip is None or trip.customer_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+
+    if trip.status not in ("accepted", "in_progress"):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No driver assigned to this trip yet",
+        )
+
+    if trip.driver_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No driver assigned to this trip yet",
+        )
+
+    # Get driver's location
+    loc_result = await db.execute(
+        select(DriverLocation).where(DriverLocation.driver_id == trip.driver_id)
+    )
+    loc: DriverLocation | None = loc_result.scalar_one_or_none()
+    if loc is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver location not available yet",
+        )
+
+    # Determine reference point: pickup for accepted, dest for in_progress
+    if trip.status == "accepted":
+        ref_lat = trip.origin_lat
+        ref_lng = trip.origin_lng
+    else:
+        ref_lat = trip.dest_lat
+        ref_lng = trip.dest_lng
+
+    if ref_lat is None or ref_lng is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trip coordinates not available",
+        )
+
+    distance_km = round(_haversine_km(loc.lat, loc.lng, ref_lat, ref_lng), 2)
+    eta_min = max(1, round((distance_km / CITY_SPEED_KMH) * 60))
+
+    return {
+        "distance_km": distance_km,
+        "eta_min": eta_min,
+        "driver_lat": loc.lat,
+        "driver_lng": loc.lng,
+        "updated_at": _utc(loc.updated_at).isoformat(),
+    }

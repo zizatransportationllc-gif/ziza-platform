@@ -18,10 +18,11 @@ from app.models.platform_setting import PlatformSetting  # noqa: F401
 from app.models.driver_document import DriverDocument  # noqa: F401
 from app.models.notification import Notification  # noqa: F401
 from app.models.saved_place import SavedPlace  # noqa: F401
+from app.models.driver_location import DriverLocation  # noqa: F401
 
 __all__ = [
     "Base", "User", "Driver", "Vehicle", "Trip", "TripEvent", "Estimate",
     "Rating", "AssistanceRequest", "DriverCapability", "PromoCode",
     "PayoutRequest", "PlatformSetting", "DriverDocument", "Notification",
-    "SavedPlace",
+    "SavedPlace", "DriverLocation",
 ]

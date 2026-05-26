@@ -157,6 +157,31 @@ export async function listCategories(token) {
 }
 
 // ---------------------------------------------------------------------------
+// Driver location — Sprint 22
+// ---------------------------------------------------------------------------
+
+export async function updateDriverLocation(token, lat, lng) {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/location`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ lat, lng }),
+  });
+  return _json(res); // LocationResponse
+}
+
+export async function getDriverLocation(token) {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/location`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (res.status === 404) return null;
+  return _json(res); // LocationResponse | null
+}
+
+// ---------------------------------------------------------------------------
 // Driver rating stats
 // ---------------------------------------------------------------------------
 

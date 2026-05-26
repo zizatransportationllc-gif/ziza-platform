@@ -12,6 +12,7 @@ import {
   submitDocument, listMyDocuments,
   listNotifications, getUnreadCount, markAllRead,
   listCategories,
+  updateDriverLocation, getDriverLocation,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -25,6 +26,19 @@ const VEHICLE_CATEGORIES = [
   { value: "comfort", label: "🚙 Confort" },
   { value: "premium", label: "🏎️ Premium" },
 ];
+
+// Sprint 22 — Abidjan landmarks for location quick-pick
+const ABIDJAN_LOCATIONS = {
+  "Plateau (Centre-ville)": { lat: 5.3207, lng: -4.0175 },
+  "Cocody":                 { lat: 5.3600, lng: -3.9801 },
+  "Yopougon":               { lat: 5.3386, lng: -4.0721 },
+  "Abobo":                  { lat: 5.4154, lng: -4.0243 },
+  "Marcory":                { lat: 5.2997, lng: -3.9904 },
+  "Treichville":            { lat: 5.2975, lng: -4.0119 },
+  "Adjamé":                 { lat: 5.3612, lng: -4.0288 },
+  "Aéroport (Port-Bouët)":  { lat: 5.2537, lng: -3.9268 },
+};
+const LOCATION_NAMES = Object.keys(ABIDJAN_LOCATIONS);
 
 const STATUS_LABELS = {
   accepted:    "✓ Course acceptée — en route vers le client",
@@ -62,7 +76,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Driver</h1>
-      <p className="subtitle">Sprint 21 — Catégories de véhicules</p>
+      <p className="subtitle">Sprint 22 — Localisation chauffeur & ETA</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -743,6 +757,135 @@ function DriverNotificationsSection({ token, onRead }) {
 }
 
 // ---------------------------------------------------------------------------
+// Driver location section — Sprint 22
+// ---------------------------------------------------------------------------
+
+function LocationSection({ token }) {
+  const [landmark, setLandmark] = useState(LOCATION_NAMES[0]);
+  const [manualLat, setManualLat] = useState("");
+  const [manualLng, setManualLng] = useState("");
+  const [useGps, setUseGps] = useState(false);
+  const [current, setCurrent] = useState(null); // { lat, lng, updated_at }
+  const [pushing, setPushing] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
+
+  // Load current location on mount
+  useEffect(() => {
+    getDriverLocation(token).then(setCurrent).catch(() => {});
+  }, [token]);
+
+  async function push(lat, lng) {
+    setPushing(true); setError(null); setSuccess(false);
+    try {
+      const loc = await updateDriverLocation(token, lat, lng);
+      setCurrent(loc);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (e) { setError(e.message); }
+    finally { setPushing(false); }
+  }
+
+  function handleLandmark(e) {
+    setLandmark(e.target.value);
+    setManualLat(""); setManualLng("");
+  }
+
+  async function handlePushLandmark() {
+    const c = ABIDJAN_LOCATIONS[landmark];
+    await push(c.lat, c.lng);
+  }
+
+  async function handlePushManual(e) {
+    e.preventDefault();
+    const lat = parseFloat(manualLat);
+    const lng = parseFloat(manualLng);
+    if (isNaN(lat) || isNaN(lng)) { setError("Coordonnées invalides"); return; }
+    await push(lat, lng);
+  }
+
+  async function handleGps() {
+    if (!navigator.geolocation) { setError("Géolocalisation non disponible"); return; }
+    setUseGps(true); setError(null);
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        await push(coords.latitude, coords.longitude);
+        setUseGps(false);
+      },
+      () => { setError("Impossible d'obtenir la position GPS"); setUseGps(false); },
+      { timeout: 10000 },
+    );
+  }
+
+  return (
+    <div className="location-section">
+      <h3 className="section-title">📍 Ma position</h3>
+
+      {current && (
+        <div className="location-current">
+          <span className="location-current-dot">●</span>
+          <span>{current.lat.toFixed(4)}, {current.lng.toFixed(4)}</span>
+          <span className="location-current-time">
+            {new Date(current.updated_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+          </span>
+        </div>
+      )}
+      {!current && <p className="muted">Aucune position enregistrée.</p>}
+
+      {/* Quick-pick from Abidjan landmarks */}
+      <div className="location-row">
+        <select
+          className="location-select"
+          value={landmark}
+          onChange={handleLandmark}
+        >
+          {LOCATION_NAMES.map((n) => <option key={n}>{n}</option>)}
+        </select>
+        <button
+          className="location-push-btn"
+          onClick={handlePushLandmark}
+          disabled={pushing}
+        >
+          {pushing ? "…" : "📍 Mettre à jour"}
+        </button>
+      </div>
+
+      {/* GPS button */}
+      <button
+        className="location-gps-btn"
+        onClick={handleGps}
+        disabled={pushing || useGps}
+      >
+        {useGps ? "⏳ Acquisition GPS…" : "🛰️ Utiliser ma position GPS"}
+      </button>
+
+      {/* Manual coordinates (advanced) */}
+      <details className="location-manual">
+        <summary className="location-manual-toggle">Coordonnées manuelles</summary>
+        <form className="location-manual-form" onSubmit={handlePushManual}>
+          <input
+            className="location-coord-input"
+            type="number" step="0.0001" placeholder="Latitude"
+            value={manualLat} onChange={(e) => setManualLat(e.target.value)}
+          />
+          <input
+            className="location-coord-input"
+            type="number" step="0.0001" placeholder="Longitude"
+            value={manualLng} onChange={(e) => setManualLng(e.target.value)}
+          />
+          <button type="submit" className="location-push-btn" disabled={pushing}>
+            {pushing ? "…" : "OK"}
+          </button>
+        </form>
+      </details>
+
+      {error   && <p className="form-error" style={{ marginTop: "8px" }}>{error}</p>}
+      {success && <p className="location-success">✓ Position mise à jour</p>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
@@ -755,7 +898,7 @@ function Dashboard({ user, token, onLogout }) {
   const [vehicle, setVehicle] = useState(undefined); // undefined = loading, null = none
   const [isOnline, setIsOnline] = useState(false);
   const [togglingOnline, setTogglingOnline] = useState(false);
-  const [tab, setTab] = useState("dispatch"); // "dispatch" | "history" | "payouts" | "documents" | "notifications"
+  const [tab, setTab] = useState("dispatch"); // "dispatch" | "history" | "payouts" | "documents" | "notifications" | "location"
   const [unreadCount, setUnreadCount] = useState(0);
 
   const refreshUnread = useCallback(() => {
@@ -904,6 +1047,12 @@ function Dashboard({ user, token, onLogout }) {
             >
               🔔{unreadCount > 0 && <span className="tab-badge-sm">{unreadCount}</span>}
             </button>
+            <button
+              className={`driver-tab ${tab === "location" ? "active" : ""}`}
+              onClick={() => setTab("location")}
+            >
+              📍
+            </button>
           </div>
 
           {tab === "dispatch" && (
@@ -926,10 +1075,11 @@ function Dashboard({ user, token, onLogout }) {
           {tab === "payouts"       && <PayoutSection token={token} />}
           {tab === "documents"     && <DocumentsSection token={token} />}
           {tab === "notifications" && <DriverNotificationsSection token={token} onRead={refreshUnread} />}
+          {tab === "location"      && <LocationSection token={token} />}
         </>
       )}
 
-      <p className="footer">App: <strong>web-driver</strong> · Sprint 21</p>
+      <p className="footer">App: <strong>web-driver</strong> · Sprint 22</p>
     </div>
   );
 }

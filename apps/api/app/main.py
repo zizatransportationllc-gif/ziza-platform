@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 21.
+"""Ziza API — Sprint 22.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -67,6 +67,9 @@ Endpoints:
   PATCH /v1/notifications/read-all                 mark all notifications as read
   GET   /v1/admin/trips (filters)                  status, customer_email, date_from, date_to
   GET   /v1/admin/users (filters)                  role, email
+  PUT   /v1/drivers/me/location                    driver updates their GPS position
+  GET   /v1/drivers/me/location                    driver retrieves their last GPS position
+  GET   /v1/trips/{trip_id}/eta                    customer gets driver ETA for an active trip
   GET   /v1/places                                 list authenticated user's saved places
   POST  /v1/places                                 create a saved place (max 10)
   PATCH /v1/places/{place_id}                      update a saved place (label/name/lat/lng)
@@ -2065,3 +2068,97 @@ async def list_categories(
         )
         for cat in ("economy", "comfort", "premium")
     ]
+
+
+# ---------------------------------------------------------------------------
+# Driver location & ETA — Sprint 22
+# ---------------------------------------------------------------------------
+
+class LocationRequest(BaseModel):
+    lat: float
+    lng: float
+
+
+class LocationResponse(BaseModel):
+    driver_id: str
+    lat: float
+    lng: float
+    updated_at: str
+
+
+class EtaResponse(BaseModel):
+    distance_km: float
+    eta_min: int
+    driver_lat: float
+    driver_lng: float
+    updated_at: str
+
+
+def _location_response(loc) -> LocationResponse:
+    return LocationResponse(
+        driver_id=str(loc.driver_id),
+        lat=loc.lat,
+        lng=loc.lng,
+        updated_at=loc.updated_at.isoformat(),
+    )
+
+
+@app.put("/v1/drivers/me/location", tags=["drivers"])
+async def update_driver_location(
+    body: LocationRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> LocationResponse:
+    """Driver pushes their current GPS position.
+
+    Creates the location record on first call; updates it on subsequent calls.
+    Requires driver role.
+    """
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can update their location",
+        )
+    loc = await crud.upsert_driver_location(db, claims, body.lat, body.lng)
+    return _location_response(loc)
+
+
+@app.get("/v1/drivers/me/location", tags=["drivers"])
+async def get_my_location(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> LocationResponse:
+    """Driver retrieves their last recorded GPS position (404 if not set yet).
+
+    Requires driver role.
+    """
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can read their location",
+        )
+    loc = await crud.get_driver_location(db, claims)
+    return _location_response(loc)
+
+
+@app.get("/v1/trips/{trip_id}/eta", tags=["rides"])
+async def get_trip_eta(
+    trip_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> EtaResponse:
+    """Customer gets the driver's distance and ETA for their active trip.
+
+    Only the trip's customer can call this.
+    Trip must be in 'accepted' or 'in_progress' status and the driver must have
+    pushed at least one location update.
+
+    ETA is computed using Haversine distance ÷ 30 km/h average city speed.
+    """
+    if claims.role != "customer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only customers can query trip ETA",
+        )
+    data = await crud.get_trip_eta(db, claims, trip_id)
+    return EtaResponse(**data)

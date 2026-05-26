@@ -376,3 +376,15 @@ export async function listCategories(token) {
   });
   return _json(res); // CategoryInfo[]
 }
+
+// ---------------------------------------------------------------------------
+// Trip ETA — Sprint 22
+// ---------------------------------------------------------------------------
+
+export async function getTripEta(token, tripId) {
+  const res = await fetch(`${API_BASE}/v1/trips/${tripId}/eta`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (res.status === 404) return null; // driver location not available yet
+  return _json(res); // { distance_km, eta_min, driver_lat, driver_lng, updated_at }
+}

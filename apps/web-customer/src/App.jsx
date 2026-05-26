@@ -5,7 +5,7 @@ import {
   validatePromo, getProfile, updateProfile,
   listNotifications, getUnreadCount, markAllRead,
   listPlaces, createPlace, updatePlace, deletePlace,
-  listCategories,
+  listCategories, getTripEta,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -76,7 +76,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Customer</h1>
-      <p className="subtitle">Sprint 21 — Catégories de véhicules</p>
+      <p className="subtitle">Sprint 22 — Localisation chauffeur & ETA</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -411,8 +411,9 @@ function RatingForm({ token, tripId }) {
 function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState(null);
+  const [eta, setEta] = useState(null); // { distance_km, eta_min } | null — Sprint 22
 
-  // Poll every 5 s until the trip reaches a terminal state
+  // Poll trip status every 5 s until terminal state
   useEffect(() => {
     if (TERMINAL_STATUSES.has(trip.status)) return;
     const id = setInterval(async () => {
@@ -421,6 +422,20 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
         onTripUpdate(updated);
       } catch (_) { /* swallow polling errors */ }
     }, 5000);
+    return () => clearInterval(id);
+  }, [trip.trip_id, trip.status]);
+
+  // Sprint 22: Poll ETA every 15 s when driver is assigned
+  useEffect(() => {
+    if (!["accepted", "in_progress"].includes(trip.status)) { setEta(null); return; }
+    async function fetchEta() {
+      try {
+        const data = await getTripEta(token, trip.trip_id);
+        setEta(data);
+      } catch (_) {}
+    }
+    fetchEta();
+    const id = setInterval(fetchEta, 15000);
     return () => clearInterval(id);
   }, [trip.trip_id, trip.status]);
 
@@ -452,6 +467,19 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
         {trip.category && (
           <div className={`booking-category booking-category-${trip.category}`}>
             {CATEGORY_ICONS[trip.category] ?? "🚗"} {trip.category.charAt(0).toUpperCase() + trip.category.slice(1)}
+          </div>
+        )}
+        {/* Sprint 22: ETA card */}
+        {eta && (
+          <div className="eta-card">
+            <span className="eta-icon">🚗</span>
+            <div className="eta-info">
+              <span className="eta-time">~{eta.eta_min} min</span>
+              <span className="eta-dist">{eta.distance_km.toFixed(1)} km</span>
+            </div>
+            <span className="eta-label">
+              {trip.status === "accepted" ? "avant la prise en charge" : "avant l'arrivée"}
+            </span>
           </div>
         )}
         {trip.vehicle && (trip.status === "accepted" || trip.status === "in_progress") && (
@@ -1202,7 +1230,7 @@ function Dashboard({ user, token, onLogout }) {
         </>
       )}
 
-      <p className="footer">App: <strong>web-customer</strong> · Sprint 21</p>
+      <p className="footer">App: <strong>web-customer</strong> · Sprint 22</p>
     </div>
   );
 }
