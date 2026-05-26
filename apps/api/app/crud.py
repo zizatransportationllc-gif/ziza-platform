@@ -27,6 +27,7 @@ from app.models.refresh_token import RefreshToken
 from app.models.saved_place import SavedPlace
 from app.models.estimate import Estimate
 from app.models.payout_request import PayoutRequest as PayoutRequestModel, CommissionSetting
+from app.models.application import DriverApplication  # Sprint 30
 from app.models.platform_setting import PlatformSetting
 from app.models.promo import PromoCode
 from app.models.rating import Rating
@@ -3280,4 +3281,159 @@ async def run_payout_batch(db: AsyncSession) -> dict:
         "failed": failed,
         "total_net_xof": total_net_xof,
         "total_commission_xof": total_commission_xof,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Sprint 30 — Driver Application Workflow
+# ---------------------------------------------------------------------------
+
+async def create_application(db: AsyncSession, auth_user_id: uuid.UUID, data: dict) -> dict:
+    """Submit a new driver application (one per user, 409 if already exists)."""
+    existing = await db.scalar(
+        select(DriverApplication).where(DriverApplication.user_id == auth_user_id)
+    )
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Une candidature existe déjà pour cet utilisateur.",
+        )
+
+    app_obj = DriverApplication(
+        user_id=auth_user_id,
+        status="submitted",
+        full_name=data["full_name"],
+        phone=data["phone"],
+        license_number=data["license_number"],
+        vehicle_make=data["vehicle_make"],
+        vehicle_model=data["vehicle_model"],
+        vehicle_plate=data["vehicle_plate"],
+        vehicle_year=data["vehicle_year"],
+        vehicle_category=data.get("vehicle_category", "economy"),
+        submitted_at=datetime.now(timezone.utc),
+    )
+    db.add(app_obj)
+    await db.commit()
+    await db.refresh(app_obj)
+    return _application_to_dict(app_obj)
+
+
+async def get_my_application(db: AsyncSession, auth_user_id: uuid.UUID) -> dict | None:
+    """Return the authenticated user's own application, or None."""
+    app_obj = await db.scalar(
+        select(DriverApplication).where(DriverApplication.user_id == auth_user_id)
+    )
+    if app_obj is None:
+        return None
+    return _application_to_dict(app_obj)
+
+
+async def admin_list_applications(
+    db: AsyncSession,
+    status_filter: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[dict]:
+    """Admin: list all applications, optionally filtered by status."""
+    q = select(DriverApplication).order_by(DriverApplication.submitted_at.desc())
+    if status_filter:
+        q = q.where(DriverApplication.status == status_filter)
+    q = q.limit(limit).offset(offset)
+    rows = (await db.execute(q)).scalars().all()
+    return [_application_to_dict(r) for r in rows]
+
+
+async def admin_get_application(db: AsyncSession, application_id: uuid.UUID) -> dict:
+    """Admin: get a single application by ID."""
+    app_obj = await db.scalar(
+        select(DriverApplication).where(DriverApplication.id == application_id)
+    )
+    if app_obj is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidature introuvable.")
+    return _application_to_dict(app_obj)
+
+
+async def admin_review_application(
+    db: AsyncSession,
+    application_id: uuid.UUID,
+    new_status: str,
+    notes_admin: str | None,
+    admin_user_id: uuid.UUID,
+) -> dict:
+    """Admin: approve or reject an application.
+
+    On approval: auto-creates the Driver record + Vehicle if not already existing.
+    """
+    from app.models.vehicle import Vehicle  # local import to avoid circular deps
+
+    if new_status not in {"approved", "rejected", "under_review"}:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Statut invalide: {new_status!r}. Valeurs acceptées: approved, rejected, under_review.",
+        )
+
+    app_obj = await db.scalar(
+        select(DriverApplication).where(DriverApplication.id == application_id)
+    )
+    if app_obj is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidature introuvable.")
+
+    app_obj.status = new_status
+    app_obj.reviewed_at = datetime.now(timezone.utc)
+    app_obj.reviewed_by = admin_user_id
+    if notes_admin is not None:
+        app_obj.notes_admin = notes_admin
+
+    if new_status == "approved":
+        # Auto-create driver record if not already a driver
+        driver_row = await db.scalar(
+            select(Driver).where(Driver.user_id == app_obj.user_id)
+        )
+        if driver_row is None:
+            driver_row = Driver(
+                user_id=app_obj.user_id,
+                status="active",
+                license_number=app_obj.license_number,
+            )
+            db.add(driver_row)
+            await db.flush()
+
+        # Auto-create vehicle
+        vehicle_exists = await db.scalar(
+            select(Vehicle).where(Vehicle.driver_id == driver_row.id)
+        )
+        if vehicle_exists is None:
+            vehicle_row = Vehicle(
+                driver_id=driver_row.id,
+                plate=app_obj.vehicle_plate,
+                make=app_obj.vehicle_make,
+                model=app_obj.vehicle_model,
+                year=app_obj.vehicle_year,
+                color="—",
+                category=app_obj.vehicle_category,
+            )
+            db.add(vehicle_row)
+
+    await db.commit()
+    await db.refresh(app_obj)
+    return _application_to_dict(app_obj)
+
+
+def _application_to_dict(app_obj: DriverApplication) -> dict:
+    """Serialize a DriverApplication to a plain dict."""
+    return {
+        "application_id": str(app_obj.id),
+        "user_id": str(app_obj.user_id),
+        "status": app_obj.status,
+        "full_name": app_obj.full_name,
+        "phone": app_obj.phone,
+        "license_number": app_obj.license_number,
+        "vehicle_make": app_obj.vehicle_make,
+        "vehicle_model": app_obj.vehicle_model,
+        "vehicle_plate": app_obj.vehicle_plate,
+        "vehicle_year": app_obj.vehicle_year,
+        "vehicle_category": app_obj.vehicle_category,
+        "notes_admin": app_obj.notes_admin,
+        "reviewed_at": app_obj.reviewed_at.isoformat() if app_obj.reviewed_at else None,
+        "submitted_at": app_obj.submitted_at.isoformat(),
     }

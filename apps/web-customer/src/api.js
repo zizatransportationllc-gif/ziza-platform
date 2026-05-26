@@ -482,3 +482,36 @@ export async function deregisterDeviceToken(token, deviceToken) {
   });
   return res.ok;
 }
+
+// ---------------------------------------------------------------------------
+// Sprint 30 — Driver application
+// ---------------------------------------------------------------------------
+
+/**
+ * Submit a driver application.
+ * @param {string} token
+ * @param {{ full_name, phone, license_number, vehicle_make, vehicle_model, vehicle_plate, vehicle_year, vehicle_category }} data
+ */
+export async function submitApplication(token, data) {
+  const res = await fetch(`${API_BASE}/v1/drivers/apply`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(data),
+  });
+  return _json(res); // ApplicationResponse
+}
+
+/**
+ * Read the status of the authenticated user's own application.
+ * Returns null if no application has been submitted.
+ */
+export async function getApplicationStatus(token) {
+  const res = await fetch(`${API_BASE}/v1/drivers/apply/status`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // ApplicationResponse | null
+}

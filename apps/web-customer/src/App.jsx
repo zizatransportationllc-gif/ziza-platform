@@ -8,6 +8,7 @@ import {
   listCategories, getTripEta, getTripTracking,
   createPaymentIntent, getTripPayment, simulatePayment,
   registerDeviceToken,
+  submitApplication, getApplicationStatus, // Sprint 30
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -78,7 +79,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Customer</h1>
-      <p className="subtitle">Sprint 29 — Payout batch &amp; commission</p>
+      <p className="subtitle">Sprint 30 — Candidature chauffeur</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -1259,13 +1260,171 @@ function SavedPlacesSection({ token }) {
 }
 
 // ---------------------------------------------------------------------------
+// Application Section — Sprint 30
+// ---------------------------------------------------------------------------
+
+const APPLICATION_STATUS_LABELS = {
+  submitted:    "📤 Soumise — en attente de révision",
+  under_review: "🔍 En cours d'examen",
+  approved:     "✅ Approuvée — bienvenue chez Ziza !",
+  rejected:     "✗ Refusée",
+};
+
+const VEHICLE_CATEGORIES_APP = [
+  { value: "economy", label: "🚗 Economy" },
+  { value: "comfort", label: "🚙 Comfort" },
+  { value: "premium", label: "🏎️ Premium" },
+];
+
+function ApplicationSection({ token }) {
+  const [application, setApplication] = useState(undefined); // undefined = loading
+  const [step, setStep] = useState("status"); // "status" | "form"
+  const [formData, setFormData] = useState({
+    full_name: "", phone: "", license_number: "",
+    vehicle_make: "", vehicle_model: "", vehicle_plate: "",
+    vehicle_year: new Date().getFullYear() - 2, vehicle_category: "economy",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      const data = await getApplicationStatus(token);
+      setApplication(data);
+    } catch {
+      setApplication(null);
+    }
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  function updateField(key, value) {
+    setFormData((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSubmitting(true); setError(null);
+    try {
+      const result = await submitApplication(token, {
+        ...formData,
+        vehicle_year: parseInt(formData.vehicle_year, 10),
+      });
+      setApplication(result);
+      setStep("status");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (application === undefined) return <div className="status loading">⏳ Chargement…</div>;
+
+  // Existing application — show status
+  if (application && step === "status") {
+    return (
+      <div className="application-section">
+        <h2 className="application-title">🧑‍✈️ Candidature chauffeur</h2>
+        <div className={`application-status application-status-${application.status}`}>
+          <span>{APPLICATION_STATUS_LABELS[application.status] ?? application.status}</span>
+        </div>
+        <div className="application-info">
+          <div className="application-row"><span>Nom</span><strong>{application.full_name}</strong></div>
+          <div className="application-row"><span>Téléphone</span><strong>{application.phone}</strong></div>
+          <div className="application-row"><span>Véhicule</span><strong>{application.vehicle_make} {application.vehicle_model} ({application.vehicle_year})</strong></div>
+          <div className="application-row"><span>Plaque</span><strong>{application.vehicle_plate}</strong></div>
+          <div className="application-row"><span>Catégorie</span><strong>{application.vehicle_category}</strong></div>
+        </div>
+        {application.notes_admin && (
+          <div className="application-note">💬 Note admin : {application.notes_admin}</div>
+        )}
+        {application.status === "approved" && (
+          <p className="application-hint">Votre compte sera configuré comme chauffeur lors de votre prochaine connexion.</p>
+        )}
+      </div>
+    );
+  }
+
+  // No application yet — show form
+  return (
+    <div className="application-section">
+      <h2 className="application-title">🧑‍✈️ Devenir chauffeur Ziza</h2>
+      <p className="application-subtitle">Remplissez le formulaire pour soumettre votre candidature.</p>
+      <form className="application-form" onSubmit={handleSubmit}>
+        <fieldset className="application-fieldset">
+          <legend>Informations personnelles</legend>
+          <label className="application-label">
+            Nom complet
+            <input className="application-input" type="text" value={formData.full_name}
+              onChange={(e) => updateField("full_name", e.target.value)} required minLength={2} />
+          </label>
+          <label className="application-label">
+            Téléphone
+            <input className="application-input" type="tel" value={formData.phone}
+              onChange={(e) => updateField("phone", e.target.value)} required placeholder="+22507000000" />
+          </label>
+          <label className="application-label">
+            Numéro de permis
+            <input className="application-input" type="text" value={formData.license_number}
+              onChange={(e) => updateField("license_number", e.target.value)} required />
+          </label>
+        </fieldset>
+
+        <fieldset className="application-fieldset">
+          <legend>Véhicule</legend>
+          <div className="application-grid2">
+            <label className="application-label">
+              Marque
+              <input className="application-input" type="text" value={formData.vehicle_make}
+                onChange={(e) => updateField("vehicle_make", e.target.value)} required placeholder="Toyota" />
+            </label>
+            <label className="application-label">
+              Modèle
+              <input className="application-input" type="text" value={formData.vehicle_model}
+                onChange={(e) => updateField("vehicle_model", e.target.value)} required placeholder="Corolla" />
+            </label>
+          </div>
+          <div className="application-grid2">
+            <label className="application-label">
+              Plaque
+              <input className="application-input" type="text" value={formData.vehicle_plate}
+                onChange={(e) => updateField("vehicle_plate", e.target.value)} required placeholder="AB 1234 CI" />
+            </label>
+            <label className="application-label">
+              Année
+              <input className="application-input" type="number" value={formData.vehicle_year}
+                onChange={(e) => updateField("vehicle_year", e.target.value)} required min={1990} max={2030} />
+            </label>
+          </div>
+          <label className="application-label">
+            Catégorie
+            <select className="application-select" value={formData.vehicle_category}
+              onChange={(e) => updateField("vehicle_category", e.target.value)}>
+              {VEHICLE_CATEGORIES_APP.map((c) => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </select>
+          </label>
+        </fieldset>
+
+        {error && <p className="form-error">{error}</p>}
+        <button className="application-submit-btn" type="submit" disabled={submitting}>
+          {submitting ? "Envoi en cours…" : "Soumettre ma candidature"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
 function Dashboard({ user, token, onLogout }) {
   const [activeTrip, setActiveTrip] = useState(null);
   const [activeAssistance, setActiveAssistance] = useState(null);
-  const [mode, setMode] = useState("ride"); // "ride" | "assistance" | "trips" | "history" | "notifications" | "profile" | "places"
+  const [mode, setMode] = useState("ride"); // "ride" | "assistance" | "trips" | "history" | "notifications" | "profile" | "places" | "apply"
   const [unreadCount, setUnreadCount] = useState(0);
 
   const refreshUnread = useCallback(() => {
@@ -1361,6 +1520,12 @@ function Dashboard({ user, token, onLogout }) {
             >
               📍 Lieux
             </button>
+            <button
+              className={`mode-tab ${mode === "apply" ? "active" : ""}`}
+              onClick={() => setMode("apply")}
+            >
+              🧑‍✈️ Devenir chauffeur
+            </button>
           </div>
           {mode === "ride" && (
             <EstimateSection token={token} onTripCreated={setActiveTrip} />
@@ -1385,10 +1550,11 @@ function Dashboard({ user, token, onLogout }) {
             <NotificationsSection token={token} onRead={refreshUnread} />
           )}
           {mode === "places" && <SavedPlacesSection token={token} />}
+          {mode === "apply" && <ApplicationSection token={token} />}
         </>
       )}
 
-      <p className="footer">App: <strong>web-customer</strong> · Sprint 29</p>
+      <p className="footer">App: <strong>web-customer</strong> · Sprint 30</p>
     </div>
   );
 }

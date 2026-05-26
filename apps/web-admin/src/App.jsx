@@ -8,6 +8,7 @@ import {
   adminGetSurge, adminSetSurge,
   adminListDocuments, adminUpdateDocumentStatus, adminGetPendingCounts,
   getCommissionSettings, setCommission, runPayoutBatch, // Sprint 29
+  adminListApplications, adminReviewApplication, // Sprint 30
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -48,7 +49,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 29 — Payout batch &amp; commission</p>
+      <p className="subtitle">Sprint 30 — Candidature chauffeur</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -1248,6 +1249,134 @@ function SurgePanel({ token }) {
 }
 
 // ---------------------------------------------------------------------------
+// Applications Panel — Sprint 30
+// ---------------------------------------------------------------------------
+
+const APP_STATUS_LABELS = {
+  submitted:    "📤 Soumise",
+  under_review: "🔍 En révision",
+  approved:     "✅ Approuvée",
+  rejected:     "✗ Rejetée",
+};
+
+const APP_STATUS_FILTERS = [
+  { value: "",            label: "Toutes" },
+  { value: "submitted",   label: "Soumises" },
+  { value: "under_review", label: "En révision" },
+  { value: "approved",    label: "Approuvées" },
+  { value: "rejected",    label: "Rejetées" },
+];
+
+const PAGE_SIZE_APPS = 10;
+
+function ApplicationsPanel({ token }) {
+  const [apps, setApps] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [acting, setActing] = useState(null);
+  const [noteInputs, setNoteInputs] = useState({});
+  const [error, setError] = useState(null);
+
+  const load = useCallback((p = 0, sf = statusFilter) => {
+    setPage(p); setLoading(true); setError(null);
+    adminListApplications(token, sf || null, PAGE_SIZE_APPS, p * PAGE_SIZE_APPS)
+      .then(setApps).catch((e) => setError(e.message)).finally(() => setLoading(false));
+  }, [token, statusFilter]);
+
+  useEffect(() => { load(0, statusFilter); }, [statusFilter]); // eslint-disable-line
+
+  async function handleReview(appId, newStatus) {
+    const note = noteInputs[appId] || null;
+    setActing(appId);
+    try {
+      const updated = await adminReviewApplication(token, appId, newStatus, note);
+      setApps((prev) => prev.map((a) =>
+        a.application_id === appId ? { ...a, status: updated.status, notes_admin: updated.notes_admin } : a
+      ));
+    } catch (e) { setError(e.message); }
+    finally { setActing(null); }
+  }
+
+  return (
+    <div className="applications-panel">
+      <div className="panel-header">
+        <h2 className="panel-title">📝 Candidatures chauffeur</h2>
+        <button className="refresh-btn" onClick={() => load(page)} disabled={loading}>↻</button>
+      </div>
+
+      {/* Status filter */}
+      <div className="filter-bar">
+        <select className="filter-select" value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}>
+          {APP_STATUS_FILTERS.map((f) => (
+            <option key={f.value} value={f.value}>{f.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {error && <p className="form-error">{error}</p>}
+      {loading && <div className="status loading">⏳ Chargement…</div>}
+      {!loading && apps.length === 0 && <p className="muted-msg">Aucune candidature.</p>}
+
+      {apps.map((a) => (
+        <div key={a.application_id} className={`application-row-admin application-row-${a.status}`}>
+          <div className="application-admin-main">
+            <span className={`application-admin-status application-admin-status-${a.status}`}>
+              {APP_STATUS_LABELS[a.status] ?? a.status}
+            </span>
+            <span className="application-admin-name">{a.full_name}</span>
+            <span className="application-admin-phone">{a.phone}</span>
+          </div>
+          <div className="application-admin-meta">
+            <span>🚗 {a.vehicle_make} {a.vehicle_model} ({a.vehicle_year}) — {a.vehicle_plate}</span>
+            <span>📦 {a.vehicle_category}</span>
+            <span>{new Date(a.submitted_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}</span>
+          </div>
+          {a.notes_admin && <p className="application-admin-note">💬 {a.notes_admin}</p>}
+          {(a.status === "submitted" || a.status === "under_review") && (
+            <div className="application-admin-actions">
+              <input
+                className="payout-note-input"
+                type="text"
+                placeholder="Note (optionnelle)"
+                value={noteInputs[a.application_id] ?? ""}
+                onChange={(e) => setNoteInputs((prev) => ({ ...prev, [a.application_id]: e.target.value }))}
+              />
+              {a.status === "submitted" && (
+                <button
+                  className="payout-approve-btn"
+                  disabled={acting === a.application_id}
+                  onClick={() => handleReview(a.application_id, "under_review")}
+                >🔍 En révision</button>
+              )}
+              <button
+                className="payout-approve-btn"
+                disabled={acting === a.application_id}
+                onClick={() => handleReview(a.application_id, "approved")}
+              >✅ Approuver</button>
+              <button
+                className="payout-reject-btn"
+                disabled={acting === a.application_id}
+                onClick={() => handleReview(a.application_id, "rejected")}
+              >✗ Rejeter</button>
+            </div>
+          )}
+        </div>
+      ))}
+
+      {(apps.length === PAGE_SIZE_APPS || page > 0) && (
+        <div className="pagination">
+          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Précédent</button>
+          <span className="page-info">Page {page + 1}</span>
+          <button className="page-btn" onClick={() => load(page + 1)} disabled={apps.length < PAGE_SIZE_APPS || loading}>Suivant →</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard — tabbed navigation
 // ---------------------------------------------------------------------------
 
@@ -1260,9 +1389,10 @@ const TABS = [
   { id: "payouts",    label: "💸 Retraits",    pendingKey: "payout_requests" },
   { id: "ratings",    label: "⭐ Avis" },
   { id: "documents",  label: "📄 Documents",   pendingKey: "documents" },
-  { id: "commission", label: "💰 Commission" },
-  { id: "settings",   label: "⚙️ Paramètres" },
-  { id: "users",      label: "👥 Utilisateurs" },
+  { id: "commission",    label: "💰 Commission" },
+  { id: "applications", label: "📝 Candidatures" },
+  { id: "settings",     label: "⚙️ Paramètres" },
+  { id: "users",        label: "👥 Utilisateurs" },
 ];
 
 function Dashboard({ user, token, onLogout }) {
@@ -1308,11 +1438,12 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "payouts"    && <PayoutsPanel     token={token} />}
       {activeTab === "ratings"    && <RatingsPanel     token={token} />}
       {activeTab === "documents"  && <DocumentsPanel   token={token} />}
-      {activeTab === "commission" && <CommissionPanel  token={token} />}
-      {activeTab === "settings"   && <SurgePanel       token={token} />}
-      {activeTab === "users"      && <UsersPanel       token={token} />}
+      {activeTab === "commission"    && <CommissionPanel    token={token} />}
+      {activeTab === "applications"  && <ApplicationsPanel  token={token} />}
+      {activeTab === "settings"      && <SurgePanel         token={token} />}
+      {activeTab === "users"         && <UsersPanel         token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 29</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 30</p>
     </div>
   );
 }

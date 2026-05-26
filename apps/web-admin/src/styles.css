@@ -277,3 +277,22 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .batch-result-row { display: flex; justify-content: space-between; font-size: 0.875rem; }
 .batch-result-label { color: var(--color-muted); }
 .batch-result-value { font-weight: 700; }
+
+/* ── Sprint 30: Applications Panel ────────────────────────────────────── */
+.applications-panel { text-align: left; }
+.application-row-admin { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3); }
+.application-row-submitted   { border-left: 3px solid #f59e0b; }
+.application-row-under_review { border-left: 3px solid #6366f1; }
+.application-row-approved    { border-left: 3px solid var(--color-ok); opacity: 0.85; }
+.application-row-rejected    { border-left: 3px solid var(--color-error); opacity: 0.75; }
+.application-admin-main { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2); flex-wrap: wrap; }
+.application-admin-status { font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.application-admin-status-submitted   { background: color-mix(in srgb, #f59e0b 15%, transparent); color: #92400e; }
+.application-admin-status-under_review { background: color-mix(in srgb, #6366f1 15%, transparent); color: #4338ca; }
+.application-admin-status-approved    { background: color-mix(in srgb, var(--color-ok) 15%, transparent); color: var(--color-ok); }
+.application-admin-status-rejected    { background: color-mix(in srgb, var(--color-error) 12%, transparent); color: var(--color-error); }
+.application-admin-name  { font-weight: 700; font-size: 0.95rem; }
+.application-admin-phone { font-size: 0.82rem; color: var(--color-muted); }
+.application-admin-meta  { font-size: 0.78rem; color: var(--color-muted); display: flex; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-2); }
+.application-admin-note  { font-size: 0.82rem; color: var(--color-muted); font-style: italic; margin: var(--space-1) 0; }
+.application-admin-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; margin-top: var(--space-2); }

@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 29.
+"""Ziza API — Sprint 30.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -89,6 +89,11 @@ Endpoints:
   GET   /v1/admin/commission                       list platform commission rates per category (Sprint 29)
   POST  /v1/admin/commission                       create/update a commission rate (Sprint 29)
   POST  /v1/admin/payouts/run                      run batch payout for all approved requests (Sprint 29)
+  POST  /v1/drivers/apply                          customer submits a driver application (Sprint 30)
+  GET   /v1/drivers/apply/status                   customer reads their own application status (Sprint 30)
+  GET   /v1/admin/applications                     admin lists all applications, filterable by status (Sprint 30)
+  GET   /v1/admin/applications/{id}               admin reads a single application detail (Sprint 30)
+  PATCH /v1/admin/applications/{id}/review        admin approves or rejects an application (Sprint 30)
 """
 from __future__ import annotations
 
@@ -2693,3 +2698,123 @@ async def admin_run_payout_batch(
         )
     result = await crud.run_payout_batch(db)
     return PayoutBatchResponse(**result)
+
+
+# ===========================================================================
+# Sprint 30 — Driver Application Workflow
+# ===========================================================================
+
+class ApplicationRequest(BaseModel):
+    full_name: str = Field(..., min_length=2, max_length=128)
+    phone: str = Field(..., min_length=8, max_length=32)
+    license_number: str = Field(..., min_length=3, max_length=64)
+    vehicle_make: str = Field(..., min_length=1, max_length=64)
+    vehicle_model: str = Field(..., min_length=1, max_length=64)
+    vehicle_plate: str = Field(..., min_length=2, max_length=32)
+    vehicle_year: int = Field(..., ge=1990, le=2030)
+    vehicle_category: str = Field(default="economy")
+
+
+class ReviewApplicationRequest(BaseModel):
+    status: str  # "approved" | "rejected" | "under_review"
+    notes_admin: str | None = None
+
+
+class ApplicationResponse(BaseModel):
+    application_id: str
+    user_id: str
+    status: str
+    full_name: str
+    phone: str
+    license_number: str
+    vehicle_make: str
+    vehicle_model: str
+    vehicle_plate: str
+    vehicle_year: int
+    vehicle_category: str
+    notes_admin: str | None
+    reviewed_at: str | None
+    submitted_at: str
+
+
+@app.post("/v1/drivers/apply", response_model=ApplicationResponse, status_code=status.HTTP_201_CREATED,
+          summary="Submit a driver application (Sprint 30)")
+async def submit_driver_application(
+    body: ApplicationRequest,
+    claims: Annotated[Claims, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Any authenticated user can submit one driver application.
+
+    Returns 409 if they already have an application.
+    """
+    result = await crud.create_application(db, claims.user_id, body.model_dump())
+    return ApplicationResponse(**result)
+
+
+@app.get("/v1/drivers/apply/status", response_model=ApplicationResponse | None,
+         summary="Read own application status (Sprint 30)")
+async def get_my_application_status(
+    claims: Annotated[Claims, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return the authenticated user's application, or null if none."""
+    result = await crud.get_my_application(db, claims.user_id)
+    if result is None:
+        return None
+    return ApplicationResponse(**result)
+
+
+@app.get("/v1/admin/applications", response_model=list[ApplicationResponse],
+         summary="Admin: list all driver applications (Sprint 30)")
+async def admin_list_applications(
+    status_filter: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only. Filterable by status: submitted | under_review | approved | rejected."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    rows = await crud.admin_list_applications(db, status_filter=status_filter, limit=limit, offset=offset)
+    return [ApplicationResponse(**r) for r in rows]
+
+
+@app.get("/v1/admin/applications/{application_id}", response_model=ApplicationResponse,
+         summary="Admin: get a single application (Sprint 30)")
+async def admin_get_application(
+    application_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only. Returns 404 if not found."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    try:
+        app_id = uuid.UUID(application_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid UUID")
+    result = await crud.admin_get_application(db, app_id)
+    return ApplicationResponse(**result)
+
+
+@app.patch("/v1/admin/applications/{application_id}/review", response_model=ApplicationResponse,
+           summary="Admin: approve or reject an application (Sprint 30)")
+async def admin_review_application(
+    application_id: str,
+    body: ReviewApplicationRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only. On approval, automatically creates the Driver + Vehicle records."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    try:
+        app_id = uuid.UUID(application_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid UUID")
+    result = await crud.admin_review_application(
+        db, app_id, body.status, body.notes_admin, claims.user_id
+    )
+    return ApplicationResponse(**result)

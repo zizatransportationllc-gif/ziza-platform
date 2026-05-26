@@ -390,3 +390,27 @@ html, body {
 .payment-btn:hover:not(:disabled) { opacity: 0.88; }
 .payment-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .payment-btn-simulate { background: #6366f1; }
+
+/* ── Sprint 30: Application section ─────────────────────────────────────── */
+.application-section { text-align: left; padding: var(--space-4) 0; }
+.application-title { font-size: 1.1rem; font-weight: 700; margin-bottom: var(--space-2); }
+.application-subtitle { font-size: 0.875rem; color: var(--color-muted); margin-bottom: var(--space-4); }
+.application-status { padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); font-size: 0.95rem; font-weight: 600; margin-bottom: var(--space-4); }
+.application-status-submitted  { background: color-mix(in srgb, #f59e0b 15%, transparent); color: #92400e; }
+.application-status-under_review { background: color-mix(in srgb, #6366f1 15%, transparent); color: #4338ca; }
+.application-status-approved    { background: color-mix(in srgb, #10b981 15%, transparent); color: #065f46; }
+.application-status-rejected    { background: color-mix(in srgb, #ef4444 12%, transparent); color: #991b1b; }
+.application-info { display: flex; flex-direction: column; gap: var(--space-2); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-3); }
+.application-row { display: flex; justify-content: space-between; font-size: 0.875rem; }
+.application-row span { color: var(--color-muted); }
+.application-note { font-size: 0.82rem; color: var(--color-muted); font-style: italic; margin-bottom: var(--space-3); }
+.application-hint { font-size: 0.82rem; color: #10b981; font-weight: 600; }
+.application-form { display: flex; flex-direction: column; gap: var(--space-4); }
+.application-fieldset { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); }
+.application-fieldset legend { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted); padding: 0 var(--space-2); }
+.application-label { display: flex; flex-direction: column; gap: var(--space-1); font-size: 0.85rem; font-weight: 600; }
+.application-input, .application-select { background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-fg); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.9rem; outline: none; }
+.application-input:focus, .application-select:focus { border-color: var(--color-accent); }
+.application-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.application-submit-btn { background: var(--color-accent); color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-3) var(--space-5); font-size: 0.95rem; font-weight: 700; cursor: pointer; }
+.application-submit-btn:disabled { opacity: 0.55; cursor: not-allowed; }

@@ -313,3 +313,41 @@ export async function runPayoutBatch(token) {
   });
   return _json(res); // { processed, failed, total_net_xof, total_commission_xof }
 }
+
+// ---------------------------------------------------------------------------
+// Sprint 30 — Driver Applications
+// ---------------------------------------------------------------------------
+
+/** List all driver applications, optionally filtered by status. */
+export async function adminListApplications(token, statusFilter = null, limit = 50, offset = 0) {
+  const params = new URLSearchParams({ limit, offset });
+  if (statusFilter) params.set("status_filter", statusFilter);
+  const res = await fetch(`${API_BASE}/v1/admin/applications?${params}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // ApplicationResponse[]
+}
+
+/** Get a single application by ID. */
+export async function adminGetApplication(token, applicationId) {
+  const res = await fetch(`${API_BASE}/v1/admin/applications/${applicationId}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // ApplicationResponse
+}
+
+/** Approve, reject, or set an application to under_review. */
+export async function adminReviewApplication(token, applicationId, newStatus, notesAdmin = null) {
+  const body = { status: newStatus };
+  if (notesAdmin) body.notes_admin = notesAdmin;
+  const res = await fetch(`${API_BASE}/v1/admin/applications/${applicationId}/review`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  return _json(res); // ApplicationResponse
+}
