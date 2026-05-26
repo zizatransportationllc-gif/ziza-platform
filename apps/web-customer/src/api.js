@@ -1,5 +1,5 @@
 /**
- * API client for web-customer — Sprint 24.
+ * API client for web-customer — Sprint 26.
  * NOT shared across frontends (isolation rule).
  */
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -449,4 +449,36 @@ export async function simulatePayment(providerRef) {
     body: JSON.stringify({ provider_ref: providerRef, status: "paid" }),
   });
   return _json(res);
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 26 — Device token registration
+// ---------------------------------------------------------------------------
+
+/**
+ * Register a device token (FCM or web-push) for push notifications.
+ * Idempotent — safe to call on each login.
+ */
+export async function registerDeviceToken(token, deviceToken, platform = "web") {
+  const res = await fetch(`${API_BASE}/v1/devices/register`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ token: deviceToken, platform }),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+/**
+ * Deregister a device token (called on logout).
+ */
+export async function deregisterDeviceToken(token, deviceToken) {
+  const res = await fetch(`${API_BASE}/v1/devices/${encodeURIComponent(deviceToken)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.ok;
 }

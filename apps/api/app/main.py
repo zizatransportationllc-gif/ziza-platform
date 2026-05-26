@@ -83,6 +83,8 @@ Endpoints:
   POST  /v1/auth/refresh                           exchange a valid refresh token for a new token pair (Sprint 25)
   POST  /v1/auth/logout                            revoke the active refresh token (Sprint 25)
   POST  /v1/drivers/me/documents/upload-url        get a signed GCS URL for direct document upload (Sprint 25)
+  POST  /v1/devices/register                       register a FCM / web-push device token (Sprint 26)
+  DELETE /v1/devices/{token}                       revoke a device token on logout (Sprint 26)
 """
 from __future__ import annotations
 
@@ -102,6 +104,7 @@ from app.config import settings
 from app.db import get_db
 from app.middleware.logging import RequestLoggingMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware, set_rate_limit_enabled
+from app.notifications.dispatcher import register_channel
 
 app = FastAPI(
     title="Ziza API",
@@ -112,6 +115,18 @@ app = FastAPI(
 # Sprint 25: activate rate limiter if enabled in settings
 if settings.rate_limit_enabled:
     set_rate_limit_enabled(True)
+
+# Sprint 26: register external notification channels when credentials are set
+if settings.sendgrid_api_key:
+    from app.notifications.sendgrid_channel import SendGridChannel  # noqa: PLC0415
+    register_channel(SendGridChannel(settings.sendgrid_api_key, settings.sendgrid_from_email))
+
+if settings.africas_talking_api_key:
+    from app.notifications.africas_talking import AfricasTalkingChannel  # noqa: PLC0415
+    register_channel(AfricasTalkingChannel(
+        settings.africas_talking_api_key,
+        settings.africas_talking_username,
+    ))
 
 # Middleware order: CORSMiddleware first (outermost), then rate limiter, then logging
 app.add_middleware(
@@ -1934,6 +1949,7 @@ class NotificationRecord(BaseModel):
     body: str
     read: bool
     created_at: str
+    channel: str = "in_app"   # Sprint 26
 
 
 class UnreadCountResponse(BaseModel):
@@ -1974,6 +1990,7 @@ async def list_notifications(
             body=n.body,
             read=n.read,
             created_at=n.created_at.isoformat(),
+            channel=getattr(n, "channel", "in_app"),  # Sprint 26
         )
         for n in notifs
     ]
@@ -2497,3 +2514,61 @@ async def get_document_upload_url(
         final_url = f"http://localhost/mock-gcs/{file_key}"
 
     return UploadUrlResponse(upload_url=upload_url, final_url=final_url)
+
+
+# ---------------------------------------------------------------------------
+# Device tokens — Sprint 26
+# ---------------------------------------------------------------------------
+
+class DeviceRegisterRequest(BaseModel):
+    token: str
+    platform: str = "web"   # "web" | "ios" | "android"
+
+
+class DeviceRegisterResponse(BaseModel):
+    token: str
+    platform: str
+    user_id: str
+
+
+@app.post(
+    "/v1/devices/register",
+    tags=["notifications"],
+    status_code=200,
+)
+async def register_device(
+    body: DeviceRegisterRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> DeviceRegisterResponse:
+    """Sprint 26 — Register a FCM / web-push device token.
+
+    Idempotent: re-registering the same token is a no-op.
+    The token is tied to the authenticated user and used by the notification
+    dispatcher to deliver push messages.
+    """
+    result = await crud.register_device_token(db, claims, body.token, body.platform)
+    return DeviceRegisterResponse(**result)
+
+
+@app.delete(
+    "/v1/devices/{token}",
+    tags=["notifications"],
+    status_code=204,
+)
+async def deregister_device(
+    token: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Sprint 26 — Remove a device token (called on logout / account switch).
+
+    Returns 204 on success.
+    Returns 404 if the token does not belong to the authenticated user.
+    """
+    found = await crud.deregister_device_token(db, claims, token)
+    if not found:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Device token not found",
+        )

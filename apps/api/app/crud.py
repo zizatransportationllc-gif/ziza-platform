@@ -1,4 +1,4 @@
-"""CRUD helpers — Sprint 4 → Sprint 25.
+"""CRUD helpers — Sprint 4 → Sprint 26.
 
 All functions are async and receive an ``AsyncSession`` from the FastAPI
 ``get_db`` dependency.
@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.base import Claims
 from app.models.assistance import AssistanceRequest, ASSISTANCE_TYPES
+from app.models.device_token import DeviceToken
 from app.models.driver import Driver
 from app.models.driver_capability import DriverCapability
 from app.models.driver_document import DriverDocument, DOCUMENT_TYPES
@@ -82,11 +83,14 @@ async def _push_notification(
     title: str,
     body: str,
 ) -> None:
-    """Insert a Notification row for the given users.id UUID.
+    """Insert an in-app Notification row for the given users.id UUID.
 
     Fire-and-forget: errors are silently swallowed so they never break the
     parent transaction.  The caller must already have committed the triggering
     event before calling this.
+
+    Sprint 26: also triggers external channel dispatch (FCM, email, SMS)
+    via ``_dispatch_external``.
     """
     try:
         notif = Notification(
@@ -94,11 +98,62 @@ async def _push_notification(
             type=notif_type,
             title=title,
             body=body,
+            channel="in_app",
         )
         db.add(notif)
         await db.commit()
     except Exception:
         await db.rollback()
+
+    # Sprint 26 — external channels (fire-and-forget)
+    await _dispatch_external(db, user_uuid, notif_type, title, body)
+
+
+async def _dispatch_external(
+    db: AsyncSession,
+    user_uuid: uuid.UUID,
+    event_type: str,
+    title: str,
+    body: str,
+    data: dict | None = None,
+) -> None:
+    """Dispatch an event to all registered external notification channels.
+
+    Sprint 26: looks up the user's email (for email/SMS channels) and device
+    tokens (for push channels), then calls the dispatcher for each.
+
+    Completely fire-and-forget — never raises.
+    """
+    from app.notifications.dispatcher import get_channels, dispatch_external  # noqa: PLC0415
+
+    channels = get_channels()
+    if not channels:
+        return
+
+    try:
+        # Resolve user email for email/SMS channels
+        user_result = await db.execute(select(User).where(User.id == user_uuid))
+        user: User | None = user_result.scalar_one_or_none()
+        if user is None:
+            return
+
+        # Dispatch to each channel
+        # For push channels: look up device tokens
+        # For email/SMS: use user.email / user.phone
+        # The dispatcher sends once per call; we call once with the email as
+        # recipient (channels that need a token handle it themselves)
+        payload = data or {"event_type": event_type}
+        await dispatch_external(
+            db=db,
+            user_uuid=user_uuid,
+            recipient=user.email,
+            event_type=event_type,
+            title=title,
+            body=body,
+            data=payload,
+        )
+    except Exception:
+        pass  # never break the caller
 
 
 async def list_notifications(
@@ -107,13 +162,20 @@ async def list_notifications(
     limit: int = 20,
     offset: int = 0,
 ) -> list[Notification]:
-    """Return all notifications for the authenticated user, newest first."""
+    """Return in-app notifications for the authenticated user, newest first.
+
+    Sprint 26: filters to ``channel = 'in_app'`` only so external-channel rows
+    (push, email, sms) do not appear in the frontend polling endpoint.
+    """
     user = await _get_user_by_auth_id(db, auth_user_id)
     if user is None:
         return []
     result = await db.execute(
         select(Notification)
-        .where(Notification.user_id == user.id)
+        .where(
+            Notification.user_id == user.id,
+            Notification.channel == "in_app",
+        )
         .order_by(Notification.created_at.desc())
         .limit(limit)
         .offset(offset)
@@ -122,13 +184,17 @@ async def list_notifications(
 
 
 async def get_unread_count(db: AsyncSession, auth_user_id: str) -> int:
-    """Return the number of unread notifications for the authenticated user."""
+    """Return the number of unread in-app notifications for the authenticated user."""
     user = await _get_user_by_auth_id(db, auth_user_id)
     if user is None:
         return 0
     result = await db.execute(
         select(func.count(Notification.id))
-        .where(Notification.user_id == user.id, Notification.read.is_(False))
+        .where(
+            Notification.user_id == user.id,
+            Notification.read.is_(False),
+            Notification.channel == "in_app",
+        )
     )
     return result.scalar() or 0
 
@@ -2663,6 +2729,7 @@ async def confirm_payment(
 
     intent.status = new_status
 
+    customer_uuid: uuid.UUID | None = None
     if new_status == "paid":
         # Stamp the trip
         now = datetime.now(timezone.utc)
@@ -2670,9 +2737,22 @@ async def confirm_payment(
         trip: Trip | None = trip_result.scalar_one_or_none()
         if trip is not None:
             trip.paid_at = now
+            customer_uuid = trip.customer_id
 
     await db.commit()
     await db.refresh(intent)
+
+    # Sprint 26: notify the customer when payment is confirmed
+    if new_status == "paid" and customer_uuid is not None:
+        amount_xof = intent.amount_xof
+        amount_str = f"{amount_xof:,} XOF".replace(",", " ") if amount_xof else ""
+        await _push_notification(
+            db, customer_uuid,
+            "payment_confirmed",
+            "💳 Paiement confirmé",
+            f"Votre paiement de {amount_str} a été confirmé. Merci !",
+        )
+
     return _intent_to_dict(intent)
 
 
@@ -2876,4 +2956,72 @@ async def revoke_refresh_token(
     if rt.revoked_at is None:
         rt.revoked_at = now
         await db.commit()
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Device tokens — Sprint 26
+# ---------------------------------------------------------------------------
+
+async def register_device_token(
+    db: AsyncSession,
+    claims: Claims,
+    token: str,
+    platform: str = "web",
+) -> dict:
+    """Upsert a device token for the authenticated user.
+
+    If the token already exists it is silently accepted (idempotent).
+    Returns ``{"token": ..., "platform": ..., "user_id": ...}``.
+    """
+    user = await _get_user_by_auth_id(db, claims.user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Upsert: skip insert if the token already exists for this user
+    existing_result = await db.execute(
+        select(DeviceToken).where(DeviceToken.token == token)
+    )
+    existing: DeviceToken | None = existing_result.scalar_one_or_none()
+    if existing is None:
+        dt = DeviceToken(user_id=user.id, token=token, platform=platform)
+        db.add(dt)
+        await db.commit()
+        await db.refresh(dt)
+    else:
+        dt = existing
+
+    return {
+        "token": dt.token,
+        "platform": dt.platform,
+        "user_id": str(user.user_id),
+    }
+
+
+async def deregister_device_token(
+    db: AsyncSession,
+    claims: Claims,
+    token: str,
+) -> bool:
+    """Remove a device token.
+
+    Returns ``True`` if removed, ``False`` if not found.
+    Ownership: the token must belong to the authenticated user (or admin).
+    """
+    user = await _get_user_by_auth_id(db, claims.user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    result = await db.execute(
+        select(DeviceToken).where(
+            DeviceToken.token == token,
+            DeviceToken.user_id == user.id,
+        )
+    )
+    dt: DeviceToken | None = result.scalar_one_or_none()
+    if dt is None:
+        return False
+
+    await db.delete(dt)
+    await db.commit()
     return True

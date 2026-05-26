@@ -1,5 +1,5 @@
 /**
- * API client for web-driver — Sprint 21.
+ * API client for web-driver — Sprint 26.
  * NOT shared across frontends (isolation rule).
  */
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -311,4 +311,36 @@ export async function fetchDemo(token) {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
   });
   return _json(res);
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 26 — Device token registration
+// ---------------------------------------------------------------------------
+
+/**
+ * Register a device token (FCM or web-push endpoint) for push notifications.
+ * Idempotent — safe to call on each login.
+ */
+export async function registerDeviceToken(token, deviceToken, platform = "web") {
+  const res = await fetch(`${API_BASE}/v1/devices/register`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ token: deviceToken, platform }),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+/**
+ * Deregister a device token (called on logout).
+ */
+export async function deregisterDeviceToken(token, deviceToken) {
+  const res = await fetch(`${API_BASE}/v1/devices/${encodeURIComponent(deviceToken)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.ok;
 }

@@ -99,5 +99,20 @@ class Settings(BaseSettings):
     # Default return URL after payment (override in production)
     payment_return_url: str = "https://app.ziza.ci/payment/return"
 
+    # ------------------------------------------------------------------
+    # Notifications — Sprint 26
+    # ------------------------------------------------------------------
+    # SendGrid transactional email
+    sendgrid_api_key: str = ""
+    sendgrid_from_email: str = "noreply@ziza.ci"
+
+    # AfricasTalking SMS (West Africa coverage)
+    africas_talking_api_key: str = ""
+    africas_talking_username: str = "sandbox"
+
+    # FCM credentials path or JSON string (reuses firebase-admin from Sprint 3)
+    # Leave empty to skip FCM channel registration at startup.
+    fcm_credentials_json: str = ""
+
 
 settings = Settings()

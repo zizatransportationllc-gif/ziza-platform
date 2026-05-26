@@ -13,6 +13,7 @@ import {
   listNotifications, getUnreadCount, markAllRead,
   listCategories,
   updateDriverLocation, getDriverLocation,
+  registerDeviceToken,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -1145,6 +1146,28 @@ export default function App() {
     registerUser(token)
       .then(() => registerDriver(token))
       .catch(() => {});
+  }, [user]);
+
+  // Sprint 26 — request web push permission and register device token
+  useEffect(() => {
+    if (!user || user.role !== REQUIRED_ROLE) return;
+    if (!("serviceWorker" in navigator) || !("Notification" in window)) return;
+    if (Notification.permission === "denied") return;
+
+    Notification.requestPermission().then(async (permission) => {
+      if (permission !== "granted") return;
+      try {
+        const reg = await navigator.serviceWorker.register("/sw.js");
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: undefined,
+        }).catch(() => null);
+        const deviceToken = sub ? sub.endpoint : `web-driver-${user.user_id}`;
+        await registerDeviceToken(token, deviceToken, "web");
+      } catch (_) {
+        // Non-blocking
+      }
+    }).catch(() => {});
   }, [user]);
 
   async function handleEmailLogin(email, password) {

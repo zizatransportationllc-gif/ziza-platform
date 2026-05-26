@@ -7,6 +7,7 @@ import {
   listPlaces, createPlace, updatePlace, deletePlace,
   listCategories, getTripEta, getTripTracking,
   createPaymentIntent, getTripPayment, simulatePayment,
+  registerDeviceToken,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -1420,6 +1421,29 @@ export default function App() {
   useEffect(() => {
     if (!user || user.role !== REQUIRED_ROLE) return;
     registerUser(token).catch(() => {});
+  }, [user]);
+
+  // Sprint 26 — request web push permission and register device token
+  useEffect(() => {
+    if (!user || user.role !== REQUIRED_ROLE) return;
+    if (!("serviceWorker" in navigator) || !("Notification" in window)) return;
+    if (Notification.permission === "denied") return;
+
+    Notification.requestPermission().then(async (permission) => {
+      if (permission !== "granted") return;
+      try {
+        const reg = await navigator.serviceWorker.register("/sw.js");
+        // Use the SW registration endpoint as the device token (web push)
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: undefined, // VAPID key would go here in production
+        }).catch(() => null);
+        const deviceToken = sub ? sub.endpoint : `web-${user.user_id}`;
+        await registerDeviceToken(token, deviceToken, "web");
+      } catch (_) {
+        // Non-blocking — push is best-effort
+      }
+    }).catch(() => {});
   }, [user]);
 
   async function handleEmailLogin(email, password) {
