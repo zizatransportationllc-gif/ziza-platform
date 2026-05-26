@@ -26,7 +26,7 @@ from app.models.payment import PaymentIntent
 from app.models.refresh_token import RefreshToken
 from app.models.saved_place import SavedPlace
 from app.models.estimate import Estimate
-from app.models.payout_request import PayoutRequest as PayoutRequestModel
+from app.models.payout_request import PayoutRequest as PayoutRequestModel, CommissionSetting
 from app.models.platform_setting import PlatformSetting
 from app.models.promo import PromoCode
 from app.models.rating import Rating
@@ -3025,3 +3025,259 @@ async def deregister_device_token(
     await db.delete(dt)
     await db.commit()
     return True
+
+
+# ---------------------------------------------------------------------------
+# Sprint 29 — Commission settings & payout batch
+# ---------------------------------------------------------------------------
+
+#: Default commission rates seeded at first call if the table is empty.
+_DEFAULT_COMMISSION_RATES: dict[str, int] = {
+    "default": 15,
+    "economy": 15,
+    "comfort": 18,
+    "premium": 20,
+    "assistance": 12,
+}
+
+
+async def _ensure_commission_defaults(db: AsyncSession) -> None:
+    """Seed default commission rows if the table is empty.
+
+    Called lazily so the table is populated on first use without needing
+    a separate seed script.
+    """
+    r = await db.execute(select(func.count(CommissionSetting.id)))
+    if (r.scalar() or 0) > 0:
+        return
+    for cat, rate in _DEFAULT_COMMISSION_RATES.items():
+        db.add(CommissionSetting(category=cat, rate_pct=rate))
+    await db.commit()
+
+
+async def get_commission_settings(db: AsyncSession) -> list[dict]:
+    """Return all commission rate settings, ordered by category name."""
+    await _ensure_commission_defaults(db)
+    result = await db.execute(
+        select(CommissionSetting).order_by(CommissionSetting.category.asc())
+    )
+    return [
+        {
+            "category": row.category,
+            "rate_pct": row.rate_pct,
+            "effective_from": _utc(row.effective_from).isoformat(),
+        }
+        for row in result.scalars().all()
+    ]
+
+
+async def set_commission(
+    db: AsyncSession,
+    category: str,
+    rate_pct: int,
+    auth_user_id: str,
+) -> dict:
+    """Create or update the commission rate for a given category.
+
+    ``category`` must be one of: economy, comfort, premium, assistance, default.
+    ``rate_pct`` must be 0–100.
+    Raises 422 on invalid inputs.
+    """
+    from app.models.payout_request import COMMISSION_CATEGORIES  # noqa: PLC0415
+
+    if category not in COMMISSION_CATEGORIES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid category '{category}'. Valid: {sorted(COMMISSION_CATEGORIES)}",
+        )
+    if not (0 <= rate_pct <= 100):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="rate_pct must be between 0 and 100",
+        )
+    user = await _get_user_by_auth_id(db, auth_user_id)
+    created_by_id = user.id if user else None
+
+    result = await db.execute(
+        select(CommissionSetting).where(CommissionSetting.category == category)
+    )
+    setting: CommissionSetting | None = result.scalar_one_or_none()
+
+    if setting is None:
+        setting = CommissionSetting(
+            category=category,
+            rate_pct=rate_pct,
+            created_by=created_by_id,
+        )
+        db.add(setting)
+    else:
+        setting.rate_pct = rate_pct
+        setting.effective_from = datetime.now(timezone.utc)
+        setting.created_by = created_by_id
+
+    await db.commit()
+    await db.refresh(setting)
+    return {
+        "category": setting.category,
+        "rate_pct": setting.rate_pct,
+        "effective_from": _utc(setting.effective_from).isoformat(),
+    }
+
+
+async def _get_commission_rate(db: AsyncSession, category: str) -> int:
+    """Return the commission rate (int %) for a given trip/service category.
+
+    Falls back to "default" if no specific rate is set for ``category``.
+    Falls back to 15 % if the table has no "default" row either.
+    """
+    await _ensure_commission_defaults(db)
+
+    result = await db.execute(
+        select(CommissionSetting).where(CommissionSetting.category == category)
+    )
+    setting: CommissionSetting | None = result.scalar_one_or_none()
+    if setting is not None:
+        return setting.rate_pct
+
+    # Fallback to "default"
+    r_default = await db.execute(
+        select(CommissionSetting).where(CommissionSetting.category == "default")
+    )
+    default_row: CommissionSetting | None = r_default.scalar_one_or_none()
+    return default_row.rate_pct if default_row else 15
+
+
+async def get_driver_balance(db: AsyncSession, auth_user_id: str) -> dict:
+    """Return the net available balance for a driver.
+
+    Formula:
+        gains_bruts  = SUM(fare_xof) for completed trips of this driver
+        commission   = SUM(fare_xof × rate_for_category(category))
+        retraits     = SUM(net_amount_xof) for processed payout requests
+        solde_net    = gains_bruts - commission - retraits
+
+    Net balance is informational: it can be negative if old payout requests
+    were processed before commission was tracked.
+    """
+    driver = await _get_driver_by_auth_id(db, auth_user_id)
+    if driver is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Driver profile not found — call POST /v1/drivers/register first",
+        )
+
+    # Fetch all completed trips for this driver
+    trips_result = await db.execute(
+        select(Trip.fare_xof, Trip.category)
+        .where(Trip.driver_id == driver.id, Trip.status == "completed")
+    )
+    trips_rows = trips_result.all()
+
+    gains_bruts = 0
+    commission_total = 0
+    for fare_xof, category in trips_rows:
+        if fare_xof is None:
+            continue
+        gains_bruts += fare_xof
+        rate = await _get_commission_rate(db, category or "economy")
+        commission_total += math.floor(fare_xof * rate / 100)
+
+    # Processed payout requests (use net_amount_xof when set, else amount_xof)
+    payouts_result = await db.execute(
+        select(PayoutRequestModel.net_amount_xof, PayoutRequestModel.amount_xof)
+        .where(
+            PayoutRequestModel.driver_id == driver.id,
+            PayoutRequestModel.status == "processed",
+        )
+    )
+    retraits = sum(
+        (net if net is not None else gross)
+        for net, gross in payouts_result.all()
+    )
+
+    solde_net = gains_bruts - commission_total - retraits
+
+    return {
+        "driver_id": str(driver.id),
+        "gains_bruts_xof": gains_bruts,
+        "commission_xof": commission_total,
+        "retraits_xof": retraits,
+        "solde_net_xof": solde_net,
+    }
+
+
+async def run_payout_batch(db: AsyncSession) -> dict:
+    """Process all approved payout requests via the configured PayoutAdapter.
+
+    For each approved request:
+      1. Compute commission_xof and net_amount_xof.
+      2. Call PayoutAdapter.send_payout().
+      3. On success  → status = "processed", processed_at = now, provider_ref set.
+      4. On failure  → status = "failed"  (logged, does not abort the batch).
+
+    Returns a summary dict: { processed, failed, total_net_xof, total_commission_xof }.
+    """
+    from app.config import settings as _settings  # noqa: PLC0415
+    from app.payment.payout_adapter import get_payout_adapter  # noqa: PLC0415
+
+    adapter = get_payout_adapter(_settings.payout_provider)
+
+    # Fetch all approved payout requests with driver + user info
+    result = await db.execute(
+        select(PayoutRequestModel, Driver, User)
+        .join(Driver, PayoutRequestModel.driver_id == Driver.id)
+        .join(User, Driver.user_id == User.id)
+        .where(PayoutRequestModel.status == "approved")
+        .order_by(PayoutRequestModel.created_at.asc())
+    )
+    rows = result.all()
+
+    processed = 0
+    failed = 0
+    total_net_xof = 0
+    total_commission_xof = 0
+    now = datetime.now(timezone.utc)
+
+    for req, driver, user in rows:
+        # Compute commission for this request
+        # Use a flat default rate applied to the full amount (simplified for batch)
+        rate = await _get_commission_rate(db, "default")
+        commission_xof = math.floor(req.amount_xof * rate / 100)
+        net_amount_xof = req.amount_xof - commission_xof
+
+        phone = user.phone or ""
+        try:
+            ref = await adapter.send_payout(phone, net_amount_xof, str(req.id))
+            req.status = "processed"
+            req.provider_ref = ref
+            req.processed_at = now
+            req.commission_xof = commission_xof
+            req.net_amount_xof = net_amount_xof
+            req.updated_at = now
+            processed += 1
+            total_net_xof += net_amount_xof
+            total_commission_xof += commission_xof
+        except Exception as exc:
+            req.status = "failed"
+            req.updated_at = now
+            failed += 1
+            # Fire-and-forget notification
+            try:
+                await _push_notification(
+                    db,
+                    user.id,
+                    "payout_failed",
+                    "Virement échoué",
+                    f"Votre virement de {req.amount_xof:,} XOF a échoué. ({exc})",
+                )
+            except Exception:
+                pass
+
+        await db.commit()
+
+    return {
+        "processed": processed,
+        "failed": failed,
+        "total_net_xof": total_net_xof,
+        "total_commission_xof": total_commission_xof,
+    }

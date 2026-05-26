@@ -114,5 +114,14 @@ class Settings(BaseSettings):
     # Leave empty to skip FCM channel registration at startup.
     fcm_credentials_json: str = ""
 
+    # ------------------------------------------------------------------
+    # Payout batch — Sprint 29
+    # ------------------------------------------------------------------
+    # Which payout backend to use: "mock" | "orange_money"
+    payout_provider: str = "mock"
+    # Default platform commission percentage (integer, e.g. 15 = 15%).
+    # Overridden per category via POST /v1/admin/commission.
+    default_commission_pct: int = 15
+
 
 settings = Settings()

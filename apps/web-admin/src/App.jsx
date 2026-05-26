@@ -7,6 +7,7 @@ import {
   adminListPayouts, adminUpdatePayoutStatus, adminListRatings,
   adminGetSurge, adminSetSurge,
   adminListDocuments, adminUpdateDocumentStatus, adminGetPendingCounts,
+  getCommissionSettings, setCommission, runPayoutBatch, // Sprint 29
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -47,7 +48,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 28 — Application mobile driver</p>
+      <p className="subtitle">Sprint 29 — Payout batch &amp; commission</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -918,6 +919,189 @@ function PayoutsPanel({ token }) {
 }
 
 // ---------------------------------------------------------------------------
+// Commission Panel — Sprint 29
+// ---------------------------------------------------------------------------
+
+const COMMISSION_CATEGORY_LABELS = {
+  economy:    "🚗 Economy",
+  comfort:    "🚙 Comfort",
+  premium:    "🏎️ Premium",
+  assistance: "🔧 Assistance",
+  default:    "📦 Défaut",
+};
+
+function CommissionPanel({ token }) {
+  const [settings, setSettings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [editing, setEditing] = useState(null); // { category, rate_pct }
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Batch payout state
+  const [batching, setBatching] = useState(false);
+  const [batchResult, setBatchResult] = useState(null);
+  const [batchError, setBatchError] = useState(null);
+
+  const load = useCallback(() => {
+    setLoading(true); setError(null);
+    getCommissionSettings(token)
+      .then(setSettings)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  function startEdit(cat) {
+    const found = settings.find((s) => s.category === cat);
+    setEditing({ category: cat, rate_pct: String(found?.rate_pct ?? 15) });
+    setSaveError(null);
+    setSaveSuccess(false);
+  }
+
+  async function handleSave(e) {
+    e.preventDefault();
+    if (!editing) return;
+    const rate = parseInt(editing.rate_pct, 10);
+    if (isNaN(rate) || rate < 0 || rate > 100) {
+      setSaveError("Le taux doit être entre 0 et 100."); return;
+    }
+    setSaving(true); setSaveError(null);
+    try {
+      await setCommission(token, editing.category, rate);
+      setSaveSuccess(true);
+      setEditing(null);
+      await load();
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) { setSaveError(err.message); }
+    finally { setSaving(false); }
+  }
+
+  async function handleBatch() {
+    setBatching(true); setBatchResult(null); setBatchError(null);
+    try {
+      const result = await runPayoutBatch(token);
+      setBatchResult(result);
+    } catch (err) { setBatchError(err.message); }
+    finally { setBatching(false); }
+  }
+
+  const CATS = ["economy", "comfort", "premium", "assistance", "default"];
+
+  return (
+    <div className="commission-panel">
+      <div className="panel-header">
+        <h2 className="panel-title">💰 Commission &amp; Batch payout</h2>
+        <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
+      </div>
+
+      {/* Commission rates table */}
+      <section className="commission-section">
+        <h3 className="commission-section-title">Taux de commission par catégorie</h3>
+        {error && <p className="form-error">{error}</p>}
+        {loading && <div className="status loading">⏳ Chargement…</div>}
+        {!loading && (
+          <div className="commission-grid">
+            {CATS.map((cat) => {
+              const setting = settings.find((s) => s.category === cat);
+              return (
+                <div key={cat} className="commission-row">
+                  <span className="commission-cat-label">{COMMISSION_CATEGORY_LABELS[cat] ?? cat}</span>
+                  <span className="commission-rate">
+                    {setting ? `${setting.rate_pct}%` : "—"}
+                  </span>
+                  <button
+                    className="commission-edit-btn"
+                    onClick={() => startEdit(cat)}
+                    disabled={saving}
+                  >
+                    Modifier
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Inline edit form */}
+        {editing && (
+          <form className="commission-edit-form" onSubmit={handleSave}>
+            <div className="commission-edit-row">
+              <span className="commission-edit-label">
+                {COMMISSION_CATEGORY_LABELS[editing.category]} — taux (%)
+              </span>
+              <input
+                className="commission-rate-input"
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                value={editing.rate_pct}
+                onChange={(e) => setEditing((prev) => ({ ...prev, rate_pct: e.target.value }))}
+                required
+              />
+              <button className="cap-save-btn" type="submit" disabled={saving}>
+                {saving ? "…" : "✓ Enregistrer"}
+              </button>
+              <button
+                className="cap-cancel-btn"
+                type="button"
+                onClick={() => setEditing(null)}
+                disabled={saving}
+              >
+                Annuler
+              </button>
+            </div>
+            {saveError && <p className="form-error">{saveError}</p>}
+          </form>
+        )}
+        {saveSuccess && <p className="surge-success">✓ Taux mis à jour avec succès</p>}
+      </section>
+
+      {/* Batch payout section */}
+      <section className="commission-section batch-section">
+        <h3 className="commission-section-title">Batch payout</h3>
+        <p className="commission-hint">
+          Lance le traitement de toutes les demandes de retrait approuvées.
+          Les demandes déjà traitées sont ignorées (idempotent).
+        </p>
+        <button
+          className="batch-run-btn"
+          onClick={handleBatch}
+          disabled={batching}
+        >
+          {batching ? "⏳ Traitement en cours…" : "🚀 Lancer batch payout"}
+        </button>
+
+        {batchError && <p className="form-error">✗ {batchError}</p>}
+        {batchResult && (
+          <div className="batch-result">
+            <div className="batch-result-row">
+              <span className="batch-result-label">✅ Traitées</span>
+              <span className="batch-result-value">{batchResult.processed}</span>
+            </div>
+            <div className="batch-result-row">
+              <span className="batch-result-label">✗ Échouées</span>
+              <span className="batch-result-value">{batchResult.failed}</span>
+            </div>
+            <div className="batch-result-row">
+              <span className="batch-result-label">Montant net total</span>
+              <span className="batch-result-value">{formatXOF(batchResult.total_net_xof)}</span>
+            </div>
+            <div className="batch-result-row">
+              <span className="batch-result-label">Commission totale</span>
+              <span className="batch-result-value">{formatXOF(batchResult.total_commission_xof)}</span>
+            </div>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Ratings Panel — Sprint 15
 // ---------------------------------------------------------------------------
 
@@ -1068,16 +1252,17 @@ function SurgePanel({ token }) {
 // ---------------------------------------------------------------------------
 
 const TABS = [
-  { id: "stats",     label: "📊 Stats" },
-  { id: "trips",     label: "🚕 Courses" },
-  { id: "assist",    label: "🆘 Assistances" },
-  { id: "drivers",   label: "🧑‍✈️ Chauffeurs" },
-  { id: "promos",    label: "🏷️ Promos" },
-  { id: "payouts",   label: "💸 Retraits",  pendingKey: "payout_requests" },
-  { id: "ratings",   label: "⭐ Avis" },
-  { id: "documents", label: "📄 Documents", pendingKey: "documents" },
-  { id: "settings",  label: "⚙️ Paramètres" },
-  { id: "users",     label: "👥 Utilisateurs" },
+  { id: "stats",      label: "📊 Stats" },
+  { id: "trips",      label: "🚕 Courses" },
+  { id: "assist",     label: "🆘 Assistances" },
+  { id: "drivers",    label: "🧑‍✈️ Chauffeurs" },
+  { id: "promos",     label: "🏷️ Promos" },
+  { id: "payouts",    label: "💸 Retraits",    pendingKey: "payout_requests" },
+  { id: "ratings",    label: "⭐ Avis" },
+  { id: "documents",  label: "📄 Documents",   pendingKey: "documents" },
+  { id: "commission", label: "💰 Commission" },
+  { id: "settings",   label: "⚙️ Paramètres" },
+  { id: "users",      label: "👥 Utilisateurs" },
 ];
 
 function Dashboard({ user, token, onLogout }) {
@@ -1115,18 +1300,19 @@ function Dashboard({ user, token, onLogout }) {
         })}
       </div>
 
-      {activeTab === "stats"     && <StatsPanel      token={token} />}
-      {activeTab === "trips"     && <TripsPanel      token={token} />}
-      {activeTab === "assist"    && <AssistancePanel token={token} />}
-      {activeTab === "drivers"   && <DriversPanel    token={token} />}
-      {activeTab === "promos"    && <PromoPanel      token={token} />}
-      {activeTab === "payouts"   && <PayoutsPanel    token={token} />}
-      {activeTab === "ratings"   && <RatingsPanel    token={token} />}
-      {activeTab === "documents" && <DocumentsPanel  token={token} />}
-      {activeTab === "settings"  && <SurgePanel      token={token} />}
-      {activeTab === "users"     && <UsersPanel      token={token} />}
+      {activeTab === "stats"      && <StatsPanel       token={token} />}
+      {activeTab === "trips"      && <TripsPanel       token={token} />}
+      {activeTab === "assist"     && <AssistancePanel  token={token} />}
+      {activeTab === "drivers"    && <DriversPanel     token={token} />}
+      {activeTab === "promos"     && <PromoPanel       token={token} />}
+      {activeTab === "payouts"    && <PayoutsPanel     token={token} />}
+      {activeTab === "ratings"    && <RatingsPanel     token={token} />}
+      {activeTab === "documents"  && <DocumentsPanel   token={token} />}
+      {activeTab === "commission" && <CommissionPanel  token={token} />}
+      {activeTab === "settings"   && <SurgePanel       token={token} />}
+      {activeTab === "users"      && <UsersPanel       token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 19</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 29</p>
     </div>
   );
 }

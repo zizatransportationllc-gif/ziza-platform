@@ -252,3 +252,28 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .filter-reset-btn { background: transparent; color: var(--color-muted); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.9rem; cursor: pointer; }
 .filter-reset-btn:hover { border-color: var(--color-error); color: var(--color-error); }
 .filter-reset-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Sprint 29: Commission & Batch payout panel ───────────────────────── */
+.commission-panel { text-align: left; }
+.commission-section { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-4); }
+.commission-section-title { font-size: 0.875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-muted); margin: 0 0 var(--space-3); }
+.commission-grid { display: flex; flex-direction: column; gap: var(--space-2); }
+.commission-row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.commission-cat-label { flex: 1; font-size: 0.9rem; font-weight: 600; }
+.commission-rate { min-width: 48px; text-align: right; font-size: 1rem; font-weight: 700; color: var(--color-accent); }
+.commission-edit-btn { background: transparent; border: 1px solid var(--color-border); color: var(--color-muted); border-radius: var(--radius-md); padding: var(--space-1) var(--space-3); font-size: 0.8rem; cursor: pointer; }
+.commission-edit-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+.commission-edit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.commission-edit-form { margin-top: var(--space-3); padding: var(--space-3); background: var(--color-bg); border: 1px solid var(--color-accent); border-radius: var(--radius-md); }
+.commission-edit-row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.commission-edit-label { flex: 1; font-size: 0.85rem; font-weight: 600; min-width: 160px; }
+.commission-rate-input { width: 80px; padding: var(--space-1) var(--space-2); background: var(--color-surface); border: 1px solid var(--color-border); color: var(--color-fg); border-radius: var(--radius-md); font-size: 0.95rem; text-align: center; }
+.commission-hint { font-size: 0.82rem; color: var(--color-muted); line-height: 1.5; margin-bottom: var(--space-3); }
+.batch-section { border-color: var(--color-accent); }
+.batch-run-btn { display: inline-flex; align-items: center; gap: var(--space-2); background: var(--color-accent); color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-2) var(--space-5); font-size: 0.95rem; font-weight: 700; cursor: pointer; margin-bottom: var(--space-3); }
+.batch-run-btn:hover { opacity: 0.9; }
+.batch-run-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.batch-result { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
+.batch-result-row { display: flex; justify-content: space-between; font-size: 0.875rem; }
+.batch-result-label { color: var(--color-muted); }
+.batch-result-value { font-weight: 700; }

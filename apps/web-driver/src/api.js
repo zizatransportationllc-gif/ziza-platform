@@ -344,3 +344,18 @@ export async function deregisterDeviceToken(token, deviceToken) {
   });
   return res.ok;
 }
+
+// ---------------------------------------------------------------------------
+// Sprint 29 — Driver net balance
+// ---------------------------------------------------------------------------
+
+/**
+ * Return the driver's net available balance after commission deduction.
+ * { driver_id, gains_bruts_xof, commission_xof, retraits_xof, solde_net_xof }
+ */
+export async function getDriverBalance(token) {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/balance`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}

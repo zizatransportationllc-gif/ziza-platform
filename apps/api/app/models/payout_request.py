@@ -1,7 +1,7 @@
-"""PayoutRequest model — Sprint 15.
+"""PayoutRequest and CommissionSetting models — Sprint 15 → Sprint 29.
 
-A driver requests withdrawal of accumulated earnings.
-Admin approves or rejects the request.
+PayoutRequest: a driver requests withdrawal of accumulated earnings.
+CommissionSetting: configurable platform commission rate per vehicle category.
 """
 from __future__ import annotations
 
@@ -16,6 +16,47 @@ from app.db import Base
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+# ---------------------------------------------------------------------------
+# Sprint 29 — Commission settings
+# ---------------------------------------------------------------------------
+
+#: Categories recognised by the commission system.
+COMMISSION_CATEGORIES = frozenset(
+    {"economy", "comfort", "premium", "assistance", "default"}
+)
+
+
+class CommissionSetting(Base):
+    """Platform commission rate per vehicle / service category.
+
+    rate_pct is an integer percentage, e.g. 15 = 15%.
+    One row per category; upserted by admin via POST /v1/admin/commission.
+    """
+
+    __tablename__ = "commission_settings"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, default=uuid.uuid4
+    )
+    # "economy" | "comfort" | "premium" | "assistance" | "default"
+    category: Mapped[str] = mapped_column(
+        String(32), nullable=False, unique=True, index=True
+    )
+    # Integer percentage, e.g. 15 = 15%
+    rate_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=15)
+    effective_from: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<CommissionSetting category={self.category!r} rate={self.rate_pct}%>"
+        )
 
 
 class PayoutRequest(Base):
@@ -35,12 +76,19 @@ class PayoutRequest(Base):
         index=True,
     )
     amount_xof: Mapped[int] = mapped_column(Integer, nullable=False)
-    # pending | approved | rejected
+    # pending | approved | rejected | processed | failed
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default="pending", server_default="pending"
     )
     # Optional admin note (reason for rejection, etc.)
     note_admin: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Sprint 29 — commission and batch payout fields
+    commission_xof: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    net_amount_xof: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    provider_ref: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    processed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )

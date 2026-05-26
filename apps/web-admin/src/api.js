@@ -278,3 +278,38 @@ export async function adminSetDriverStatus(token, driverId, newStatus) {
   });
   return _json(res); // { driver_id, status }
 }
+
+// ---------------------------------------------------------------------------
+// Sprint 29 — Commission & Payout batch
+// ---------------------------------------------------------------------------
+
+/** List all commission settings (admin only). */
+export async function getCommissionSettings(token) {
+  const res = await fetch(`${API_BASE}/v1/admin/commission`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // [{ category, rate_pct, effective_from }]
+}
+
+/** Create or update a commission rate (admin only). */
+export async function setCommission(token, category, rate_pct) {
+  const res = await fetch(`${API_BASE}/v1/admin/commission`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ category, rate_pct }),
+  });
+  return _json(res); // { category, rate_pct, effective_from }
+}
+
+/** Run the batch payout for all approved payout requests. */
+export async function runPayoutBatch(token) {
+  const res = await fetch(`${API_BASE}/v1/admin/payouts/run`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // { processed, failed, total_net_xof, total_commission_xof }
+}

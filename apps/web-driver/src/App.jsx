@@ -5,7 +5,7 @@ import {
   acceptTrip, startTrip, completeTrip,
   listAvailableAssistance, getActiveAssistance,
   acceptAssistance, startAssistance, resolveAssistance,
-  getMyRating, getMyEarnings,
+  getMyRating, getMyEarnings, getDriverBalance,
   getMyVehicle, registerVehicle,
   getDriverProfile, setDriverOnline, listDriverTripHistory,
   createPayoutRequest, listPayoutRequests,
@@ -77,7 +77,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Driver</h1>
-      <p className="subtitle">Sprint 28 — Application mobile driver</p>
+      <p className="subtitle">Sprint 29 — Payout batch &amp; commission</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -166,10 +166,10 @@ function RatingStats({ stats }) {
 }
 
 // ---------------------------------------------------------------------------
-// Earnings card — Sprint 11
+// Earnings card — Sprint 11 → Sprint 29 (net balance + commission)
 // ---------------------------------------------------------------------------
 
-function EarningsCard({ earnings }) {
+function EarningsCard({ earnings, balance }) {
   if (!earnings) return null;
   const { total_xof, total_trips, today_xof, today_trips, week_xof, week_trips, recent_trips = [] } = earnings;
 
@@ -178,6 +178,31 @@ function EarningsCard({ earnings }) {
       <div className="earnings-label">Mes gains</div>
       <div className="earnings-total">{formatXOF(total_xof)}</div>
       <div className="earnings-count">{total_trips} course{total_trips !== 1 ? "s" : ""} complétée{total_trips !== 1 ? "s" : ""}</div>
+
+      {/* Sprint 29 — net balance breakdown */}
+      {balance && (
+        <div className="balance-breakdown">
+          <div className="balance-row">
+            <span className="balance-label">Gains bruts</span>
+            <span className="balance-value">{formatXOF(balance.gains_bruts_xof)}</span>
+          </div>
+          <div className="balance-row balance-row--deduction">
+            <span className="balance-label">Commission plateforme</span>
+            <span className="balance-value balance-value--negative">- {formatXOF(balance.commission_xof)}</span>
+          </div>
+          {balance.retraits_xof > 0 && (
+            <div className="balance-row balance-row--deduction">
+              <span className="balance-label">Retraits effectués</span>
+              <span className="balance-value balance-value--negative">- {formatXOF(balance.retraits_xof)}</span>
+            </div>
+          )}
+          <div className="balance-row balance-row--net">
+            <span className="balance-label">Solde net disponible</span>
+            <span className="balance-value balance-value--net">{formatXOF(balance.solde_net_xof)}</span>
+          </div>
+        </div>
+      )}
+
       <div className="earnings-periods">
         <div className="earnings-period">
           <span className="period-label">Aujourd'hui</span>
@@ -931,6 +956,7 @@ function Dashboard({ user, token, onLogout }) {
   const [togglingOnline, setTogglingOnline] = useState(false);
   const [tab, setTab] = useState("dispatch"); // "dispatch" | "history" | "payouts" | "documents" | "notifications" | "location"
   const [unreadCount, setUnreadCount] = useState(0);
+  const [balance, setBalance] = useState(null); // Sprint 29 — net balance
 
   const refreshUnread = useCallback(() => {
     getUnreadCount(token).then((d) => setUnreadCount(d.count)).catch(() => {});
@@ -946,6 +972,7 @@ function Dashboard({ user, token, onLogout }) {
       getActiveAssistance(token).then(({ request }) => { setActiveAssistance(request); }).catch(() => {}),
       getMyRating(token).then(setRatingStats).catch(() => {}),
       getMyEarnings(token).then(setEarnings).catch(() => {}),
+      getDriverBalance(token).then(setBalance).catch(() => {}), // Sprint 29
       getMyVehicle(token).then(setVehicle).catch(() => setVehicle(null)),
       getDriverProfile(token).then((p) => setIsOnline(p.is_online)).catch(() => {}),
     ]).finally(() => setInitialized(true));
@@ -966,6 +993,7 @@ function Dashboard({ user, token, onLogout }) {
   function refreshStats() {
     getMyRating(token).then(setRatingStats).catch(() => {});
     getMyEarnings(token).then(setEarnings).catch(() => {});
+    getDriverBalance(token).then(setBalance).catch(() => {}); // Sprint 29
   }
 
   async function handleToggleOnline() {
@@ -1034,7 +1062,7 @@ function Dashboard({ user, token, onLogout }) {
       </button>
 
       <VehicleCard token={token} vehicle={vehicle} onSaved={setVehicle} />
-      <EarningsCard earnings={earnings} />
+      <EarningsCard earnings={earnings} balance={balance} />
       <RatingStats stats={ratingStats} />
 
       {/* Active mission always shown regardless of tab */}
@@ -1110,7 +1138,7 @@ function Dashboard({ user, token, onLogout }) {
         </>
       )}
 
-      <p className="footer">App: <strong>web-driver</strong> · Sprint 22</p>
+      <p className="footer">App: <strong>web-driver</strong> · Sprint 29</p>
     </div>
   );
 }

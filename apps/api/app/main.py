@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 25.
+"""Ziza API — Sprint 29.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -85,6 +85,10 @@ Endpoints:
   POST  /v1/drivers/me/documents/upload-url        get a signed GCS URL for direct document upload (Sprint 25)
   POST  /v1/devices/register                       register a FCM / web-push device token (Sprint 26)
   DELETE /v1/devices/{token}                       revoke a device token on logout (Sprint 26)
+  GET   /v1/drivers/me/balance                     driver's net available balance after commission (Sprint 29)
+  GET   /v1/admin/commission                       list platform commission rates per category (Sprint 29)
+  POST  /v1/admin/commission                       create/update a commission rate (Sprint 29)
+  POST  /v1/admin/payouts/run                      run batch payout for all approved requests (Sprint 29)
 """
 from __future__ import annotations
 
@@ -2572,3 +2576,120 @@ async def deregister_device(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Device token not found",
         )
+
+
+# ---------------------------------------------------------------------------
+# Commission & Payout Batch — Sprint 29
+# ---------------------------------------------------------------------------
+
+class CommissionSettingResponse(BaseModel):
+    category: str
+    rate_pct: int
+    effective_from: str
+
+
+class SetCommissionRequest(BaseModel):
+    category: str = Field(
+        ...,
+        description="economy | comfort | premium | assistance | default",
+    )
+    rate_pct: Annotated[
+        int,
+        Field(ge=0, le=100, description="Commission rate in percent (0–100)"),
+    ]
+
+
+class DriverBalanceResponse(BaseModel):
+    driver_id: str
+    gains_bruts_xof: int
+    commission_xof: int
+    retraits_xof: int
+    solde_net_xof: int
+
+
+class PayoutBatchResponse(BaseModel):
+    processed: int
+    failed: int
+    total_net_xof: int
+    total_commission_xof: int
+
+
+@app.get("/v1/drivers/me/balance", tags=["payouts"])
+async def get_driver_balance(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> DriverBalanceResponse:
+    """Sprint 29 — Return the driver's net available balance.
+
+    Breakdown:
+    - ``gains_bruts_xof``: total gross earnings from completed trips
+    - ``commission_xof``: platform fee (configurable per category)
+    - ``retraits_xof``: total already paid out (processed payout requests)
+    - ``solde_net_xof``: available balance = gains - commission - retraits
+    """
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can access their balance",
+        )
+    data = await crud.get_driver_balance(db, claims.user_id)
+    return DriverBalanceResponse(**data)
+
+
+@app.get("/v1/admin/commission", tags=["admin"])
+async def admin_get_commission(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[CommissionSettingResponse]:
+    """Sprint 29 — Admin: list all platform commission rates per category."""
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    rows = await crud.get_commission_settings(db)
+    return [CommissionSettingResponse(**r) for r in rows]
+
+
+@app.post("/v1/admin/commission", tags=["admin"], status_code=200)
+async def admin_set_commission(
+    body: SetCommissionRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CommissionSettingResponse:
+    """Sprint 29 — Admin: create or update a commission rate for a category.
+
+    Valid categories: economy, comfort, premium, assistance, default.
+    The new rate takes effect immediately on subsequent balance calculations.
+    """
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    result = await crud.set_commission(db, body.category, body.rate_pct, claims.user_id)
+    return CommissionSettingResponse(**result)
+
+
+@app.post("/v1/admin/payouts/run", tags=["payouts"], status_code=200)
+async def admin_run_payout_batch(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PayoutBatchResponse:
+    """Sprint 29 — Admin: run the batch payout for all approved requests.
+
+    For every ``payout_request`` with status ``approved``:
+    1. Deducts platform commission.
+    2. Calls the configured ``PayoutAdapter`` to initiate the transfer.
+    3. On success → status ``processed``, ``provider_ref`` + ``processed_at`` set.
+    4. On provider error → status ``failed`` (batch continues, no rollback).
+
+    Returns a summary: number of requests processed / failed + total amounts.
+    """
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    result = await crud.run_payout_batch(db)
+    return PayoutBatchResponse(**result)
