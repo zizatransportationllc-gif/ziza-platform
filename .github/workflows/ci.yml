@@ -114,6 +114,31 @@ jobs:
           cache-to: type=gha,scope=${{ matrix.app }},mode=max
 
   # ------------------------------------------------------------------
+  # Mobile customer: TypeScript check + Jest tests — Sprint 27
+  # ------------------------------------------------------------------
+  mobile-customer-build:
+    name: Mobile customer (TS + Jest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install deps
+        working-directory: apps/mobile-customer
+        run: npm install
+
+      - name: TypeScript check
+        working-directory: apps/mobile-customer
+        run: npx tsc --noEmit
+
+      - name: Jest tests
+        working-directory: apps/mobile-customer
+        run: npx jest --passWithNoTests
+
+  # ------------------------------------------------------------------
   # Frontend isolation guard: no cross-app imports allowed
   # ------------------------------------------------------------------
   frontend-isolation:

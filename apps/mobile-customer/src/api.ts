@@ -1,0 +1,400 @@
+/**
+ * API client for mobile-customer — Sprint 27.
+ * Isolated per frontend-isolation rule (no shared code with web frontends).
+ */
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const API_BASE =
+  (process.env.EXPO_PUBLIC_API_URL as string) || "http://localhost:8000";
+
+const TOKEN_KEY = "ziza_access_token";
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+async function _json<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).detail || `HTTP ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+function _auth(token: string): HeadersInit {
+  return { Authorization: `Bearer ${token}`, Accept: "application/json" };
+}
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface TokenResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+}
+
+export interface CategoryInfo {
+  category_id: string;
+  name: string;
+  description: string;
+  base_fare_xof: number;
+  per_km_xof: number;
+}
+
+export interface EstimateResponse {
+  estimate_id: string;
+  price_xof: number;
+  distance_km: number;
+  duration_min: number;
+  category_id: string;
+  expires_at: string;
+}
+
+export interface TripResponse {
+  trip_id: string;
+  status: string;
+  driver_id: string | null;
+  origin_lat: number;
+  origin_lng: number;
+  dest_lat: number;
+  dest_lng: number;
+  price_xof: number;
+  eta_minutes: number | null;
+  created_at: string;
+}
+
+export interface DriverPosition {
+  driver_id: string;
+  lat: number;
+  lng: number;
+  updated_at: string;
+}
+
+export interface PaymentIntentResponse {
+  payment_id: string;
+  trip_id: string;
+  amount_xof: number;
+  provider_ref: string;
+  checkout_url: string;
+  status: string;
+}
+
+export interface PromoResponse {
+  promo_code: string;
+  discount_xof: number;
+  final_price_xof: number;
+}
+
+export interface AssistanceResponse {
+  request_id: string;
+  type: string;
+  status: string;
+  driver_id: string | null;
+  latitude: number;
+  longitude: number;
+  created_at: string;
+}
+
+export interface PlaceResult {
+  place_id: string;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+}
+
+export interface NotificationRecord {
+  notification_id: string;
+  type: string;
+  title: string;
+  body: string;
+  read: boolean;
+  channel: string;
+  created_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// Token storage
+// ---------------------------------------------------------------------------
+
+export async function storeToken(token: string): Promise<void> {
+  await AsyncStorage.setItem(TOKEN_KEY, token);
+}
+
+export async function getStoredToken(): Promise<string | null> {
+  return AsyncStorage.getItem(TOKEN_KEY);
+}
+
+export async function clearToken(): Promise<void> {
+  await AsyncStorage.removeItem(TOKEN_KEY);
+}
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+export async function login(
+  email: string,
+  password: string
+): Promise<TokenResponse> {
+  const res = await fetch(`${API_BASE}/v1/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const data = await _json<TokenResponse>(res);
+  await storeToken(data.access_token);
+  return data;
+}
+
+export async function logout(token: string): Promise<void> {
+  await fetch(`${API_BASE}/v1/auth/logout`, {
+    method: "POST",
+    headers: _auth(token),
+  }).catch(() => {});
+  await clearToken();
+}
+
+export async function refreshAccessToken(
+  refreshToken: string
+): Promise<TokenResponse> {
+  const res = await fetch(`${API_BASE}/v1/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+  const data = await _json<TokenResponse>(res);
+  await storeToken(data.access_token);
+  return data;
+}
+
+// ---------------------------------------------------------------------------
+// Categories
+// ---------------------------------------------------------------------------
+
+export async function listCategories(token: string): Promise<CategoryInfo[]> {
+  const res = await fetch(`${API_BASE}/v1/categories`, {
+    headers: _auth(token),
+  });
+  return _json<CategoryInfo[]>(res);
+}
+
+// ---------------------------------------------------------------------------
+// Trips
+// ---------------------------------------------------------------------------
+
+export async function getEstimate(
+  token: string,
+  originLat: number,
+  originLng: number,
+  destLat: number,
+  destLng: number,
+  categoryId?: string
+): Promise<EstimateResponse> {
+  const body: Record<string, unknown> = {
+    origin_lat: originLat,
+    origin_lng: originLng,
+    dest_lat: destLat,
+    dest_lng: destLng,
+  };
+  if (categoryId) body.category_id = categoryId;
+  const res = await fetch(`${API_BASE}/v1/estimate`, {
+    method: "POST",
+    headers: { ...(_auth(token) as object), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return _json<EstimateResponse>(res);
+}
+
+export async function applyPromo(
+  token: string,
+  code: string,
+  estimateId: string
+): Promise<PromoResponse> {
+  const res = await fetch(`${API_BASE}/v1/promo/apply`, {
+    method: "POST",
+    headers: { ...(_auth(token) as object), "Content-Type": "application/json" },
+    body: JSON.stringify({ code, estimate_id: estimateId }),
+  });
+  return _json<PromoResponse>(res);
+}
+
+export async function createTrip(
+  token: string,
+  estimateId: string
+): Promise<TripResponse> {
+  const res = await fetch(`${API_BASE}/v1/trips`, {
+    method: "POST",
+    headers: { ...(_auth(token) as object), "Content-Type": "application/json" },
+    body: JSON.stringify({ estimate_id: estimateId }),
+  });
+  return _json<TripResponse>(res);
+}
+
+export async function getTripStatus(
+  token: string,
+  tripId: string
+): Promise<TripResponse> {
+  const res = await fetch(`${API_BASE}/v1/trips/${tripId}`, {
+    headers: _auth(token),
+  });
+  return _json<TripResponse>(res);
+}
+
+export async function cancelTrip(
+  token: string,
+  tripId: string
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/v1/trips/${tripId}/cancel`, {
+    method: "PATCH",
+    headers: _auth(token),
+  });
+  await _json<unknown>(res);
+}
+
+export async function listTripHistory(
+  token: string,
+  limit = 20,
+  offset = 0
+): Promise<TripResponse[]> {
+  const res = await fetch(
+    `${API_BASE}/v1/trips/customer/history?limit=${limit}&offset=${offset}`,
+    { headers: _auth(token) }
+  );
+  return _json<TripResponse[]>(res);
+}
+
+// ---------------------------------------------------------------------------
+// Tracking
+// ---------------------------------------------------------------------------
+
+export async function getDriverPosition(
+  token: string,
+  driverId: string
+): Promise<DriverPosition | null> {
+  const res = await fetch(`${API_BASE}/v1/drivers/${driverId}/location`, {
+    headers: _auth(token),
+  });
+  if (res.status === 404) return null;
+  return _json<DriverPosition>(res);
+}
+
+// ---------------------------------------------------------------------------
+// Payments
+// ---------------------------------------------------------------------------
+
+export async function createPaymentIntent(
+  token: string,
+  tripId: string
+): Promise<PaymentIntentResponse> {
+  const res = await fetch(`${API_BASE}/v1/payments/intent`, {
+    method: "POST",
+    headers: { ...(_auth(token) as object), "Content-Type": "application/json" },
+    body: JSON.stringify({ trip_id: tripId }),
+  });
+  return _json<PaymentIntentResponse>(res);
+}
+
+export async function getPaymentStatus(
+  token: string,
+  tripId: string
+): Promise<{ status: string; provider_ref: string }> {
+  const res = await fetch(`${API_BASE}/v1/payments/${tripId}/status`, {
+    headers: _auth(token),
+  });
+  return _json<{ status: string; provider_ref: string }>(res);
+}
+
+// ---------------------------------------------------------------------------
+// Assistance
+// ---------------------------------------------------------------------------
+
+export async function requestAssistance(
+  token: string,
+  type: string,
+  lat: number,
+  lng: number
+): Promise<AssistanceResponse> {
+  const res = await fetch(`${API_BASE}/v1/assistance`, {
+    method: "POST",
+    headers: { ...(_auth(token) as object), "Content-Type": "application/json" },
+    body: JSON.stringify({ type, latitude: lat, longitude: lng }),
+  });
+  return _json<AssistanceResponse>(res);
+}
+
+export async function getActiveAssistance(
+  token: string
+): Promise<{ request: AssistanceResponse | null }> {
+  const res = await fetch(`${API_BASE}/v1/assistance/customer/active`, {
+    headers: _auth(token),
+  });
+  return _json<{ request: AssistanceResponse | null }>(res);
+}
+
+// ---------------------------------------------------------------------------
+// Places (autocomplete)
+// ---------------------------------------------------------------------------
+
+export async function searchPlaces(
+  token: string,
+  query: string
+): Promise<PlaceResult[]> {
+  const res = await fetch(
+    `${API_BASE}/v1/places/autocomplete?q=${encodeURIComponent(query)}`,
+    { headers: _auth(token) }
+  );
+  return _json<PlaceResult[]>(res);
+}
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+export async function listNotifications(
+  token: string,
+  limit = 20,
+  offset = 0
+): Promise<NotificationRecord[]> {
+  const res = await fetch(
+    `${API_BASE}/v1/notifications?limit=${limit}&offset=${offset}`,
+    { headers: _auth(token) }
+  );
+  return _json<NotificationRecord[]>(res);
+}
+
+export async function markAllNotificationsRead(token: string): Promise<void> {
+  await fetch(`${API_BASE}/v1/notifications/read-all`, {
+    method: "PATCH",
+    headers: _auth(token),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Device tokens (push notifications)
+// ---------------------------------------------------------------------------
+
+export async function registerDeviceToken(
+  token: string,
+  deviceToken: string,
+  platform: "web" | "ios" | "android" = "android"
+): Promise<void> {
+  await fetch(`${API_BASE}/v1/devices/register`, {
+    method: "POST",
+    headers: { ...(_auth(token) as object), "Content-Type": "application/json" },
+    body: JSON.stringify({ token: deviceToken, platform }),
+  });
+}
+
+export async function deregisterDeviceToken(
+  token: string,
+  deviceToken: string
+): Promise<void> {
+  await fetch(
+    `${API_BASE}/v1/devices/${encodeURIComponent(deviceToken)}`,
+    { method: "DELETE", headers: _auth(token) }
+  );
+}

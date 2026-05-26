@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Ziza Customer",
+    "slug": "ziza-customer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "ci.ziza.customer"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#F97316"
+      },
+      "package": "ci.ziza.customer"
+    },
+    "plugins": [
+      "expo-notifications"
+    ]
+  }
+}
