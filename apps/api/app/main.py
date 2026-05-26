@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 23.
+"""Ziza API — Sprint 24.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -76,6 +76,10 @@ Endpoints:
   DELETE /v1/places/{place_id}                     delete a saved place
   GET   /v1/categories                             list vehicle categories + fare multipliers
   GET   /v1/trips/{trip_id}/tracking               customer polls driver live position (Sprint 23)
+  POST  /v1/payments/intent                        customer creates a payment intent for a completed trip (Sprint 24)
+  GET   /v1/payments/{intent_id}                   customer reads their payment intent status (Sprint 24)
+  POST  /v1/payments/webhook                       payment provider confirms or rejects a payment (Sprint 24)
+  GET   /v1/trips/{trip_id}/payment                shortcut: payment status for a trip (Sprint 24)
 """
 from __future__ import annotations
 
@@ -83,7 +87,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated, Literal
 
 import sqlalchemy as _sa
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -418,6 +422,7 @@ class TripResponse(BaseModel):
     promo_code: str | None = None       # Sprint 14: applied promo code
     discount_pct: int | None = None     # Sprint 14: discount applied
     category: str = "economy"           # Sprint 21: chosen vehicle category
+    paid_at: str | None = None          # Sprint 24: ISO-8601 UTC timestamp when payment confirmed
     created_at: str
     events: list[TripEventOut] | None = None
 
@@ -433,6 +438,7 @@ def _vehicle_info(v) -> VehicleInfo | None:
 
 def _trip_response(trip, events=None, vehicle=None) -> TripResponse:
     """Convert a Trip ORM object (+ optional events list + optional vehicle) to a TripResponse."""
+    paid_at_raw = getattr(trip, "paid_at", None)
     return TripResponse(
         trip_id=str(trip.id),
         status=trip.status,
@@ -448,6 +454,7 @@ def _trip_response(trip, events=None, vehicle=None) -> TripResponse:
         promo_code=trip.promo_code,
         discount_pct=trip.discount_pct,
         category=getattr(trip, "category", "economy"),
+        paid_at=paid_at_raw.isoformat() if paid_at_raw is not None else None,  # Sprint 24
         created_at=trip.created_at.isoformat(),
         events=[
             TripEventOut(
@@ -1150,6 +1157,7 @@ class AdminStats(BaseModel):
     trips: dict
     assistance: dict
     drivers: dict
+    payments: dict | None = None  # Sprint 24: payment totals
 
 
 class AdminTripRecord(BaseModel):
@@ -2201,3 +2209,130 @@ async def get_trip_tracking(
         )
     data = await crud.get_trip_tracking(db, claims, trip_id)
     return TrackingResponse(**data)
+
+
+# ---------------------------------------------------------------------------
+# Payment — Sprint 24
+# ---------------------------------------------------------------------------
+
+class PaymentIntentRequest(BaseModel):
+    trip_id: str
+
+
+class PaymentIntentResponse(BaseModel):
+    intent_id: str
+    trip_id: str
+    amount_xof: int
+    currency: str = "XOF"
+    provider: str
+    provider_ref: str | None = None
+    status: str   # pending | paid | failed | refunded
+    checkout_url: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class WebhookResponse(BaseModel):
+    received: bool = True
+    intent_id: str
+    status: str
+
+
+@app.post("/v1/payments/intent", tags=["payments"], status_code=201)
+async def create_payment_intent(
+    body: PaymentIntentRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PaymentIntentResponse:
+    """Sprint 24 — Customer initiates payment for a completed trip.
+
+    Creates (or returns an existing) PaymentIntent linked to the trip.
+    The response contains a ``checkout_url`` the customer should visit to
+    complete the payment via the configured provider (CinetPay / Stripe / mock).
+
+    Rules:
+    - Trip must be in ``completed`` status (422 otherwise).
+    - Only the trip's customer can call this endpoint (403 otherwise).
+    - Idempotent: calling twice returns the same intent.
+    """
+    if claims.role != "customer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only customers can initiate payment",
+        )
+    from app.payment import get_adapter  # noqa: PLC0415
+    adapter = get_adapter()
+    intent_data = await crud.create_payment_intent(
+        db, claims, body.trip_id, adapter,
+        return_url=settings.payment_return_url,
+    )
+    return PaymentIntentResponse(**intent_data)
+
+
+@app.get("/v1/payments/{intent_id}", tags=["payments"])
+async def get_payment_intent(
+    intent_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PaymentIntentResponse:
+    """Sprint 24 — Return a payment intent by ID.
+
+    Only the customer who owns the linked trip can read their intent.
+    """
+    intent_data = await crud.get_payment_intent(db, claims, intent_id)
+    return PaymentIntentResponse(**intent_data)
+
+
+@app.post("/v1/payments/webhook", tags=["payments"])
+async def payment_webhook(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> WebhookResponse:
+    """Sprint 24 — Inbound webhook from the payment provider.
+
+    Called by CinetPay / Stripe after a payment event.  No authentication
+    header — the provider signs the payload instead (signature is verified
+    inside the adapter).
+
+    On success:
+    - Intent status transitions to ``paid`` or ``failed``.
+    - When ``paid``: ``trips.paid_at`` is set to the current timestamp.
+
+    Returns 400 if the signature is invalid or the payload is malformed.
+    """
+    from app.payment import get_adapter  # noqa: PLC0415
+    adapter = get_adapter()
+    payload = await request.body()
+    headers = dict(request.headers)
+    try:
+        intent_data = await crud.confirm_payment(db, payload, headers, adapter)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
+    return WebhookResponse(
+        received=True,
+        intent_id=intent_data["intent_id"],
+        status=intent_data["status"],
+    )
+
+
+@app.get("/v1/trips/{trip_id}/payment", tags=["payments"])
+async def get_trip_payment(
+    trip_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PaymentIntentResponse:
+    """Sprint 24 — Shortcut: payment status for a trip.
+
+    Returns the PaymentIntent linked to the trip, or 404 when no payment
+    has been initiated yet.  Only the trip's customer can call this.
+    """
+    intent_data = await crud.get_trip_payment(db, claims, trip_id)
+    if intent_data is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No payment intent found for this trip",
+        )
+    return PaymentIntentResponse(**intent_data)

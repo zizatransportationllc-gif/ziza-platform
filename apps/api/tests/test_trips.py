@@ -1,4 +1,4 @@
-"""Sprint 6 → Sprint 23 — /v1/trips tests (14 + 3 = 17 tests).
+"""Sprint 6 → Sprint 24 — /v1/trips tests (14 + 3 + 3 = 20 tests).
 
 State machine covered:
   pending → cancelled   (customer cancel from pending)
@@ -348,3 +348,84 @@ def test_complete_trip_event_has_actor_driver() -> None:
                         e["data"].get("to") == "completed"]
     assert completed_events, "No completed event found"
     assert completed_events[0]["actor"] == "driver"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 24 — paid_at field on TripResponse
+# ---------------------------------------------------------------------------
+
+def test_trip_has_no_paid_at_initially() -> None:
+    """A newly created trip has paid_at = null."""
+    token = _get_token()
+    _register(token)
+    estimate_id = _get_estimate(token)
+    trip_resp = _create_trip(token, estimate_id)
+    assert trip_resp.status_code == 201
+    assert trip_resp.json()["paid_at"] is None
+
+
+def test_trip_paid_at_null_after_completion() -> None:
+    """A completed trip still has paid_at = null until payment webhook fires."""
+    tc = _get_token("customer@ziza.dev")
+    td = _get_token("driver@ziza.dev")
+    _register(tc)
+    _register(td)
+    client.post("/v1/drivers/register", headers={"Authorization": f"Bearer {td}"})
+
+    estimate_id = _get_estimate(tc)
+    trip_id = _create_trip(tc, estimate_id).json()["trip_id"]
+
+    for action in ("accept", "start", "complete"):
+        client.patch(
+            f"/v1/trips/{trip_id}/{action}",
+            headers={"Authorization": f"Bearer {td}"},
+        )
+
+    detail = client.get(
+        f"/v1/trips/{trip_id}",
+        headers={"Authorization": f"Bearer {tc}"},
+    )
+    assert detail.status_code == 200
+    # paid_at must still be null — webhook has not fired yet
+    assert detail.json()["paid_at"] is None
+
+
+def test_trip_paid_at_set_after_webhook() -> None:
+    """After webhook confirms payment, paid_at is populated on the trip."""
+    tc = _get_token("customer@ziza.dev")
+    td = _get_token("driver@ziza.dev")
+    _register(tc)
+    _register(td)
+    client.post("/v1/drivers/register", headers={"Authorization": f"Bearer {td}"})
+
+    estimate_id = _get_estimate(tc)
+    trip_id = _create_trip(tc, estimate_id).json()["trip_id"]
+
+    for action in ("accept", "start", "complete"):
+        client.patch(
+            f"/v1/trips/{trip_id}/{action}",
+            headers={"Authorization": f"Bearer {td}"},
+        )
+
+    # Create intent
+    intent_resp = client.post(
+        "/v1/payments/intent",
+        json={"trip_id": trip_id},
+        headers={"Authorization": f"Bearer {tc}"},
+    )
+    assert intent_resp.status_code == 201
+    provider_ref = intent_resp.json()["provider_ref"]
+
+    # Simulate webhook
+    client.post(
+        "/v1/payments/webhook",
+        json={"provider_ref": provider_ref, "status": "paid"},
+    )
+
+    # Check paid_at is now set
+    detail = client.get(
+        f"/v1/trips/{trip_id}",
+        headers={"Authorization": f"Bearer {tc}"},
+    )
+    assert detail.status_code == 200
+    assert detail.json()["paid_at"] is not None

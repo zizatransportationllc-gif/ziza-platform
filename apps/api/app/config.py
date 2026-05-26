@@ -60,5 +60,22 @@ class Settings(BaseSettings):
     #   postgresql+asyncpg://ziza:pass@/ziza?host=/cloudsql/proj:region:inst
     database_url: str = ""
 
+    # ------------------------------------------------------------------
+    # Payment — Sprint 24
+    # ------------------------------------------------------------------
+    # Which payment backend to use: "mock" | "cinetpay" | "stripe"
+    payment_provider: str = "mock"
+
+    # CinetPay (West Africa / Ivory Coast)
+    cinetpay_api_key: str = ""
+    cinetpay_site_id: str = ""
+
+    # Stripe (international credit/debit cards)
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+
+    # Default return URL after payment (override in production)
+    payment_return_url: str = "https://app.ziza.ci/payment/return"
+
 
 settings = Settings()

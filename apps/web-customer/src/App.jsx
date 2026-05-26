@@ -6,6 +6,7 @@ import {
   listNotifications, getUnreadCount, markAllRead,
   listPlaces, createPlace, updatePlace, deletePlace,
   listCategories, getTripEta, getTripTracking,
+  createPaymentIntent, getTripPayment, simulatePayment,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -76,7 +77,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Customer</h1>
-      <p className="subtitle">Sprint 22 — Localisation chauffeur & ETA</p>
+      <p className="subtitle">Sprint 24 — Paiement client</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -405,6 +406,125 @@ function RatingForm({ token, tripId }) {
 }
 
 // ---------------------------------------------------------------------------
+// Payment section — Sprint 24
+// ---------------------------------------------------------------------------
+
+function PaymentSection({ token, tripId, fareXof }) {
+  const [intent, setIntent] = useState(null);      // PaymentIntentResponse | null
+  const [loading, setLoading] = useState(false);
+  const [simulating, setSimulating] = useState(false);
+  const [error, setError] = useState(null);
+
+  // On mount: check if a payment already exists for this trip
+  useEffect(() => {
+    async function checkExisting() {
+      try {
+        const data = await getTripPayment(token, tripId);
+        if (data) setIntent(data);
+      } catch (_) {}
+    }
+    checkExisting();
+  }, [tripId]);
+
+  // Poll every 5s while status is pending (waiting for webhook)
+  useEffect(() => {
+    if (!intent || intent.status !== "pending") return;
+    const id = setInterval(async () => {
+      try {
+        const data = await getTripPayment(token, tripId);
+        if (data) setIntent(data);
+      } catch (_) {}
+    }, 5000);
+    return () => clearInterval(id);
+  }, [tripId, intent?.status]);
+
+  async function handlePay() {
+    setLoading(true); setError(null);
+    try {
+      const data = await createPaymentIntent(token, tripId);
+      setIntent(data);
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  }
+
+  async function handleSimulate() {
+    if (!intent) return;
+    setSimulating(true); setError(null);
+    try {
+      await simulatePayment(intent.provider_ref);
+      // Refresh intent status
+      const data = await getTripPayment(token, tripId);
+      if (data) setIntent(data);
+    } catch (err) { setError(err.message); }
+    finally { setSimulating(false); }
+  }
+
+  if (intent && intent.status === "paid") {
+    return (
+      <div className="payment-section">
+        <div className="payment-card payment-card-paid">
+          <span className="payment-icon">✅</span>
+          <div className="payment-info">
+            <div className="payment-status-paid">Payé</div>
+            <div className="payment-amount">{formatXOF(intent.amount_xof)}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (intent && intent.status === "pending") {
+    const isMock = intent.checkout_url && intent.checkout_url.includes("localhost");
+    return (
+      <div className="payment-section">
+        <div className="payment-card">
+          <span className="payment-icon">💳</span>
+          <div className="payment-info">
+            <div className="payment-label">Paiement en attente</div>
+            <div className="payment-amount">{formatXOF(intent.amount_xof)}</div>
+          </div>
+        </div>
+        {isMock && (
+          <button
+            className="payment-btn payment-btn-simulate"
+            onClick={handleSimulate}
+            disabled={simulating}
+          >
+            {simulating ? "Simulation…" : "🧪 Simuler le paiement (dev)"}
+          </button>
+        )}
+        {!isMock && intent.checkout_url && (
+          <a
+            className="payment-btn"
+            href={intent.checkout_url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Payer sur {intent.provider}
+          </a>
+        )}
+        {error && <p className="form-error">{error}</p>}
+      </div>
+    );
+  }
+
+  // No intent yet — show Pay button
+  return (
+    <div className="payment-section">
+      <button
+        className="payment-btn"
+        onClick={handlePay}
+        disabled={loading}
+      >
+        {loading ? "Initialisation…" : `💳 Payer ${formatXOF(fareXof || 0)}`}
+      </button>
+      {error && <p className="form-error">{error}</p>}
+    </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
 // Booking status card — shows trip state + cancel + 5-second polling
 // ---------------------------------------------------------------------------
 
@@ -533,6 +653,9 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
         <button className="cancel-btn" onClick={handleCancel} disabled={cancelling}>
           {cancelling ? "Annulation…" : "Annuler le trajet"}
         </button>
+      )}
+      {trip.status === "completed" && (
+        <PaymentSection token={token} tripId={trip.trip_id} fareXof={trip.fare_xof} />
       )}
       {trip.status === "completed" && (
         <RatingForm token={token} tripId={trip.trip_id} />

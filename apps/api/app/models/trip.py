@@ -1,4 +1,4 @@
-"""Trip and TripEvent models — Sprint 4 → Sprint 23."""
+"""Trip and TripEvent models — Sprint 4 → Sprint 24."""
 from __future__ import annotations
 
 import uuid
@@ -51,6 +51,10 @@ class Trip(Base):
     # Sprint 21: vehicle category chosen at booking — economy | comfort | premium
     category: Mapped[str] = mapped_column(
         String(32), nullable=False, default="economy", server_default="economy"
+    )
+    # Sprint 24: timestamp set when a PaymentIntent for this trip is confirmed
+    paid_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now

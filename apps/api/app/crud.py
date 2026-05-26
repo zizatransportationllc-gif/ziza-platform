@@ -1,4 +1,4 @@
-"""CRUD helpers — Sprint 4 → Sprint 22.
+"""CRUD helpers — Sprint 4 → Sprint 24.
 
 All functions are async and receive an ``AsyncSession`` from the FastAPI
 ``get_db`` dependency.
@@ -21,6 +21,7 @@ from app.models.driver_capability import DriverCapability
 from app.models.driver_document import DriverDocument, DOCUMENT_TYPES
 from app.models.notification import Notification
 from app.models.driver_location import DriverLocation
+from app.models.payment import PaymentIntent
 from app.models.saved_place import SavedPlace
 from app.models.estimate import Estimate
 from app.models.payout_request import PayoutRequest as PayoutRequestModel
@@ -1278,6 +1279,17 @@ async def admin_get_stats(db: AsyncSession) -> dict:
     )
     drivers_by_status: dict[str, int] = dict(r_drivers.all())
 
+    # Sprint 24: payment stats
+    r_pay_count = await db.execute(
+        select(func.count(PaymentIntent.id)).where(PaymentIntent.status == "paid")
+    )
+    total_paid_count = int(r_pay_count.scalar() or 0)
+
+    r_pay_xof = await db.execute(
+        select(func.sum(PaymentIntent.amount_xof)).where(PaymentIntent.status == "paid")
+    )
+    total_paid_xof = int(r_pay_xof.scalar() or 0)
+
     return {
         "trips": {
             "total": sum(trips_by_status.values()),
@@ -1291,6 +1303,10 @@ async def admin_get_stats(db: AsyncSession) -> dict:
         "drivers": {
             "total": sum(drivers_by_status.values()),
             "by_status": drivers_by_status,
+        },
+        "payments": {
+            "total_paid": total_paid_count,
+            "total_paid_xof": total_paid_xof,
         },
     }
 
@@ -2514,3 +2530,221 @@ async def get_trip_tracking(
         "eta_min": eta_min,
         "updated_at": updated_str,
     }
+
+
+# ---------------------------------------------------------------------------
+# Sprint 24 — Payment
+# ---------------------------------------------------------------------------
+
+def _intent_to_dict(intent: PaymentIntent) -> dict:
+    """Serialise a PaymentIntent row to a plain dict."""
+    return {
+        "intent_id": str(intent.id),
+        "trip_id": str(intent.trip_id),
+        "amount_xof": intent.amount_xof,
+        "currency": intent.currency,
+        "provider": intent.provider,
+        "provider_ref": intent.provider_ref,
+        "status": intent.status,
+        "checkout_url": intent.checkout_url,
+        "created_at": _utc(intent.created_at).isoformat(),
+        "updated_at": _utc(intent.updated_at).isoformat(),
+    }
+
+
+async def create_payment_intent(
+    db: AsyncSession,
+    claims: Claims,
+    trip_id: str,
+    adapter,
+    return_url: str = "https://app.ziza.ci/payment/return",
+) -> dict:
+    """Create (or return existing) PaymentIntent for a completed trip.
+
+    Rules:
+    - Trip must be ``completed`` (422 otherwise).
+    - Only the trip's customer can initiate payment (403 otherwise).
+    - Idempotent: if a ``paid`` intent already exists it is returned as-is.
+    - If a ``pending`` intent already exists it is returned as-is (allow retry).
+
+    Returns the PaymentIntent dict.
+    """
+    # Resolve user
+    user = await _get_user_by_auth_id(db, claims.user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Parse + load trip
+    try:
+        trip_uuid = uuid.UUID(trip_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid trip_id format",
+        )
+
+    trip_result = await db.execute(select(Trip).where(Trip.id == trip_uuid))
+    trip: Trip | None = trip_result.scalar_one_or_none()
+    if trip is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+    if trip.customer_id != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not own this trip",
+        )
+    if trip.status != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Trip must be completed to pay (current status: {trip.status!r})",
+        )
+
+    # Check for an existing intent (idempotence)
+    existing_result = await db.execute(
+        select(PaymentIntent).where(PaymentIntent.trip_id == trip_uuid)
+    )
+    existing: PaymentIntent | None = existing_result.scalar_one_or_none()
+    if existing is not None:
+        return _intent_to_dict(existing)
+
+    # Create a new intent
+    amount = trip.fare_xof or 0
+    intent = PaymentIntent(
+        trip_id=trip.id,
+        amount_xof=amount,
+        provider=getattr(adapter, "_provider_name", "mock"),
+    )
+    db.add(intent)
+    await db.flush()  # get the UUID
+
+    # Call the payment provider
+    checkout = await adapter.create_checkout(
+        amount_xof=amount,
+        ref=str(intent.id),
+        return_url=return_url,
+    )
+    intent.provider_ref = checkout["provider_ref"]
+    intent.checkout_url = checkout["checkout_url"]
+    await db.commit()
+    await db.refresh(intent)
+    return _intent_to_dict(intent)
+
+
+async def confirm_payment(
+    db: AsyncSession,
+    payload: bytes,
+    headers: dict,
+    adapter,
+) -> dict:
+    """Process an inbound webhook from the payment provider.
+
+    Verifies the signature, looks up the intent by provider_ref,
+    transitions its status, and stamps ``trip.paid_at`` when paid.
+
+    Raises:
+      - ``ValueError`` (→ 400) on invalid signature or malformed payload.
+      - ``HTTPException(404)`` when the provider_ref is unknown.
+    """
+    # Delegate signature check + parsing to the adapter
+    event = await adapter.verify_webhook(payload, headers)
+
+    provider_ref = event["provider_ref"]
+    new_status = event["status"]  # "paid" | "failed"
+
+    intent_result = await db.execute(
+        select(PaymentIntent).where(PaymentIntent.provider_ref == provider_ref)
+    )
+    intent: PaymentIntent | None = intent_result.scalar_one_or_none()
+    if intent is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No payment intent found for provider_ref {provider_ref!r}",
+        )
+
+    intent.status = new_status
+
+    if new_status == "paid":
+        # Stamp the trip
+        now = datetime.now(timezone.utc)
+        trip_result = await db.execute(select(Trip).where(Trip.id == intent.trip_id))
+        trip: Trip | None = trip_result.scalar_one_or_none()
+        if trip is not None:
+            trip.paid_at = now
+
+    await db.commit()
+    await db.refresh(intent)
+    return _intent_to_dict(intent)
+
+
+async def get_payment_intent(
+    db: AsyncSession,
+    claims: Claims,
+    intent_id: str,
+) -> dict:
+    """Return a PaymentIntent by ID; caller must own the linked trip (403)."""
+    user = await _get_user_by_auth_id(db, claims.user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    try:
+        intent_uuid = uuid.UUID(intent_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid intent_id format",
+        )
+
+    intent_result = await db.execute(
+        select(PaymentIntent).where(PaymentIntent.id == intent_uuid)
+    )
+    intent: PaymentIntent | None = intent_result.scalar_one_or_none()
+    if intent is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Payment intent not found"
+        )
+
+    # Verify ownership through the trip
+    trip_result = await db.execute(select(Trip).where(Trip.id == intent.trip_id))
+    trip: Trip | None = trip_result.scalar_one_or_none()
+    if trip is None or trip.customer_id != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not own this payment intent",
+        )
+
+    return _intent_to_dict(intent)
+
+
+async def get_trip_payment(
+    db: AsyncSession,
+    claims: Claims,
+    trip_id: str,
+) -> dict | None:
+    """Return the PaymentIntent for a trip, or None if none exists yet.
+
+    Returns ``None`` (→ caller returns 404) when the trip has no intent.
+    """
+    user = await _get_user_by_auth_id(db, claims.user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    try:
+        trip_uuid = uuid.UUID(trip_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid trip_id format",
+        )
+
+    # Verify the trip belongs to this user
+    trip_result = await db.execute(select(Trip).where(Trip.id == trip_uuid))
+    trip: Trip | None = trip_result.scalar_one_or_none()
+    if trip is None or trip.customer_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+
+    intent_result = await db.execute(
+        select(PaymentIntent).where(PaymentIntent.trip_id == trip_uuid)
+    )
+    intent: PaymentIntent | None = intent_result.scalar_one_or_none()
+    if intent is None:
+        return None
+    return _intent_to_dict(intent)

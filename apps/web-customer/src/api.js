@@ -1,5 +1,5 @@
 /**
- * API client for web-customer — Sprint 23.
+ * API client for web-customer — Sprint 24.
  * NOT shared across frontends (isolation rule).
  */
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -403,5 +403,50 @@ export async function getTripTracking(token, tripId) {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
   });
   if (res.status === 404) return null; // location not yet available
+  return _json(res);
+}
+
+// ---------------------------------------------------------------------------
+// Payment — Sprint 24
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a PaymentIntent for a completed trip.
+ * Returns { intent_id, trip_id, amount_xof, status, checkout_url, provider_ref, … }
+ */
+export async function createPaymentIntent(token, tripId) {
+  const res = await fetch(`${API_BASE}/v1/payments/intent`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ trip_id: tripId }),
+  });
+  return _json(res);
+}
+
+/**
+ * Get the payment intent for a trip (returns null if 404).
+ */
+export async function getTripPayment(token, tripId) {
+  const res = await fetch(`${API_BASE}/v1/trips/${tripId}/payment`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (res.status === 404) return null;
+  return _json(res);
+}
+
+/**
+ * Simulate payment confirmation (mock / dev mode only).
+ * Calls the webhook endpoint directly with status=paid.
+ */
+export async function simulatePayment(providerRef) {
+  const res = await fetch(`${API_BASE}/v1/payments/webhook`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ provider_ref: providerRef, status: "paid" }),
+  });
   return _json(res);
 }
