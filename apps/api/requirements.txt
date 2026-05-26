@@ -14,3 +14,7 @@ alembic==1.14.0
 pytest==8.3.3
 httpx==0.27.2
 aiosqlite==0.20.0
+
+# Sprint 31 — Redis cache (fakeredis for tests, redis for prod)
+redis==5.0.8
+fakeredis==2.26.1

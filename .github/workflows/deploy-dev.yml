@@ -24,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [api, web-customer, web-driver, web-admin]
+        app: [api, web-customer, web-driver, web-admin, web-landing]
     outputs:
       image_tag: ${{ steps.tag.outputs.tag }}
     steps:
@@ -51,7 +51,7 @@ jobs:
           IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/${{ matrix.app }}:${{ steps.tag.outputs.tag }}"
           IMAGE_LATEST="${{ env.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/${{ matrix.app }}:latest"
 
-          if [ "${{ matrix.app }}" != "api" ]; then
+          if [ "${{ matrix.app }}" = "web-customer" ] || [ "${{ matrix.app }}" = "web-driver" ] || [ "${{ matrix.app }}" = "web-admin" ]; then
             BUILD_ARGS="--build-arg VITE_API_URL=${{ vars.ZIZA_API_URL }}"
           else
             BUILD_ARGS=""
@@ -74,7 +74,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [api, web-customer, web-driver, web-admin]
+        app: [api, web-customer, web-driver, web-admin, web-landing]
     steps:
       - uses: actions/checkout@v4
 

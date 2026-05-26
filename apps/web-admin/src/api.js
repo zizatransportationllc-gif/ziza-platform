@@ -351,3 +351,77 @@ export async function adminReviewApplication(token, applicationId, newStatus, no
   });
   return _json(res); // ApplicationResponse
 }
+
+// ---------------------------------------------------------------------------
+// Sprint 31 — Feature Flags
+// ---------------------------------------------------------------------------
+
+/** List all feature flags (seeds defaults on first call). */
+export async function adminListFlags(token) {
+  const res = await fetch(`${API_BASE}/v1/admin/flags`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // FeatureFlagResponse[]
+}
+
+/** Update a feature flag (enabled, rollout_pct, description). */
+export async function adminSetFlag(token, flagName, updates) {
+  const res = await fetch(`${API_BASE}/v1/admin/flags/${flagName}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(updates),
+  });
+  return _json(res); // FeatureFlagResponse
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 31 — Live Drivers
+// ---------------------------------------------------------------------------
+
+/** List all currently online drivers with their last known location. */
+export async function adminListLiveDrivers(token) {
+  const res = await fetch(`${API_BASE}/v1/admin/drivers/live`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // LiveDriverResponse[]
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 31 — Role Management
+// ---------------------------------------------------------------------------
+
+/** Change the role of any user (admin cannot change their own role). */
+export async function adminSetUserRole(token, userId, role) {
+  const res = await fetch(`${API_BASE}/v1/admin/users/${userId}/role`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ role }),
+  });
+  return _json(res); // { user_id, role, updated_by }
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 31 — Invite Codes
+// ---------------------------------------------------------------------------
+
+/** Create a new invite code (admin only). */
+export async function adminCreateInviteCode(token, code, maxUses = 1) {
+  const res = await fetch(`${API_BASE}/v1/admin/invite-codes`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ code, max_uses: maxUses }),
+  });
+  return _json(res); // InviteCodeResponse
+}

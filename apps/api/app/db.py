@@ -46,8 +46,19 @@ DATABASE_URL: str | None = os.getenv("DATABASE_URL")
 if DATABASE_URL:
     DATABASE_URL = _normalise_url(DATABASE_URL)
 
+def _engine_kwargs(url: str) -> dict:
+    """Return engine kwargs tuned for PostgreSQL in production."""
+    kwargs: dict = {"echo": False, "pool_pre_ping": True}
+    if "postgresql" in url or "asyncpg" in url:
+        # Connection pool tuning — Sprint 31 SRE hardening
+        kwargs["pool_size"] = 10
+        kwargs["max_overflow"] = 20
+        kwargs["pool_recycle"] = 3600  # recycle connections every hour
+    return kwargs
+
+
 _engine = (
-    create_async_engine(DATABASE_URL, pool_pre_ping=True, echo=False)
+    create_async_engine(DATABASE_URL, **_engine_kwargs(DATABASE_URL))
     if DATABASE_URL
     else None
 )

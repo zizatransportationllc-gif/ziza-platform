@@ -9,6 +9,8 @@ import {
   adminListDocuments, adminUpdateDocumentStatus, adminGetPendingCounts,
   getCommissionSettings, setCommission, runPayoutBatch, // Sprint 29
   adminListApplications, adminReviewApplication, // Sprint 30
+  adminListFlags, adminSetFlag, // Sprint 31
+  adminListLiveDrivers, adminSetUserRole, adminCreateInviteCode, // Sprint 31
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -49,7 +51,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 30 — Candidature chauffeur</p>
+      <p className="subtitle">Sprint 31 — Performance, SRE &amp; GA</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -1377,20 +1379,235 @@ function ApplicationsPanel({ token }) {
 }
 
 // ---------------------------------------------------------------------------
+// LiveMapPanel — Sprint 31
+// ---------------------------------------------------------------------------
+
+function LiveMapPanel({ token }) {
+  const [drivers, setDrivers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(() => {
+    setLoading(true); setError(null);
+    adminListLiveDrivers(token)
+      .then(setDrivers)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Auto-refresh every 30s
+  useEffect(() => {
+    const interval = setInterval(load, 30_000);
+    return () => clearInterval(interval);
+  }, [load]);
+
+  return (
+    <div className="live-map-panel">
+      <div className="panel-header">
+        <h2 className="panel-title">🗺️ Chauffeurs en ligne</h2>
+        <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
+      </div>
+      {error && <p className="form-error">{error}</p>}
+      {loading && <div className="status loading">⏳ Chargement…</div>}
+      {!loading && drivers.length === 0 && (
+        <p className="muted-msg">Aucun chauffeur en ligne actuellement.</p>
+      )}
+      {!loading && drivers.length > 0 && (
+        <div className="live-drivers-count">
+          <span className="live-badge">🟢 {drivers.length} chauffeur{drivers.length > 1 ? "s" : ""} en ligne</span>
+        </div>
+      )}
+      <div className="live-drivers-table">
+        {drivers.map((d) => (
+          <div key={d.driver_id} className="live-driver-row">
+            <div className="live-driver-main">
+              <span className="live-driver-name">🧑‍✈️ {d.email}</span>
+              <span className="live-driver-status online">🟢 En ligne</span>
+            </div>
+            <div className="live-driver-meta">
+              {d.lat != null && d.lng != null ? (
+                <span className="live-driver-coords">📍 {d.lat.toFixed(4)}, {d.lng.toFixed(4)}</span>
+              ) : (
+                <span className="live-driver-coords muted">📍 Position inconnue</span>
+              )}
+              {d.heading != null && (
+                <span className="live-driver-heading">🧭 {d.heading}°</span>
+              )}
+              {d.last_updated && (
+                <span className="live-driver-time">
+                  ⏱️ {new Date(d.last_updated).toLocaleTimeString("fr-FR")}
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="muted-msg" style={{ marginTop: "12px", fontSize: ".8rem" }}>
+        Actualisation automatique toutes les 30 secondes.
+      </p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// FlagsPanel — Sprint 31
+// ---------------------------------------------------------------------------
+
+function FlagsPanel({ token }) {
+  const [flags, setFlags] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(null);
+  const [saveError, setSaveError] = useState(null);
+  // Invite code creation
+  const [newCode, setNewCode] = useState("");
+  const [maxUses, setMaxUses] = useState(1);
+  const [creatingCode, setCreatingCode] = useState(false);
+  const [codeResult, setCodeResult] = useState(null);
+  const [codeError, setCodeError] = useState(null);
+
+  const load = useCallback(() => {
+    setLoading(true); setError(null);
+    adminListFlags(token)
+      .then(setFlags)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleToggle(flag) {
+    setSaving(flag.name); setSaveError(null);
+    try {
+      const updated = await adminSetFlag(token, flag.name, { enabled: !flag.enabled });
+      setFlags((prev) => prev.map((f) => f.name === flag.name ? updated : f));
+    } catch (e) { setSaveError(e.message); }
+    finally { setSaving(null); }
+  }
+
+  async function handleRollout(flag, newPct) {
+    const pct = parseInt(newPct, 10);
+    if (isNaN(pct) || pct < 0 || pct > 100) return;
+    setSaving(flag.name); setSaveError(null);
+    try {
+      const updated = await adminSetFlag(token, flag.name, { rollout_pct: pct });
+      setFlags((prev) => prev.map((f) => f.name === flag.name ? updated : f));
+    } catch (e) { setSaveError(e.message); }
+    finally { setSaving(null); }
+  }
+
+  async function handleCreateCode(e) {
+    e.preventDefault();
+    if (!newCode.trim()) return;
+    setCreatingCode(true); setCodeError(null); setCodeResult(null);
+    try {
+      const result = await adminCreateInviteCode(token, newCode.trim(), maxUses);
+      setCodeResult(result);
+      setNewCode(""); setMaxUses(1);
+    } catch (err) { setCodeError(err.message); }
+    finally { setCreatingCode(false); }
+  }
+
+  return (
+    <div className="flags-panel">
+      <div className="panel-header">
+        <h2 className="panel-title">🚩 Feature Flags</h2>
+        <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
+      </div>
+      {error && <p className="form-error">{error}</p>}
+      {saveError && <p className="form-error">{saveError}</p>}
+      {loading && <div className="status loading">⏳ Chargement…</div>}
+
+      {!loading && flags.length === 0 && <p className="muted-msg">Aucun flag configuré.</p>}
+
+      <div className="flags-grid">
+        {flags.map((flag) => (
+          <div key={flag.name} className={`flag-row ${flag.enabled ? "flag-enabled" : "flag-disabled"}`}>
+            <div className="flag-main">
+              <span className="flag-name">{flag.name}</span>
+              {flag.description && <span className="flag-desc">{flag.description}</span>}
+            </div>
+            <div className="flag-controls">
+              <button
+                className={`flag-toggle ${flag.enabled ? "flag-toggle-on" : "flag-toggle-off"}`}
+                disabled={saving === flag.name}
+                onClick={() => handleToggle(flag)}
+                title={flag.enabled ? "Désactiver" : "Activer"}
+              >
+                {flag.enabled ? "✅ Activé" : "⛔ Désactivé"}
+              </button>
+              <div className="flag-rollout">
+                <label className="flag-rollout-label">Rollout</label>
+                <input
+                  type="number"
+                  className="flag-rollout-input"
+                  min="0" max="100"
+                  value={flag.rollout_pct}
+                  disabled={saving === flag.name}
+                  onChange={(e) => handleRollout(flag, e.target.value)}
+                />
+                <span>%</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Invite Codes */}
+      <div className="invite-code-section">
+        <h3 className="section-subtitle">🎟️ Codes d'invitation</h3>
+        <form className="invite-code-form" onSubmit={handleCreateCode}>
+          <input
+            type="text"
+            className="invite-code-input"
+            placeholder="Code (ex: BETA-LAUNCH-001)"
+            value={newCode}
+            onChange={(e) => setNewCode(e.target.value)}
+            required
+          />
+          <label>Max utilisations</label>
+          <input
+            type="number"
+            className="invite-uses-input"
+            min="1" max="1000"
+            value={maxUses}
+            onChange={(e) => setMaxUses(parseInt(e.target.value, 10) || 1)}
+          />
+          <button type="submit" className="batch-run-btn" disabled={creatingCode}>
+            {creatingCode ? "Création…" : "Créer le code"}
+          </button>
+        </form>
+        {codeError && <p className="form-error">{codeError}</p>}
+        {codeResult && (
+          <div className="batch-result">
+            <p className="batch-result-row">✅ Code créé : <strong>{codeResult.code}</strong></p>
+            <p className="batch-result-row">Max utilisations : {codeResult.max_uses}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard — tabbed navigation
 // ---------------------------------------------------------------------------
 
 const TABS = [
-  { id: "stats",      label: "📊 Stats" },
-  { id: "trips",      label: "🚕 Courses" },
-  { id: "assist",     label: "🆘 Assistances" },
-  { id: "drivers",    label: "🧑‍✈️ Chauffeurs" },
-  { id: "promos",     label: "🏷️ Promos" },
-  { id: "payouts",    label: "💸 Retraits",    pendingKey: "payout_requests" },
-  { id: "ratings",    label: "⭐ Avis" },
-  { id: "documents",  label: "📄 Documents",   pendingKey: "documents" },
-  { id: "commission",    label: "💰 Commission" },
+  { id: "stats",        label: "📊 Stats" },
+  { id: "trips",        label: "🚕 Courses" },
+  { id: "assist",       label: "🆘 Assistances" },
+  { id: "drivers",      label: "🧑‍✈️ Chauffeurs" },
+  { id: "live",         label: "🗺️ Live" },
+  { id: "promos",       label: "🏷️ Promos" },
+  { id: "payouts",      label: "💸 Retraits",    pendingKey: "payout_requests" },
+  { id: "ratings",      label: "⭐ Avis" },
+  { id: "documents",    label: "📄 Documents",   pendingKey: "documents" },
+  { id: "commission",   label: "💰 Commission" },
   { id: "applications", label: "📝 Candidatures" },
+  { id: "flags",        label: "🚩 Feature Flags" },
   { id: "settings",     label: "⚙️ Paramètres" },
   { id: "users",        label: "👥 Utilisateurs" },
 ];
@@ -1438,12 +1655,14 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "payouts"    && <PayoutsPanel     token={token} />}
       {activeTab === "ratings"    && <RatingsPanel     token={token} />}
       {activeTab === "documents"  && <DocumentsPanel   token={token} />}
-      {activeTab === "commission"    && <CommissionPanel    token={token} />}
-      {activeTab === "applications"  && <ApplicationsPanel  token={token} />}
-      {activeTab === "settings"      && <SurgePanel         token={token} />}
-      {activeTab === "users"         && <UsersPanel         token={token} />}
+      {activeTab === "commission"   && <CommissionPanel    token={token} />}
+      {activeTab === "applications" && <ApplicationsPanel  token={token} />}
+      {activeTab === "live"         && <LiveMapPanel        token={token} />}
+      {activeTab === "flags"        && <FlagsPanel          token={token} />}
+      {activeTab === "settings"     && <SurgePanel          token={token} />}
+      {activeTab === "users"        && <UsersPanel          token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 30</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 31</p>
     </div>
   );
 }

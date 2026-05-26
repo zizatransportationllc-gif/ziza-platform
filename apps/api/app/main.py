@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 30.
+"""Ziza API — Sprint 31.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -94,6 +94,13 @@ Endpoints:
   GET   /v1/admin/applications                     admin lists all applications, filterable by status (Sprint 30)
   GET   /v1/admin/applications/{id}               admin reads a single application detail (Sprint 30)
   PATCH /v1/admin/applications/{id}/review        admin approves or rejects an application (Sprint 30)
+  GET   /v1/admin/flags                           list all feature flags (Sprint 31)
+  PATCH /v1/admin/flags/{name}                    enable/disable a feature flag (Sprint 31)
+  GET   /v1/flags/{name}                          public read of a single flag (Sprint 31)
+  GET   /v1/admin/drivers/live                    list online drivers with last position (Sprint 31)
+  PATCH /v1/admin/users/{user_id}/role            admin changes a user's role (Sprint 31)
+  POST  /v1/admin/invite-codes                    create an invite code (Sprint 31)
+  POST  /v1/invite-codes/use                      consume an invite code (Sprint 31)
 """
 from __future__ import annotations
 
@@ -2818,3 +2825,152 @@ async def admin_review_application(
         db, app_id, body.status, body.notes_admin, claims.user_id
     )
     return ApplicationResponse(**result)
+
+
+# ===========================================================================
+# Sprint 31 — Feature Flags, Live Drivers, Role Management, Invite Codes
+# ===========================================================================
+
+class FeatureFlagResponse(BaseModel):
+    name: str
+    enabled: bool
+    rollout_pct: int
+    description: str | None
+    updated_at: str
+
+
+class SetFlagRequest(BaseModel):
+    enabled: bool
+    rollout_pct: int = 0
+    description: str | None = None
+
+
+class LiveDriverResponse(BaseModel):
+    driver_id: str
+    email: str
+    status: str
+    lat: float | None
+    lng: float | None
+    last_seen_at: str | None
+
+
+class SetRoleRequest(BaseModel):
+    role: str  # "customer" | "driver" | "admin"
+
+
+class InviteCodeResponse(BaseModel):
+    id: str
+    code: str
+    max_uses: int
+    used_count: int
+    created_at: str
+    expires_at: str | None
+
+
+class CreateInviteCodeRequest(BaseModel):
+    code: str
+    max_uses: int = 1
+
+
+class UseInviteCodeRequest(BaseModel):
+    code: str
+
+
+@app.get("/v1/admin/flags", response_model=list[FeatureFlagResponse],
+         summary="List all feature flags (Sprint 31)")
+async def admin_list_flags(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only. Seeds defaults on first call."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    flags = await crud.get_feature_flags(db)
+    return [FeatureFlagResponse(**f) for f in flags]
+
+
+@app.patch("/v1/admin/flags/{flag_name}", response_model=FeatureFlagResponse,
+           summary="Enable/disable a feature flag (Sprint 31)")
+async def admin_set_flag(
+    flag_name: str,
+    body: SetFlagRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only. Creates the flag if it does not exist."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    result = await crud.set_feature_flag(
+        db, flag_name, body.enabled, body.rollout_pct, body.description
+    )
+    return FeatureFlagResponse(**result)
+
+
+@app.get("/v1/flags/{flag_name}", response_model=FeatureFlagResponse | None,
+         summary="Public read of a single feature flag (Sprint 31)")
+async def get_flag(
+    flag_name: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """No auth required. Returns null if the flag does not exist."""
+    result = await crud.get_feature_flag(db, flag_name)
+    if result is None:
+        return None
+    return FeatureFlagResponse(**result)
+
+
+@app.get("/v1/admin/drivers/live", response_model=list[LiveDriverResponse],
+         summary="List online drivers with last GPS position (Sprint 31)")
+async def admin_list_live_drivers(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only. Returns all drivers where is_online=True."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    rows = await crud.list_live_drivers(db)
+    return [LiveDriverResponse(**r) for r in rows]
+
+
+@app.patch("/v1/admin/users/{user_id}/role", response_model=dict,
+           summary="Admin changes a user's role (Sprint 31)")
+async def admin_change_user_role(
+    user_id: str,
+    body: SetRoleRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only. Cannot self-promote."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid UUID")
+    return await crud.admin_set_user_role(db, uid, body.role, claims.user_id)
+
+
+@app.post("/v1/admin/invite-codes", response_model=InviteCodeResponse, status_code=201,
+          summary="Create an invite code (Sprint 31)")
+async def admin_create_invite_code(
+    body: CreateInviteCodeRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only. Creates a new invite code."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    result = await crud.create_invite_code(db, body.code, body.max_uses)
+    return InviteCodeResponse(**result)
+
+
+@app.post("/v1/invite-codes/use", response_model=InviteCodeResponse,
+          summary="Consume an invite code (Sprint 31)")
+async def use_invite_code(
+    body: UseInviteCodeRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Any authenticated user can consume an invite code. 422 on invalid/exhausted."""
+    result = await crud.use_invite_code(db, body.code)
+    return InviteCodeResponse(**result)

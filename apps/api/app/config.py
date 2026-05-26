@@ -123,5 +123,28 @@ class Settings(BaseSettings):
     # Overridden per category via POST /v1/admin/commission.
     default_commission_pct: int = 15
 
+    # ------------------------------------------------------------------
+    # Redis cache — Sprint 31
+    # ------------------------------------------------------------------
+    # Redis URL (e.g. redis://localhost:6379/0 or rediss:// for TLS).
+    # Leave empty to disable caching (dev / CI without Redis).
+    redis_url: str = ""
+    # Set to True to enable Redis caching in production.
+    cache_enabled: bool = False
+    # TTL for estimate cache entries (minutes).
+    estimate_cache_ttl_minutes: int = 15
+
+    # ------------------------------------------------------------------
+    # SRE — Sprint 31
+    # ------------------------------------------------------------------
+    # Slack webhook URL for error alerts. Leave empty to disable.
+    slack_webhook_url: str = ""
+
+    # ------------------------------------------------------------------
+    # Dispatch — Sprint 31
+    # ------------------------------------------------------------------
+    # Maximum radius (km) for dispatch filtering when driver has a position.
+    dispatch_radius_km: float = 15.0
+
 
 settings = Settings()

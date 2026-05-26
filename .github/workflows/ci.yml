@@ -96,7 +96,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [api, web-customer, web-driver, web-admin]
+        app: [api, web-customer, web-driver, web-admin, web-landing]
     steps:
       - uses: actions/checkout@v4
 

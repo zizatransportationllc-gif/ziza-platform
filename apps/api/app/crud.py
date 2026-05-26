@@ -28,6 +28,7 @@ from app.models.saved_place import SavedPlace
 from app.models.estimate import Estimate
 from app.models.payout_request import PayoutRequest as PayoutRequestModel, CommissionSetting
 from app.models.application import DriverApplication  # Sprint 30
+from app.models.flag import FeatureFlag, InviteCode, DEFAULT_FLAGS  # Sprint 31
 from app.models.platform_setting import PlatformSetting
 from app.models.promo import PromoCode
 from app.models.rating import Rating
@@ -3437,3 +3438,199 @@ def _application_to_dict(app_obj: DriverApplication) -> dict:
         "reviewed_at": app_obj.reviewed_at.isoformat() if app_obj.reviewed_at else None,
         "submitted_at": app_obj.submitted_at.isoformat(),
     }
+
+
+# ---------------------------------------------------------------------------
+# Sprint 31 — Feature Flags
+# ---------------------------------------------------------------------------
+
+async def _ensure_flag_defaults(db: AsyncSession) -> None:
+    """Seed default feature flags on first use."""
+    count = await db.scalar(select(func.count()).select_from(FeatureFlag))
+    if count and count > 0:
+        return
+    now = datetime.now(timezone.utc)
+    for flag_def in DEFAULT_FLAGS:
+        flag = FeatureFlag(
+            name=flag_def["name"],
+            enabled=flag_def["enabled"],
+            rollout_pct=flag_def["rollout_pct"],
+            description=flag_def["description"],
+            updated_at=now,
+        )
+        db.add(flag)
+    await db.commit()
+
+
+async def get_feature_flags(db: AsyncSession) -> list[dict]:
+    """List all feature flags (seeds defaults on first call)."""
+    await _ensure_flag_defaults(db)
+    rows = (await db.execute(select(FeatureFlag).order_by(FeatureFlag.name))).scalars().all()
+    return [_flag_to_dict(f) for f in rows]
+
+
+async def get_feature_flag(db: AsyncSession, name: str) -> dict | None:
+    """Get a single feature flag by name."""
+    await _ensure_flag_defaults(db)
+    flag = await db.scalar(select(FeatureFlag).where(FeatureFlag.name == name))
+    if flag is None:
+        return None
+    return _flag_to_dict(flag)
+
+
+async def set_feature_flag(
+    db: AsyncSession,
+    name: str,
+    enabled: bool,
+    rollout_pct: int = 0,
+    description: str | None = None,
+) -> dict:
+    """Create or update a feature flag."""
+    flag = await db.scalar(select(FeatureFlag).where(FeatureFlag.name == name))
+    if flag is None:
+        flag = FeatureFlag(name=name)
+        db.add(flag)
+    flag.enabled = enabled
+    flag.rollout_pct = rollout_pct
+    flag.updated_at = datetime.now(timezone.utc)
+    if description is not None:
+        flag.description = description
+    await db.commit()
+    await db.refresh(flag)
+    return _flag_to_dict(flag)
+
+
+def _flag_to_dict(flag: FeatureFlag) -> dict:
+    return {
+        "name": flag.name,
+        "enabled": flag.enabled,
+        "rollout_pct": flag.rollout_pct,
+        "description": flag.description,
+        "updated_at": flag.updated_at.isoformat(),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Sprint 31 — Invite Codes
+# ---------------------------------------------------------------------------
+
+async def create_invite_code(db: AsyncSession, code: str, max_uses: int = 1) -> dict:
+    """Create a new invite code."""
+    invite = InviteCode(
+        code=code,
+        max_uses=max_uses,
+        used_count=0,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(invite)
+    await db.commit()
+    await db.refresh(invite)
+    return _invite_to_dict(invite)
+
+
+async def use_invite_code(db: AsyncSession, code: str) -> dict:
+    """Consume one use of an invite code; raise 422 on invalid/exhausted codes."""
+    invite = await db.scalar(select(InviteCode).where(InviteCode.code == code))
+    if invite is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Code d'invitation invalide.",
+        )
+    now = datetime.now(timezone.utc)
+    if invite.expires_at and invite.expires_at < now:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Code d'invitation expiré.",
+        )
+    if invite.used_count >= invite.max_uses:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Code d'invitation épuisé.",
+        )
+    invite.used_count += 1
+    await db.commit()
+    await db.refresh(invite)
+    return _invite_to_dict(invite)
+
+
+def _invite_to_dict(invite: InviteCode) -> dict:
+    return {
+        "id": str(invite.id),
+        "code": invite.code,
+        "max_uses": invite.max_uses,
+        "used_count": invite.used_count,
+        "created_at": invite.created_at.isoformat(),
+        "expires_at": invite.expires_at.isoformat() if invite.expires_at else None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Sprint 31 — Live drivers (admin map view)
+# ---------------------------------------------------------------------------
+
+async def list_live_drivers(db: AsyncSession) -> list[dict]:
+    """Return all drivers currently online with their last known position."""
+    rows = (await db.execute(
+        select(Driver, User, DriverLocation)
+        .join(User, User.id == Driver.user_id)
+        .outerjoin(DriverLocation, DriverLocation.driver_id == Driver.id)
+        .where(Driver.is_online.is_(True))
+    )).all()
+
+    result = []
+    for driver, user, loc in rows:
+        result.append({
+            "driver_id": str(driver.id),
+            "email": user.email,
+            "status": driver.status,
+            "lat": loc.lat if loc else None,
+            "lng": loc.lng if loc else None,
+            "last_seen_at": loc.updated_at.isoformat() if loc and loc.updated_at else None,
+        })
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Sprint 31 — Admin role management
+# ---------------------------------------------------------------------------
+
+async def admin_set_user_role(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    new_role: str,
+    admin_user_id: uuid.UUID,
+) -> dict:
+    """Admin changes a user's role. Cannot self-promote."""
+    if user_id == admin_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Un admin ne peut pas modifier son propre rôle.",
+        )
+    valid_roles = {"customer", "driver", "admin"}
+    if new_role not in valid_roles:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Rôle invalide: {new_role!r}. Valeurs: {sorted(valid_roles)}",
+        )
+    user = await db.scalar(select(User).where(User.id == user_id))
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Utilisateur introuvable.")
+    user.role = new_role
+    await db.commit()
+    return {"user_id": str(user.id), "email": user.email, "role": user.role}
+
+
+# ---------------------------------------------------------------------------
+# Sprint 31 — Dispatch radius filter helper
+# ---------------------------------------------------------------------------
+
+def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """Return great-circle distance between two points in kilometres."""
+    import math
+    R = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlng = math.radians(lng2 - lng1)
+    a = (math.sin(dlat / 2) ** 2
+         + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2))
+         * math.sin(dlng / 2) ** 2)
+    return R * 2 * math.asin(math.sqrt(a))
