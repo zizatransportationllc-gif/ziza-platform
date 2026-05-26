@@ -1,4 +1,4 @@
-"""Sprint 17 — Driver KYC documents tests."""
+"""Sprint 17 + Sprint 25 — Driver KYC documents tests."""
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -218,3 +218,37 @@ def test_admin_document_not_found_returns_404():
         json={"status": "approved"},
     )
     assert r.status_code == 404, r.text
+
+
+# ---------------------------------------------------------------------------
+# POST /v1/drivers/me/documents/upload-url  (Sprint 25)
+# ---------------------------------------------------------------------------
+
+def test_upload_url_requires_driver_role():
+    """A customer calling the upload-url endpoint → 403."""
+    c_tok = _tok("customer@ziza.dev")
+    client.post("/v1/auth/register", headers=_h(c_tok))
+    r = client.post(
+        "/v1/drivers/me/documents/upload-url",
+        headers=_h(c_tok),
+        json={"filename": "license.pdf", "content_type": "application/pdf"},
+    )
+    assert r.status_code == 403, r.text
+
+
+def test_upload_url_returns_urls():
+    """A driver gets back upload_url and final_url (mock mode in CI)."""
+    d_tok = _setup_driver()
+    r = client.post(
+        "/v1/drivers/me/documents/upload-url",
+        headers=_h(d_tok),
+        json={"filename": "insurance.jpg", "content_type": "image/jpeg"},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert "upload_url" in body
+    assert "final_url" in body
+    # In CI / dev mode gcs_bucket_name is empty → mock localhost URLs
+    assert len(body["upload_url"]) > 0
+    assert len(body["final_url"]) > 0
+    assert "insurance.jpg" in body["upload_url"]

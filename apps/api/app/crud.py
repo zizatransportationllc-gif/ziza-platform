@@ -1,4 +1,4 @@
-"""CRUD helpers — Sprint 4 → Sprint 24.
+"""CRUD helpers — Sprint 4 → Sprint 25.
 
 All functions are async and receive an ``AsyncSession`` from the FastAPI
 ``get_db`` dependency.
@@ -22,6 +22,7 @@ from app.models.driver_document import DriverDocument, DOCUMENT_TYPES
 from app.models.notification import Notification
 from app.models.driver_location import DriverLocation
 from app.models.payment import PaymentIntent
+from app.models.refresh_token import RefreshToken
 from app.models.saved_place import SavedPlace
 from app.models.estimate import Estimate
 from app.models.payout_request import PayoutRequest as PayoutRequestModel
@@ -2748,3 +2749,131 @@ async def get_trip_payment(
     if intent is None:
         return None
     return _intent_to_dict(intent)
+
+
+# ---------------------------------------------------------------------------
+# Sprint 25 — Refresh tokens
+# ---------------------------------------------------------------------------
+
+import hashlib as _hashlib  # noqa: E402 — module already imported at top
+import secrets as _secrets  # noqa: E402
+
+
+async def _create_refresh_token_row(
+    db: AsyncSession,
+    auth_user_id: str,
+) -> tuple[str, datetime]:
+    """Insert a new RefreshToken row (no commit — caller must commit).
+
+    Returns ``(raw_token, expires_at)``.
+    """
+    from app.config import settings as _cfg  # noqa: PLC0415
+
+    raw = _secrets.token_urlsafe(32)
+    token_hash = _hashlib.sha256(raw.encode()).hexdigest()
+    expires_at = datetime.now(timezone.utc) + timedelta(days=_cfg.jwt_refresh_ttl_days)
+    rt = RefreshToken(
+        auth_user_id=auth_user_id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+    )
+    db.add(rt)
+    return raw, expires_at
+
+
+async def create_refresh_token(
+    db: AsyncSession,
+    auth_user_id: str,
+) -> tuple[str, datetime]:
+    """Create and persist a new refresh token.
+
+    Returns ``(raw_token, expires_at)``.  The raw token must be returned to
+    the client; only its hash is stored.
+    """
+    raw, expires_at = await _create_refresh_token_row(db, auth_user_id)
+    await db.commit()
+    return raw, expires_at
+
+
+async def use_refresh_token(
+    db: AsyncSession,
+    raw_token: str,
+) -> dict:
+    """Consume a refresh token and rotate it.
+
+    Validates that the token:
+    - Exists in the database (401 if not found).
+    - Has not been revoked (401 if revoked).
+    - Has not expired (401 if expired).
+
+    On success:
+    - Marks the old token as revoked.
+    - Issues a new refresh token (rotation).
+
+    Returns ``{auth_user_id, new_refresh_token, new_expires_at}``.
+    """
+    token_hash = _hashlib.sha256(raw_token.encode()).hexdigest()
+    now = datetime.now(timezone.utc)
+
+    result = await db.execute(
+        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+    )
+    rt: RefreshToken | None = result.scalar_one_or_none()
+
+    if rt is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if rt.revoked_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token has been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if _utc(rt.expires_at) < now:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token has expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Revoke consumed token (prevents replay)
+    rt.revoked_at = now
+
+    # Issue a new refresh token (rotation)
+    new_raw, new_expires = await _create_refresh_token_row(db, rt.auth_user_id)
+    await db.commit()
+
+    return {
+        "auth_user_id": rt.auth_user_id,
+        "new_refresh_token": new_raw,
+        "new_expires_at": _utc(new_expires).isoformat(),
+    }
+
+
+async def revoke_refresh_token(
+    db: AsyncSession,
+    raw_token: str,
+) -> bool:
+    """Revoke a refresh token (logout).
+
+    Returns ``True`` if the token was found and revoked, ``False`` if not found.
+    Already-revoked tokens are silently accepted (idempotent).
+    """
+    token_hash = _hashlib.sha256(raw_token.encode()).hexdigest()
+    now = datetime.now(timezone.utc)
+
+    result = await db.execute(
+        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+    )
+    rt: RefreshToken | None = result.scalar_one_or_none()
+
+    if rt is None:
+        return False
+
+    if rt.revoked_at is None:
+        rt.revoked_at = now
+        await db.commit()
+    return True

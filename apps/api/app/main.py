@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 24.
+"""Ziza API — Sprint 25.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -80,6 +80,9 @@ Endpoints:
   GET   /v1/payments/{intent_id}                   customer reads their payment intent status (Sprint 24)
   POST  /v1/payments/webhook                       payment provider confirms or rejects a payment (Sprint 24)
   GET   /v1/trips/{trip_id}/payment                shortcut: payment status for a trip (Sprint 24)
+  POST  /v1/auth/refresh                           exchange a valid refresh token for a new token pair (Sprint 25)
+  POST  /v1/auth/logout                            revoke the active refresh token (Sprint 25)
+  POST  /v1/drivers/me/documents/upload-url        get a signed GCS URL for direct document upload (Sprint 25)
 """
 from __future__ import annotations
 
@@ -98,6 +101,7 @@ from app.auth.dependencies import get_current_user
 from app.config import settings
 from app.db import get_db
 from app.middleware.logging import RequestLoggingMiddleware
+from app.middleware.rate_limit import RateLimitMiddleware, set_rate_limit_enabled
 
 app = FastAPI(
     title="Ziza API",
@@ -105,7 +109,11 @@ app = FastAPI(
     description="Ziza Transportation backend API",
 )
 
-# Middleware order: CORSMiddleware first (outermost), then logging
+# Sprint 25: activate rate limiter if enabled in settings
+if settings.rate_limit_enabled:
+    set_rate_limit_enabled(True)
+
+# Middleware order: CORSMiddleware first (outermost), then rate limiter, then logging
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -113,6 +121,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RateLimitMiddleware)   # Sprint 25 — disabled by default
 app.add_middleware(RequestLoggingMiddleware)
 
 
@@ -169,22 +178,42 @@ class TokenRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    expires_in: int | None = None        # seconds until access token expires (Sprint 25)
+    refresh_token: str | None = None     # opaque refresh token (Sprint 25)
 
 
 @app.post(
     "/v1/token",
     tags=["auth"],
-    summary="[DEV] Exchange email+password for a JWT",
+    summary="[DEV] Exchange email+password for a JWT + refresh token",
     include_in_schema=True,
 )
-def issue_token(body: TokenRequest) -> TokenResponse:
-    """DEV-only endpoint.  Returns 404 in production."""
+async def issue_token(
+    body: TokenRequest,
+    db: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    """DEV-only endpoint.  Returns 404 in production.
+
+    Sprint 25: also issues a refresh token (30-day TTL) and includes
+    ``expires_in`` (seconds until access token expires).
+    """
     if settings.environment == "prod":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    from app.auth.dev_adapter import DevAdapter  # noqa: PLC0415
-    token = DevAdapter().issue(body.email, body.password)
-    return TokenResponse(access_token=token)
+    from app.auth.dev_adapter import DevAdapter, SEEDED_USERS  # noqa: PLC0415
+    access_token = DevAdapter().issue(body.email, body.password)
+
+    # Look up auth_user_id for the refresh token
+    user_data = SEEDED_USERS.get(body.email, {})
+    auth_user_id = user_data.get("user_id", body.email)
+    raw_refresh, _expires = await crud.create_refresh_token(db, auth_user_id)
+
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=settings.jwt_access_ttl_min * 60,
+        refresh_token=raw_refresh,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -2336,3 +2365,135 @@ async def get_trip_payment(
             detail="No payment intent found for this trip",
         )
     return PaymentIntentResponse(**intent_data)
+
+
+# ---------------------------------------------------------------------------
+# Auth — Refresh & Logout (Sprint 25)
+# ---------------------------------------------------------------------------
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str
+
+
+@app.post("/v1/auth/refresh", tags=["auth"])
+async def refresh_token(
+    body: RefreshRequest,
+    db: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    """Sprint 25 — Exchange a valid refresh token for a new token pair.
+
+    Token rotation: the supplied refresh token is revoked and a brand-new
+    refresh token is issued alongside a fresh access token (15-min TTL).
+
+    Returns 401 if the refresh token is invalid, expired, or already revoked.
+    """
+    from app.auth.dev_adapter import DevAdapter  # noqa: PLC0415
+
+    rotation = await crud.use_refresh_token(db, body.refresh_token)
+    auth_user_id = rotation["auth_user_id"]
+
+    # Issue a new access token for the same user
+    new_access = DevAdapter().issue_for_user_id(auth_user_id)
+
+    return TokenResponse(
+        access_token=new_access,
+        token_type="bearer",
+        expires_in=settings.jwt_access_ttl_min * 60,
+        refresh_token=rotation["new_refresh_token"],
+    )
+
+
+@app.post("/v1/auth/logout", tags=["auth"], status_code=204)
+async def logout(
+    body: LogoutRequest,
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Sprint 25 — Revoke the active refresh token (logout).
+
+    Returns 204 No Content on success.
+    Returns 404 if the refresh token is not found.
+    """
+    found = await crud.revoke_refresh_token(db, body.refresh_token)
+    if not found:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Refresh token not found",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Driver document upload URL (Sprint 25 — Cloud Storage signed URL)
+# ---------------------------------------------------------------------------
+
+class UploadUrlResponse(BaseModel):
+    upload_url: str  # PUT this URL to upload the file directly to GCS
+    final_url: str   # Public URL of the file after upload
+
+
+class UploadUrlRequest(BaseModel):
+    filename: str    # e.g. "license.pdf"
+    content_type: str = "application/octet-stream"
+
+
+@app.post(
+    "/v1/drivers/me/documents/upload-url",
+    tags=["drivers"],
+    status_code=200,
+)
+async def get_document_upload_url(
+    body: UploadUrlRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UploadUrlResponse:
+    """Sprint 25 — Return a pre-signed GCS URL for direct document upload.
+
+    The client uploads the file by making a PUT request to ``upload_url``
+    (no auth header required — the signature embeds the permissions).
+
+    After upload the file is accessible at ``final_url``.
+
+    In dev / CI (``gcs_bucket_name`` not set) a mock URL is returned.
+    """
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can request upload URLs",
+        )
+
+    # Resolve driver profile
+    driver_data = await crud.get_driver_profile(db, claims.user_id)
+    driver_id = driver_data["driver_id"]
+
+    import uuid as _uuid  # noqa: PLC0415
+    file_key = f"driver-docs/{driver_id}/{_uuid.uuid4()}/{body.filename}"
+
+    if settings.gcs_bucket_name:
+        # Production: generate a real GCS signed URL
+        try:
+            from google.cloud import storage as _gcs  # noqa: PLC0415
+            from datetime import timedelta as _td  # noqa: PLC0415
+            gcs_client = _gcs.Client()
+            bucket = gcs_client.bucket(settings.gcs_bucket_name)
+            blob = bucket.blob(file_key)
+            upload_url = blob.generate_signed_url(
+                expiration=_td(minutes=15),
+                method="PUT",
+                content_type=body.content_type,
+                version="v4",
+            )
+            final_url = f"https://storage.googleapis.com/{settings.gcs_bucket_name}/{file_key}"
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Cloud Storage unavailable: {exc}",
+            )
+    else:
+        # Dev / CI: return mock URLs
+        upload_url = f"http://localhost/mock-gcs-upload/{file_key}"
+        final_url = f"http://localhost/mock-gcs/{file_key}"
+
+    return UploadUrlResponse(upload_url=upload_url, final_url=final_url)

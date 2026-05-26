@@ -36,6 +36,58 @@ jobs:
         run: pytest
 
   # ------------------------------------------------------------------
+  # Security audit — Sprint 25
+  # ------------------------------------------------------------------
+  security-audit:
+    name: Security audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+
+      - name: Install API dependencies + audit tools
+        working-directory: apps/api
+        run: |
+          pip install -r requirements.txt
+          pip install pip-audit bandit
+
+      - name: pip-audit (Python vulnerability scan)
+        working-directory: apps/api
+        run: pip-audit --requirement requirements.txt --fail-on CRITICAL
+        continue-on-error: true   # warn only — don't block CI for transitive deps
+
+      - name: bandit (Python static security analysis)
+        working-directory: apps/api
+        run: bandit -r app/ -ll --quiet
+        continue-on-error: true   # report only
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: npm audit (web-customer)
+        working-directory: apps/web-customer
+        run: npm ci --prefer-offline && npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: npm audit (web-driver)
+        working-directory: apps/web-driver
+        run: npm ci --prefer-offline && npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: npm audit (web-admin)
+        working-directory: apps/web-admin
+        run: npm ci --prefer-offline && npm audit --audit-level=high
+        continue-on-error: true
+
+  # ------------------------------------------------------------------
   # Docker builds for all 4 apps (matrix, parallel)
   # ------------------------------------------------------------------
   docker-build:

@@ -1,7 +1,11 @@
-"""DEV auth adapter — Sprint 2.
+"""DEV auth adapter — Sprint 2 → Sprint 25.
 
 Signs/verifies JWTs with a local HMAC secret.
 Three users are seeded; all share the same password (AUTH_DEV_PASSWORD).
+
+Sprint 25 changes:
+  - Access token TTL is now driven by ``jwt_access_ttl_min`` (default 15 min).
+  - Added ``issue_for_user_id()`` for the refresh token rotation flow.
 
 Never use this adapter in production.
 """
@@ -29,6 +33,21 @@ class DevAdapter(AuthAdapter):
     """HMAC-signed JWT adapter for local development and CI."""
 
     # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+    def _build_token(self, email: str, user: dict) -> str:
+        now = datetime.now(timezone.utc)
+        payload = {
+            "sub": user["user_id"],
+            "email": email,
+            "role": user["role"],
+            "provider": "dev",
+            "iat": now,
+            "exp": now + timedelta(minutes=settings.jwt_access_ttl_min),
+        }
+        return jwt.encode(payload, settings.auth_dev_secret, algorithm=_ALGORITHM)
+
+    # ------------------------------------------------------------------
     # Token issuance (only called from POST /v1/token)
     # ------------------------------------------------------------------
     def issue(self, email: str, password: str) -> str:
@@ -44,16 +63,21 @@ class DevAdapter(AuthAdapter):
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Unknown user",
             )
-        now = datetime.now(timezone.utc)
-        payload = {
-            "sub": user["user_id"],
-            "email": email,
-            "role": user["role"],
-            "provider": "dev",
-            "iat": now,
-            "exp": now + timedelta(hours=settings.auth_dev_token_ttl_hours),
-        }
-        return jwt.encode(payload, settings.auth_dev_secret, algorithm=_ALGORITHM)
+        return self._build_token(email, user)
+
+    def issue_for_user_id(self, auth_user_id: str) -> str:
+        """Return a new access token for a known auth_user_id.
+
+        Called during the refresh token rotation flow — no password required
+        because the caller already proved ownership via the refresh token.
+        """
+        for email, data in SEEDED_USERS.items():
+            if data["user_id"] == auth_user_id:
+                return self._build_token(email, data)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unknown user",
+        )
 
     # ------------------------------------------------------------------
     # Token verification (called on every protected request)

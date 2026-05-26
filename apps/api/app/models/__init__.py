@@ -20,10 +20,11 @@ from app.models.notification import Notification  # noqa: F401
 from app.models.saved_place import SavedPlace  # noqa: F401
 from app.models.driver_location import DriverLocation  # noqa: F401
 from app.models.payment import PaymentIntent  # noqa: F401  — Sprint 24
+from app.models.refresh_token import RefreshToken  # noqa: F401  — Sprint 25
 
 __all__ = [
     "Base", "User", "Driver", "Vehicle", "Trip", "TripEvent", "Estimate",
     "Rating", "AssistanceRequest", "DriverCapability", "PromoCode",
     "PayoutRequest", "PlatformSetting", "DriverDocument", "Notification",
-    "SavedPlace", "DriverLocation", "PaymentIntent",
+    "SavedPlace", "DriverLocation", "PaymentIntent", "RefreshToken",
 ]

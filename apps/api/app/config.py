@@ -30,8 +30,16 @@ class Settings(BaseSettings):
     auth_dev_secret: str = "dev-secret-change-in-env"
     # Shared password for all seeded dev users.
     auth_dev_password: str = "ziza2024"
-    # Token TTL in hours.
+    # Token TTL in hours (kept for backward compat; overridden by jwt_access_ttl_min).
     auth_dev_token_ttl_hours: int = 24
+
+    # ------------------------------------------------------------------
+    # JWT TTL — Sprint 25
+    # ------------------------------------------------------------------
+    # Access token lifetime in minutes (default 15 min — Sprint 25).
+    jwt_access_ttl_min: int = 15
+    # Refresh token lifetime in days (default 30 days).
+    jwt_refresh_ttl_days: int = 30
 
     # ------------------------------------------------------------------
     # Firebase / PROD auth (Sprint 3)
@@ -59,6 +67,20 @@ class Settings(BaseSettings):
     # Example (Cloud SQL unix socket):
     #   postgresql+asyncpg://ziza:pass@/ziza?host=/cloudsql/proj:region:inst
     database_url: str = ""
+
+    # ------------------------------------------------------------------
+    # Rate limiting — Sprint 25
+    # ------------------------------------------------------------------
+    # Set to True in production to enforce per-route request limits.
+    # Left False in dev/CI so existing tests are not rate-limited.
+    rate_limit_enabled: bool = False
+
+    # ------------------------------------------------------------------
+    # Cloud Storage — Sprint 25 (document upload)
+    # ------------------------------------------------------------------
+    # GCS bucket name for driver KYC documents.
+    # Leave empty to use mock URLs (dev / CI).
+    gcs_bucket_name: str = ""
 
     # ------------------------------------------------------------------
     # Payment — Sprint 24
