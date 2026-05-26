@@ -1,5 +1,5 @@
 /**
- * API client for web-customer — Sprint 21.
+ * API client for web-customer — Sprint 23.
  * NOT shared across frontends (isolation rule).
  */
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -387,4 +387,21 @@ export async function getTripEta(token, tripId) {
   });
   if (res.status === 404) return null; // driver location not available yet
   return _json(res); // { distance_km, eta_min, driver_lat, driver_lng, updated_at }
+}
+
+// ---------------------------------------------------------------------------
+// Trip tracking — Sprint 23
+// ---------------------------------------------------------------------------
+
+/**
+ * Poll driver's live position for an active trip.
+ * Returns null when no location is available yet (driver hasn't pushed one).
+ * Returns { trip_id, status, driver_lat, driver_lng, eta_min, updated_at }.
+ */
+export async function getTripTracking(token, tripId) {
+  const res = await fetch(`${API_BASE}/v1/trips/${tripId}/tracking`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (res.status === 404) return null; // location not yet available
+  return _json(res);
 }

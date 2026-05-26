@@ -1,10 +1,10 @@
-"""Driver model — Sprint 4 → Sprint 13."""
+"""Driver model — Sprint 4 → Sprint 23."""
 from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -41,6 +41,12 @@ class Driver(Base):
     # Sprint 13 — online/offline presence toggle
     is_online: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="0"
+    )
+    # Sprint 23 — denormalised live position snapshot (synced from driver_locations)
+    current_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    current_lng: Mapped[float | None] = mapped_column(Float, nullable=True)
+    last_seen_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now

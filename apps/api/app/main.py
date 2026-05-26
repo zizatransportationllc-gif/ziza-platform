@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 22.
+"""Ziza API — Sprint 23.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -75,6 +75,7 @@ Endpoints:
   PATCH /v1/places/{place_id}                      update a saved place (label/name/lat/lng)
   DELETE /v1/places/{place_id}                     delete a saved place
   GET   /v1/categories                             list vehicle categories + fare multipliers
+  GET   /v1/trips/{trip_id}/tracking               customer polls driver live position (Sprint 23)
 """
 from __future__ import annotations
 
@@ -388,6 +389,7 @@ class TripRequest(BaseModel):
 class TripEventOut(BaseModel):
     event_type: str
     data: dict | None
+    actor: str | None = None  # Sprint 23: "customer" | "driver" | "system"
     created_at: str
 
 
@@ -451,6 +453,7 @@ def _trip_response(trip, events=None, vehicle=None) -> TripResponse:
             TripEventOut(
                 event_type=e.event_type,
                 data=e.data,
+                actor=getattr(e, "actor", None),  # Sprint 23
                 created_at=e.created_at.isoformat(),
             )
             for e in events
@@ -618,7 +621,8 @@ async def list_available_trips(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only drivers can view available trips",
         )
-    trips = await crud.list_available_trips(db)
+    # Sprint 23: pass driver's user_id so crud can sort by proximity
+    trips = await crud.list_available_trips(db, auth_user_id=claims.user_id)
     return [_trip_response(t) for t in trips]
 
 
@@ -2094,6 +2098,17 @@ class EtaResponse(BaseModel):
     updated_at: str
 
 
+class TrackingResponse(BaseModel):
+    """Sprint 23 — live driver position for customer tracking."""
+
+    trip_id: str
+    status: str
+    driver_lat: float
+    driver_lng: float
+    eta_min: int | None = None
+    updated_at: str | None = None
+
+
 def _location_response(loc) -> LocationResponse:
     return LocationResponse(
         driver_id=str(loc.driver_id),
@@ -2162,3 +2177,27 @@ async def get_trip_eta(
         )
     data = await crud.get_trip_eta(db, claims, trip_id)
     return EtaResponse(**data)
+
+
+@app.get("/v1/trips/{trip_id}/tracking", tags=["rides"])
+async def get_trip_tracking(
+    trip_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TrackingResponse:
+    """Sprint 23 — Customer polls driver's live GPS position during a trip.
+
+    Returns the driver's latest latitude / longitude together with a fresh ETA.
+    Returns 404 when the driver has not yet pushed any location update (client
+    should retry on the next polling tick).
+
+    Only the customer who owns the trip may call this endpoint.
+    Trip must be in 'accepted' or 'in_progress' status.
+    """
+    if claims.role != "customer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only customers can track a trip",
+        )
+    data = await crud.get_trip_tracking(db, claims, trip_id)
+    return TrackingResponse(**data)

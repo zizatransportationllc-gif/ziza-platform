@@ -1,8 +1,11 @@
-"""Sprint 6 — /v1/trips tests (14 tests).
+"""Sprint 6 → Sprint 23 — /v1/trips tests (14 + 3 = 17 tests).
 
 State machine covered:
   pending → cancelled   (customer cancel from pending)
   cancelled → cancelled  (409 — already terminal)
+
+Sprint 23 additions:
+  actor field on TripEvent ("customer" on create/cancel, "driver" on accept/complete)
 """
 import uuid
 
@@ -266,3 +269,82 @@ def test_list_trips() -> None:
 def test_list_trips_requires_auth() -> None:
     resp = client.get("/v1/trips")
     assert resp.status_code in {401, 403}
+
+
+# ---------------------------------------------------------------------------
+# Sprint 23 — actor field on TripEvent (3 tests)
+# ---------------------------------------------------------------------------
+
+def _setup_driver(driver_email: str) -> str:
+    tok = _get_token(driver_email)
+    client.post("/v1/auth/register", headers={"Authorization": f"Bearer {tok}"})
+    client.post("/v1/drivers/register", headers={"Authorization": f"Bearer {tok}"})
+    return tok
+
+
+def test_create_trip_event_has_actor_customer() -> None:
+    """TripEvent created on trip booking must carry actor='customer'."""
+    token = _get_token()
+    _register(token)
+    estimate_id = _get_estimate(token)
+    trip_resp = _create_trip(token, estimate_id)
+    trip_id = trip_resp.json()["trip_id"]
+
+    detail = client.get(f"/v1/trips/{trip_id}",
+                        headers={"Authorization": f"Bearer {token}"})
+    assert detail.status_code == 200, detail.text
+    events = detail.json()["events"]
+    assert events, "Expected at least one event"
+    first = events[0]
+    assert first["event_type"] == "status_changed"
+    assert first["actor"] == "customer"
+
+
+def test_accept_trip_event_has_actor_driver() -> None:
+    """TripEvent on driver accept must carry actor='driver'."""
+    tc = _get_token("customer@ziza.dev")
+    _register(tc)
+    td = _setup_driver("driver@ziza.dev")
+
+    estimate_id = _get_estimate(tc)
+    trip_id = _create_trip(tc, estimate_id).json()["trip_id"]
+
+    accept = client.patch(f"/v1/trips/{trip_id}/accept",
+                          headers={"Authorization": f"Bearer {td}"})
+    assert accept.status_code == 200, accept.text
+
+    detail = client.get(f"/v1/trips/{trip_id}",
+                        headers={"Authorization": f"Bearer {tc}"})
+    assert detail.status_code == 200, detail.text
+    events = detail.json()["events"]
+    # Find the "accepted" event
+    accepted_events = [e for e in events if e.get("data", {}) and
+                       e["data"].get("to") == "accepted"]
+    assert accepted_events, "No accepted event found"
+    assert accepted_events[0]["actor"] == "driver"
+
+
+def test_complete_trip_event_has_actor_driver() -> None:
+    """TripEvent on driver complete must carry actor='driver'."""
+    tc = _get_token("customer@ziza.dev")
+    _register(tc)
+    td = _setup_driver("driver@ziza.dev")
+
+    estimate_id = _get_estimate(tc)
+    trip_id = _create_trip(tc, estimate_id).json()["trip_id"]
+
+    client.patch(f"/v1/trips/{trip_id}/accept",
+                 headers={"Authorization": f"Bearer {td}"})
+    client.patch(f"/v1/trips/{trip_id}/start",
+                 headers={"Authorization": f"Bearer {td}"})
+    client.patch(f"/v1/trips/{trip_id}/complete",
+                 headers={"Authorization": f"Bearer {td}"})
+
+    detail = client.get(f"/v1/trips/{trip_id}",
+                        headers={"Authorization": f"Bearer {tc}"})
+    assert detail.status_code == 200, detail.text
+    events = detail.json()["events"]
+    completed_events = [e for e in events if e.get("data", {}) and
+                        e["data"].get("to") == "completed"]
+    assert completed_events, "No completed event found"
+    assert completed_events[0]["actor"] == "driver"

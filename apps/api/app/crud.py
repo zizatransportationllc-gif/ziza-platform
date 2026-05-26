@@ -322,6 +322,7 @@ async def create_trip(
         trip_id=trip.id,
         event_type="status_changed",
         data={"from": None, "to": "pending"},
+        actor="customer",
     )
     db.add(event)
     await db.commit()
@@ -409,6 +410,7 @@ async def cancel_trip(
         trip_id=trip.id,
         event_type="status_changed",
         data={"from": prev_status, "to": "cancelled"},
+        actor="customer",
     )
     db.add(event)
     await db.commit()
@@ -458,14 +460,41 @@ async def _get_driver_by_auth_id(db: AsyncSession, auth_user_id: str) -> Driver 
 # Trip state transitions — driver side (Sprint 7)
 # ---------------------------------------------------------------------------
 
-async def list_available_trips(db: AsyncSession) -> list[Trip]:
-    """All pending trips, newest first (driver marketplace view)."""
+async def list_available_trips(
+    db: AsyncSession, auth_user_id: str | None = None
+) -> list[Trip]:
+    """All pending trips for the driver marketplace.
+
+    Sprint 23: if the authenticated driver has a known current position
+    (``drivers.current_lat/lng``), the list is sorted by ascending haversine
+    distance between the trip origin and the driver's position.
+    Falls back to newest-first when no position is available.
+    """
     result = await db.execute(
         select(Trip)
         .where(Trip.status == "pending")
         .order_by(Trip.created_at.desc())
     )
-    return list(result.scalars().all())
+    trips = list(result.scalars().all())
+
+    if auth_user_id is not None:
+        driver = await _get_driver_by_auth_id(db, auth_user_id)
+        if (
+            driver is not None
+            and getattr(driver, "current_lat", None) is not None
+            and getattr(driver, "current_lng", None) is not None
+        ):
+            d_lat = driver.current_lat
+            d_lng = driver.current_lng
+            trips.sort(
+                key=lambda t: _haversine_km(
+                    d_lat, d_lng,
+                    t.origin_lat or 0.0,
+                    t.origin_lng or 0.0,
+                )
+            )
+
+    return trips
 
 
 async def get_driver_active_trip(db: AsyncSession, auth_user_id: str) -> Trip | None:
@@ -546,6 +575,7 @@ async def accept_trip(db: AsyncSession, trip_id: str, auth_user_id: str) -> Trip
         trip_id=trip.id,
         event_type="status_changed",
         data={"from": "pending", "to": "accepted", "driver_id": str(driver.id)},
+        actor="driver",
     ))
     await db.commit()
     await db.refresh(trip)
@@ -575,6 +605,7 @@ async def start_trip(db: AsyncSession, trip_id: str, auth_user_id: str) -> Trip:
         trip_id=trip.id,
         event_type="status_changed",
         data={"from": "accepted", "to": "in_progress"},
+        actor="driver",
     ))
     await db.commit()
     await db.refresh(trip)
@@ -597,6 +628,7 @@ async def complete_trip(db: AsyncSession, trip_id: str, auth_user_id: str) -> Tr
         trip_id=trip.id,
         event_type="status_changed",
         data={"from": "in_progress", "to": "completed"},
+        actor="driver",
     ))
     await db.commit()
     await db.refresh(trip)
@@ -904,8 +936,10 @@ async def accept_assistance(
     req.status = "accepted"
     req.driver_id = driver.id
     req.updated_at = datetime.now(timezone.utc)
-    # ETA: haversine distance from Abidjan dispatch centre to customer location
-    req.eta_min = _compute_eta_min(_ABIDJAN_LAT, _ABIDJAN_LNG, req.lat, req.lng)
+    # Sprint 23: use driver's real position when available; fall back to city centre
+    d_lat = getattr(driver, "current_lat", None) or _ABIDJAN_LAT
+    d_lng = getattr(driver, "current_lng", None) or _ABIDJAN_LNG
+    req.eta_min = _compute_eta_min(d_lat, d_lng, req.lat, req.lng)
     await db.commit()
     await db.refresh(req)
     return req
@@ -2283,6 +2317,12 @@ async def upsert_driver_location(
         loc.lng = lng
         loc.updated_at = now
 
+    # Sprint 23 — keep denormalised snapshot on the drivers row so dispatch
+    # can sort by proximity without an extra join.
+    driver.current_lat = lat
+    driver.current_lng = lng
+    driver.last_seen_at = now
+
     await db.commit()
     await db.refresh(loc)
     return loc
@@ -2384,4 +2424,93 @@ async def get_trip_eta(
         "driver_lat": loc.lat,
         "driver_lng": loc.lng,
         "updated_at": _utc(loc.updated_at).isoformat(),
+    }
+
+
+async def get_trip_tracking(
+    db: AsyncSession,
+    claims: Claims,
+    trip_id: str,
+) -> dict:
+    """Return driver's live position for a trip the caller owns.
+
+    Sprint 23 — lightweight polling endpoint consumed by the customer app.
+    Returns: {trip_id, status, driver_lat, driver_lng, eta_min, updated_at}
+    Returns 404 when no driver location is available yet (customer polls again).
+    """
+    try:
+        trip_uuid = uuid.UUID(trip_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid trip_id format",
+        )
+
+    # Resolve requesting user
+    user = await _get_user_by_auth_id(db, claims.user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Load trip — must belong to this customer
+    trip_result = await db.execute(select(Trip).where(Trip.id == trip_uuid))
+    trip: Trip | None = trip_result.scalar_one_or_none()
+    if trip is None or trip.customer_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+
+    if trip.status not in ("accepted", "in_progress"):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trip is not active",
+        )
+
+    if trip.driver_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No driver assigned yet",
+        )
+
+    # Prefer the denormalised snapshot on the Driver row (updated in real time
+    # by upsert_driver_location) to avoid an extra table join.
+    driver_result = await db.execute(select(Driver).where(Driver.id == trip.driver_id))
+    driver: Driver | None = driver_result.scalar_one_or_none()
+
+    d_lat: float | None = getattr(driver, "current_lat", None) if driver else None
+    d_lng: float | None = getattr(driver, "current_lng", None) if driver else None
+    updated_at_val = getattr(driver, "last_seen_at", None) if driver else None
+
+    # Fall back to driver_locations table if snapshot is not yet populated
+    if d_lat is None or d_lng is None:
+        loc_result = await db.execute(
+            select(DriverLocation).where(DriverLocation.driver_id == trip.driver_id)
+        )
+        loc: DriverLocation | None = loc_result.scalar_one_or_none()
+        if loc is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Driver location not available yet",
+            )
+        d_lat = loc.lat
+        d_lng = loc.lng
+        updated_at_val = loc.updated_at
+
+    # Compute ETA toward pickup (accepted) or destination (in_progress)
+    if trip.status == "accepted":
+        ref_lat, ref_lng = trip.origin_lat, trip.origin_lng
+    else:
+        ref_lat, ref_lng = trip.dest_lat, trip.dest_lng
+
+    eta_min: int | None = None
+    if ref_lat is not None and ref_lng is not None:
+        distance_km = _haversine_km(d_lat, d_lng, ref_lat, ref_lng)
+        eta_min = max(1, round((distance_km / CITY_SPEED_KMH) * 60))
+
+    updated_str = _utc(updated_at_val).isoformat() if updated_at_val else None
+
+    return {
+        "trip_id": str(trip.id),
+        "status": trip.status,
+        "driver_lat": d_lat,
+        "driver_lng": d_lng,
+        "eta_min": eta_min,
+        "updated_at": updated_str,
     }

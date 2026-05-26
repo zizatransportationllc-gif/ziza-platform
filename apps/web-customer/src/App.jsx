@@ -5,7 +5,7 @@ import {
   validatePromo, getProfile, updateProfile,
   listNotifications, getUnreadCount, markAllRead,
   listPlaces, createPlace, updatePlace, deletePlace,
-  listCategories, getTripEta,
+  listCategories, getTripEta, getTripTracking,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -412,6 +412,7 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState(null);
   const [eta, setEta] = useState(null); // { distance_km, eta_min } | null — Sprint 22
+  const [driverLocation, setDriverLocation] = useState(null); // Sprint 23 — live driver position
 
   // Poll trip status every 5 s until terminal state
   useEffect(() => {
@@ -436,6 +437,20 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
     }
     fetchEta();
     const id = setInterval(fetchEta, 15000);
+    return () => clearInterval(id);
+  }, [trip.trip_id, trip.status]);
+
+  // Sprint 23: Poll driver's live position every 5 s when trip is active
+  useEffect(() => {
+    if (!["accepted", "in_progress"].includes(trip.status)) { setDriverLocation(null); return; }
+    async function fetchTracking() {
+      try {
+        const data = await getTripTracking(token, trip.trip_id);
+        if (data) setDriverLocation(data);
+      } catch (_) {}
+    }
+    fetchTracking();
+    const id = setInterval(fetchTracking, 5000);
     return () => clearInterval(id);
   }, [trip.trip_id, trip.status]);
 
@@ -480,6 +495,25 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
             <span className="eta-label">
               {trip.status === "accepted" ? "avant la prise en charge" : "avant l'arrivée"}
             </span>
+          </div>
+        )}
+        {/* Sprint 23: Live driver tracking card */}
+        {driverLocation && (
+          <div className="tracking-card">
+            <span className="tracking-icon">📍</span>
+            <div className="tracking-info">
+              <div className="tracking-coords">
+                {driverLocation.driver_lat.toFixed(5)}, {driverLocation.driver_lng.toFixed(5)}
+              </div>
+              {driverLocation.eta_min != null && (
+                <div className="tracking-eta">ETA : ~{driverLocation.eta_min} min</div>
+              )}
+              {driverLocation.updated_at && (
+                <div className="tracking-updated">
+                  Mis à jour : {new Date(driverLocation.updated_at).toLocaleTimeString()}
+                </div>
+              )}
+            </div>
           </div>
         )}
         {trip.vehicle && (trip.status === "accepted" || trip.status === "in_progress") && (

@@ -1,4 +1,4 @@
-"""Trip and TripEvent models — Sprint 4 → Sprint 21."""
+"""Trip and TripEvent models — Sprint 4 → Sprint 23."""
 from __future__ import annotations
 
 import uuid
@@ -83,6 +83,8 @@ class TripEvent(Base):
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)
     # Arbitrary JSON payload — structure depends on event_type
     data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Sprint 23 — who triggered this event: "customer" | "driver" | "system"
+    actor: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
