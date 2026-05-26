@@ -91,6 +91,16 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .period-label { font-size: 0.72rem; color: var(--color-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
 .period-value { font-size: 1rem; font-weight: 700; color: var(--color-fg); }
 .period-trips { font-size: 0.72rem; color: var(--color-muted); }
+.earnings-recent { margin-top: var(--space-4); border-top: 1px solid var(--color-border); padding-top: var(--space-3); text-align: left; }
+.earnings-recent-title { font-size: 0.72rem; font-weight: 600; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: var(--space-2); }
+.earnings-recent-list { display: flex; flex-direction: column; gap: var(--space-1); }
+.earnings-recent-row { display: flex; align-items: center; justify-content: space-between; padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); }
+.earnings-recent-row:nth-child(odd) { background: color-mix(in srgb, var(--color-accent) 5%, transparent); }
+.earnings-recent-left { display: flex; flex-direction: column; gap: 2px; }
+.earnings-recent-fare { font-size: 0.88rem; font-weight: 700; color: var(--color-fg); }
+.earnings-recent-meta { font-size: 0.72rem; color: var(--color-muted); }
+.earnings-recent-date { font-size: 0.72rem; color: var(--color-muted); white-space: nowrap; }
+.earnings-empty { font-size: 0.82rem; color: var(--color-muted); margin-top: var(--space-3); text-align: center; }
 
 /* ── Sprint 8: Rating stats ─────────────────────────────────────────────── */
 .rating-stats-card { margin-bottom: var(--space-4); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); text-align: center; }

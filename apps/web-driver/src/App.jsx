@@ -170,7 +170,7 @@ function RatingStats({ stats }) {
 
 function EarningsCard({ earnings }) {
   if (!earnings) return null;
-  const { total_xof, total_trips, today_xof, today_trips, week_xof, week_trips } = earnings;
+  const { total_xof, total_trips, today_xof, today_trips, week_xof, week_trips, recent_trips = [] } = earnings;
 
   return (
     <div className="earnings-card">
@@ -189,6 +189,36 @@ function EarningsCard({ earnings }) {
           <span className="period-trips">{week_trips} course{week_trips !== 1 ? "s" : ""}</span>
         </div>
       </div>
+
+      {/* Sprint 11 fix: recent trips list */}
+      {recent_trips.length > 0 && (
+        <div className="earnings-recent">
+          <div className="earnings-recent-title">10 dernières courses</div>
+          <div className="earnings-recent-list">
+            {recent_trips.map((t) => (
+              <div key={t.trip_id} className="earnings-recent-row">
+                <div className="earnings-recent-left">
+                  <span className="earnings-recent-fare">
+                    {t.fare_xof != null ? formatXOF(t.fare_xof) : "—"}
+                  </span>
+                  <span className="earnings-recent-meta">
+                    {t.distance_km != null && `🛣️ ${t.distance_km.toFixed(1)} km`}
+                    {t.duration_min != null && ` · ⏱️ ${t.duration_min} min`}
+                  </span>
+                </div>
+                <span className="earnings-recent-date">
+                  {new Date(t.completed_at).toLocaleDateString("fr-FR", {
+                    day: "2-digit", month: "short",
+                  })}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {recent_trips.length === 0 && total_trips === 0 && (
+        <p className="earnings-empty">Aucune course complétée pour l&apos;instant.</p>
+      )}
     </div>
   );
 }
