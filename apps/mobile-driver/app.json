@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Ziza Driver",
+    "slug": "ziza-driver",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "ci.ziza.driver",
+      "infoPlist": {
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Ziza partage votre position avec les clients pendant les trajets.",
+        "NSLocationWhenInUseUsageDescription": "Ziza utilise votre position pour calculer les trajets."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1D4ED8"
+      },
+      "package": "ci.ziza.driver",
+      "permissions": [
+        "ACCESS_BACKGROUND_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE"
+      ]
+    },
+    "plugins": [
+      "expo-notifications",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Ziza partage votre position avec les clients."
+        }
+      ],
+      "expo-task-manager"
+    ]
+  }
+}
