@@ -481,3 +481,58 @@ export async function checkPointInService(lat, lng) {
   });
   return _json(res); // PointInCityResponse
 }
+
+// ---------------------------------------------------------------------------
+// Sprint 34 — Advanced Analytics
+// ---------------------------------------------------------------------------
+
+/** Get high-level platform KPIs. */
+export async function adminGetKPIs(token) {
+  const res = await fetch(`${API_BASE}/v1/admin/analytics/kpis`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
+/** Get revenue grouped by time period (day | week | month). */
+export async function adminGetRevenue(token, period = "day", limit = 30) {
+  const res = await fetch(
+    `${API_BASE}/v1/admin/analytics/revenue?period=${period}&limit=${limit}`,
+    { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+  );
+  return _json(res);
+}
+
+/** Get driver performance ranking. */
+export async function adminGetDriverPerformance(token, limit = 20) {
+  const res = await fetch(
+    `${API_BASE}/v1/admin/analytics/drivers?limit=${limit}`,
+    { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+  );
+  return _json(res);
+}
+
+/** Get trip breakdown by category. */
+export async function adminGetCategoryBreakdown(token) {
+  const res = await fetch(`${API_BASE}/v1/admin/analytics/categories`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
+/** Get hourly trip demand (0–23). */
+export async function adminGetHourlyDemand(token) {
+  const res = await fetch(`${API_BASE}/v1/admin/analytics/hourly`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
+/** Get top customers by trip count. */
+export async function adminGetTopCustomers(token, limit = 10) {
+  const res = await fetch(
+    `${API_BASE}/v1/admin/analytics/top-customers?limit=${limit}`,
+    { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+  );
+  return _json(res);
+}

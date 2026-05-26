@@ -12,6 +12,8 @@ import {
   adminListFlags, adminSetFlag, // Sprint 31
   adminListLiveDrivers, adminSetUserRole, adminCreateInviteCode, // Sprint 31
   adminListCities, adminCreateCity, adminUpdateCity, // Sprint 32
+  adminGetKPIs, adminGetRevenue, adminGetDriverPerformance, // Sprint 34
+  adminGetCategoryBreakdown, adminGetHourlyDemand, adminGetTopCustomers, // Sprint 34
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 
@@ -52,7 +54,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 33 — Portefeuille client</p>
+      <p className="subtitle">Sprint 34 — Analytics avancées</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
@@ -1726,6 +1728,165 @@ function CitiesPanel({ token }) {
 }
 
 // ---------------------------------------------------------------------------
+// AnalyticsPanel — Sprint 34
+// ---------------------------------------------------------------------------
+
+function KPICard({ label, value, unit = "", icon = "📊" }) {
+  return (
+    <div className="kpi-card">
+      <span className="kpi-icon">{icon}</span>
+      <span className="kpi-value">{typeof value === "number" ? value.toLocaleString("fr-FR") : value}{unit}</span>
+      <span className="kpi-label">{label}</span>
+    </div>
+  );
+}
+
+function AnalyticsPanel({ token }) {
+  const [kpis, setKpis] = useState(null);
+  const [revenue, setRevenue] = useState([]);
+  const [driverPerf, setDriverPerf] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [hourly, setHourly] = useState([]);
+  const [topCustomers, setTopCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [revPeriod, setRevPeriod] = useState("day");
+
+  const loadRevenue = useCallback((period) => {
+    adminGetRevenue(token, period, 14)
+      .then(setRevenue)
+      .catch(() => {});
+  }, [token]);
+
+  const load = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const [k, dp, cat, hr, tc] = await Promise.all([
+        adminGetKPIs(token),
+        adminGetDriverPerformance(token, 10),
+        adminGetCategoryBreakdown(token),
+        adminGetHourlyDemand(token),
+        adminGetTopCustomers(token, 8),
+      ]);
+      setKpis(k); setDriverPerf(dp); setCategories(cat); setHourly(hr); setTopCustomers(tc);
+      loadRevenue(revPeriod);
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  }, [token, revPeriod, loadRevenue]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const maxHourly = Math.max(...hourly.map((h) => h.trip_count), 1);
+
+  return (
+    <div className="analytics-panel">
+      <div className="panel-header">
+        <h2 className="panel-title">📈 Analytics avancées</h2>
+        <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
+      </div>
+      {error && <p className="form-error">{error}</p>}
+      {loading && <div className="status loading">⏳ Chargement des analytics…</div>}
+
+      {kpis && (
+        <div className="kpi-grid">
+          <KPICard icon="👥" label="Utilisateurs" value={kpis.total_users} />
+          <KPICard icon="🧑‍✈️" label="Chauffeurs" value={kpis.total_drivers} />
+          <KPICard icon="🟢" label="En ligne" value={kpis.online_drivers} />
+          <KPICard icon="🚕" label="Courses totales" value={kpis.total_trips} />
+          <KPICard icon="✅" label="Taux complétion" value={kpis.completion_rate_pct} unit="%" />
+          <KPICard icon="💰" label="Revenu total" value={Math.round(kpis.total_revenue_xof).toLocaleString("fr-FR")} unit=" XOF" />
+          <KPICard icon="⭐" label="Note moyenne" value={kpis.avg_rating} />
+        </div>
+      )}
+
+      {/* Revenue chart (text-based sparkline) */}
+      <div className="analytics-section">
+        <div className="analytics-section-header">
+          <h3 className="analytics-subtitle">💰 Revenu par période</h3>
+          <div className="period-tabs">
+            {["day", "week", "month"].map((p) => (
+              <button
+                key={p}
+                className={`period-tab ${revPeriod === p ? "active" : ""}`}
+                onClick={() => { setRevPeriod(p); loadRevenue(p); }}
+              >{p === "day" ? "Jour" : p === "week" ? "Semaine" : "Mois"}</button>
+            ))}
+          </div>
+        </div>
+        {revenue.length === 0 && <p className="muted-msg">Aucune donnée de revenu.</p>}
+        {revenue.map((r) => (
+          <div key={r.period} className="analytics-bar-row">
+            <span className="analytics-bar-label">{r.period}</span>
+            <span className="analytics-bar-trips">{r.trip_count} courses</span>
+            <span className="analytics-bar-revenue">{r.revenue_xof.toLocaleString("fr-FR")} XOF</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Category breakdown */}
+      <div className="analytics-section">
+        <h3 className="analytics-subtitle">🚗 Répartition par catégorie</h3>
+        {categories.length === 0 && <p className="muted-msg">Aucune donnée.</p>}
+        {categories.map((c) => (
+          <div key={c.category} className="analytics-bar-row">
+            <span className="analytics-bar-label" style={{ textTransform: "capitalize" }}>{c.category}</span>
+            <span className="analytics-bar-trips">{c.trip_count} courses</span>
+            <span className="analytics-bar-revenue">moy. {c.avg_fare_xof.toLocaleString("fr-FR")} XOF</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Hourly demand (mini bar chart) */}
+      <div className="analytics-section">
+        <h3 className="analytics-subtitle">⏰ Demande par heure</h3>
+        <div className="hourly-chart">
+          {hourly.map((h) => (
+            <div key={h.hour} className="hourly-bar-col">
+              <div
+                className="hourly-bar"
+                style={{ height: `${Math.round((h.trip_count / maxHourly) * 60)}px` }}
+                title={`${h.hour}h: ${h.trip_count} courses`}
+              />
+              <span className="hourly-label">{h.hour}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Top customers */}
+      {topCustomers.length > 0 && (
+        <div className="analytics-section">
+          <h3 className="analytics-subtitle">👑 Top clients</h3>
+          {topCustomers.map((c, i) => (
+            <div key={c.user_id} className="analytics-bar-row">
+              <span className="analytics-rank">#{i + 1}</span>
+              <span className="analytics-bar-label">{c.email}</span>
+              <span className="analytics-bar-trips">{c.trip_count} courses</span>
+              <span className="analytics-bar-revenue">{c.total_spent_xof.toLocaleString("fr-FR")} XOF</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Driver performance */}
+      {driverPerf.length > 0 && (
+        <div className="analytics-section">
+          <h3 className="analytics-subtitle">🏆 Performance chauffeurs</h3>
+          {driverPerf.map((d, i) => (
+            <div key={d.driver_id} className="analytics-bar-row">
+              <span className="analytics-rank">#{i + 1}</span>
+              <span className="analytics-bar-label">{d.email}</span>
+              <span className="analytics-bar-trips">{d.trip_count} courses</span>
+              <span className="analytics-bar-rating">⭐ {d.avg_rating}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard — tabbed navigation
 // ---------------------------------------------------------------------------
 
@@ -1736,6 +1897,7 @@ const TABS = [
   { id: "drivers",      label: "🧑‍✈️ Chauffeurs" },
   { id: "live",         label: "🗺️ Live" },
   { id: "cities",       label: "🌍 Villes" },
+  { id: "analytics",    label: "📈 Analytics" },
   { id: "promos",       label: "🏷️ Promos" },
   { id: "payouts",      label: "💸 Retraits",    pendingKey: "payout_requests" },
   { id: "ratings",      label: "⭐ Avis" },
@@ -1794,11 +1956,12 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "applications" && <ApplicationsPanel  token={token} />}
       {activeTab === "live"         && <LiveMapPanel        token={token} />}
       {activeTab === "cities"       && <CitiesPanel          token={token} />}
+      {activeTab === "analytics"    && <AnalyticsPanel       token={token} />}
       {activeTab === "flags"        && <FlagsPanel          token={token} />}
       {activeTab === "settings"     && <SurgePanel          token={token} />}
       {activeTab === "users"        && <UsersPanel          token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 33</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 34</p>
     </div>
   );
 }

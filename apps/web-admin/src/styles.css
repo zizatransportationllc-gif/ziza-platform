@@ -347,3 +347,28 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .city-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-bottom: var(--space-3); }
 .city-form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; font-weight: 600; }
 .city-form-grid input { padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius); font-size: .9rem; }
+
+/* ── Sprint 34 — Analytics Panel ── */
+.analytics-panel { max-width: 900px; }
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-5); }
+.kpi-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); padding: var(--space-3); text-align: center; display: flex; flex-direction: column; gap: 4px; }
+.kpi-icon { font-size: 1.4rem; }
+.kpi-value { font-size: 1.2rem; font-weight: 800; color: var(--color-primary); }
+.kpi-label { font-size: .72rem; color: var(--color-muted); text-transform: uppercase; letter-spacing: .05em; }
+.analytics-section { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); padding: var(--space-4); margin-bottom: var(--space-4); }
+.analytics-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-3); }
+.analytics-subtitle { font-size: .95rem; font-weight: 700; margin-bottom: var(--space-3); }
+.analytics-bar-row { display: flex; align-items: center; gap: var(--space-3); padding: 6px 0; border-bottom: 1px solid var(--color-border); flex-wrap: wrap; }
+.analytics-bar-row:last-child { border-bottom: none; }
+.analytics-bar-label { flex: 1; font-size: .85rem; min-width: 100px; }
+.analytics-bar-trips { font-size: .8rem; color: var(--color-muted); white-space: nowrap; }
+.analytics-bar-revenue { font-size: .82rem; font-weight: 600; white-space: nowrap; }
+.analytics-bar-rating { font-size: .82rem; color: #f59e0b; }
+.analytics-rank { font-size: .8rem; font-weight: 700; color: var(--color-muted); min-width: 24px; }
+.period-tabs { display: flex; gap: 4px; }
+.period-tab { padding: 4px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); font-size: .8rem; cursor: pointer; background: transparent; }
+.period-tab.active { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+.hourly-chart { display: flex; gap: 4px; align-items: flex-end; height: 80px; padding: var(--space-2) 0; }
+.hourly-bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; gap: 2px; }
+.hourly-bar { width: 100%; background: var(--color-primary); border-radius: 2px 2px 0 0; min-height: 2px; opacity: .75; transition: height .3s; }
+.hourly-label { font-size: .6rem; color: var(--color-muted); }

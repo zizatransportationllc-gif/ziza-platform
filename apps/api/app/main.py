@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 32.
+"""Ziza API — Sprint 34.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -3322,3 +3322,136 @@ async def admin_adjust_wallet(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid UUID")
     result = await crud.admin_adjust_wallet(db, uid, body.amount_xof, body.note)
     return WalletResponse(**result)
+
+
+# ===========================================================================
+# Sprint 34 — Advanced Analytics endpoints
+# ===========================================================================
+
+class RevenueByPeriodResponse(BaseModel):
+    period: str
+    revenue_xof: float
+    trip_count: int
+
+
+class DriverPerformanceResponse(BaseModel):
+    driver_id: str
+    email: str
+    trip_count: int
+    total_revenue_xof: float
+    avg_rating: float
+
+
+class CategoryBreakdownResponse(BaseModel):
+    category: str
+    trip_count: int
+    total_revenue_xof: float
+    avg_fare_xof: float
+
+
+class HourlyDemandResponse(BaseModel):
+    hour: int
+    trip_count: int
+
+
+class TopCustomerResponse(BaseModel):
+    user_id: str
+    email: str
+    trip_count: int
+    total_spent_xof: float
+
+
+class PlatformKPIsResponse(BaseModel):
+    total_users: int
+    total_drivers: int
+    online_drivers: int
+    total_trips: int
+    completed_trips: int
+    completion_rate_pct: float
+    total_revenue_xof: float
+    avg_rating: float
+
+
+@app.get("/v1/admin/analytics/revenue", response_model=list[RevenueByPeriodResponse],
+         summary="Revenue by time period (Sprint 34)")
+async def admin_revenue_by_period(
+    period: str = "day",
+    limit: int = 30,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only. period: 'day' | 'week' | 'month'."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    if period not in ("day", "week", "month"):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="period must be 'day', 'week', or 'month'")
+    rows = await crud.get_revenue_by_period(db, period, limit)
+    return [RevenueByPeriodResponse(**r) for r in rows]
+
+
+@app.get("/v1/admin/analytics/drivers", response_model=list[DriverPerformanceResponse],
+         summary="Driver performance ranking (Sprint 34)")
+async def admin_driver_performance(
+    limit: int = 20,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only. Ranked by trip count descending."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    rows = await crud.get_driver_performance(db, limit)
+    return [DriverPerformanceResponse(**r) for r in rows]
+
+
+@app.get("/v1/admin/analytics/categories", response_model=list[CategoryBreakdownResponse],
+         summary="Trip and revenue breakdown by category (Sprint 34)")
+async def admin_category_breakdown(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    rows = await crud.get_category_breakdown(db)
+    return [CategoryBreakdownResponse(**r) for r in rows]
+
+
+@app.get("/v1/admin/analytics/hourly", response_model=list[HourlyDemandResponse],
+         summary="Trip demand by hour of day (Sprint 34)")
+async def admin_hourly_demand(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only. Returns 24 entries (0–23)."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    rows = await crud.get_hourly_demand(db)
+    return [HourlyDemandResponse(**r) for r in rows]
+
+
+@app.get("/v1/admin/analytics/top-customers", response_model=list[TopCustomerResponse],
+         summary="Top customers by completed trips (Sprint 34)")
+async def admin_top_customers(
+    limit: int = 10,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    rows = await crud.get_top_customers(db, limit)
+    return [TopCustomerResponse(**r) for r in rows]
+
+
+@app.get("/v1/admin/analytics/kpis", response_model=PlatformKPIsResponse,
+         summary="High-level platform KPIs (Sprint 34)")
+async def admin_platform_kpis(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only. Single-object summary of platform health."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    result = await crud.get_platform_kpis(db)
+    return PlatformKPIsResponse(**result)

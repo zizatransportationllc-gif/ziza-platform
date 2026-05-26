@@ -4005,3 +4005,202 @@ async def admin_adjust_wallet(
     await db.commit()
     await db.refresh(wallet)
     return _wallet_to_dict(wallet)
+
+
+# ---------------------------------------------------------------------------
+# Sprint 34 — Advanced Analytics
+# ---------------------------------------------------------------------------
+
+async def get_revenue_by_period(
+    db: AsyncSession,
+    period: str = "day",  # "day" | "week" | "month"
+    limit: int = 30,
+) -> list[dict]:
+    """Return revenue (XOF) aggregated by time period from completed trips.
+
+    Uses Python-side grouping so it works with both SQLite (tests) and PostgreSQL.
+    """
+    from app.models.trip import Trip  # noqa: PLC0415
+
+    stmt = (
+        select(
+            Trip.created_at,
+            Trip.fare_xof,
+            Trip.category,
+        )
+        .where(Trip.status == "completed")
+        .where(Trip.fare_xof.isnot(None))
+        .order_by(Trip.created_at.desc())
+        .limit(limit * 100)  # fetch more to group
+    )
+    rows = (await db.execute(stmt)).all()
+
+    def _period_key(dt: datetime) -> str:
+        if isinstance(dt, str):
+            dt = datetime.fromisoformat(dt)
+        if period == "day":
+            return dt.strftime("%Y-%m-%d")
+        elif period == "week":
+            return dt.strftime("%Y-W%W")
+        else:  # month
+            return dt.strftime("%Y-%m")
+
+    groups: dict[str, dict] = {}
+    for created_at, fare, category in rows:
+        key = _period_key(created_at)
+        if key not in groups:
+            groups[key] = {"period": key, "revenue_xof": 0.0, "trip_count": 0}
+        groups[key]["revenue_xof"] += fare or 0.0
+        groups[key]["trip_count"] += 1
+
+    result = sorted(groups.values(), key=lambda x: x["period"], reverse=True)
+    return result[:limit]
+
+
+async def get_driver_performance(
+    db: AsyncSession,
+    limit: int = 20,
+) -> list[dict]:
+    """Return per-driver stats: trip count, total earnings, avg rating."""
+    from app.models.trip import Trip  # noqa: PLC0415
+    from app.models.rating import Rating  # noqa: PLC0415
+
+    stmt = (
+        select(
+            Driver.id,
+            User.email,
+            func.count(Trip.id).label("trip_count"),
+            func.coalesce(func.sum(Trip.fare_xof), 0).label("total_revenue_xof"),
+            func.coalesce(func.avg(Rating.stars), 0).label("avg_rating"),
+        )
+        .join(User, Driver.user_id == User.id)
+        .outerjoin(Trip, Trip.driver_id == Driver.id)
+        .outerjoin(Rating, Rating.driver_id == Driver.id)
+        .group_by(Driver.id, User.email)
+        .order_by(func.count(Trip.id).desc())
+        .limit(limit)
+    )
+    rows = (await db.execute(stmt)).all()
+    return [
+        {
+            "driver_id": str(r.id),
+            "email": r.email,
+            "trip_count": r.trip_count or 0,
+            "total_revenue_xof": float(r.total_revenue_xof or 0),
+            "avg_rating": round(float(r.avg_rating or 0), 2),
+        }
+        for r in rows
+    ]
+
+
+async def get_category_breakdown(db: AsyncSession) -> list[dict]:
+    """Return trip and revenue counts by category."""
+    from app.models.trip import Trip  # noqa: PLC0415
+
+    stmt = (
+        select(
+            Trip.category,
+            func.count(Trip.id).label("trip_count"),
+            func.coalesce(func.sum(Trip.fare_xof), 0).label("total_revenue_xof"),
+            func.coalesce(func.avg(Trip.fare_xof), 0).label("avg_fare_xof"),
+        )
+        .where(Trip.status == "completed")
+        .group_by(Trip.category)
+        .order_by(func.count(Trip.id).desc())
+    )
+    rows = (await db.execute(stmt)).all()
+    return [
+        {
+            "category": r.category or "unknown",
+            "trip_count": r.trip_count or 0,
+            "total_revenue_xof": float(r.total_revenue_xof or 0),
+            "avg_fare_xof": round(float(r.avg_fare_xof or 0), 0),
+        }
+        for r in rows
+    ]
+
+
+async def get_hourly_demand(db: AsyncSession) -> list[dict]:
+    """Return trip count by hour of day (0–23) across all completed trips."""
+    from app.models.trip import Trip  # noqa: PLC0415
+
+    stmt = (
+        select(Trip.created_at)
+        .where(Trip.status == "completed")
+        .order_by(Trip.created_at)
+    )
+    rows = (await db.scalars(stmt)).all()
+
+    hourly: dict[int, int] = {h: 0 for h in range(24)}
+    for dt in rows:
+        if isinstance(dt, str):
+            dt = datetime.fromisoformat(dt)
+        if dt:
+            hourly[dt.hour] += 1
+
+    return [{"hour": h, "trip_count": cnt} for h, cnt in sorted(hourly.items())]
+
+
+async def get_top_customers(db: AsyncSession, limit: int = 10) -> list[dict]:
+    """Return customers ranked by number of completed trips."""
+    from app.models.trip import Trip  # noqa: PLC0415
+
+    stmt = (
+        select(
+            User.id,
+            User.email,
+            func.count(Trip.id).label("trip_count"),
+            func.coalesce(func.sum(Trip.fare_xof), 0).label("total_spent_xof"),
+        )
+        .join(Trip, Trip.user_id == User.id)
+        .where(Trip.status == "completed")
+        .group_by(User.id, User.email)
+        .order_by(func.count(Trip.id).desc())
+        .limit(limit)
+    )
+    rows = (await db.execute(stmt)).all()
+    return [
+        {
+            "user_id": str(r.id),
+            "email": r.email,
+            "trip_count": r.trip_count or 0,
+            "total_spent_xof": float(r.total_spent_xof or 0),
+        }
+        for r in rows
+    ]
+
+
+async def get_platform_kpis(db: AsyncSession) -> dict:
+    """Return high-level platform KPIs for the admin dashboard."""
+    from app.models.trip import Trip  # noqa: PLC0415
+    from app.models.rating import Rating  # noqa: PLC0415
+
+    total_users = await db.scalar(select(func.count()).select_from(User)) or 0
+    total_drivers = await db.scalar(select(func.count()).select_from(Driver)) or 0
+    online_drivers = await db.scalar(
+        select(func.count()).select_from(Driver).where(Driver.is_online.is_(True))
+    ) or 0
+    total_trips = await db.scalar(select(func.count()).select_from(Trip)) or 0
+    completed_trips = await db.scalar(
+        select(func.count()).select_from(Trip).where(Trip.status == "completed")
+    ) or 0
+    total_revenue = await db.scalar(
+        select(func.coalesce(func.sum(Trip.fare_xof), 0))
+        .where(Trip.status == "completed")
+    ) or 0.0
+    avg_rating = await db.scalar(
+        select(func.coalesce(func.avg(Rating.stars), 0))
+    ) or 0.0
+
+    return {
+        "total_users": total_users,
+        "total_drivers": total_drivers,
+        "online_drivers": online_drivers,
+        "total_trips": total_trips,
+        "completed_trips": completed_trips,
+        "completion_rate_pct": round(
+            (completed_trips / total_trips * 100) if total_trips > 0 else 0, 1
+        ),
+        "total_revenue_xof": float(total_revenue),
+        "avg_rating": round(float(avg_rating), 2),
+    }
