@@ -131,6 +131,15 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Grant Cloud SQL client role to service account (API only)
+        if: matrix.app == 'api' && vars.CLOUD_SQL_INSTANCE != ''
+        run: |
+          gcloud projects add-iam-policy-binding ${{ vars.GCP_PROJECT_ID }} \
+            --member="serviceAccount:${{ vars.GCP_SERVICE_ACCOUNT }}" \
+            --role="roles/cloudsql.client" \
+            --condition=None \
+            --quiet || echo "[WARN] Could not grant cloudsql.client — may already exist"
+
       - name: Deploy to Cloud Run
         run: |
           SERVICE="ziza-${{ matrix.app }}"
@@ -150,13 +159,19 @@ jobs:
           )
 
           if [ "${{ matrix.app }}" = "api" ]; then
-            # Use ^|^ as separator so commas inside CORS_ORIGINS_RAW are preserved.
-            # --add-cloudsql-instances is intentionally omitted: attaching Cloud SQL
-            # when the Admin API is not validated causes the revision to fail to start.
-            # Re-enable once Cloud SQL Admin API is confirmed active in GCP console.
+            # Use the deployment SA as the Cloud Run runtime SA so it inherits
+            # the cloudsql.client role we just granted.
+            FLAGS+=("--service-account=${{ vars.GCP_SERVICE_ACCOUNT }}")
+
+            # Use ^|^ as separator so commas inside CORS_ORIGINS_RAW are preserved
             FLAGS+=(
               "--set-env-vars=^|^ENVIRONMENT=dev|AUTH_DEV_SECRET=${{ secrets.AUTH_DEV_SECRET }}|AUTH_DEV_PASSWORD=${{ vars.AUTH_DEV_PASSWORD }}|CORS_ORIGINS_RAW=${{ vars.ZIZA_CORS_ORIGINS }}|DATABASE_URL=${{ secrets.DATABASE_URL }}"
             )
+
+            # Attach Cloud SQL unix socket proxy (requires cloudsql.client on SA)
+            if [ -n "${{ vars.CLOUD_SQL_INSTANCE }}" ]; then
+              FLAGS+=("--add-cloudsql-instances=${{ vars.CLOUD_SQL_INSTANCE }}")
+            fi
           fi
 
           gcloud run deploy "$SERVICE" "${FLAGS[@]}"
