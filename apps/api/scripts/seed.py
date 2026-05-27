@@ -37,7 +37,7 @@ from datetime import datetime, timedelta, timezone
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(_HERE, ".."))
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 import app.models  # noqa: F401 — registers all ORM models with Base.metadata
@@ -777,14 +777,14 @@ async def seed(reset: bool = False) -> None:
             if reset:
                 await _reset(session)
 
-            # ── Idempotency check ──────────────────────────────────────────
-            existing_city = (await session.execute(
-                select(City).where(City.name == "Abidjan")
-            )).scalar_one_or_none()
-
-            if existing_city is not None:
+            # ── Idempotency check (seed users, not city — city is auto-created by API) ──
+            seed_count = await session.scalar(
+                select(func.count()).select_from(User)
+                .where(User.email.like(f"%@{SEED_DOMAIN}"))
+            )
+            if seed_count and seed_count > 0:
                 print(
-                    "[INFO] Donnees seed deja presentes (ville Abidjan trouvee).\n"
+                    f"[INFO] Donnees seed deja presentes ({seed_count} users @{SEED_DOMAIN}).\n"
                     "       Utilisez --reset pour repartir de zero."
                 )
                 return
@@ -792,7 +792,14 @@ async def seed(reset: bool = False) -> None:
             # ── Seed ───────────────────────────────────────────────────────
             print("\n[SEED] Seed Ziza (Sprint 21) en cours...\n")
 
-            await _seed_city(session)
+            # City: upsert (API may have already created Abidjan via _ensure_city_defaults)
+            existing_city = (await session.execute(
+                select(City).where(City.name == "Abidjan")
+            )).scalar_one_or_none()
+            if existing_city is None:
+                await _seed_city(session)
+            else:
+                print("[CITY] Ville Abidjan deja presente (auto-seedee par l'API).")
             demo_users = await _seed_demo_users(session)
             driver_rows = await _seed_drivers(session)
             customers = await _seed_customers(session)
