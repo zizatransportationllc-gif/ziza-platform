@@ -36,8 +36,8 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     # JWT TTL — Sprint 25
     # ------------------------------------------------------------------
-    # Access token lifetime in minutes (default 15 min — Sprint 25).
-    jwt_access_ttl_min: int = 15
+    # Access token lifetime in minutes (default 720 min = 12 h — extended for admin UX).
+    jwt_access_ttl_min: int = 720
     # Refresh token lifetime in days (default 30 days).
     jwt_refresh_ttl_days: int = 30
 

@@ -6,6 +6,10 @@ const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 async function _json(res) {
   if (!res.ok) {
+    // Broadcast token expiry so the App shell can auto-logout
+    if (res.status === 401) {
+      window.dispatchEvent(new CustomEvent("ziza:auth:expired"));
+    }
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || `HTTP ${res.status}`);
   }

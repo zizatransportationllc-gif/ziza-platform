@@ -1994,7 +1994,18 @@ export default function App() {
   useEffect(() => {
     if (!user || user.role !== REQUIRED_ROLE) return;
     registerUser(token).catch(() => {});
-  }, [user]);
+  }, [user]); // eslint-disable-line
+
+  // Auto-logout when any API call receives a 401 (expired / invalid token)
+  useEffect(() => {
+    function handleAuthExpired() {
+      localStorage.removeItem(TOKEN_KEY);
+      setToken(null);
+      setUser(null);
+    }
+    window.addEventListener("ziza:auth:expired", handleAuthExpired);
+    return () => window.removeEventListener("ziza:auth:expired", handleAuthExpired);
+  }, []);
 
   async function handleEmailLogin(email, password) {
     setLoginLoading(true); setLoginError(null);
