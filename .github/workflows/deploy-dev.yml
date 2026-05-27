@@ -150,13 +150,13 @@ jobs:
           )
 
           if [ "${{ matrix.app }}" = "api" ]; then
-            # Use ^|^ as separator so commas inside CORS_ORIGINS_RAW are preserved
+            # Use ^|^ as separator so commas inside CORS_ORIGINS_RAW are preserved.
+            # --add-cloudsql-instances is intentionally omitted: attaching Cloud SQL
+            # when the Admin API is not validated causes the revision to fail to start.
+            # Re-enable once Cloud SQL Admin API is confirmed active in GCP console.
             FLAGS+=(
               "--set-env-vars=^|^ENVIRONMENT=dev|AUTH_DEV_SECRET=${{ secrets.AUTH_DEV_SECRET }}|AUTH_DEV_PASSWORD=${{ vars.AUTH_DEV_PASSWORD }}|CORS_ORIGINS_RAW=${{ vars.ZIZA_CORS_ORIGINS }}|DATABASE_URL=${{ secrets.DATABASE_URL }}"
             )
-            if [ -n "${{ vars.CLOUD_SQL_INSTANCE }}" ]; then
-              FLAGS+=("--add-cloudsql-instances=${{ vars.CLOUD_SQL_INSTANCE }}")
-            fi
           fi
 
           gcloud run deploy "$SERVICE" "${FLAGS[@]}"
