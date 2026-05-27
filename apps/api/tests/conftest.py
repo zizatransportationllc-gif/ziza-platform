@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import (
 
 import app.db as _db_module
 import app.models  # noqa: F401 — registers all models with Base.metadata
-from app.db import Base, get_db
+from app.db import Base, get_db, get_db_optional
 from app.main import app
 
 _TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
@@ -64,6 +64,8 @@ def _override_db():
             yield session
 
     app.dependency_overrides[get_db] = _mock_get_db
+    # Also override get_db_optional so /v1/token and /v1/me use the test DB
+    app.dependency_overrides[get_db_optional] = _mock_get_db
 
     # Patch _SessionLocal so /health works without Depends(get_db)
     _original_session_local = _db_module._SessionLocal
@@ -72,4 +74,5 @@ def _override_db():
     yield
 
     app.dependency_overrides.pop(get_db, None)
+    app.dependency_overrides.pop(get_db_optional, None)
     _db_module._SessionLocal = _original_session_local

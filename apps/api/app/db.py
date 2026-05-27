@@ -80,3 +80,18 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         raise HTTPException(status_code=503, detail="Database not configured")
     async with _SessionLocal() as session:
         yield session
+
+
+async def get_db_optional() -> AsyncGenerator["AsyncSession | None", None]:
+    """Like get_db but yields None when DATABASE_URL is not configured.
+
+    Use for endpoints where the DB improves behaviour (e.g. UUID lookup,
+    refresh-token issuance) but is not strictly required to serve the request.
+    This allows the auth endpoints to work in a pure-dev environment that has
+    no PostgreSQL running (e.g. ``npm run dev`` + ``uvicorn`` without a DB).
+    """
+    if _SessionLocal is None:
+        yield None
+    else:
+        async with _SessionLocal() as session:
+            yield session

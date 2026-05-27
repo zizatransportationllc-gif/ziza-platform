@@ -118,7 +118,7 @@ from app import crud
 from app.auth.base import Claims
 from app.auth.dependencies import get_current_user
 from app.config import settings
-from app.db import get_db
+from app.db import get_db, get_db_optional
 from app.middleware.logging import RequestLoggingMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware, set_rate_limit_enabled
 from app.notifications.dispatcher import register_channel
@@ -235,12 +235,16 @@ class TokenResponse(BaseModel):
 )
 async def issue_token(
     body: TokenRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession | None = Depends(get_db_optional),
 ) -> TokenResponse:
     """DEV-only endpoint.  Returns 404 in production.
 
     Sprint 25: also issues a refresh token (30-day TTL) and includes
     ``expires_in`` (seconds until access token expires).
+
+    When DATABASE_URL is not configured the endpoint still returns a valid
+    access token; the refresh_token field is omitted (None).  This allows
+    local front-end development without a running PostgreSQL instance.
     """
     if settings.environment == "prod":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
@@ -248,10 +252,12 @@ async def issue_token(
     from app.auth.dev_adapter import DevAdapter, SEEDED_USERS  # noqa: PLC0415
     access_token = DevAdapter().issue(body.email, body.password)
 
-    # Look up auth_user_id for the refresh token
-    user_data = SEEDED_USERS.get(body.email, {})
-    auth_user_id = user_data.get("user_id", body.email)
-    raw_refresh, _expires = await crud.create_refresh_token(db, auth_user_id)
+    # Issue a refresh token only when a DB session is available
+    raw_refresh = None
+    if db is not None:
+        user_data = SEEDED_USERS.get(body.email, {})
+        auth_user_id = user_data.get("user_id", body.email)
+        raw_refresh, _expires = await crud.create_refresh_token(db, auth_user_id)
 
     return TokenResponse(
         access_token=access_token,
@@ -276,17 +282,20 @@ class MeResponse(BaseModel):
 @app.get("/v1/me", tags=["auth"])
 async def me(
     claims: Claims = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession | None = Depends(get_db_optional),
 ) -> MeResponse:
     """Return normalised claims for the currently authenticated user.
 
     ``id`` is the database UUID of the user record (needed for admin endpoints
     like role management and wallet adjust that address users by DB UUID).
     Falls back to ``claims.user_id`` (auth_id) when the user has not yet
-    called /v1/auth/register and has no DB record.
+    called /v1/auth/register, has no DB record, or DATABASE_URL is not set.
     """
-    user = await crud._get_user_by_auth_id(db, claims.user_id)
-    db_id = str(user.id) if user is not None else claims.user_id
+    db_id = claims.user_id  # safe default — no DB or user not yet registered
+    if db is not None:
+        user = await crud._get_user_by_auth_id(db, claims.user_id)
+        if user is not None:
+            db_id = str(user.id)
     return MeResponse(
         id=db_id,
         user_id=claims.user_id,
