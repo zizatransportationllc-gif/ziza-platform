@@ -2117,14 +2117,17 @@ async def update_place(
     return _place_to_response(place)
 
 
-@app.delete("/v1/places/{place_id}", tags=["places"], status_code=204)
+@app.delete("/v1/places/{place_id}", tags=["places"], status_code=204,
+            response_model=None)
 async def delete_place(
     place_id: str,
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> None:
+):
     """Delete a saved place.  Only the owner can delete their own places."""
+    from fastapi.responses import Response as _Response  # noqa: PLC0415
     await crud.delete_saved_place(db, claims.user_id, place_id)
+    return _Response(status_code=204)
 
 
 # ---------------------------------------------------------------------------
@@ -2453,22 +2456,24 @@ async def refresh_token(
     )
 
 
-@app.post("/v1/auth/logout", tags=["auth"], status_code=204)
+@app.post("/v1/auth/logout", tags=["auth"], status_code=204, response_model=None)
 async def logout(
     body: LogoutRequest,
     db: AsyncSession = Depends(get_db),
-) -> None:
+):
     """Sprint 25 — Revoke the active refresh token (logout).
 
     Returns 204 No Content on success.
     Returns 404 if the refresh token is not found.
     """
+    from fastapi.responses import Response as _Response  # noqa: PLC0415
     found = await crud.revoke_refresh_token(db, body.refresh_token)
     if not found:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Refresh token not found",
         )
+    return _Response(status_code=204)
 
 
 # ---------------------------------------------------------------------------
@@ -2584,23 +2589,26 @@ async def register_device(
     "/v1/devices/{token}",
     tags=["notifications"],
     status_code=204,
+    response_model=None,
 )
 async def deregister_device(
     token: str,
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> None:
+):
     """Sprint 26 — Remove a device token (called on logout / account switch).
 
     Returns 204 on success.
     Returns 404 if the token does not belong to the authenticated user.
     """
+    from fastapi.responses import Response as _Response  # noqa: PLC0415
     found = await crud.deregister_device_token(db, claims, token)
     if not found:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Device token not found",
         )
+    return _Response(status_code=204)
 
 
 # ---------------------------------------------------------------------------
