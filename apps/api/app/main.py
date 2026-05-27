@@ -274,10 +274,21 @@ class MeResponse(BaseModel):
 
 
 @app.get("/v1/me", tags=["auth"])
-def me(claims: Claims = Depends(get_current_user)) -> MeResponse:
-    """Return normalised claims for the currently authenticated user."""
+async def me(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MeResponse:
+    """Return normalised claims for the currently authenticated user.
+
+    ``id`` is the database UUID of the user record (needed for admin endpoints
+    like role management and wallet adjust that address users by DB UUID).
+    Falls back to ``claims.user_id`` (auth_id) when the user has not yet
+    called /v1/auth/register and has no DB record.
+    """
+    user = await crud._get_user_by_auth_id(db, claims.user_id)
+    db_id = str(user.id) if user is not None else claims.user_id
     return MeResponse(
-        id=claims.user_id,
+        id=db_id,
         user_id=claims.user_id,
         email=claims.email,
         role=claims.role,
@@ -2845,8 +2856,11 @@ async def admin_review_application(
         app_id = uuid.UUID(application_id)
     except ValueError:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid UUID")
+    # Resolve admin's DB UUID for audit trail (reviewed_by is a UUID column)
+    admin_user = await crud._get_user_by_auth_id(db, claims.user_id)
+    admin_uuid = admin_user.id if admin_user is not None else None
     result = await crud.admin_review_application(
-        db, app_id, body.status, body.notes_admin, claims.user_id
+        db, app_id, body.status, body.notes_admin, admin_uuid
     )
     return ApplicationResponse(**result)
 
@@ -3028,7 +3042,11 @@ async def admin_change_user_role(
         uid = uuid.UUID(user_id)
     except ValueError:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid UUID")
-    return await crud.admin_set_user_role(db, uid, body.role, claims.user_id)
+    # Resolve admin's DB UUID (needed for the self-promotion check and audit trail)
+    admin_user = await crud._get_user_by_auth_id(db, claims.user_id)
+    if admin_user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin non enregistré en base.")
+    return await crud.admin_set_user_role(db, uid, body.role, admin_user.id)
 
 
 @app.post("/v1/admin/invite-codes", response_model=InviteCodeResponse, status_code=201,

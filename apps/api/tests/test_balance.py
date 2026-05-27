@@ -108,9 +108,13 @@ def test_balance_zero_with_no_trips():
 
 
 def test_balance_after_completed_economy_trip():
-    """After an economy trip, gains_bruts_xof equals the trip fare."""
+    """After an economy trip, gains_bruts_xof increases by the trip fare."""
     c_tok = _setup_customer()
     d_tok = _setup_driver()
+
+    # Snapshot balance before the trip (shared DB may already have prior trips)
+    before = client.get("/v1/drivers/me/balance", headers=_h(d_tok)).json()
+
     trip = _create_completed_trip(c_tok, d_tok, category="economy")
     fare = trip["fare_xof"]
     assert fare is not None and fare > 0
@@ -118,7 +122,8 @@ def test_balance_after_completed_economy_trip():
     r = client.get("/v1/drivers/me/balance", headers=_h(d_tok))
     assert r.status_code == 200, r.text
     data = r.json()
-    assert data["gains_bruts_xof"] == fare
+    # Check the delta, not the absolute value, to survive test-isolation
+    assert data["gains_bruts_xof"] - before["gains_bruts_xof"] == fare
     assert data["gains_bruts_xof"] > 0
     assert "driver_id" in data
 
@@ -133,6 +138,10 @@ def test_balance_commission_deducted_for_economy():
 
     c_tok = _setup_customer()
     d_tok = _setup_driver()
+
+    # Snapshot balance before the trip (shared DB may have prior trips)
+    before = client.get("/v1/drivers/me/balance", headers=_h(d_tok)).json()
+
     trip = _create_completed_trip(c_tok, d_tok, category="economy")
     fare = trip["fare_xof"]
 
@@ -141,8 +150,9 @@ def test_balance_commission_deducted_for_economy():
     data = r.json()
 
     expected_commission = fare * 15 // 100
-    assert data["commission_xof"] == expected_commission
-    assert data["solde_net_xof"] == fare - expected_commission
+    # Use delta to survive test-isolation (driver may have previous trips)
+    assert data["commission_xof"] - before["commission_xof"] == expected_commission
+    assert data["solde_net_xof"] - before["solde_net_xof"] == fare - expected_commission
 
 
 def test_balance_commission_higher_for_premium():

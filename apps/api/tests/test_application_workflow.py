@@ -52,9 +52,22 @@ def _setup_customer() -> str:
 
 
 def _submit_and_get_id(c_tok: str) -> str:
+    """Submit a new application and return its ID.
+
+    Falls back to the existing application when the shared in-memory DB already
+    contains one for this user (e.g. from a previous test in the same run).
+    In that case the existing application may be in any status — callers that
+    need a specific status should patch it via the review endpoint first.
+    """
     r = client.post("/v1/drivers/apply", headers=_h(c_tok), json=VALID_APPLICATION)
-    assert r.status_code == 201, r.text
-    return r.json()["application_id"]
+    if r.status_code == 201:
+        return r.json()["application_id"]
+    # Already exists (409) — retrieve via status endpoint
+    r_status = client.get("/v1/drivers/apply/status", headers=_h(c_tok))
+    assert r_status.status_code == 200, r_status.text
+    app_data = r_status.json()
+    assert app_data is not None, "Expected an existing application in the DB"
+    return app_data["application_id"]
 
 
 def _approve(a_tok: str, app_id: str) -> dict:

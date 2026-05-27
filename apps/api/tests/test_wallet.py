@@ -90,6 +90,8 @@ def test_topup_zero_amount_returns_422():
 def test_pay_trip_debits_wallet():
     """POST /v1/wallet/pay-trip deducts from balance when funds are sufficient."""
     c_tok = _customer()
+    # Snapshot balance before top-up (shared DB may have prior balance)
+    before = client.get("/v1/wallet", headers=_h(c_tok)).json()["balance_xof"]
     # Fund wallet
     client.post("/v1/wallet/topup", headers=_h(c_tok), json={"amount_xof": 10000.0})
     fake_trip_id = str(uuid.uuid4())
@@ -97,7 +99,8 @@ def test_pay_trip_debits_wallet():
                     json={"trip_id": fake_trip_id, "amount_xof": 3000.0})
     assert r.status_code == 200, r.text
     data = r.json()
-    assert data["wallet"]["balance_xof"] == 7000.0
+    # Use delta: before + 10000 - 3000 = expected balance
+    assert data["wallet"]["balance_xof"] == before + 7000.0
     assert data["transaction"]["tx_type"] == "debit"
     assert data["transaction"]["reason"] == "trip_payment"
 
@@ -105,10 +108,11 @@ def test_pay_trip_debits_wallet():
 def test_pay_trip_insufficient_balance_returns_402():
     """POST /v1/wallet/pay-trip returns 402 when balance is insufficient."""
     c_tok = _customer()
-    # Wallet starts at 0
+    # Read current balance and attempt to pay more than available
+    current_balance = client.get("/v1/wallet", headers=_h(c_tok)).json()["balance_xof"]
     fake_trip_id = str(uuid.uuid4())
     r = client.post("/v1/wallet/pay-trip", headers=_h(c_tok),
-                    json={"trip_id": fake_trip_id, "amount_xof": 5000.0})
+                    json={"trip_id": fake_trip_id, "amount_xof": current_balance + 5000.0})
     assert r.status_code == 402, r.text
 
 
@@ -166,14 +170,17 @@ def test_admin_debit_below_zero_returns_422():
     """Admin cannot debit wallet below zero balance → 422."""
     a_tok = _admin()
     c_tok = _customer()
-    # Wallet is at 0
     me = client.get("/v1/me", headers=_h(c_tok)).json()
     customer_id = me["id"]
+
+    # Debit more than the current balance to guarantee underflow
+    current_balance = client.get("/v1/wallet", headers=_h(c_tok)).json()["balance_xof"]
+    debit_amount = -(current_balance + 500.0)  # always negative and always overflows
 
     r = client.post(
         f"/v1/admin/wallets/{customer_id}/adjust",
         headers=_h(a_tok),
-        json={"amount_xof": -500.0},
+        json={"amount_xof": debit_amount},
     )
     assert r.status_code == 422, r.text
 
