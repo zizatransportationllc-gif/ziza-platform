@@ -13,7 +13,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.auth.base import AuthAdapter, Claims
 from app.config import settings
 
-bearer_scheme = HTTPBearer(auto_error=True)
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_auth_adapter() -> AuthAdapter:
@@ -26,9 +26,15 @@ def get_auth_adapter() -> AuthAdapter:
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> Claims:
     """Dependency: verify Bearer token, return Claims. Raises 401 on failure."""
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     adapter = get_auth_adapter()
     return adapter.verify(credentials.credentials)
 

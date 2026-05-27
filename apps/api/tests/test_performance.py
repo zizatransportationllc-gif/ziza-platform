@@ -87,21 +87,21 @@ def test_ten_sequential_estimates_total_latency():
 
 
 def test_driver_location_update_latency():
-    """PUT /v1/drivers/location completes within 200ms."""
+    """PUT /v1/drivers/me/location completes within 200ms."""
     d_tok = _setup_driver()
     t0 = time.perf_counter()
-    r = client.put("/v1/drivers/location", headers=_h(d_tok), json=LOCATION_PAYLOAD)
+    r = client.put("/v1/drivers/me/location", headers=_h(d_tok), json=LOCATION_PAYLOAD)
     elapsed_ms = (time.perf_counter() - t0) * 1000
     assert r.status_code in (200, 201), r.text
     assert elapsed_ms < 200, f"Location update took {elapsed_ms:.1f}ms (limit: 200ms)"
 
 
 def test_list_available_trips_latency():
-    """GET /v1/trips/available completes within 300ms."""
+    """GET /v1/trips/driver/available completes within 300ms."""
     d_tok = _setup_driver()
-    client.patch("/v1/drivers/online", headers=_h(d_tok), json={"is_online": True})
+    client.put("/v1/drivers/me/online", headers=_h(d_tok), json={"online": True})
     t0 = time.perf_counter()
-    r = client.get("/v1/trips/available", headers=_h(d_tok))
+    r = client.get("/v1/trips/driver/available", headers=_h(d_tok))
     elapsed_ms = (time.perf_counter() - t0) * 1000
     assert r.status_code == 200, r.text
     assert elapsed_ms < 300, f"Available trips took {elapsed_ms:.1f}ms (limit: 300ms)"

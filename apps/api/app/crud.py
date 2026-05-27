@@ -3289,8 +3289,13 @@ async def run_payout_batch(db: AsyncSession) -> dict:
 # Sprint 30 — Driver Application Workflow
 # ---------------------------------------------------------------------------
 
-async def create_application(db: AsyncSession, auth_user_id: uuid.UUID, data: dict) -> dict:
+async def create_application(db: AsyncSession, auth_id: str, data: dict) -> dict:
     """Submit a new driver application (one per user, 409 if already exists)."""
+    user = await _get_user_by_auth_id(db, auth_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Utilisateur introuvable.")
+    auth_user_id = user.id
+
     existing = await db.scalar(
         select(DriverApplication).where(DriverApplication.user_id == auth_user_id)
     )
@@ -3319,10 +3324,13 @@ async def create_application(db: AsyncSession, auth_user_id: uuid.UUID, data: di
     return _application_to_dict(app_obj)
 
 
-async def get_my_application(db: AsyncSession, auth_user_id: uuid.UUID) -> dict | None:
+async def get_my_application(db: AsyncSession, auth_id: str) -> dict | None:
     """Return the authenticated user's own application, or None."""
+    user = await _get_user_by_auth_id(db, auth_id)
+    if user is None:
+        return None
     app_obj = await db.scalar(
-        select(DriverApplication).where(DriverApplication.user_id == auth_user_id)
+        select(DriverApplication).where(DriverApplication.user_id == user.id)
     )
     if app_obj is None:
         return None
@@ -3583,6 +3591,7 @@ async def list_live_drivers(db: AsyncSession) -> list[dict]:
             "driver_id": str(driver.id),
             "email": user.email,
             "status": driver.status,
+            "is_online": bool(driver.is_online),
             "lat": loc.lat if loc else None,
             "lng": loc.lng if loc else None,
             "last_seen_at": loc.updated_at.isoformat() if loc and loc.updated_at else None,
@@ -3851,15 +3860,18 @@ async def _get_or_create_wallet(db: AsyncSession, user_id: uuid.UUID) -> Wallet:
     return wallet
 
 
-async def get_wallet(db: AsyncSession, user_id: uuid.UUID) -> dict:
+async def get_wallet(db: AsyncSession, auth_id: str) -> dict:
     """Return the user's wallet (creates it if it doesn't exist)."""
-    wallet = await _get_or_create_wallet(db, user_id)
+    user = await _get_user_by_auth_id(db, auth_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Utilisateur introuvable.")
+    wallet = await _get_or_create_wallet(db, user.id)
     return _wallet_to_dict(wallet)
 
 
 async def wallet_topup(
     db: AsyncSession,
-    user_id: uuid.UUID,
+    auth_id: str,
     amount_xof: float,
     reference_id: str | None = None,
     note: str | None = None,
@@ -3870,7 +3882,10 @@ async def wallet_topup(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Le montant du rechargement doit être positif.",
         )
-    wallet = await _get_or_create_wallet(db, user_id)
+    user = await _get_user_by_auth_id(db, auth_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Utilisateur introuvable.")
+    wallet = await _get_or_create_wallet(db, user.id)
     wallet.balance_xof += amount_xof
     wallet.updated_at = _dt.now(_tz.utc)
     tx = WalletTransaction(
@@ -3891,7 +3906,7 @@ async def wallet_topup(
 
 async def wallet_pay_trip(
     db: AsyncSession,
-    user_id: uuid.UUID,
+    auth_id: str,
     trip_id: uuid.UUID,
     amount_xof: float,
 ) -> dict:
@@ -3901,7 +3916,10 @@ async def wallet_pay_trip(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Le montant du paiement doit être positif.",
         )
-    wallet = await _get_or_create_wallet(db, user_id)
+    user = await _get_user_by_auth_id(db, auth_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Utilisateur introuvable.")
+    wallet = await _get_or_create_wallet(db, user.id)
     if wallet.balance_xof < amount_xof:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
@@ -3959,12 +3977,15 @@ async def wallet_refund(
 
 async def get_wallet_transactions(
     db: AsyncSession,
-    user_id: uuid.UUID,
+    auth_id: str,
     limit: int = 20,
     offset: int = 0,
 ) -> list[dict]:
     """Return paginated transaction history for the user's wallet."""
-    wallet = await _get_or_create_wallet(db, user_id)
+    user = await _get_user_by_auth_id(db, auth_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Utilisateur introuvable.")
+    wallet = await _get_or_create_wallet(db, user.id)
     stmt = (
         select(WalletTransaction)
         .where(WalletTransaction.wallet_id == wallet.id)
@@ -4152,7 +4173,7 @@ async def get_top_customers(db: AsyncSession, limit: int = 10) -> list[dict]:
             func.count(Trip.id).label("trip_count"),
             func.coalesce(func.sum(Trip.fare_xof), 0).label("total_spent_xof"),
         )
-        .join(Trip, Trip.user_id == User.id)
+        .join(Trip, Trip.customer_id == User.id)
         .where(Trip.status == "completed")
         .group_by(User.id, User.email)
         .order_by(func.count(Trip.id).desc())

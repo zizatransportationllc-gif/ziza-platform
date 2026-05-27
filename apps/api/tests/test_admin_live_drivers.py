@@ -59,7 +59,7 @@ def test_live_drivers_empty_when_none_online():
     a_tok = _admin()
     # Ensure driver is registered but offline
     d_tok = _driver()
-    client.patch("/v1/drivers/online", headers=_h(d_tok), json={"is_online": False})
+    client.put("/v1/drivers/me/online", headers=_h(d_tok), json={"online": False})
 
     r = client.get("/v1/admin/drivers/live", headers=_h(a_tok))
     assert r.status_code == 200, r.text
@@ -75,7 +75,7 @@ def test_online_driver_appears_in_live_list():
     d_tok = _driver()
 
     # Go online
-    client.patch("/v1/drivers/online", headers=_h(d_tok), json={"is_online": True})
+    client.put("/v1/drivers/me/online", headers=_h(d_tok), json={"online": True})
 
     r = client.get("/v1/admin/drivers/live", headers=_h(a_tok))
     assert r.status_code == 200, r.text
@@ -92,8 +92,8 @@ def test_offline_driver_excluded_from_live():
     d_tok = _driver()
 
     # Set online then offline
-    client.patch("/v1/drivers/online", headers=_h(d_tok), json={"is_online": True})
-    client.patch("/v1/drivers/online", headers=_h(d_tok), json={"is_online": False})
+    client.put("/v1/drivers/me/online", headers=_h(d_tok), json={"online": True})
+    client.put("/v1/drivers/me/online", headers=_h(d_tok), json={"online": False})
 
     r = client.get("/v1/admin/drivers/live", headers=_h(a_tok))
     assert r.status_code == 200, r.text

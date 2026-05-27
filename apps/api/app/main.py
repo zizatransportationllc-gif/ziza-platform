@@ -104,6 +104,7 @@ Endpoints:
 """
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Literal
 
@@ -265,6 +266,7 @@ async def issue_token(
 # ---------------------------------------------------------------------------
 
 class MeResponse(BaseModel):
+    id: str
     user_id: str
     email: str
     role: str
@@ -275,6 +277,7 @@ class MeResponse(BaseModel):
 def me(claims: Claims = Depends(get_current_user)) -> MeResponse:
     """Return normalised claims for the currently authenticated user."""
     return MeResponse(
+        id=claims.user_id,
         user_id=claims.user_id,
         email=claims.email,
         role=claims.role,
@@ -2870,6 +2873,7 @@ class LiveDriverResponse(BaseModel):
     driver_id: str
     email: str
     status: str
+    is_online: bool
     lat: float | None
     lng: float | None
     last_seen_at: str | None
@@ -3045,10 +3049,9 @@ async def admin_create_invite_code(
           summary="Consume an invite code (Sprint 31)")
 async def use_invite_code(
     body: UseInviteCodeRequest,
-    claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Any authenticated user can consume an invite code. 422 on invalid/exhausted."""
+    """Public endpoint. Consumes an invite code. 422 on invalid/exhausted."""
     result = await crud.use_invite_code(db, body.code)
     return InviteCodeResponse(**result)
 

@@ -11,12 +11,12 @@ Covers:
 """
 import math
 import uuid
+from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.crud import _haversine_km, point_in_city_radius
-from app.models.city import City
 
 client = TestClient(app)
 
@@ -47,20 +47,14 @@ def _admin() -> str:
 
 def test_point_in_city_radius_inside():
     """A point close to city center is within the radius."""
-    city = City.__new__(City)
-    city.center_lat = 5.3364
-    city.center_lng = -4.0267
-    city.radius_km = 40.0
+    city = SimpleNamespace(center_lat=5.3364, center_lng=-4.0267, radius_km=40.0)
     # Cocody is ~5 km from Abidjan center → inside 40km radius
     assert point_in_city_radius(5.3600, -3.9801, city) is True
 
 
 def test_point_in_city_radius_outside():
     """A point far from city center is outside the radius."""
-    city = City.__new__(City)
-    city.center_lat = 5.3364
-    city.center_lng = -4.0267
-    city.radius_km = 40.0
+    city = SimpleNamespace(center_lat=5.3364, center_lng=-4.0267, radius_km=40.0)
     # Yamoussoukro is ~240 km from Abidjan → outside 40km
     assert point_in_city_radius(6.8276, -5.2893, city) is False
 

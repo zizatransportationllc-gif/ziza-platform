@@ -41,10 +41,10 @@ def test_haversine_symmetry():
 
 
 def test_haversine_long_distance():
-    """Haversine between Abidjan and Dakar is approx 2700 km."""
+    """Haversine between Abidjan and Dakar is approx 1800 km."""
     # Abidjan: 5.32, -4.02 / Dakar: 14.71, -17.47
     dist = _haversine_km(5.32, -4.02, 14.71, -17.47)
-    assert 2600 < dist < 2900
+    assert 1600 < dist < 2100
 
 
 def test_haversine_within_city_range():
