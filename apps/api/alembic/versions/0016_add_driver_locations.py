@@ -19,10 +19,10 @@ depends_on = None
 def upgrade() -> None:
     op.create_table(
         "driver_locations",
-        sa.Column("id", sa.String(36), primary_key=True),
+        sa.Column("id", sa.Uuid(), primary_key=True),
         sa.Column(
             "driver_id",
-            sa.String(36),
+            sa.Uuid(),
             sa.ForeignKey("drivers.id", ondelete="CASCADE"),
             nullable=False,
             index=True,
