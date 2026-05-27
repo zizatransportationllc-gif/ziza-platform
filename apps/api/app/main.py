@@ -161,18 +161,31 @@ app.add_middleware(RequestLoggingMiddleware)
 # ---------------------------------------------------------------------------
 
 @app.get("/health", tags=["system"])
-async def health(db: AsyncSession = Depends(get_db)) -> dict:
+async def health() -> dict:
     """Liveness + readiness probe — Sprint 19.
 
-    Returns app metadata and a live DB connectivity check.
-    Cloud Run health checks hit this endpoint; CI smoke tests assert
-    ``status == "ok"``.
+    Returns app metadata and an optional live DB connectivity check.
+    Always returns HTTP 200 so Cloud Run health checks never fail on startup.
+    CI smoke tests assert ``status == "ok"``.
+
+    DB status values:
+      "ok"           — connected and responsive
+      "error"        — configured but not reachable
+      "unconfigured" — DATABASE_URL not set (safe degraded mode)
     """
-    db_status = "ok"
-    try:
-        await db.execute(_sa.text("SELECT 1"))
-    except Exception:
+    from app.db import _SessionLocal  # noqa: PLC0415 — avoid circular at module level
+
+    db_status: str
+    if _SessionLocal is None:
+        db_status = "unconfigured"
+    else:
         db_status = "error"
+        try:
+            async with _SessionLocal() as _db:
+                await _db.execute(_sa.text("SELECT 1"))
+            db_status = "ok"
+        except Exception:
+            pass
 
     return {
         "status": "ok",

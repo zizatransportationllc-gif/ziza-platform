@@ -4,6 +4,9 @@ Sets up an in-memory SQLite database for every test run.
 Every test gets the ``get_db`` dependency overridden with an async session
 backed by SQLite via aiosqlite.  Tests that don't use the DB at all are
 unaffected (the override is always present but may never be invoked).
+
+Sprint 34 hotfix: also patches ``app.db._SessionLocal`` directly so that
+``/health`` (which no longer uses Depends(get_db)) can reach the test DB.
 """
 import asyncio
 
@@ -14,6 +17,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+import app.db as _db_module
 import app.models  # noqa: F401 — registers all models with Base.metadata
 from app.db import Base, get_db
 from app.main import app
@@ -48,7 +52,11 @@ _run(_create_tables())
 
 @pytest.fixture(autouse=True)
 def _override_db():
-    """Override ``get_db`` for every test with an async SQLite session."""
+    """Override ``get_db`` for every test with an async SQLite session.
+
+    Also patches ``app.db._SessionLocal`` so the /health endpoint (which
+    accesses _SessionLocal directly) can reach the in-memory test database.
+    """
     _Session = async_sessionmaker(_engine, expire_on_commit=False)
 
     async def _mock_get_db():
@@ -56,5 +64,12 @@ def _override_db():
             yield session
 
     app.dependency_overrides[get_db] = _mock_get_db
+
+    # Patch _SessionLocal so /health works without Depends(get_db)
+    _original_session_local = _db_module._SessionLocal
+    _db_module._SessionLocal = _Session
+
     yield
+
     app.dependency_overrides.pop(get_db, None)
+    _db_module._SessionLocal = _original_session_local

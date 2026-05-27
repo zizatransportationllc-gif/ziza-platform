@@ -24,6 +24,7 @@ USER ziza
 
 EXPOSE 8000
 
-# On startup: run DB migrations (no-op if DB not configured or already up to date),
-# then start the API.  Alembic is idempotent so concurrent restarts are safe.
-CMD ["sh", "-c", "if [ -n \"$DATABASE_URL\" ]; then alembic upgrade head; fi && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# On startup: attempt DB migrations (non-fatal — API starts even if DB is unreachable).
+# Alembic is idempotent so concurrent restarts are safe.
+# If DATABASE_URL is not set, migrations are skipped entirely.
+CMD ["sh", "-c", "if [ -n \"$DATABASE_URL\" ]; then alembic upgrade head || echo '[WARN] Alembic migration failed — starting API in degraded mode'; fi && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

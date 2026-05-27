@@ -32,8 +32,9 @@ def test_health_returns_db_field():
     r = client.get("/health")
     data = r.json()
     assert "db" in data
-    # In test context SQLite is used; db status should be "ok"
-    assert data["db"] in ("ok", "error")
+    # Possible values: "ok" (DB reachable), "error" (configured but down),
+    # "unconfigured" (DATABASE_URL not set — graceful degraded mode)
+    assert data["db"] in ("ok", "error", "unconfigured")
 
 
 def test_health_db_ok_with_test_db():
