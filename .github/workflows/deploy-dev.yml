@@ -88,21 +88,29 @@ jobs:
       - name: Run alembic upgrade via Cloud Run Job
         run: |
           IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/api:${GITHUB_SHA::7}"
-          gcloud run jobs create ziza-migrate-${GITHUB_SHA::7} \
+          JOB_NAME="ziza-migrate-${GITHUB_SHA::7}"
+
+          # 'gcloud run jobs create' uses --set-cloudsql-instances (not --add-)
+          gcloud run jobs create "$JOB_NAME" \
             --image="$IMAGE" \
             --region="${{ env.GCP_REGION }}" \
             --command="alembic" \
             --args="upgrade,head" \
             --set-env-vars="DATABASE_URL=${{ secrets.DATABASE_URL }}" \
-            --add-cloudsql-instances="${{ vars.CLOUD_SQL_INSTANCE }}" \
+            --set-cloudsql-instances="${{ vars.CLOUD_SQL_INSTANCE }}" \
             --max-retries=1 \
             --task-timeout=120 \
-            --quiet || true
+            --quiet
 
-          gcloud run jobs execute ziza-migrate-${GITHUB_SHA::7} \
+          gcloud run jobs execute "$JOB_NAME" \
             --region="${{ env.GCP_REGION }}" \
             --wait \
-            --quiet || echo "[WARN] Migration job failed — deploying API anyway"
+            --quiet
+
+          # Clean up the one-shot job after it completes
+          gcloud run jobs delete "$JOB_NAME" \
+            --region="${{ env.GCP_REGION }}" \
+            --quiet || true
 
   # ------------------------------------------------------------------
   # Step 3: deploy each image to Cloud Run
