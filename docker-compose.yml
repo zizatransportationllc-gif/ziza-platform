@@ -20,6 +20,21 @@ services:
       retries: 10
 
   # ------------------------------------------------------------------
+  # DB migrations (Alembic — runs once then exits)
+  # ------------------------------------------------------------------
+  migrate:
+    build:
+      context: ./apps/api
+    container_name: ziza-migrate
+    command: alembic upgrade head
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://ziza:${DB_PASSWORD:-ziza-local}@db:5432/ziza"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  # ------------------------------------------------------------------
   # API
   # ------------------------------------------------------------------
   api:
@@ -28,7 +43,7 @@ services:
     container_name: ziza-api
     environment:
       ENVIRONMENT: dev
-      CORS_ORIGINS_RAW: "http://localhost:3001,http://localhost:3002,http://localhost:3003"
+      CORS_ORIGINS_RAW: "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003"
       PORT: "8000"
       AUTH_DEV_SECRET: "${AUTH_DEV_SECRET:-dev-secret-change-me}"
       AUTH_DEV_PASSWORD: "${AUTH_DEV_PASSWORD:-ziza2024}"
@@ -38,6 +53,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
       interval: 10s
@@ -47,6 +64,15 @@ services:
   # ------------------------------------------------------------------
   # Frontends
   # ------------------------------------------------------------------
+  web-landing:
+    build:
+      context: ./apps/web-landing
+    container_name: ziza-web-landing
+    environment:
+      PORT: "8080"
+    ports:
+      - "3000:8080"
+
   web-customer:
     build:
       context: ./apps/web-customer
