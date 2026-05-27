@@ -13,7 +13,7 @@ env:
 
 jobs:
   # ------------------------------------------------------------------
-  # Step 1: build and push images for all 4 apps in parallel
+  # Step 1: build and push images for all apps in parallel
   # ------------------------------------------------------------------
   build-push:
     name: Build & push ${{ matrix.app }}
@@ -62,11 +62,55 @@ jobs:
           docker push "$IMAGE_LATEST"
 
   # ------------------------------------------------------------------
-  # Step 2: deploy each image to Cloud Run
+  # Step 2: run DB migrations via a Cloud Run Job (API image, alembic)
+  # ------------------------------------------------------------------
+  migrate:
+    name: DB migrations (alembic)
+    needs: build-push
+    runs-on: ubuntu-latest
+    # Skip if Cloud SQL is not configured
+    if: vars.CLOUD_SQL_INSTANCE != ''
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Auth GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Run alembic upgrade via Cloud Run Job
+        run: |
+          IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/api:${GITHUB_SHA::7}"
+          gcloud run jobs create ziza-migrate-${GITHUB_SHA::7} \
+            --image="$IMAGE" \
+            --region="${{ env.GCP_REGION }}" \
+            --command="alembic" \
+            --args="upgrade,head" \
+            --set-env-vars="DATABASE_URL=${{ secrets.DATABASE_URL }}" \
+            --add-cloudsql-instances="${{ vars.CLOUD_SQL_INSTANCE }}" \
+            --max-retries=1 \
+            --task-timeout=120 \
+            --quiet || true
+
+          gcloud run jobs execute ziza-migrate-${GITHUB_SHA::7} \
+            --region="${{ env.GCP_REGION }}" \
+            --wait \
+            --quiet || echo "[WARN] Migration job failed — deploying API anyway"
+
+  # ------------------------------------------------------------------
+  # Step 3: deploy each image to Cloud Run
   # ------------------------------------------------------------------
   deploy:
     name: Deploy ${{ matrix.app }}
-    needs: build-push
+    needs: [build-push, migrate]
+    if: always() && needs.build-push.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -92,26 +136,30 @@ jobs:
           SERVICE="ziza-${{ matrix.app }}"
           IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/${{ matrix.app }}:${GITHUB_SHA::7}"
 
-          EXTRA_FLAGS=""
+          # Build flags array to avoid shell word-splitting on env var values
+          FLAGS=(
+            "--image=$IMAGE"
+            "--region=${{ env.GCP_REGION }}"
+            "--platform=managed"
+            "--allow-unauthenticated"
+            "--port=8080"
+            "--cpu=1"
+            "--memory=512Mi"
+            "--min-instances=0"
+            "--max-instances=2"
+          )
+
           if [ "${{ matrix.app }}" = "api" ]; then
-            EXTRA_FLAGS="--set-env-vars=^|^ENVIRONMENT=dev|CORS_ORIGINS_RAW=${{ vars.ZIZA_CORS_ORIGINS }}|AUTH_DEV_SECRET=${{ secrets.AUTH_DEV_SECRET }}|AUTH_DEV_PASSWORD=${{ vars.AUTH_DEV_PASSWORD }}|DATABASE_URL=${{ secrets.DATABASE_URL }}"
-            # Attach Cloud SQL instance so the API can reach the DB via unix socket
+            # Use ^|^ as separator so commas inside CORS_ORIGINS_RAW are preserved
+            FLAGS+=(
+              "--set-env-vars=^|^ENVIRONMENT=dev|AUTH_DEV_SECRET=${{ secrets.AUTH_DEV_SECRET }}|AUTH_DEV_PASSWORD=${{ vars.AUTH_DEV_PASSWORD }}|CORS_ORIGINS_RAW=${{ vars.ZIZA_CORS_ORIGINS }}|DATABASE_URL=${{ secrets.DATABASE_URL }}"
+            )
             if [ -n "${{ vars.CLOUD_SQL_INSTANCE }}" ]; then
-              EXTRA_FLAGS="$EXTRA_FLAGS --add-cloudsql-instances=${{ vars.CLOUD_SQL_INSTANCE }}"
+              FLAGS+=("--add-cloudsql-instances=${{ vars.CLOUD_SQL_INSTANCE }}")
             fi
           fi
 
-          gcloud run deploy "$SERVICE" \
-            --image="$IMAGE" \
-            --region="${{ env.GCP_REGION }}" \
-            --platform=managed \
-            --allow-unauthenticated \
-            --port=8080 \
-            --cpu=1 \
-            --memory=512Mi \
-            --min-instances=0 \
-            --max-instances=2 \
-            $EXTRA_FLAGS
+          gcloud run deploy "$SERVICE" "${FLAGS[@]}"
 
           URL=$(gcloud run services describe "$SERVICE" --region="${{ env.GCP_REGION }}" --format="value(status.url)")
           echo "::notice title=Deployed::$SERVICE → $URL"
