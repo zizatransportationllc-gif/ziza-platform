@@ -21,7 +21,7 @@ async function _json<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-function _auth(token: string): HeadersInit {
+function _auth(token: string): Record<string, string> {
   return { Authorization: `Bearer ${token}`, Accept: "application/json" };
 }
 
@@ -203,7 +203,7 @@ export async function getEstimate(
   if (categoryId) body.category_id = categoryId;
   const res = await fetch(`${API_BASE}/v1/estimate`, {
     method: "POST",
-    headers: { ...(_auth(token) as object), "Content-Type": "application/json" },
+    headers: { ..._auth(token), "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   return _json<EstimateResponse>(res);
@@ -216,7 +216,7 @@ export async function applyPromo(
 ): Promise<PromoResponse> {
   const res = await fetch(`${API_BASE}/v1/promo/apply`, {
     method: "POST",
-    headers: { ...(_auth(token) as object), "Content-Type": "application/json" },
+    headers: { ..._auth(token), "Content-Type": "application/json" },
     body: JSON.stringify({ code, estimate_id: estimateId }),
   });
   return _json<PromoResponse>(res);
@@ -228,7 +228,7 @@ export async function createTrip(
 ): Promise<TripResponse> {
   const res = await fetch(`${API_BASE}/v1/trips`, {
     method: "POST",
-    headers: { ...(_auth(token) as object), "Content-Type": "application/json" },
+    headers: { ..._auth(token), "Content-Type": "application/json" },
     body: JSON.stringify({ estimate_id: estimateId }),
   });
   return _json<TripResponse>(res);
@@ -292,7 +292,7 @@ export async function createPaymentIntent(
 ): Promise<PaymentIntentResponse> {
   const res = await fetch(`${API_BASE}/v1/payments/intent`, {
     method: "POST",
-    headers: { ...(_auth(token) as object), "Content-Type": "application/json" },
+    headers: { ..._auth(token), "Content-Type": "application/json" },
     body: JSON.stringify({ trip_id: tripId }),
   });
   return _json<PaymentIntentResponse>(res);
@@ -320,7 +320,7 @@ export async function requestAssistance(
 ): Promise<AssistanceResponse> {
   const res = await fetch(`${API_BASE}/v1/assistance`, {
     method: "POST",
-    headers: { ...(_auth(token) as object), "Content-Type": "application/json" },
+    headers: { ..._auth(token), "Content-Type": "application/json" },
     body: JSON.stringify({ type, latitude: lat, longitude: lng }),
   });
   return _json<AssistanceResponse>(res);
@@ -384,7 +384,7 @@ export async function registerDeviceToken(
 ): Promise<void> {
   await fetch(`${API_BASE}/v1/devices/register`, {
     method: "POST",
-    headers: { ...(_auth(token) as object), "Content-Type": "application/json" },
+    headers: { ..._auth(token), "Content-Type": "application/json" },
     body: JSON.stringify({ token: deviceToken, platform }),
   });
 }

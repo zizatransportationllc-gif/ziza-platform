@@ -21,7 +21,7 @@ async function _json<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-function _auth(token: string): HeadersInit {
+function _auth(token: string): Record<string, string> {
   return { Authorization: `Bearer ${token}`, Accept: "application/json" };
 }
 
@@ -188,7 +188,7 @@ export async function setDriverOnline(
 ): Promise<{ driver_id: string; is_online: boolean }> {
   const res = await fetch(`${API_BASE}/v1/drivers/me/online`, {
     method: "PUT",
-    headers: { ...(_auth(token) as object), "Content-Type": "application/json" },
+    headers: { ..._auth(token), "Content-Type": "application/json" },
     body: JSON.stringify({ online }),
   });
   return _json<{ driver_id: string; is_online: boolean }>(res);
@@ -212,7 +212,7 @@ export async function updateDriverLocation(
 ): Promise<LocationResponse> {
   const res = await fetch(`${API_BASE}/v1/drivers/me/location`, {
     method: "PUT",
-    headers: { ...(_auth(token) as object), "Content-Type": "application/json" },
+    headers: { ..._auth(token), "Content-Type": "application/json" },
     body: JSON.stringify({ lat, lng }),
   });
   return _json<LocationResponse>(res);
@@ -370,7 +370,7 @@ export async function submitDocument(
 ): Promise<DocumentResponse> {
   const res = await fetch(`${API_BASE}/v1/drivers/me/documents`, {
     method: "POST",
-    headers: { ...(_auth(token) as object), "Content-Type": "application/json" },
+    headers: { ..._auth(token), "Content-Type": "application/json" },
     body: JSON.stringify({ type, url }),
   });
   return _json<DocumentResponse>(res);
@@ -417,7 +417,7 @@ export async function registerDeviceToken(
 ): Promise<void> {
   await fetch(`${API_BASE}/v1/devices/register`, {
     method: "POST",
-    headers: { ...(_auth(token) as object), "Content-Type": "application/json" },
+    headers: { ..._auth(token), "Content-Type": "application/json" },
     body: JSON.stringify({ token: deviceToken, platform }),
   });
 }
