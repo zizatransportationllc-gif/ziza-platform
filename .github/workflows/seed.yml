@@ -1,0 +1,82 @@
+name: Seed demo data (Sprint 21)
+
+# Triggered manually only — never on push.
+on:
+  workflow_dispatch:
+    inputs:
+      reset:
+        description: "Reset existing seed data before seeding (--reset)"
+        type: boolean
+        default: false
+        required: false
+      image_tag:
+        description: "Image tag to use (default: latest)"
+        type: string
+        default: "latest"
+        required: false
+
+env:
+  GCP_REGION: us-central1
+  AR_REPO: ziza
+
+jobs:
+  seed:
+    name: Run seed script on Cloud SQL
+    runs-on: ubuntu-latest
+    # Only run if Cloud SQL is configured
+    if: vars.CLOUD_SQL_INSTANCE != ''
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Auth GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Run seed via Cloud Run Job
+        run: |
+          IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/api:${{ inputs.image_tag }}"
+          JOB_NAME="ziza-seed-${{ github.run_id }}"
+
+          # Build the python command with optional --reset flag
+          SEED_CMD="python,scripts/seed.py"
+          if [ "${{ inputs.reset }}" = "true" ]; then
+            SEED_CMD="python,scripts/seed.py,--reset"
+          fi
+
+          gcloud run jobs create "$JOB_NAME" \
+            --image="$IMAGE" \
+            --region="${{ env.GCP_REGION }}" \
+            --command="python" \
+            --args="scripts/seed.py$([ '${{ inputs.reset }}' = 'true' ] && echo ',--reset' || echo '')" \
+            --set-env-vars="DATABASE_URL=${{ secrets.DATABASE_URL }}" \
+            --set-cloudsql-instances="${{ vars.CLOUD_SQL_INSTANCE }}" \
+            --max-retries=0 \
+            --task-timeout=300 \
+            --quiet
+
+          gcloud run jobs execute "$JOB_NAME" \
+            --region="${{ env.GCP_REGION }}" \
+            --wait \
+            --quiet
+
+          # Show logs
+          EXECUTION=$(gcloud run jobs executions list \
+            --job="$JOB_NAME" \
+            --region="${{ env.GCP_REGION }}" \
+            --limit=1 \
+            --format="value(metadata.name)")
+          echo "::notice title=Seed execution::$EXECUTION"
+
+          # Clean up one-shot job
+          gcloud run jobs delete "$JOB_NAME" \
+            --region="${{ env.GCP_REGION }}" \
+            --quiet || true

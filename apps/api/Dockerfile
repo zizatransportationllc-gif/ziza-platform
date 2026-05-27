@@ -18,6 +18,9 @@ COPY app ./app
 COPY alembic.ini .
 COPY alembic ./alembic
 
+# Copy utility scripts (seed, etc.)
+COPY scripts ./scripts
+
 # Run as non-root
 RUN useradd --create-home --shell /bin/bash ziza && chown -R ziza:ziza /app
 USER ziza
