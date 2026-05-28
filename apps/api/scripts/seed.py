@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Ziza — Sprint 21 demo seed
-==========================
-50 customers · 10 drivers · 1 city (Abidjan) · 14 days of trips
+Ziza — Sprint 21 demo seed (New Jersey deployment)
+===================================================
+50 customers · 10 drivers · 1 city (Newark, NJ) · 14 days of trips
 
 Usage (local):
   cd apps/api
@@ -17,7 +17,7 @@ Flags:
   --reset   Delete existing seed data (detected by @seed.ziza.dev emails)
             then re-seed from scratch.
 
-Idempotent: the script checks for an existing city named "Abidjan" and
+Idempotent: the script checks for an existing city named "Newark" and
 exits early if found.  Use --reset to wipe and re-run.
 """
 from __future__ import annotations
@@ -62,89 +62,88 @@ RNG = random.Random(42)
 SEED_DOMAIN = "seed.ziza.dev"
 
 # ---------------------------------------------------------------------------
-# Static reference data
+# Static reference data — New Jersey
 # ---------------------------------------------------------------------------
 
-# Abidjan neighbourhoods: (name, center_lat, center_lng)
-ABIDJAN_ZONES = [
-    ("Plateau",      5.3190, -4.0183),
-    ("Cocody",       5.3597, -3.9862),
-    ("Yopougon",     5.3667, -4.0833),
-    ("Marcory",      5.3071, -3.9823),
-    ("Adjamé",       5.3583, -4.0167),
-    ("Treichville",  5.3030, -3.9990),
-    ("Abobo",        5.4167, -4.0167),
-    ("Port-Bouet",   5.2544, -3.9289),
-    ("Koumassi",     5.3023, -3.9757),
-    ("Riviera",      5.3735, -3.9566),
-    ("Zone 4",       5.3098, -4.0052),
-    ("Bingerville",  5.3575, -3.8868),
+# New Jersey neighborhoods: (name, center_lat, center_lng)
+NJ_ZONES = [
+    ("Downtown Newark",  40.7357, -74.1724),
+    ("Jersey City",      40.7178, -74.0431),
+    ("Hoboken",          40.7440, -74.0324),
+    ("Trenton",          40.2171, -74.7429),
+    ("Hackensack",       40.8859, -74.0435),
+    ("Princeton",        40.3573, -74.6672),
+    ("Elizabeth",        40.6640, -74.2107),
+    ("Newark Airport",   40.6895, -74.1745),
+    ("Irvington",        40.7248, -74.2285),
+    ("Montclair",        40.8251, -74.2090),
+    ("Parsippany",       40.8576, -74.4243),
+    ("Woodbridge",       40.5576, -74.2843),
 ]
 
 MALE_FIRST = [
-    "Kouadio", "Kouassi", "Koffi", "Konan", "Yao", "Moussa", "Ibrahim",
-    "Mohamed", "Seydou", "Dramane", "Lacina", "Adama", "Boubacar",
-    "Issouf", "Cheick", "Lamine", "Oumar", "Abou", "Bakary", "Siaka",
+    "James", "Robert", "John", "Michael", "David", "William", "Richard",
+    "Joseph", "Thomas", "Charles", "Christopher", "Daniel", "Matthew",
+    "Anthony", "Donald", "Mark", "Paul", "Steven", "Andrew", "Joshua",
 ]
 FEMALE_FIRST = [
-    "Akissi", "Adjoua", "Ama", "Affoue", "Aminata", "Mariama",
-    "Fatoumata", "Bintou", "Nathalie", "Nadia", "Prisca", "Cynthia",
-    "Michelle", "Sandra", "Grace", "Mariam", "Khady", "Aïssatou",
-    "Salimata", "Kadiatou",
+    "Mary", "Patricia", "Jennifer", "Linda", "Barbara", "Elizabeth", "Susan",
+    "Jessica", "Sarah", "Karen", "Lisa", "Nancy", "Betty", "Margaret",
+    "Sandra", "Ashley", "Dorothy", "Kimberly", "Emily", "Donna",
 ]
 SURNAMES = [
-    "Coulibaly", "Koné", "Traoré", "Bamba", "Diomandé", "Ouattara", "Touré",
-    "Diabaté", "Konaté", "Camara", "Sanogo", "Soro", "Fofana", "Séry",
-    "Gnamba", "Kouadio", "Assi", "Brou", "Achi", "Dago", "Niamké",
-    "Kouame", "Ahouré", "N'Goran", "Tape", "Dao", "Silué", "Kra",
-    "Boa", "Eba",
+    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller",
+    "Davis", "Wilson", "Anderson", "Taylor", "Thomas", "Jackson", "White",
+    "Harris", "Martin", "Thompson", "Moore", "Young", "Allen",
+    "King", "Wright", "Hill", "Scott", "Adams", "Baker", "Carter",
+    "Green", "Lewis", "Nelson",
 ]
-PHONE_PREFIXES = ["+225 07", "+225 05", "+225 01"]
+PHONE_PREFIXES = ["+1 (201)", "+1 (732)", "+1 (609)", "+1 (973)", "+1 (908)"]
 
 RATING_COMMENTS = [
-    "Super service, chauffeur ponctuel !",
-    "Bonne conduite, je recommande.",
-    "Voiture propre et confortable.",
-    "Chauffeur très agréable.",
-    "Arrivé à l'heure, parfait.",
-    "Trajet fluide, merci.",
-    "Très satisfait du service.",
-    "Conduite sécurisée.",
-    "À recommander sans hésiter.",
-    "Le chauffeur connaît bien Abidjan.",
-    "Service professionnel.",
-    "Trajet un peu long mais bien.",
-    "Peut mieux faire sur la ponctualité.",
-    "Correct.",
-    None, None, None,  # ~20 % sans commentaire
+    "Great service, very punctual!",
+    "Smooth ride, highly recommend.",
+    "Clean and comfortable car.",
+    "Very friendly driver.",
+    "On time, perfect.",
+    "Smooth trip, thank you.",
+    "Very satisfied with the service.",
+    "Safe and careful driving.",
+    "Highly recommend without hesitation.",
+    "Driver knows New Jersey very well.",
+    "Professional service.",
+    "Trip was a bit long but good.",
+    "Could improve on punctuality.",
+    "Satisfactory.",
+    None, None, None,  # ~20 % no comment
 ]
 
 # 10 driver profiles: (full_name, license, make, model, year, color, category, plate)
 DRIVER_PROFILES = [
-    ("Kouadio Jean-Marie", "LIC-2019-001", "Toyota",   "Corolla",      2019, "Gris",   "economy", "AB-1234-A"),
-    ("Traoré Mamadou",     "LIC-2020-002", "Hyundai",  "i10",          2020, "Blanc",  "economy", "AB-5678-B"),
-    ("Koné Ibrahim",       "LIC-2021-003", "Kia",      "Rio",          2021, "Bleu",   "economy", "AB-9012-C"),
-    ("Coulibaly Seydou",   "LIC-2022-004", "Toyota",   "Camry",        2022, "Noir",   "comfort", "AB-3456-D"),
-    ("Bamba Oumar",        "LIC-2020-005", "Honda",    "Accord",       2020, "Argent", "comfort", "AB-7890-E"),
-    ("Diomandé Ali",       "LIC-2021-006", "Mercedes", "C 200",        2021, "Noir",   "premium", "AB-2345-F"),
-    ("Soro Cheick",        "LIC-2022-007", "Toyota",   "Land Cruiser", 2022, "Blanc",  "premium", "AB-6789-G"),
-    ("Sanogo Drissa",      "LIC-2019-008", "Suzuki",   "Swift",        2019, "Rouge",  "economy", "AB-0123-H"),
-    ("Fofana Karim",       "LIC-2020-009", "Renault",  "Logan",        2020, "Gris",   "economy", "AB-4567-I"),
-    ("Diabaté Moussa",     "LIC-2021-010", "Kia",      "Sportage",     2021, "Bleu",   "comfort", "AB-8901-J"),
+    ("James Smith",          "LIC-NJ-2019-001", "Toyota",    "Camry",       2019, "Silver", "economy", "NJA-1234"),
+    ("Robert Johnson",       "LIC-NJ-2020-002", "Honda",     "Civic",       2020, "White",  "economy", "NJB-5678"),
+    ("Michael Williams",     "LIC-NJ-2021-003", "Kia",       "Soul",        2021, "Blue",   "economy", "NJC-9012"),
+    ("David Brown",          "LIC-NJ-2022-004", "Toyota",    "Avalon",      2022, "Black",  "comfort", "NJD-3456"),
+    ("William Jones",        "LIC-NJ-2020-005", "Honda",     "Accord",      2020, "Gray",   "comfort", "NJE-7890"),
+    ("Richard Garcia",       "LIC-NJ-2021-006", "Mercedes",  "C 300",       2021, "Black",  "premium", "NJF-2345"),
+    ("Joseph Miller",        "LIC-NJ-2022-007", "BMW",       "5 Series",    2022, "White",  "premium", "NJG-6789"),
+    ("Thomas Davis",         "LIC-NJ-2019-008", "Hyundai",   "Elantra",     2019, "Red",    "economy", "NJH-0123"),
+    ("Charles Wilson",       "LIC-NJ-2020-009", "Chevrolet", "Malibu",      2020, "Silver", "economy", "NJI-4567"),
+    ("Christopher Anderson", "LIC-NJ-2021-010", "Kia",       "Sportage",    2021, "Blue",   "comfort", "NJJ-8901"),
 ]
 
 # Demo users — must match SEEDED_USERS in app/auth/dev_adapter.py
 DEMO_USERS = [
-    ("customer@ziza.dev", "usr_001", "customer", "Client Démo",    "+225 07 00 00 01"),
-    ("driver@ziza.dev",   "usr_002", "driver",   "Chauffeur Démo", "+225 07 00 00 02"),
-    ("admin@ziza.dev",    "usr_003", "admin",    "Admin Démo",     "+225 07 00 00 03"),
+    ("customer@ziza.dev", "usr_001", "customer", "Demo Customer", "+1 (201) 555-0001"),
+    ("driver@ziza.dev",   "usr_002", "driver",   "Demo Driver",   "+1 (201) 555-0002"),
+    ("admin@ziza.dev",    "usr_003", "admin",    "Demo Admin",    "+1 (201) 555-0003"),
 ]
 
-# Fare config per category: base (XOF) + per_km (XOF) + per_min (XOF), minimum
+# Fare config per category: base (USD cents) + per_km (cents) + per_min (cents), minimum
 FARE_CFG = {
-    "economy": {"base": 500,  "per_km": 150, "per_min": 25,  "min": 1500},
-    "comfort":  {"base": 750,  "per_km": 225, "per_min": 37,  "min": 2500},
-    "premium":  {"base": 1500, "per_km": 375, "per_min": 62,  "min": 4000},
+    "economy": {"base": 200, "per_km": 90,  "per_min": 18, "min": 750},
+    "comfort":  {"base": 300, "per_km": 130, "per_min": 28, "min": 1200},
+    "premium":  {"base": 500, "per_km": 210, "per_min": 45, "min": 2500},
 }
 
 # ---------------------------------------------------------------------------
@@ -177,11 +176,11 @@ def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
 def _fare(dist_km: float, dur_min: int, category: str) -> int:
     cfg = FARE_CFG[category]
     raw = cfg["base"] + dist_km * cfg["per_km"] + dur_min * cfg["per_min"]
-    return max(cfg["min"], int(round(raw / 50) * 50))  # nearest 50 XOF
+    return max(cfg["min"], int(round(raw / 25) * 25))  # nearest 25 cents
 
 
 def _random_point() -> tuple[float, float]:
-    _, lat, lng = RNG.choice(ABIDJAN_ZONES)
+    _, lat, lng = RNG.choice(NJ_ZONES)
     return _jitter(lat, lng)
 
 
@@ -189,8 +188,8 @@ def _random_name() -> tuple[str, str]:
     """Return (full_name, phone)."""
     first = RNG.choice(RNG.choice([MALE_FIRST, FEMALE_FIRST]))
     last = RNG.choice(SURNAMES)
-    phone = (f"{RNG.choice(PHONE_PREFIXES)} "
-             f"{RNG.randint(10, 99)} {RNG.randint(10, 99)} {RNG.randint(10, 99)}")
+    prefix = RNG.choice(PHONE_PREFIXES)
+    phone = f"{prefix} {RNG.randint(200, 999)}-{RNG.randint(1000, 9999)}"
     return f"{first} {last}", phone
 
 
@@ -203,8 +202,8 @@ def _past(days: float) -> datetime:
 # ---------------------------------------------------------------------------
 
 async def _reset(session: AsyncSession) -> None:
-    """Delete all seed data (@seed.ziza.dev users) and the Abidjan city."""
-    print("[RESET] Suppression des donnees seed...")
+    """Delete all seed data (@seed.ziza.dev users) and the Newark city."""
+    print("[RESET] Deleting seed data...")
 
     # Collect seed user UUIDs
     res = await session.execute(
@@ -213,7 +212,7 @@ async def _reset(session: AsyncSession) -> None:
     seed_user_ids = [r[0] for r in res.all()]
 
     if not seed_user_ids:
-        print("   Aucune donnee seed trouvee.")
+        print("   No seed data found.")
     else:
         # Collect seed driver UUIDs
         res = await session.execute(
@@ -245,11 +244,11 @@ async def _reset(session: AsyncSession) -> None:
         await session.execute(
             delete(User).where(User.email.like(f"%@{SEED_DOMAIN}"))
         )
-        print(f"   {len(seed_user_ids)} utilisateurs seed supprimes.")
+        print(f"   {len(seed_user_ids)} seed users deleted.")
 
-    # 4. Delete city Abidjan (cascades -> service_zones)
-    await session.execute(delete(City).where(City.name == "Abidjan"))
-    print("   Ville Abidjan supprimee.")
+    # 4. Delete city Newark (cascades -> service_zones)
+    await session.execute(delete(City).where(City.name == "Newark"))
+    print("   City Newark deleted.")
 
 
 # ---------------------------------------------------------------------------
@@ -257,14 +256,14 @@ async def _reset(session: AsyncSession) -> None:
 # ---------------------------------------------------------------------------
 
 async def _seed_city(session: AsyncSession) -> City:
-    print("[CITY] Creation de la ville : Abidjan")
+    print("[CITY] Creating city: Newark, NJ")
     city = City(
         id=uuid.uuid4(),
-        name="Abidjan",
-        country="Côte d'Ivoire",
-        center_lat=5.3364,
-        center_lng=-4.0267,
-        radius_km=40.0,
+        name="Newark",
+        country="United States",
+        center_lat=40.7357,
+        center_lng=-74.1724,
+        radius_km=50.0,
         active=True,
         created_at=_past(60),
     )
@@ -272,9 +271,9 @@ async def _seed_city(session: AsyncSession) -> City:
     await session.flush()
 
     for name in [
-        "Zone Nord (Abobo – Adjamé)",
-        "Zone Centre (Plateau – Treichville)",
-        "Zone Est (Cocody – Bingerville)",
+        "Northern Zone (Hackensack – Montclair)",
+        "Central Zone (Newark – Jersey City – Hoboken)",
+        "Southern Zone (Elizabeth – Woodbridge – Trenton)",
     ]:
         session.add(ServiceZone(
             id=uuid.uuid4(),
@@ -321,7 +320,7 @@ async def _seed_demo_users(session: AsyncSession) -> list[User]:
 # ---------------------------------------------------------------------------
 
 async def _seed_drivers(session: AsyncSession) -> list[tuple[User, Driver, Vehicle]]:
-    print("[DRIVERS] Creation de 10 chauffeurs...")
+    print("[DRIVERS] Creating 10 drivers...")
     results: list[tuple[User, Driver, Vehicle]] = []
 
     for i, (full_name, license_num, make, model, year, color, category, plate) in \
@@ -330,6 +329,9 @@ async def _seed_drivers(session: AsyncSession) -> list[tuple[User, Driver, Vehic
         created_at = _past(45 - i * 2)
         is_online = RNG.random() < 0.4
 
+        prefix = RNG.choice(PHONE_PREFIXES)
+        phone = f"{prefix} {RNG.randint(200, 999)}-{RNG.randint(1000, 9999)}"
+
         user = User(
             id=uuid.uuid4(),
             user_id=f"seed_drv_{i:02d}",
@@ -337,15 +339,14 @@ async def _seed_drivers(session: AsyncSession) -> list[tuple[User, Driver, Vehic
             role="driver",
             provider="dev",
             name=full_name,
-            phone=(f"+225 07 {RNG.randint(10,99)} "
-                   f"{RNG.randint(10,99)} {RNG.randint(10,99)}"),
+            phone=phone,
             created_at=created_at,
             updated_at=created_at,
         )
         session.add(user)
         await session.flush()
 
-        lat, lng = _jitter(5.3364, -4.0267, radius_km=5.0)
+        lat, lng = _jitter(40.7357, -74.1724, radius_km=5.0)
         driver = Driver(
             id=uuid.uuid4(),
             user_id=user.id,
@@ -386,7 +387,7 @@ async def _seed_drivers(session: AsyncSession) -> list[tuple[User, Driver, Vehic
         results.append((user, driver, vehicle))
 
     await session.flush()
-    print(f"   {len(results)} chauffeurs crees.")
+    print(f"   {len(results)} drivers created.")
     return results
 
 
@@ -395,10 +396,11 @@ async def _seed_drivers(session: AsyncSession) -> list[tuple[User, Driver, Vehic
 # ---------------------------------------------------------------------------
 
 async def _seed_customers(session: AsyncSession) -> list[User]:
-    print("[CUSTOMERS] Creation de 50 clients...")
+    print("[CUSTOMERS] Creating 50 customers...")
     customers: list[User] = []
 
-    topup_amounts = [5_000, 10_000, 20_000, 25_000, 50_000, 100_000]
+    # USD cents: $5, $10, $25, $50, $100, $250
+    topup_amounts = [500, 1000, 2500, 5000, 10000, 25000]
 
     for i in range(1, 51):
         name, phone = _random_name()
@@ -420,7 +422,7 @@ async def _seed_customers(session: AsyncSession) -> list[User]:
 
     await session.flush()
 
-    # Wallet + initial topup for each customer
+    # Wallet + initial top-up for each customer
     for user in customers:
         amount = float(RNG.choice(topup_amounts))
         wallet_created = user.created_at + timedelta(minutes=RNG.randint(2, 15))
@@ -440,13 +442,13 @@ async def _seed_customers(session: AsyncSession) -> list[User]:
             tx_type="credit",
             amount_xof=amount,
             reason="topup",
-            note="Rechargement Mobile Money",
+            note="Initial wallet top-up",
             balance_after=amount,
             created_at=wallet_created,
         ))
 
     await session.flush()
-    print("   50 clients crees avec portefeuilles.")
+    print("   50 customers created with wallets.")
     return customers
 
 
@@ -512,7 +514,7 @@ async def _seed_trips(
     driver_rows: list[tuple[User, Driver, Vehicle]],
     demo_customer: User | None,
 ) -> None:
-    print("[TRIPS] Creation des courses (14 jours)...")
+    print("[TRIPS] Creating trips (14 days)...")
 
     drivers_vehicles = [(d, v) for (_, d, v) in driver_rows]
     pool = customers + ([demo_customer] if demo_customer else [])
@@ -545,7 +547,7 @@ async def _seed_trips(
                 microsecond=0,
             ).astimezone(timezone.utc)
 
-            # Pick two distinct Abidjan zones
+            # Pick two distinct NJ zones
             origin_lat, origin_lng = _random_point()
             dest_lat, dest_lng = _random_point()
             for _ in range(3):
@@ -616,7 +618,7 @@ async def _seed_trips(
                     id=uuid.uuid4(),
                     trip_id=trip.id,
                     amount_xof=fare,
-                    currency="XOF",
+                    currency="USD",
                     provider="mock",
                     provider_ref=f"mock_{trip.id.hex[:12]}",
                     status="paid",
@@ -669,7 +671,7 @@ async def _seed_trips(
         session.add(obj)
     await session.flush()
 
-    print(f"   {total_trips} courses, {total_ratings} avis, {total_payments} paiements.")
+    print(f"   {total_trips} trips, {total_ratings} ratings, {total_payments} payments.")
 
 
 # ---------------------------------------------------------------------------
@@ -680,14 +682,15 @@ async def _seed_payouts(
     session: AsyncSession,
     driver_rows: list[tuple[User, Driver, Vehicle]],
 ) -> None:
-    print("[PAYOUTS] Creation des demandes de paiement...")
+    print("[PAYOUTS] Creating payout requests...")
     statuses_pool = ["pending", "pending", "approved", "approved", "processed", "rejected"]
     total = 0
 
     for i, (_, driver, _) in enumerate(driver_rows):
         for j in range(RNG.randint(1, 3)):
             status = RNG.choice(statuses_pool)
-            amount = RNG.choice([25_000, 50_000, 75_000, 100_000, 150_000])
+            # USD cents: $250, $500, $750, $1000, $1500
+            amount = RNG.choice([25000, 50000, 75000, 100000, 150000])
             commission = int(amount * 0.15)
             net = amount - commission
             created_at = _past(RNG.randint(1, 14))
@@ -704,8 +707,8 @@ async def _seed_payouts(
                     if status == "processed" else None
                 ),
                 note_admin=(
-                    "Approuvé après vérification" if status == "approved" else
-                    "Solde insuffisant vérifiable" if status == "rejected" else
+                    "Approved after verification" if status == "approved" else
+                    "Insufficient verifiable balance" if status == "rejected" else
                     None
                 ),
                 processed_at=created_at + timedelta(days=1) if status == "processed" else None,
@@ -718,7 +721,7 @@ async def _seed_payouts(
             total += 1
 
     await session.flush()
-    print(f"   {total} demandes creees.")
+    print(f"   {total} payout requests created.")
 
 
 # ---------------------------------------------------------------------------
@@ -737,7 +740,7 @@ async def _ensure_demo_wallet(session: AsyncSession, demo_customer: User) -> Non
     wallet = Wallet(
         id=uuid.uuid4(),
         user_id=demo_customer.id,
-        balance_xof=50_000.0,
+        balance_xof=5000.0,  # $50.00 in USD cents
         created_at=wallet_at,
         updated_at=wallet_at,
     )
@@ -748,10 +751,10 @@ async def _ensure_demo_wallet(session: AsyncSession, demo_customer: User) -> Non
         id=uuid.uuid4(),
         wallet_id=wallet.id,
         tx_type="credit",
-        amount_xof=50_000.0,
+        amount_xof=5000.0,
         reason="topup",
-        note="Rechargement initial démo",
-        balance_after=50_000.0,
+        note="Initial demo top-up",
+        balance_after=5000.0,
         created_at=wallet_at,
     ))
     await session.flush()
@@ -764,7 +767,7 @@ async def _ensure_demo_wallet(session: AsyncSession, demo_customer: User) -> Non
 async def seed(reset: bool = False) -> None:
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
-        print("ERROR: DATABASE_URL non defini.")
+        print("ERROR: DATABASE_URL is not set.")
         sys.exit(1)
 
     db_url = _normalise_url(db_url)
@@ -784,22 +787,22 @@ async def seed(reset: bool = False) -> None:
             )
             if seed_count and seed_count > 0:
                 print(
-                    f"[INFO] Donnees seed deja presentes ({seed_count} users @{SEED_DOMAIN}).\n"
-                    "       Utilisez --reset pour repartir de zero."
+                    f"[INFO] Seed data already present ({seed_count} users @{SEED_DOMAIN}).\n"
+                    "       Use --reset to wipe and re-seed."
                 )
                 return
 
             # ── Seed ───────────────────────────────────────────────────────
-            print("\n[SEED] Seed Ziza (Sprint 21) en cours...\n")
+            print("\n[SEED] Ziza seed (Sprint 21 — New Jersey) starting...\n")
 
-            # City: upsert (API may have already created Abidjan via _ensure_city_defaults)
+            # City: upsert (API may have already created Newark via _ensure_city_defaults)
             existing_city = (await session.execute(
-                select(City).where(City.name == "Abidjan")
+                select(City).where(City.name == "Newark")
             )).scalar_one_or_none()
             if existing_city is None:
                 await _seed_city(session)
             else:
-                print("[CITY] Ville Abidjan deja presente (auto-seedee par l'API).")
+                print("[CITY] City Newark already present (auto-seeded by API).")
             demo_users = await _seed_demo_users(session)
             driver_rows = await _seed_drivers(session)
             customers = await _seed_customers(session)
@@ -814,30 +817,31 @@ async def seed(reset: bool = False) -> None:
     await engine.dispose()
 
     print("""
-[OK] Seed termine !
+[OK] Seed complete!
 
-Comptes de connexion (mot de passe : ziza2024)
+Login accounts (password: ziza2024)
   customer@ziza.dev   -> web-customer
   driver@ziza.dev     -> web-driver
   admin@ziza.dev      -> web-admin
 
-Donnees generees
-  - 1 ville      : Abidjan (3 zones de service)
-  - 10 chauffeurs: d01@seed.ziza.dev ... d10@seed.ziza.dev
-  - 50 clients   : c01@seed.ziza.dev ... c50@seed.ziza.dev
-  - ~180 courses : 14 derniers jours (completes, annulees, en cours)
-  - Avis, paiements, demandes de retrait inclus
+Generated data
+  - 1 city      : Newark, NJ (3 service zones)
+  - 10 drivers  : d01@seed.ziza.dev ... d10@seed.ziza.dev
+  - 50 customers: c01@seed.ziza.dev ... c50@seed.ziza.dev
+  - ~180 trips  : last 14 days (completed, cancelled, in progress)
+  - Ratings, payments, payout requests included
+  - Currency: USD (amounts stored as integer cents)
 """)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Ziza Sprint-21 seed — génère 50 clients, 10 chauffeurs, ~180 courses."
+        description="Ziza Sprint-21 seed — generates 50 customers, 10 drivers, ~180 trips (New Jersey)."
     )
     parser.add_argument(
         "--reset",
         action="store_true",
-        help="Supprime les données seed existantes avant de reseed.",
+        help="Delete existing seed data before re-seeding.",
     )
     args = parser.parse_args()
     asyncio.run(seed(reset=args.reset))

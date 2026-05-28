@@ -23,48 +23,49 @@ const POLL_MS = 5000;
 
 // Sprint 21 — vehicle category constants
 const VEHICLE_CATEGORIES = [
-  { value: "economy", label: "🚗 Économique" },
-  { value: "comfort", label: "🚙 Confort" },
+  { value: "economy", label: "🚗 Economy" },
+  { value: "comfort", label: "🚙 Comfort" },
   { value: "premium", label: "🏎️ Premium" },
 ];
 
-// Sprint 22 — Abidjan landmarks for location quick-pick
-const ABIDJAN_LOCATIONS = {
-  "Plateau (Centre-ville)": { lat: 5.3207, lng: -4.0175 },
-  "Cocody":                 { lat: 5.3600, lng: -3.9801 },
-  "Yopougon":               { lat: 5.3386, lng: -4.0721 },
-  "Abobo":                  { lat: 5.4154, lng: -4.0243 },
-  "Marcory":                { lat: 5.2997, lng: -3.9904 },
-  "Treichville":            { lat: 5.2975, lng: -4.0119 },
-  "Adjamé":                 { lat: 5.3612, lng: -4.0288 },
-  "Aéroport (Port-Bouët)":  { lat: 5.2537, lng: -3.9268 },
+// Sprint 22 — New Jersey landmarks for location quick-pick
+const NJ_LOCATIONS = {
+  "Downtown Newark":  { lat: 40.7357, lng: -74.1724 },
+  "Jersey City":      { lat: 40.7178, lng: -74.0431 },
+  "Hoboken":          { lat: 40.7440, lng: -74.0324 },
+  "Trenton":          { lat: 40.2171, lng: -74.7429 },
+  "Hackensack":       { lat: 40.8859, lng: -74.0435 },
+  "Princeton":        { lat: 40.3573, lng: -74.6672 },
+  "Elizabeth":        { lat: 40.6640, lng: -74.2107 },
+  "Newark Airport":   { lat: 40.6895, lng: -74.1745 },
 };
-const LOCATION_NAMES = Object.keys(ABIDJAN_LOCATIONS);
+const LOCATION_NAMES = Object.keys(NJ_LOCATIONS);
 
 const STATUS_LABELS = {
-  accepted:    "✓ Course acceptée — en route vers le client",
-  in_progress: "🚗 Course en cours",
-  completed:   "✅ Course terminée",
-  cancelled:   "✗ Course annulée par le client",
+  accepted:    "✓ Ride accepted — heading to customer",
+  in_progress: "🚗 Ride in progress",
+  completed:   "✅ Ride completed",
+  cancelled:   "✗ Ride cancelled by customer",
 };
 
 const ASSISTANCE_TYPE_LABELS = {
-  breakdown: "🔧 Panne mécanique",
-  flat_tyre: "🔴 Pneu crevé",
-  tow:       "🚛 Remorquage",
-  fuel:      "⛽ Carburant",
-  lockout:   "🔑 Clés perdues",
+  breakdown: "🔧 Breakdown",
+  flat_tyre: "🔴 Flat Tire",
+  tow:       "🚛 Tow Truck",
+  fuel:      "⛽ Out of Fuel",
+  lockout:   "🔑 Locked Out",
 };
 
 const ASSISTANCE_STATUS_LABELS = {
-  accepted:    "✓ Intervention acceptée — en route",
-  in_progress: "🔧 Intervention en cours",
-  resolved:    "✅ Intervention terminée",
-  cancelled:   "✗ Annulée par le client",
+  accepted:    "✓ Service accepted — on the way",
+  in_progress: "🔧 Service in progress",
+  resolved:    "✅ Service completed",
+  cancelled:   "✗ Cancelled by customer",
 };
 
-function formatXOF(n) {
-  return new Intl.NumberFormat("fr-FR").format(n) + " XOF";
+function formatUSD(n) {
+  if (n == null) return "—";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n / 100);
 }
 
 // ---------------------------------------------------------------------------
@@ -77,15 +78,15 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Driver</h1>
-      <p className="subtitle">Sprint 34 — Analytics avancées</p>
+      <p className="subtitle">Sprint 34 — Advanced Analytics</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
-        <button type="submit" disabled={loading}>{loading ? "Connexion…" : "Se connecter"}</button>
+        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
+        <button type="submit" disabled={loading}>{loading ? "Signing in…" : "Sign In"}</button>
       </form>
       {firebaseEnabled && (
         <button className="google-btn" onClick={onGoogleLogin} disabled={loading}>
-          <span>G</span> Continuer avec Google
+          <span>G</span> Continue with Google
         </button>
       )}
       {error && <p className="form-error">{error}</p>}
@@ -112,20 +113,20 @@ function ActiveTripCard({ token, trip, onUpdate }) {
   return (
     <div className={`active-trip-card active-${trip.status}`}>
       <div className="active-status">{STATUS_LABELS[trip.status] ?? trip.status}</div>
-      {trip.fare_xof && <div className="active-fare">{formatXOF(trip.fare_xof)}</div>}
+      {trip.fare_xof && <div className="active-fare">{formatUSD(trip.fare_xof)}</div>}
       <div className="fare-meta">
-        {trip.distance_km != null && <span>🛣️ {trip.distance_km.toFixed(1)} km</span>}
+        {trip.distance_km != null && <span>🛣️ {trip.distance_km.toFixed(1)} mi</span>}
         {trip.duration_min != null && <span>⏱️ ~{trip.duration_min} min</span>}
       </div>
       {error && <p className="form-error">{error}</p>}
       {trip.status === "accepted" && (
         <button className="action-btn start-btn" onClick={() => handleAction(startTrip)} disabled={busy}>
-          {busy ? "…" : "🚦 Démarrer la course"}
+          {busy ? "…" : "🚦 Start Ride"}
         </button>
       )}
       {trip.status === "in_progress" && (
         <button className="action-btn complete-btn" onClick={() => handleAction(completeTrip)} disabled={busy}>
-          {busy ? "…" : "🏁 Terminer la course"}
+          {busy ? "…" : "🏁 Complete Ride"}
         </button>
       )}
     </div>
@@ -149,15 +150,15 @@ function RatingStats({ stats }) {
 
   return (
     <div className="rating-stats-card">
-      <div className="rating-stats-label">Ma note</div>
+      <div className="rating-stats-label">My Rating</div>
       {total_ratings === 0 ? (
-        <div className="rating-stats-empty">Aucune évaluation pour l'instant</div>
+        <div className="rating-stats-empty">No ratings yet</div>
       ) : (
         <>
           <div className="rating-stars-row">{renderStars(average_stars)}</div>
           <div className="rating-avg">
             {average_stars !== null ? average_stars.toFixed(1) : "—"}
-            <span className="rating-count"> / 5 · {total_ratings} avis</span>
+            <span className="rating-count"> / 5 · {total_ratings} review{total_ratings !== 1 ? "s" : ""}</span>
           </div>
         </>
       )}
@@ -175,65 +176,65 @@ function EarningsCard({ earnings, balance }) {
 
   return (
     <div className="earnings-card">
-      <div className="earnings-label">Mes gains</div>
-      <div className="earnings-total">{formatXOF(total_xof)}</div>
-      <div className="earnings-count">{total_trips} course{total_trips !== 1 ? "s" : ""} complétée{total_trips !== 1 ? "s" : ""}</div>
+      <div className="earnings-label">My Earnings</div>
+      <div className="earnings-total">{formatUSD(total_xof)}</div>
+      <div className="earnings-count">{total_trips} ride{total_trips !== 1 ? "s" : ""} completed</div>
 
       {/* Sprint 29 — net balance breakdown */}
       {balance && (
         <div className="balance-breakdown">
           <div className="balance-row">
-            <span className="balance-label">Gains bruts</span>
-            <span className="balance-value">{formatXOF(balance.gains_bruts_xof)}</span>
+            <span className="balance-label">Gross earnings</span>
+            <span className="balance-value">{formatUSD(balance.gains_bruts_xof)}</span>
           </div>
           <div className="balance-row balance-row--deduction">
-            <span className="balance-label">Commission plateforme</span>
-            <span className="balance-value balance-value--negative">- {formatXOF(balance.commission_xof)}</span>
+            <span className="balance-label">Platform commission</span>
+            <span className="balance-value balance-value--negative">- {formatUSD(balance.commission_xof)}</span>
           </div>
           {balance.retraits_xof > 0 && (
             <div className="balance-row balance-row--deduction">
-              <span className="balance-label">Retraits effectués</span>
-              <span className="balance-value balance-value--negative">- {formatXOF(balance.retraits_xof)}</span>
+              <span className="balance-label">Withdrawals</span>
+              <span className="balance-value balance-value--negative">- {formatUSD(balance.retraits_xof)}</span>
             </div>
           )}
           <div className="balance-row balance-row--net">
-            <span className="balance-label">Solde net disponible</span>
-            <span className="balance-value balance-value--net">{formatXOF(balance.solde_net_xof)}</span>
+            <span className="balance-label">Net available balance</span>
+            <span className="balance-value balance-value--net">{formatUSD(balance.solde_net_xof)}</span>
           </div>
         </div>
       )}
 
       <div className="earnings-periods">
         <div className="earnings-period">
-          <span className="period-label">Aujourd'hui</span>
-          <span className="period-value">{formatXOF(today_xof)}</span>
-          <span className="period-trips">{today_trips} course{today_trips !== 1 ? "s" : ""}</span>
+          <span className="period-label">Today</span>
+          <span className="period-value">{formatUSD(today_xof)}</span>
+          <span className="period-trips">{today_trips} ride{today_trips !== 1 ? "s" : ""}</span>
         </div>
         <div className="earnings-period">
-          <span className="period-label">Cette semaine</span>
-          <span className="period-value">{formatXOF(week_xof)}</span>
-          <span className="period-trips">{week_trips} course{week_trips !== 1 ? "s" : ""}</span>
+          <span className="period-label">This week</span>
+          <span className="period-value">{formatUSD(week_xof)}</span>
+          <span className="period-trips">{week_trips} ride{week_trips !== 1 ? "s" : ""}</span>
         </div>
       </div>
 
       {/* Sprint 11 fix: recent trips list */}
       {recent_trips.length > 0 && (
         <div className="earnings-recent">
-          <div className="earnings-recent-title">10 dernières courses</div>
+          <div className="earnings-recent-title">Last 10 rides</div>
           <div className="earnings-recent-list">
             {recent_trips.map((t) => (
               <div key={t.trip_id} className="earnings-recent-row">
                 <div className="earnings-recent-left">
                   <span className="earnings-recent-fare">
-                    {t.fare_xof != null ? formatXOF(t.fare_xof) : "—"}
+                    {t.fare_xof != null ? formatUSD(t.fare_xof) : "—"}
                   </span>
                   <span className="earnings-recent-meta">
-                    {t.distance_km != null && `🛣️ ${t.distance_km.toFixed(1)} km`}
+                    {t.distance_km != null && `🛣️ ${t.distance_km.toFixed(1)} mi`}
                     {t.duration_min != null && ` · ⏱️ ${t.duration_min} min`}
                   </span>
                 </div>
                 <span className="earnings-recent-date">
-                  {new Date(t.completed_at).toLocaleDateString("fr-FR", {
+                  {new Date(t.completed_at).toLocaleDateString("en-US", {
                     day: "2-digit", month: "short",
                   })}
                 </span>
@@ -243,7 +244,7 @@ function EarningsCard({ earnings, balance }) {
         </div>
       )}
       {recent_trips.length === 0 && total_trips === 0 && (
-        <p className="earnings-empty">Aucune course complétée pour l&apos;instant.</p>
+        <p className="earnings-empty">No completed rides yet.</p>
       )}
     </div>
   );
@@ -278,38 +279,38 @@ function VehicleCard({ token, vehicle, onSaved }) {
     finally { setSaving(false); }
   }
 
-  const categoryLabel = VEHICLE_CATEGORIES.find((c) => c.value === (vehicle?.category ?? "economy"))?.label ?? "🚗 Économique";
+  const categoryLabel = VEHICLE_CATEGORIES.find((c) => c.value === (vehicle?.category ?? "economy"))?.label ?? "🚗 Economy";
 
   if (!editing && vehicle) {
     return (
       <div className="vehicle-card">
-        <div className="vehicle-label">Mon véhicule</div>
+        <div className="vehicle-label">My Vehicle</div>
         <div className="vehicle-plate">{vehicle.plate}</div>
         <div className="vehicle-meta">
           {[vehicle.color, vehicle.make, vehicle.model, vehicle.year].filter(Boolean).join(" · ")}
         </div>
         <div className="vehicle-category-badge">{categoryLabel}</div>
-        <button className="vehicle-edit-btn" onClick={() => setEditing(true)}>Modifier</button>
+        <button className="vehicle-edit-btn" onClick={() => setEditing(true)}>Edit</button>
       </div>
     );
   }
 
   return (
     <div className="vehicle-card vehicle-card-form">
-      <div className="vehicle-label">{vehicle ? "Modifier le véhicule" : "Enregistrer mon véhicule"}</div>
+      <div className="vehicle-label">{vehicle ? "Edit Vehicle" : "Register My Vehicle"}</div>
       <form className="vehicle-form" onSubmit={handleSave}>
-        <input className="vehicle-input" placeholder="Plaque *" value={plate} onChange={(e) => setPlate(e.target.value)} required />
+        <input className="vehicle-input" placeholder="License Plate *" value={plate} onChange={(e) => setPlate(e.target.value)} required />
         <div className="vehicle-row">
-          <input className="vehicle-input" placeholder="Marque" value={make}  onChange={(e) => setMake(e.target.value)} />
-          <input className="vehicle-input" placeholder="Modèle" value={model} onChange={(e) => setModel(e.target.value)} />
+          <input className="vehicle-input" placeholder="Make" value={make}  onChange={(e) => setMake(e.target.value)} />
+          <input className="vehicle-input" placeholder="Model" value={model} onChange={(e) => setModel(e.target.value)} />
         </div>
         <div className="vehicle-row">
-          <input className="vehicle-input" placeholder="Année" type="number" min="1980" max="2100" value={year} onChange={(e) => setYear(e.target.value)} />
-          <input className="vehicle-input" placeholder="Couleur" value={color} onChange={(e) => setColor(e.target.value)} />
+          <input className="vehicle-input" placeholder="Year" type="number" min="1980" max="2100" value={year} onChange={(e) => setYear(e.target.value)} />
+          <input className="vehicle-input" placeholder="Color" value={color} onChange={(e) => setColor(e.target.value)} />
         </div>
         {/* Sprint 21: category selector */}
         <div className="vehicle-category-row">
-          <span className="vehicle-category-label">Catégorie</span>
+          <span className="vehicle-category-label">Category</span>
           <div className="vehicle-category-btns">
             {VEHICLE_CATEGORIES.map(({ value, label }) => (
               <button
@@ -325,8 +326,8 @@ function VehicleCard({ token, vehicle, onSaved }) {
         </div>
         {error && <p className="form-error">{error}</p>}
         <div className="vehicle-form-actions">
-          <button type="submit" className="action-btn accept-btn" disabled={saving}>{saving ? "…" : "✓ Enregistrer"}</button>
-          {vehicle && <button type="button" className="logout-btn" onClick={() => setEditing(false)}>Annuler</button>}
+          <button type="submit" className="action-btn accept-btn" disabled={saving}>{saving ? "…" : "✓ Save"}</button>
+          {vehicle && <button type="button" className="logout-btn" onClick={() => setEditing(false)}>Cancel</button>}
         </div>
       </form>
     </div>
@@ -358,12 +359,12 @@ function ActiveAssistanceCard({ token, request, onUpdate }) {
       {error && <p className="form-error">{error}</p>}
       {request.status === "accepted" && (
         <button className="action-btn start-btn" onClick={() => handleAction(startAssistance)} disabled={busy}>
-          {busy ? "…" : "🔧 Démarrer l'intervention"}
+          {busy ? "…" : "🔧 Start Service"}
         </button>
       )}
       {request.status === "in_progress" && (
         <button className="action-btn complete-btn" onClick={() => handleAction(resolveAssistance)} disabled={busy}>
-          {busy ? "…" : "✅ Terminer l'intervention"}
+          {busy ? "…" : "✅ Complete Service"}
         </button>
       )}
     </div>
@@ -422,23 +423,23 @@ function AvailableTripsSection({ token, onTripAccepted, onAssistanceAccepted }) 
       </div>
       {error && <p className="form-error">{error}</p>}
       {loading && totalItems === 0 && (
-        <div className="status loading">⏳ Chargement…</div>
+        <div className="status loading">⏳ Loading…</div>
       )}
       {!loading && totalItems === 0 && (
-        <div className="empty-state">Aucune mission disponible pour le moment.</div>
+        <div className="empty-state">No missions available right now.</div>
       )}
       <div className="trip-list">
         {trips.map((t) => (
           <div key={t.trip_id} className="trip-card">
-            <div className="dispatch-tag tag-ride">🚕 Trajet</div>
+            <div className="dispatch-tag tag-ride">🚕 Ride</div>
             {t.category && t.category !== "economy" && (
               <div className={`dispatch-category dispatch-cat-${t.category}`}>
                 {VEHICLE_CATEGORIES.find((c) => c.value === t.category)?.label ?? t.category}
               </div>
             )}
-            <div className="trip-card-fare">{t.fare_xof ? formatXOF(t.fare_xof) : "—"}</div>
+            <div className="trip-card-fare">{t.fare_xof ? formatUSD(t.fare_xof) : "—"}</div>
             <div className="trip-card-meta">
-              {t.distance_km != null && <span>🛣️ {t.distance_km.toFixed(1)} km</span>}
+              {t.distance_km != null && <span>🛣️ {t.distance_km.toFixed(1)} mi</span>}
               {t.duration_min != null && <span>⏱️ ~{t.duration_min} min</span>}
             </div>
             <button
@@ -446,7 +447,7 @@ function AvailableTripsSection({ token, onTripAccepted, onAssistanceAccepted }) 
               onClick={() => handleAcceptTrip(t.trip_id)}
               disabled={accepting === t.trip_id}
             >
-              {accepting === t.trip_id ? "Acceptation…" : "✓ Accepter"}
+              {accepting === t.trip_id ? "Accepting…" : "✓ Accept"}
             </button>
           </div>
         ))}
@@ -462,7 +463,7 @@ function AvailableTripsSection({ token, onTripAccepted, onAssistanceAccepted }) 
               onClick={() => handleAcceptAssistance(a.request_id)}
               disabled={accepting === a.request_id}
             >
-              {accepting === a.request_id ? "Acceptation…" : "✓ Accepter"}
+              {accepting === a.request_id ? "Accepting…" : "✓ Accept"}
             </button>
           </div>
         ))}
@@ -495,38 +496,38 @@ function DriverTripHistory({ token }) {
 
   useEffect(() => { load(0); }, [load]);
 
-  if (loading && trips.length === 0) return <div className="status loading">⏳ Chargement…</div>;
+  if (loading && trips.length === 0) return <div className="status loading">⏳ Loading…</div>;
   if (error) return <p className="form-error">{error}</p>;
 
   return (
     <div className="driver-history">
       <div className="available-header">
-        <h2 className="section-title">Mes courses terminées</h2>
+        <h2 className="section-title">Completed Rides</h2>
         <button className="refresh-btn" onClick={() => load(page)} disabled={loading}>↻</button>
       </div>
       {trips.length === 0 && (
-        <div className="empty-state">Aucune course terminée pour le moment.</div>
+        <div className="empty-state">No completed rides yet.</div>
       )}
       <div className="trip-list">
         {trips.map((t) => (
           <div key={t.trip_id} className={`trip-card history-trip-${t.status}`}>
             <div className={`dispatch-tag ${t.status === "completed" ? "tag-ride" : "tag-cancelled"}`}>
-              {t.status === "completed" ? "✅ Terminée" : "✗ Annulée"}
+              {t.status === "completed" ? "✅ Completed" : "✗ Cancelled"}
             </div>
-            {t.fare_xof && <div className="trip-card-fare">{formatXOF(t.fare_xof)}</div>}
+            {t.fare_xof && <div className="trip-card-fare">{formatUSD(t.fare_xof)}</div>}
             <div className="trip-card-meta">
-              {t.distance_km != null && <span>🛣️ {t.distance_km.toFixed(1)} km</span>}
+              {t.distance_km != null && <span>🛣️ {t.distance_km.toFixed(1)} mi</span>}
               {t.duration_min != null && <span>⏱️ {t.duration_min} min</span>}
-              <span>{new Date(t.updated_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}</span>
+              <span>{new Date(t.updated_at).toLocaleDateString("en-US", { day: "2-digit", month: "short" })}</span>
             </div>
           </div>
         ))}
       </div>
       {(trips.length === TRIP_HISTORY_PAGE || page > 0) && (
         <div className="pagination">
-          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Précédent</button>
+          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Previous</button>
           <span className="page-info">Page {page + 1}</span>
-          <button className="page-btn" onClick={() => load(page + 1)} disabled={trips.length < TRIP_HISTORY_PAGE || loading}>Suivant →</button>
+          <button className="page-btn" onClick={() => load(page + 1)} disabled={trips.length < TRIP_HISTORY_PAGE || loading}>Next →</button>
         </div>
       )}
     </div>
@@ -538,9 +539,9 @@ function DriverTripHistory({ token }) {
 // ---------------------------------------------------------------------------
 
 const PAYOUT_STATUS_LABELS = {
-  pending:  "⏳ En attente",
-  approved: "✅ Approuvé",
-  rejected: "✗ Rejeté",
+  pending:  "⏳ Pending",
+  approved: "✅ Approved",
+  rejected: "✗ Rejected",
 };
 
 function PayoutSection({ token }) {
@@ -568,7 +569,7 @@ function PayoutSection({ token }) {
     try {
       await createPayoutRequest(token, Number(amount));
       setAmount("");
-      setSuccess("Demande envoyée avec succès !");
+      setSuccess("Withdrawal request submitted!");
       load();
     } catch (err) {
       setError(err.message);
@@ -579,35 +580,35 @@ function PayoutSection({ token }) {
 
   return (
     <div className="payout-section">
-      <h3 className="section-title">💰 Demandes de retrait</h3>
+      <h3 className="section-title">💰 Withdrawal Requests</h3>
 
       <form className="payout-form" onSubmit={handleSubmit}>
         <input
           className="payout-amount-input"
           type="number"
           min="1"
-          step="500"
+          step="100"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          placeholder="Montant en XOF (ex: 50000)"
+          placeholder="Amount in cents (e.g. 50000 = $500)"
           required
         />
         <button className="payout-submit-btn" type="submit" disabled={submitting}>
-          {submitting ? "Envoi…" : "Demander le retrait"}
+          {submitting ? "Sending…" : "Request Withdrawal"}
         </button>
       </form>
       {success && <p className="payout-success">{success}</p>}
       {error   && <p className="payout-err">{error}</p>}
 
       <div className="payout-list">
-        {loading && <p className="loading-msg">Chargement…</p>}
+        {loading && <p className="loading-msg">Loading…</p>}
         {!loading && payouts.length === 0 && (
-          <p className="payout-empty">Aucune demande de retrait pour l&apos;instant.</p>
+          <p className="payout-empty">No withdrawal requests yet.</p>
         )}
         {payouts.map((p) => (
           <div key={p.payout_id} className={`payout-item payout-${p.status}`}>
             <div className="payout-item-main">
-              <span className="payout-amount">{formatXOF(p.amount_xof)}</span>
+              <span className="payout-amount">{formatUSD(p.amount_xof)}</span>
               <span className={`payout-status payout-status-${p.status}`}>
                 {PAYOUT_STATUS_LABELS[p.status] ?? p.status}
               </span>
@@ -616,7 +617,7 @@ function PayoutSection({ token }) {
               <p className="payout-note">💬 {p.note_admin}</p>
             )}
             <p className="payout-date">
-              {new Date(p.created_at).toLocaleDateString("fr-FR", {
+              {new Date(p.created_at).toLocaleDateString("en-US", {
                 day: "2-digit", month: "short", year: "numeric",
               })}
             </p>
@@ -632,16 +633,16 @@ function PayoutSection({ token }) {
 // ---------------------------------------------------------------------------
 
 const DOCUMENT_TYPE_LABELS = {
-  license:      "🪪 Permis de conduire",
-  insurance:    "🛡️ Assurance véhicule",
-  registration: "📋 Carte grise",
-  id_card:      "🪪 Pièce d'identité",
+  license:      "🪪 Driver's License",
+  insurance:    "🛡️ Vehicle Insurance",
+  registration: "📋 Vehicle Registration",
+  id_card:      "🪪 Government ID",
 };
 
 const DOCUMENT_STATUS_LABELS = {
-  pending:  "⏳ En attente",
-  approved: "✅ Approuvé",
-  rejected: "✗ Rejeté",
+  pending:  "⏳ Pending",
+  approved: "✅ Approved",
+  rejected: "✗ Rejected",
 };
 
 const DOCUMENT_TYPES = ["license", "insurance", "registration", "id_card"];
@@ -667,12 +668,12 @@ function DocumentsSection({ token }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!url.trim()) { setError("L'URL du document est requise."); return; }
+    if (!url.trim()) { setError("Document URL is required."); return; }
     setSubmitting(true); setError(null); setSuccess(null);
     try {
       await submitDocument(token, docType, url.trim());
       setUrl("");
-      setSuccess("✓ Document soumis pour vérification.");
+      setSuccess("✓ Document submitted for review.");
       loadDocs();
     } catch (err) { setError(err.message); }
     finally { setSubmitting(false); }
@@ -680,7 +681,7 @@ function DocumentsSection({ token }) {
 
   return (
     <div className="documents-section">
-      <h3 className="doc-title">📄 Mes documents KYC</h3>
+      <h3 className="doc-title">📄 My KYC Documents</h3>
       <form className="doc-form" onSubmit={handleSubmit}>
         <select
           className="doc-type-select"
@@ -694,7 +695,7 @@ function DocumentsSection({ token }) {
         <input
           className="doc-url-input"
           type="url"
-          placeholder="URL du document (lien de stockage)"
+          placeholder="Document URL (storage link)"
           value={url}
           onChange={(e) => { setUrl(e.target.value); setError(null); }}
           maxLength={2048}
@@ -702,14 +703,14 @@ function DocumentsSection({ token }) {
         {success && <p className="doc-success">{success}</p>}
         {error   && <p className="doc-err">{error}</p>}
         <button type="submit" className="doc-submit-btn" disabled={submitting}>
-          {submitting ? "Envoi…" : "📤 Soumettre le document"}
+          {submitting ? "Sending…" : "📤 Submit Document"}
         </button>
       </form>
 
       <div className="doc-list">
-        {loading && <p className="loading-msg">Chargement…</p>}
+        {loading && <p className="loading-msg">Loading…</p>}
         {!loading && docs.length === 0 && (
-          <p className="doc-empty">Aucun document soumis pour l&apos;instant.</p>
+          <p className="doc-empty">No documents submitted yet.</p>
         )}
         {docs.map((d) => (
           <div key={d.document_id} className={`doc-item doc-${d.status}`}>
@@ -721,7 +722,7 @@ function DocumentsSection({ token }) {
             </div>
             {d.note_admin && <p className="doc-note">💬 {d.note_admin}</p>}
             <p className="doc-date">
-              {new Date(d.created_at).toLocaleDateString("fr-FR", {
+              {new Date(d.created_at).toLocaleDateString("en-US", {
                 day: "2-digit", month: "short", year: "numeric",
               })}
             </p>
@@ -780,12 +781,12 @@ function DriverNotificationsSection({ token, onRead }) {
         <h3 className="section-title">🔔 Notifications</h3>
         {unreadCount > 0 && (
           <button className="notif-mark-btn" onClick={handleMarkAll} disabled={marking}>
-            {marking ? "…" : `Tout marquer lu (${unreadCount})`}
+            {marking ? "…" : `Mark all read (${unreadCount})`}
           </button>
         )}
       </div>
-      {loading && <p className="muted">⏳ Chargement…</p>}
-      {!loading && notifs.length === 0 && <p className="muted">Aucune notification.</p>}
+      {loading && <p className="muted">⏳ Loading…</p>}
+      {!loading && notifs.length === 0 && <p className="muted">No notifications.</p>}
       <div className="notif-list">
         {notifs.map((n) => (
           <div key={n.notification_id} className={`notif-item ${n.read ? "notif-read" : "notif-unread"}`}>
@@ -796,16 +797,16 @@ function DriverNotificationsSection({ token, onRead }) {
             </div>
             <p className="notif-body">{n.body}</p>
             <span className="notif-date">
-              {new Date(n.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+              {new Date(n.created_at).toLocaleString("en-US", { dateStyle: "short", timeStyle: "short" })}
             </span>
           </div>
         ))}
       </div>
       {(notifs.length === DRIVER_NOTIF_PAGE || page > 0) && (
         <div className="history-pagination">
-          <button className="page-btn-sm" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Précédent</button>
+          <button className="page-btn-sm" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Previous</button>
           <span className="page-info-sm">Page {page + 1}</span>
-          <button className="page-btn-sm" onClick={() => load(page + 1)} disabled={notifs.length < DRIVER_NOTIF_PAGE || loading}>Suivant →</button>
+          <button className="page-btn-sm" onClick={() => load(page + 1)} disabled={notifs.length < DRIVER_NOTIF_PAGE || loading}>Next →</button>
         </div>
       )}
     </div>
@@ -848,7 +849,7 @@ function LocationSection({ token }) {
   }
 
   async function handlePushLandmark() {
-    const c = ABIDJAN_LOCATIONS[landmark];
+    const c = NJ_LOCATIONS[landmark];
     await push(c.lat, c.lng);
   }
 
@@ -856,39 +857,39 @@ function LocationSection({ token }) {
     e.preventDefault();
     const lat = parseFloat(manualLat);
     const lng = parseFloat(manualLng);
-    if (isNaN(lat) || isNaN(lng)) { setError("Coordonnées invalides"); return; }
+    if (isNaN(lat) || isNaN(lng)) { setError("Invalid coordinates"); return; }
     await push(lat, lng);
   }
 
   async function handleGps() {
-    if (!navigator.geolocation) { setError("Géolocalisation non disponible"); return; }
+    if (!navigator.geolocation) { setError("Geolocation not available"); return; }
     setUseGps(true); setError(null);
     navigator.geolocation.getCurrentPosition(
       async ({ coords }) => {
         await push(coords.latitude, coords.longitude);
         setUseGps(false);
       },
-      () => { setError("Impossible d'obtenir la position GPS"); setUseGps(false); },
+      () => { setError("Unable to get GPS position"); setUseGps(false); },
       { timeout: 10000 },
     );
   }
 
   return (
     <div className="location-section">
-      <h3 className="section-title">📍 Ma position</h3>
+      <h3 className="section-title">📍 My Location</h3>
 
       {current && (
         <div className="location-current">
           <span className="location-current-dot">●</span>
           <span>{current.lat.toFixed(4)}, {current.lng.toFixed(4)}</span>
           <span className="location-current-time">
-            {new Date(current.updated_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+            {new Date(current.updated_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
           </span>
         </div>
       )}
-      {!current && <p className="muted">Aucune position enregistrée.</p>}
+      {!current && <p className="muted">No location recorded.</p>}
 
-      {/* Quick-pick from Abidjan landmarks */}
+      {/* Quick-pick from NJ landmarks */}
       <div className="location-row">
         <select
           className="location-select"
@@ -902,7 +903,7 @@ function LocationSection({ token }) {
           onClick={handlePushLandmark}
           disabled={pushing}
         >
-          {pushing ? "…" : "📍 Mettre à jour"}
+          {pushing ? "…" : "📍 Update Location"}
         </button>
       </div>
 
@@ -912,12 +913,12 @@ function LocationSection({ token }) {
         onClick={handleGps}
         disabled={pushing || useGps}
       >
-        {useGps ? "⏳ Acquisition GPS…" : "🛰️ Utiliser ma position GPS"}
+        {useGps ? "⏳ Getting GPS…" : "🛰️ Use My GPS Location"}
       </button>
 
       {/* Manual coordinates (advanced) */}
       <details className="location-manual">
-        <summary className="location-manual-toggle">Coordonnées manuelles</summary>
+        <summary className="location-manual-toggle">Manual coordinates</summary>
         <form className="location-manual-form" onSubmit={handlePushManual}>
           <input
             className="location-coord-input"
@@ -936,7 +937,7 @@ function LocationSection({ token }) {
       </details>
 
       {error   && <p className="form-error" style={{ marginTop: "8px" }}>{error}</p>}
-      {success && <p className="location-success">✓ Position mise à jour</p>}
+      {success && <p className="location-success">✓ Location updated</p>}
     </div>
   );
 }
@@ -1028,7 +1029,7 @@ function Dashboard({ user, token, onLogout }) {
   if (!initialized) {
     return (
       <div className="app">
-        <div className="status loading">⏳ Chargement…</div>
+        <div className="status loading">⏳ Loading…</div>
       </div>
     );
   }
@@ -1045,10 +1046,10 @@ function Dashboard({ user, token, onLogout }) {
           >
             🔔{unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}
           </button>
-          <button className="logout-btn" onClick={onLogout}>Déconnexion</button>
+          <button className="logout-btn" onClick={onLogout}>Sign Out</button>
         </div>
       </header>
-      <div className="status ok">✓ Connecté — <strong>{user.email}</strong></div>
+      <div className="status ok">✓ Signed in — <strong>{user.email}</strong></div>
       <div className="role-badge">{user.role} · {user.provider}</div>
 
       {/* Online/Offline toggle */}
@@ -1058,7 +1059,7 @@ function Dashboard({ user, token, onLogout }) {
         disabled={togglingOnline}
       >
         <span className="online-dot" />
-        {togglingOnline ? "…" : isOnline ? "En ligne" : "Hors ligne"}
+        {togglingOnline ? "…" : isOnline ? "Online" : "Offline"}
       </button>
 
       <VehicleCard token={token} vehicle={vehicle} onSaved={setVehicle} />
@@ -1074,7 +1075,7 @@ function Dashboard({ user, token, onLogout }) {
         )
       ) : (
         <>
-          {/* Tabs: Dispatch / Historique */}
+          {/* Tabs */}
           <div className="driver-tabs">
             <button
               className={`driver-tab ${tab === "dispatch" ? "active" : ""}`}
@@ -1086,13 +1087,13 @@ function Dashboard({ user, token, onLogout }) {
               className={`driver-tab ${tab === "history" ? "active" : ""}`}
               onClick={() => setTab("history")}
             >
-              📋 Historique
+              📋 History
             </button>
             <button
               className={`driver-tab ${tab === "payouts" ? "active" : ""}`}
               onClick={() => setTab("payouts")}
             >
-              💰 Retraits
+              💰 Withdrawals
             </button>
             <button
               className={`driver-tab ${tab === "documents" ? "active" : ""}`}
@@ -1124,8 +1125,8 @@ function Dashboard({ user, token, onLogout }) {
             ) : (
               <div className="offline-notice">
                 <div className="offline-icon">📴</div>
-                <p>Vous êtes hors ligne.</p>
-                <p className="offline-sub">Passez en ligne pour voir les missions disponibles.</p>
+                <p>You are offline.</p>
+                <p className="offline-sub">Go online to see available missions.</p>
               </div>
             )
           )}
@@ -1147,8 +1148,8 @@ function AccessDenied({ role, onLogout }) {
   return (
     <div className="app">
       <h1>Ziza Driver</h1>
-      <div className="status error">✗ Accès refusé — rôle attendu : {REQUIRED_ROLE} · vous avez : {role}</div>
-      <button className="logout-btn" onClick={onLogout}>Déconnexion</button>
+      <div className="status error">✗ Access denied — expected role: {REQUIRED_ROLE} · you have: {role}</div>
+      <button className="logout-btn" onClick={onLogout}>Sign Out</button>
     </div>
   );
 }
@@ -1224,7 +1225,7 @@ export default function App() {
   }
 
   if (!token) return <LoginForm onEmailLogin={handleEmailLogin} onGoogleLogin={handleGoogleLogin} error={loginError} loading={loginLoading} />;
-  if (!user)  return <div className="app"><div className="status loading">⏳ Chargement…</div></div>;
+  if (!user)  return <div className="app"><div className="status loading">⏳ Loading…</div></div>;
   if (user.role !== REQUIRED_ROLE) return <AccessDenied role={user.role} onLogout={handleLogout} />;
   return <Dashboard user={user} token={token} onLogout={handleLogout} />;
 }

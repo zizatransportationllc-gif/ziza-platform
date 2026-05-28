@@ -16,58 +16,59 @@ import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 const REQUIRED_ROLE = "customer";
 const TOKEN_KEY = "ziza_token";
 
-// Predefined Abidjan landmarks for the estimate form
-const ABIDJAN_LOCATIONS = {
-  "Plateau (Centre-ville)": { lat: 5.3207, lng: -4.0175 },
-  "Cocody":                 { lat: 5.3600, lng: -3.9801 },
-  "Yopougon":               { lat: 5.3386, lng: -4.0721 },
-  "Abobo":                  { lat: 5.4154, lng: -4.0243 },
-  "Marcory":                { lat: 5.2997, lng: -3.9904 },
-  "Treichville":            { lat: 5.2975, lng: -4.0119 },
-  "Adjamé":                 { lat: 5.3612, lng: -4.0288 },
-  "Aéroport (Port-Bouët)":  { lat: 5.2537, lng: -3.9268 },
+// Predefined New Jersey landmarks for the estimate form
+const NJ_LOCATIONS = {
+  "Downtown Newark":    { lat: 40.7357, lng: -74.1724 },
+  "Jersey City":        { lat: 40.7178, lng: -74.0431 },
+  "Hoboken":            { lat: 40.7440, lng: -74.0324 },
+  "Trenton":            { lat: 40.2171, lng: -74.7429 },
+  "Hackensack":         { lat: 40.8859, lng: -74.0435 },
+  "Princeton":          { lat: 40.3573, lng: -74.6672 },
+  "Elizabeth":          { lat: 40.6640, lng: -74.2107 },
+  "Newark Airport":     { lat: 40.6895, lng: -74.1745 },
 };
 
-const LOCATION_NAMES = Object.keys(ABIDJAN_LOCATIONS);
+const LOCATION_NAMES = Object.keys(NJ_LOCATIONS);
 
 // Sprint 20 — saved places constants
 const PLACE_LABEL_ICONS = { home: "🏠", work: "💼", other: "📍" };
-const PLACE_LABEL_NAMES = { home: "Domicile", work: "Travail", other: "Autre" };
+const PLACE_LABEL_NAMES = { home: "Home", work: "Work", other: "Other" };
 
 // Sprint 21 — vehicle category constants
 const CATEGORY_ICONS  = { economy: "🚗", comfort: "🚙", premium: "🏎️" };
 const CATEGORY_ORDER  = ["economy", "comfort", "premium"];
 
 const STATUS_LABELS = {
-  pending:     "⏳ En attente d'un chauffeur",
-  accepted:    "✓ Chauffeur en route",
-  in_progress: "🚗 En cours",
-  completed:   "✅ Trajet terminé",
-  cancelled:   "✗ Trajet annulé",
+  pending:     "⏳ Waiting for a driver",
+  accepted:    "✓ Driver on the way",
+  in_progress: "🚗 Ride in progress",
+  completed:   "✅ Ride completed",
+  cancelled:   "✗ Ride cancelled",
 };
 
 const TERMINAL_STATUSES = new Set(["completed", "cancelled"]);
 
 const ASSISTANCE_TYPES = [
-  { value: "breakdown", label: "🔧 Panne mécanique" },
-  { value: "flat_tyre", label: "🔴 Pneu crevé" },
-  { value: "tow",       label: "🚛 Remorquage" },
-  { value: "fuel",      label: "⛽ Manque de carburant" },
-  { value: "lockout",   label: "🔑 Clés à l'intérieur" },
+  { value: "breakdown", label: "🔧 Breakdown" },
+  { value: "flat_tyre", label: "🔴 Flat Tire" },
+  { value: "tow",       label: "🚛 Tow Truck" },
+  { value: "fuel",      label: "⛽ Out of Fuel" },
+  { value: "lockout",   label: "🔑 Locked Out" },
 ];
 
 const ASSISTANCE_STATUS_LABELS = {
-  pending:     "⏳ En attente d'un technicien",
-  accepted:    "✓ Technicien en route",
-  in_progress: "🔧 Intervention en cours",
-  resolved:    "✅ Problème résolu",
-  cancelled:   "✗ Demande annulée",
+  pending:     "⏳ Waiting for a technician",
+  accepted:    "✓ Technician on the way",
+  in_progress: "🔧 Service in progress",
+  resolved:    "✅ Issue resolved",
+  cancelled:   "✗ Request cancelled",
 };
 
 const ASSISTANCE_TERMINAL = new Set(["resolved", "cancelled"]);
 
-function formatXOF(n) {
-  return new Intl.NumberFormat("fr-FR").format(n) + " XOF";
+function formatUSD(n) {
+  if (n == null) return "—";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n / 100);
 }
 
 // ---------------------------------------------------------------------------
@@ -80,15 +81,15 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Customer</h1>
-      <p className="subtitle">Sprint 34 — Analytics avancées</p>
+      <p className="subtitle">Sprint 34 — Advanced Analytics</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
-        <button type="submit" disabled={loading}>{loading ? "Connexion…" : "Se connecter"}</button>
+        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
+        <button type="submit" disabled={loading}>{loading ? "Signing in…" : "Sign In"}</button>
       </form>
       {firebaseEnabled && (
         <button className="google-btn" onClick={onGoogleLogin} disabled={loading}>
-          <span>G</span> Continuer avec Google
+          <span>G</span> Continue with Google
         </button>
       )}
       {error && <p className="form-error">{error}</p>}
@@ -127,9 +128,9 @@ function EstimateSection({ token, onTripCreated }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const o = customOrigin ?? ABIDJAN_LOCATIONS[origin];
-    const d = customDest   ?? ABIDJAN_LOCATIONS[dest];
-    if (o.lat === d.lat && o.lng === d.lng) { setError("Choisissez deux points différents."); return; }
+    const o = customOrigin ?? NJ_LOCATIONS[origin];
+    const d = customDest   ?? NJ_LOCATIONS[dest];
+    if (o.lat === d.lat && o.lng === d.lng) { setError("Choose two different locations."); return; }
     setLoading(true); setError(null); setResult(null); setPromoApplied(null); setPromoInput(""); setSelectedCategory("economy");
     try {
       const data = await fetchEstimate(token, o.lat, o.lng, d.lat, d.lng);
@@ -167,7 +168,7 @@ function EstimateSection({ token, onTripCreated }) {
 
   return (
     <div className="estimate-section">
-      <h2 className="estimate-title">Estimer mon trajet</h2>
+      <h2 className="estimate-title">Estimate My Ride</h2>
 
       {/* Sprint 20: saved-places quick-pick */}
       {savedPlaces.length > 0 && (
@@ -177,7 +178,7 @@ function EstimateSection({ token, onTripCreated }) {
             className="place-picker-toggle"
             onClick={() => setShowPlacePicker((v) => !v)}
           >
-            📍 Mes lieux enregistrés {showPlacePicker ? "▲" : "▼"}
+            📍 My Saved Places {showPlacePicker ? "▲" : "▼"}
           </button>
           {showPlacePicker && (
             <div className="place-picker-list">
@@ -191,14 +192,14 @@ function EstimateSection({ token, onTripCreated }) {
                     className={`place-picker-btn ${customOrigin?.place_id === p.place_id ? "active" : ""}`}
                     onClick={() => { setCustomOrigin({ ...p }); setShowPlacePicker(false); }}
                   >
-                    Départ
+                    Pickup
                   </button>
                   <button
                     type="button"
                     className={`place-picker-btn ${customDest?.place_id === p.place_id ? "active" : ""}`}
                     onClick={() => { setCustomDest({ ...p }); setShowPlacePicker(false); }}
                   >
-                    Arrivée
+                    Drop-off
                   </button>
                 </div>
               ))}
@@ -208,13 +209,13 @@ function EstimateSection({ token, onTripCreated }) {
           <div className="place-chips">
             {customOrigin && (
               <span className="place-chip">
-                📍 Départ : <strong>{customOrigin.name}</strong>
+                📍 Pickup: <strong>{customOrigin.name}</strong>
                 <button className="place-chip-clear" onClick={() => setCustomOrigin(null)}>✕</button>
               </span>
             )}
             {customDest && (
               <span className="place-chip">
-                🏁 Arrivée : <strong>{customDest.name}</strong>
+                🏁 Drop-off: <strong>{customDest.name}</strong>
                 <button className="place-chip-clear" onClick={() => setCustomDest(null)}>✕</button>
               </span>
             )}
@@ -225,7 +226,7 @@ function EstimateSection({ token, onTripCreated }) {
       <form className="estimate-form" onSubmit={handleSubmit}>
         <div className="estimate-row">
           <label>
-            <span className="estimate-label">📍 Départ</span>
+            <span className="estimate-label">📍 Pickup</span>
             <select
               value={origin}
               onChange={(e) => { setOrigin(e.target.value); setCustomOrigin(null); }}
@@ -236,7 +237,7 @@ function EstimateSection({ token, onTripCreated }) {
             </select>
           </label>
           <label>
-            <span className="estimate-label">🏁 Arrivée</span>
+            <span className="estimate-label">🏁 Drop-off</span>
             <select
               value={dest}
               onChange={(e) => { setDest(e.target.value); setCustomDest(null); }}
@@ -248,7 +249,7 @@ function EstimateSection({ token, onTripCreated }) {
           </label>
         </div>
         <button type="submit" className="estimate-btn" disabled={loading || booking}>
-          {loading ? "Calcul en cours…" : "Obtenir une estimation"}
+          {loading ? "Calculating…" : "Get Estimate"}
         </button>
       </form>
       {error && <p className="form-error">{error}</p>}
@@ -256,30 +257,30 @@ function EstimateSection({ token, onTripCreated }) {
         <div className="fare-card">
           {promoApplied && (
             <div className="promo-applied-badge">
-              🏷️ Code <strong>{promoApplied.code}</strong> — {promoApplied.discount_pct}% de réduction
+              🏷️ Code <strong>{promoApplied.code}</strong> — {promoApplied.discount_pct}% off
             </div>
           )}
           <div className="fare-amount">
             {promoApplied && (
-              <span className="fare-original">{formatXOF(baseFare)}</span>
+              <span className="fare-original">{formatUSD(baseFare)}</span>
             )}
-            {formatXOF(displayFare)}
+            {formatUSD(displayFare)}
           </div>
           <div className="fare-meta">
-            <span>🛣️ {result.distance_km.toFixed(1)} km</span>
+            <span>🛣️ {result.distance_km.toFixed(1)} mi</span>
             <span>⏱️ ~{result.duration_min} min</span>
             {result.surge_multiplier > 1 && (
               <span className="surge">🔥 ×{result.surge_multiplier} surge</span>
             )}
           </div>
           <div className="fare-source">
-            {result.distance_source === "google_maps" ? "🗺️ Google Maps" : "📐 Distance estimée"}
+            {result.distance_source === "google_maps" ? "🗺️ Google Maps" : "📐 Estimated distance"}
           </div>
 
           {/* Sprint 21: category picker */}
           {result.categories && (
             <div className="category-picker">
-              <div className="category-picker-label">Choisissez votre catégorie</div>
+              <div className="category-picker-label">Choose your ride type</div>
               <div className="category-cards">
                 {CATEGORY_ORDER.map((cat) => {
                   const opt = result.categories[cat];
@@ -294,7 +295,7 @@ function EstimateSection({ token, onTripCreated }) {
                     >
                       <span className="category-card-icon">{CATEGORY_ICONS[cat]}</span>
                       <span className="category-card-name">{opt.label}</span>
-                      <span className="category-card-fare">{formatXOF(opt.fare_xof)}</span>
+                      <span className="category-card-fare">{formatUSD(opt.fare_xof)}</span>
                       <span className="category-card-desc">{opt.description}</span>
                     </button>
                   );
@@ -308,13 +309,13 @@ function EstimateSection({ token, onTripCreated }) {
             <form className="promo-form" onSubmit={handleValidatePromo}>
               <input
                 className="promo-input"
-                placeholder="Code promo (optionnel)"
+                placeholder="Promo code (optional)"
                 value={promoInput}
                 onChange={(e) => { setPromoInput(e.target.value); setPromoError(null); }}
                 maxLength={32}
               />
               <button type="submit" className="promo-btn" disabled={promoValidating || !promoInput.trim()}>
-                {promoValidating ? "…" : "Valider"}
+                {promoValidating ? "…" : "Apply"}
               </button>
             </form>
           )}
@@ -323,12 +324,12 @@ function EstimateSection({ token, onTripCreated }) {
               className="promo-remove-btn"
               onClick={() => { setPromoApplied(null); setPromoInput(""); }}
             >
-              ✕ Retirer le code
+              ✕ Remove code
             </button>
           )}
           {promoError && <p className="promo-error">{promoError}</p>}
           <button className="book-btn" onClick={handleBook} disabled={booking}>
-            {booking ? "Réservation…" : "🚕 Réserver ce trajet"}
+            {booking ? "Booking…" : "🚕 Book This Ride"}
           </button>
         </div>
       )}
@@ -350,7 +351,7 @@ function RatingForm({ token, tripId }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (stars === 0) { setError("Veuillez choisir une note."); return; }
+    if (stars === 0) { setError("Please select a rating."); return; }
     setLoading(true); setError(null);
     try {
       await rateTrip(token, tripId, stars, comment || undefined);
@@ -369,14 +370,14 @@ function RatingForm({ token, tripId }) {
     return (
       <div className="rating-success">
         <div className="rating-success-icon">⭐</div>
-        <p>Merci pour votre avis&nbsp;!</p>
+        <p>Thank you for your review!</p>
       </div>
     );
   }
 
   return (
     <form className="rating-form" onSubmit={handleSubmit}>
-      <h3 className="rating-title">Évaluer votre chauffeur</h3>
+      <h3 className="rating-title">Rate Your Driver</h3>
       <div className="star-picker">
         {[1, 2, 3, 4, 5].map((n) => (
           <button
@@ -386,7 +387,7 @@ function RatingForm({ token, tripId }) {
             onMouseEnter={() => setHover(n)}
             onMouseLeave={() => setHover(0)}
             onClick={() => setStars(n)}
-            aria-label={`${n} étoile${n > 1 ? "s" : ""}`}
+            aria-label={`${n} star${n > 1 ? "s" : ""}`}
           >
             ★
           </button>
@@ -394,7 +395,7 @@ function RatingForm({ token, tripId }) {
       </div>
       <textarea
         className="rating-comment"
-        placeholder="Commentaire (optionnel)"
+        placeholder="Comment (optional)"
         value={comment}
         onChange={(e) => setComment(e.target.value)}
         rows={2}
@@ -402,7 +403,7 @@ function RatingForm({ token, tripId }) {
       />
       {error && <p className="form-error">{error}</p>}
       <button type="submit" className="estimate-btn" disabled={loading || stars === 0}>
-        {loading ? "Envoi…" : "Envoyer"}
+        {loading ? "Sending…" : "Submit"}
       </button>
     </form>
   );
@@ -468,8 +469,8 @@ function PaymentSection({ token, tripId, fareXof }) {
         <div className="payment-card payment-card-paid">
           <span className="payment-icon">✅</span>
           <div className="payment-info">
-            <div className="payment-status-paid">Payé</div>
-            <div className="payment-amount">{formatXOF(intent.amount_xof)}</div>
+            <div className="payment-status-paid">Paid</div>
+            <div className="payment-amount">{formatUSD(intent.amount_xof)}</div>
           </div>
         </div>
       </div>
@@ -483,8 +484,8 @@ function PaymentSection({ token, tripId, fareXof }) {
         <div className="payment-card">
           <span className="payment-icon">💳</span>
           <div className="payment-info">
-            <div className="payment-label">Paiement en attente</div>
-            <div className="payment-amount">{formatXOF(intent.amount_xof)}</div>
+            <div className="payment-label">Payment Pending</div>
+            <div className="payment-amount">{formatUSD(intent.amount_xof)}</div>
           </div>
         </div>
         {isMock && (
@@ -493,7 +494,7 @@ function PaymentSection({ token, tripId, fareXof }) {
             onClick={handleSimulate}
             disabled={simulating}
           >
-            {simulating ? "Simulation…" : "🧪 Simuler le paiement (dev)"}
+            {simulating ? "Simulating…" : "🧪 Simulate Payment (dev)"}
           </button>
         )}
         {!isMock && intent.checkout_url && (
@@ -503,7 +504,7 @@ function PaymentSection({ token, tripId, fareXof }) {
             target="_blank"
             rel="noopener noreferrer"
           >
-            Payer sur {intent.provider}
+            Pay with {intent.provider}
           </a>
         )}
         {error && <p className="form-error">{error}</p>}
@@ -519,7 +520,7 @@ function PaymentSection({ token, tripId, fareXof }) {
         onClick={handlePay}
         disabled={loading}
       >
-        {loading ? "Initialisation…" : `💳 Payer ${formatXOF(fareXof || 0)}`}
+        {loading ? "Initializing…" : `💳 Pay ${formatUSD(fareXof || 0)}`}
       </button>
       {error && <p className="form-error">{error}</p>}
     </div>
@@ -590,16 +591,16 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
 
   return (
     <div className="booking-section">
-      <h2 className="estimate-title">Mon trajet</h2>
+      <h2 className="estimate-title">My Ride</h2>
       <div className={`booking-card booking-${trip.status}`}>
         <div className="booking-status">
           {STATUS_LABELS[trip.status] ?? trip.status}
         </div>
         {trip.fare_xof && (
-          <div className="booking-fare">{formatXOF(trip.fare_xof)}</div>
+          <div className="booking-fare">{formatUSD(trip.fare_xof)}</div>
         )}
         <div className="fare-meta">
-          {trip.distance_km != null && <span>🛣️ {trip.distance_km.toFixed(1)} km</span>}
+          {trip.distance_km != null && <span>🛣️ {trip.distance_km.toFixed(1)} mi</span>}
           {trip.duration_min != null && <span>⏱️ ~{trip.duration_min} min</span>}
         </div>
         {trip.category && (
@@ -613,10 +614,10 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
             <span className="eta-icon">🚗</span>
             <div className="eta-info">
               <span className="eta-time">~{eta.eta_min} min</span>
-              <span className="eta-dist">{eta.distance_km.toFixed(1)} km</span>
+              <span className="eta-dist">{eta.distance_km.toFixed(1)} mi</span>
             </div>
             <span className="eta-label">
-              {trip.status === "accepted" ? "avant la prise en charge" : "avant l'arrivée"}
+              {trip.status === "accepted" ? "until pickup" : "until arrival"}
             </span>
           </div>
         )}
@@ -629,11 +630,11 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
                 {driverLocation.driver_lat.toFixed(5)}, {driverLocation.driver_lng.toFixed(5)}
               </div>
               {driverLocation.eta_min != null && (
-                <div className="tracking-eta">ETA : ~{driverLocation.eta_min} min</div>
+                <div className="tracking-eta">ETA: ~{driverLocation.eta_min} min</div>
               )}
               {driverLocation.updated_at && (
                 <div className="tracking-updated">
-                  Mis à jour : {new Date(driverLocation.updated_at).toLocaleTimeString()}
+                  Updated: {new Date(driverLocation.updated_at).toLocaleTimeString("en-US")}
                 </div>
               )}
             </div>
@@ -654,7 +655,7 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
       {error && <p className="form-error">{error}</p>}
       {canCancel && (
         <button className="cancel-btn" onClick={handleCancel} disabled={cancelling}>
-          {cancelling ? "Annulation…" : "Annuler le trajet"}
+          {cancelling ? "Cancelling…" : "Cancel Ride"}
         </button>
       )}
       {trip.status === "completed" && (
@@ -669,7 +670,7 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
           onClick={onNewEstimate}
           style={{ marginTop: "var(--space-4)" }}
         >
-          Nouvelle estimation
+          New Estimate
         </button>
       )}
     </div>
@@ -691,7 +692,7 @@ function AssistanceSection({ token, onRequestCreated }) {
     e.preventDefault();
     setLoading(true); setError(null);
     try {
-      const coords = ABIDJAN_LOCATIONS[location];
+      const coords = NJ_LOCATIONS[location];
       const req = await createAssistanceRequest(token, type, coords.lat, coords.lng, note || undefined);
       onRequestCreated(req);
     } catch (err) { setError(err.message); }
@@ -700,10 +701,10 @@ function AssistanceSection({ token, onRequestCreated }) {
 
   return (
     <div className="assistance-section">
-      <h2 className="estimate-title">🆘 Demande d'assistance</h2>
+      <h2 className="estimate-title">🆘 Request Assistance</h2>
       <form className="assistance-form" onSubmit={handleSubmit}>
         <div className="assistance-field">
-          <span className="estimate-label">Type de problème</span>
+          <span className="estimate-label">Problem Type</span>
           <div className="type-grid">
             {ASSISTANCE_TYPES.map(({ value, label }) => (
               <button
@@ -718,7 +719,7 @@ function AssistanceSection({ token, onRequestCreated }) {
           </div>
         </div>
         <div className="assistance-field">
-          <span className="estimate-label">📍 Ma position</span>
+          <span className="estimate-label">📍 My Location</span>
           <select
             value={location}
             onChange={(e) => setLocation(e.target.value)}
@@ -728,10 +729,10 @@ function AssistanceSection({ token, onRequestCreated }) {
           </select>
         </div>
         <div className="assistance-field">
-          <span className="estimate-label">Note (optionnel)</span>
+          <span className="estimate-label">Note (optional)</span>
           <textarea
             className="assistance-note"
-            placeholder="Décrivez votre problème…"
+            placeholder="Describe your issue…"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
@@ -740,7 +741,7 @@ function AssistanceSection({ token, onRequestCreated }) {
         </div>
         {error && <p className="form-error">{error}</p>}
         <button type="submit" className="estimate-btn" disabled={loading}>
-          {loading ? "Envoi…" : "🆘 Demander de l'aide"}
+          {loading ? "Sending…" : "🆘 Request Help"}
         </button>
       </form>
     </div>
@@ -780,7 +781,7 @@ function AssistanceStatusCard({ token, request, onRequestUpdate, onNewRequest })
 
   return (
     <div className="assistance-status-section">
-      <h2 className="estimate-title">🆘 Mon assistance</h2>
+      <h2 className="estimate-title">🆘 My Assistance</h2>
       <div className={`assistance-card assistance-${request.status}`}>
         <div className="assistance-type-badge">{typeLabel}</div>
         <div className="assistance-status-label">
@@ -791,7 +792,7 @@ function AssistanceStatusCard({ token, request, onRequestUpdate, onNewRequest })
       {error && <p className="form-error">{error}</p>}
       {request.status === "pending" && (
         <button className="cancel-btn" onClick={handleCancel} disabled={cancelling}>
-          {cancelling ? "Annulation…" : "Annuler la demande"}
+          {cancelling ? "Cancelling…" : "Cancel Request"}
         </button>
       )}
       {ASSISTANCE_TERMINAL.has(request.status) && (
@@ -800,7 +801,7 @@ function AssistanceStatusCard({ token, request, onRequestUpdate, onNewRequest })
           onClick={onNewRequest}
           style={{ marginTop: "var(--space-4)" }}
         >
-          Nouvelle demande
+          New Request
         </button>
       )}
     </div>
@@ -831,9 +832,9 @@ function TripHistory({ token }) {
 
   useEffect(() => { load(0); }, [load]);
 
-  if (loading && trips.length === 0) return <p className="history-empty">⏳ Chargement…</p>;
+  if (loading && trips.length === 0) return <p className="history-empty">⏳ Loading…</p>;
   if (error) return <p className="form-error">{error}</p>;
-  if (trips.length === 0) return <p className="history-empty">Aucun trajet effectué pour le moment.</p>;
+  if (trips.length === 0) return <p className="history-empty">No trips yet.</p>;
 
   return (
     <>
@@ -842,14 +843,14 @@ function TripHistory({ token }) {
           <div key={t.trip_id} className={`history-item history-item-${t.status}`}>
             <div className="history-type">{STATUS_LABELS[t.status] ?? t.status}</div>
             {t.fare_xof && (
-              <div className="history-fare">{formatXOF(t.fare_xof)}</div>
+              <div className="history-fare">{formatUSD(t.fare_xof)}</div>
             )}
             <div className="history-meta">
-              {t.distance_km != null && <span>🛣️ {t.distance_km.toFixed(1)} km</span>}
+              {t.distance_km != null && <span>🛣️ {t.distance_km.toFixed(1)} mi</span>}
               {t.duration_min != null && <span>⏱️ {t.duration_min} min</span>}
             </div>
             <div className="history-date">
-              {new Date(t.created_at).toLocaleDateString("fr-FR", {
+              {new Date(t.created_at).toLocaleDateString("en-US", {
                 day: "2-digit", month: "short", year: "numeric",
               })}
             </div>
@@ -858,9 +859,9 @@ function TripHistory({ token }) {
       </div>
       {(trips.length === TRIP_PAGE || page > 0) && (
         <div className="trip-history-pagination">
-          <button className="page-btn-sm" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Précédent</button>
+          <button className="page-btn-sm" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Previous</button>
           <span className="page-info-sm">Page {page + 1}</span>
-          <button className="page-btn-sm" onClick={() => load(page + 1)} disabled={trips.length < TRIP_PAGE || loading}>Suivant →</button>
+          <button className="page-btn-sm" onClick={() => load(page + 1)} disabled={trips.length < TRIP_PAGE || loading}>Next →</button>
         </div>
       )}
     </>
@@ -882,8 +883,8 @@ function AssistanceHistory({ token }) {
   }, [token]);
 
   if (error) return <p className="form-error">{error}</p>;
-  if (history === null) return <p className="history-empty">⏳ Chargement…</p>;
-  if (history.length === 0) return <p className="history-empty">Aucune demande d'assistance pour le moment.</p>;
+  if (history === null) return <p className="history-empty">⏳ Loading…</p>;
+  if (history.length === 0) return <p className="history-empty">No assistance requests yet.</p>;
 
   return (
     <div className="history-list">
@@ -895,7 +896,7 @@ function AssistanceHistory({ token }) {
             <div className="history-status">{ASSISTANCE_STATUS_LABELS[req.status] ?? req.status}</div>
             {req.note && <div className="history-note">{req.note}</div>}
             <div className="history-date">
-              {new Date(req.created_at).toLocaleDateString("fr-FR", {
+              {new Date(req.created_at).toLocaleDateString("en-US", {
                 day: "2-digit", month: "short", year: "numeric",
               })}
             </div>
@@ -943,12 +944,12 @@ function ProfileSection({ token }) {
     finally { setSaving(false); }
   }
 
-  if (loading) return <p className="history-empty">⏳ Chargement du profil…</p>;
+  if (loading) return <p className="history-empty">⏳ Loading profile…</p>;
   if (error && !profile) return <p className="form-error">{error}</p>;
 
   return (
     <div className="profile-section">
-      <h2 className="estimate-title">👤 Mon profil</h2>
+      <h2 className="estimate-title">👤 My Profile</h2>
       {profile && (
         <div className="profile-info">
           <span className="profile-email">✉️ {profile.email}</span>
@@ -957,31 +958,31 @@ function ProfileSection({ token }) {
       )}
       <form className="profile-form" onSubmit={handleSave}>
         <label className="profile-label">
-          <span>Nom d'affichage</span>
+          <span>Display Name</span>
           <input
             className="profile-input"
             type="text"
-            placeholder="Votre nom (optionnel)"
+            placeholder="Your name (optional)"
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={128}
           />
         </label>
         <label className="profile-label">
-          <span>Téléphone</span>
+          <span>Phone</span>
           <input
             className="profile-input"
             type="tel"
-            placeholder="+225 07 00 00 00"
+            placeholder="+1 (201) 555-0000"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             maxLength={32}
           />
         </label>
         {error && <p className="form-error">{error}</p>}
-        {success && <p className="profile-success">✓ Profil mis à jour</p>}
+        {success && <p className="profile-success">✓ Profile updated</p>}
         <button type="submit" className="estimate-btn" disabled={saving}>
-          {saving ? "Enregistrement…" : "Enregistrer"}
+          {saving ? "Saving…" : "Save"}
         </button>
       </form>
     </div>
@@ -1037,14 +1038,14 @@ function NotificationsSection({ token, onRead }) {
         <h2 className="estimate-title">🔔 Notifications</h2>
         {unreadCount > 0 && (
           <button className="notif-mark-btn" onClick={handleMarkAll} disabled={marking}>
-            {marking ? "…" : `Tout marquer lu (${unreadCount})`}
+            {marking ? "…" : `Mark all read (${unreadCount})`}
           </button>
         )}
       </div>
       {error && <p className="form-error">{error}</p>}
-      {loading && <p className="history-empty">⏳ Chargement…</p>}
+      {loading && <p className="history-empty">⏳ Loading…</p>}
       {!loading && notifs.length === 0 && (
-        <p className="history-empty">Aucune notification pour le moment.</p>
+        <p className="history-empty">No notifications yet.</p>
       )}
       <div className="notif-list">
         {notifs.map((n) => (
@@ -1056,16 +1057,16 @@ function NotificationsSection({ token, onRead }) {
             </div>
             <p className="notif-body">{n.body}</p>
             <span className="notif-date">
-              {new Date(n.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+              {new Date(n.created_at).toLocaleString("en-US", { dateStyle: "short", timeStyle: "short" })}
             </span>
           </div>
         ))}
       </div>
       {(notifs.length === NOTIF_PAGE || page > 0) && (
         <div className="trip-history-pagination">
-          <button className="page-btn-sm" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Précédent</button>
+          <button className="page-btn-sm" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Previous</button>
           <span className="page-info-sm">Page {page + 1}</span>
-          <button className="page-btn-sm" onClick={() => load(page + 1)} disabled={notifs.length < NOTIF_PAGE || loading}>Suivant →</button>
+          <button className="page-btn-sm" onClick={() => load(page + 1)} disabled={notifs.length < NOTIF_PAGE || loading}>Next →</button>
         </div>
       )}
     </div>
@@ -1086,8 +1087,8 @@ function SavedPlacesSection({ token }) {
   const [formLabel, setFormLabel] = useState("home");
   const [formName, setFormName] = useState("");
   const [formLandmark, setFormLandmark] = useState(LOCATION_NAMES[0]);
-  const [formLat, setFormLat] = useState("5.3207");
-  const [formLng, setFormLng] = useState("-4.0175");
+  const [formLat, setFormLat] = useState("40.7357");
+  const [formLng, setFormLng] = useState("-74.1724");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
 
@@ -1102,7 +1103,7 @@ function SavedPlacesSection({ token }) {
 
   function handleLandmarkChange(name) {
     setFormLandmark(name);
-    const c = ABIDJAN_LOCATIONS[name];
+    const c = NJ_LOCATIONS[name];
     setFormLat(String(c.lat));
     setFormLng(String(c.lng));
   }
@@ -1112,8 +1113,8 @@ function SavedPlacesSection({ token }) {
     setFormLabel("home");
     setFormName("");
     setFormLandmark(LOCATION_NAMES[0]);
-    setFormLat("5.3207");
-    setFormLng("-4.0175");
+    setFormLat("40.7357");
+    setFormLng("-74.1724");
     setFormError(null);
     setShowForm(true);
   }
@@ -1135,7 +1136,7 @@ function SavedPlacesSection({ token }) {
     e.preventDefault();
     const lat = parseFloat(formLat);
     const lng = parseFloat(formLng);
-    if (isNaN(lat) || isNaN(lng)) { setFormError("Coordonnées invalides."); return; }
+    if (isNaN(lat) || isNaN(lng)) { setFormError("Invalid coordinates."); return; }
     setSaving(true); setFormError(null);
     try {
       if (editingId) {
@@ -1162,9 +1163,9 @@ function SavedPlacesSection({ token }) {
   return (
     <div className="places-section">
       <div className="places-header">
-        <h2 className="estimate-title">📍 Mes lieux</h2>
+        <h2 className="estimate-title">📍 My Places</h2>
         {!showForm && places.length < 10 && (
-          <button className="places-add-btn" onClick={openNew}>✚ Ajouter</button>
+          <button className="places-add-btn" onClick={openNew}>✚ Add</button>
         )}
       </div>
 
@@ -1173,29 +1174,29 @@ function SavedPlacesSection({ token }) {
       {showForm && (
         <form className="place-form" onSubmit={handleSave}>
           <h3 className="place-form-title">
-            {editingId ? "✎ Modifier le lieu" : "✚ Nouveau lieu"}
+            {editingId ? "✎ Edit Place" : "✚ New Place"}
           </h3>
           <div className="place-form-row">
             <label className="place-form-label">Type</label>
             <select className="place-form-select" value={formLabel} onChange={(e) => setFormLabel(e.target.value)}>
-              <option value="home">🏠 Domicile</option>
-              <option value="work">💼 Travail</option>
-              <option value="other">📍 Autre</option>
+              <option value="home">🏠 Home</option>
+              <option value="work">💼 Work</option>
+              <option value="other">📍 Other</option>
             </select>
           </div>
           <div className="place-form-row">
-            <label className="place-form-label">Nom</label>
+            <label className="place-form-label">Name</label>
             <input
               className="place-form-input"
               type="text"
-              placeholder="Ex: Appartement Cocody, Bureau Plateau…"
+              placeholder="Ex: Home Jersey City, Office Newark…"
               value={formName}
               onChange={(e) => setFormName(e.target.value)}
               required maxLength={256}
             />
           </div>
           <div className="place-form-row">
-            <label className="place-form-label">Quartier</label>
+            <label className="place-form-label">Area</label>
             <select
               className="place-form-select"
               value={formLandmark}
@@ -1219,19 +1220,19 @@ function SavedPlacesSection({ token }) {
           {formError && <p className="form-error">{formError}</p>}
           <div className="place-form-actions">
             <button type="submit" className="place-save-btn" disabled={saving}>
-              {saving ? "…" : (editingId ? "✓ Mettre à jour" : "✚ Enregistrer")}
+              {saving ? "…" : (editingId ? "✓ Update" : "✚ Save")}
             </button>
             <button type="button" className="place-cancel-btn" onClick={cancelForm} disabled={saving}>
-              Annuler
+              Cancel
             </button>
           </div>
         </form>
       )}
 
-      {loading && <p className="history-empty">⏳ Chargement…</p>}
+      {loading && <p className="history-empty">⏳ Loading…</p>}
       {!loading && places.length === 0 && !showForm && (
         <p className="history-empty">
-          Aucun lieu enregistré. Cliquez sur <strong>✚ Ajouter</strong> pour sauvegarder vos adresses fréquentes.
+          No saved places. Click <strong>✚ Add</strong> to save your frequent addresses.
         </p>
       )}
 
@@ -1246,15 +1247,15 @@ function SavedPlacesSection({ token }) {
               </div>
             </div>
             <div className="place-card-actions">
-              <button className="place-edit-btn" onClick={() => openEdit(p)} title="Modifier">✎</button>
-              <button className="place-delete-btn" onClick={() => handleDelete(p.place_id)} title="Supprimer">🗑</button>
+              <button className="place-edit-btn" onClick={() => openEdit(p)} title="Edit">✎</button>
+              <button className="place-delete-btn" onClick={() => handleDelete(p.place_id)} title="Delete">🗑</button>
             </div>
           </div>
         ))}
       </div>
 
       {places.length >= 10 && !showForm && (
-        <p className="place-limit-hint">Limite de 10 lieux atteinte.</p>
+        <p className="place-limit-hint">10 places limit reached.</p>
       )}
     </div>
   );
@@ -1265,10 +1266,10 @@ function SavedPlacesSection({ token }) {
 // ---------------------------------------------------------------------------
 
 const APPLICATION_STATUS_LABELS = {
-  submitted:    "📤 Soumise — en attente de révision",
-  under_review: "🔍 En cours d'examen",
-  approved:     "✅ Approuvée — bienvenue chez Ziza !",
-  rejected:     "✗ Refusée",
+  submitted:    "📤 Submitted — pending review",
+  under_review: "🔍 Under review",
+  approved:     "✅ Approved — welcome to Ziza!",
+  rejected:     "✗ Rejected",
 };
 
 const VEHICLE_CATEGORIES_APP = [
@@ -1320,28 +1321,28 @@ function ApplicationSection({ token }) {
     }
   }
 
-  if (application === undefined) return <div className="status loading">⏳ Chargement…</div>;
+  if (application === undefined) return <div className="status loading">⏳ Loading…</div>;
 
   // Existing application — show status
   if (application && step === "status") {
     return (
       <div className="application-section">
-        <h2 className="application-title">🧑‍✈️ Candidature chauffeur</h2>
+        <h2 className="application-title">🧑‍✈️ Driver Application</h2>
         <div className={`application-status application-status-${application.status}`}>
           <span>{APPLICATION_STATUS_LABELS[application.status] ?? application.status}</span>
         </div>
         <div className="application-info">
-          <div className="application-row"><span>Nom</span><strong>{application.full_name}</strong></div>
-          <div className="application-row"><span>Téléphone</span><strong>{application.phone}</strong></div>
-          <div className="application-row"><span>Véhicule</span><strong>{application.vehicle_make} {application.vehicle_model} ({application.vehicle_year})</strong></div>
-          <div className="application-row"><span>Plaque</span><strong>{application.vehicle_plate}</strong></div>
-          <div className="application-row"><span>Catégorie</span><strong>{application.vehicle_category}</strong></div>
+          <div className="application-row"><span>Name</span><strong>{application.full_name}</strong></div>
+          <div className="application-row"><span>Phone</span><strong>{application.phone}</strong></div>
+          <div className="application-row"><span>Vehicle</span><strong>{application.vehicle_make} {application.vehicle_model} ({application.vehicle_year})</strong></div>
+          <div className="application-row"><span>Plate</span><strong>{application.vehicle_plate}</strong></div>
+          <div className="application-row"><span>Category</span><strong>{application.vehicle_category}</strong></div>
         </div>
         {application.notes_admin && (
-          <div className="application-note">💬 Note admin : {application.notes_admin}</div>
+          <div className="application-note">💬 Admin note: {application.notes_admin}</div>
         )}
         {application.status === "approved" && (
-          <p className="application-hint">Votre compte sera configuré comme chauffeur lors de votre prochaine connexion.</p>
+          <p className="application-hint">Your account will be set up as a driver on your next login.</p>
         )}
       </div>
     );
@@ -1350,56 +1351,56 @@ function ApplicationSection({ token }) {
   // No application yet — show form
   return (
     <div className="application-section">
-      <h2 className="application-title">🧑‍✈️ Devenir chauffeur Ziza</h2>
-      <p className="application-subtitle">Remplissez le formulaire pour soumettre votre candidature.</p>
+      <h2 className="application-title">🧑‍✈️ Become a Ziza Driver</h2>
+      <p className="application-subtitle">Fill out the form to submit your application.</p>
       <form className="application-form" onSubmit={handleSubmit}>
         <fieldset className="application-fieldset">
-          <legend>Informations personnelles</legend>
+          <legend>Personal Information</legend>
           <label className="application-label">
-            Nom complet
+            Full Name
             <input className="application-input" type="text" value={formData.full_name}
               onChange={(e) => updateField("full_name", e.target.value)} required minLength={2} />
           </label>
           <label className="application-label">
-            Téléphone
+            Phone
             <input className="application-input" type="tel" value={formData.phone}
-              onChange={(e) => updateField("phone", e.target.value)} required placeholder="+22507000000" />
+              onChange={(e) => updateField("phone", e.target.value)} required placeholder="+12015550000" />
           </label>
           <label className="application-label">
-            Numéro de permis
+            Driver&apos;s License Number
             <input className="application-input" type="text" value={formData.license_number}
               onChange={(e) => updateField("license_number", e.target.value)} required />
           </label>
         </fieldset>
 
         <fieldset className="application-fieldset">
-          <legend>Véhicule</legend>
+          <legend>Vehicle</legend>
           <div className="application-grid2">
             <label className="application-label">
-              Marque
+              Make
               <input className="application-input" type="text" value={formData.vehicle_make}
                 onChange={(e) => updateField("vehicle_make", e.target.value)} required placeholder="Toyota" />
             </label>
             <label className="application-label">
-              Modèle
+              Model
               <input className="application-input" type="text" value={formData.vehicle_model}
-                onChange={(e) => updateField("vehicle_model", e.target.value)} required placeholder="Corolla" />
+                onChange={(e) => updateField("vehicle_model", e.target.value)} required placeholder="Camry" />
             </label>
           </div>
           <div className="application-grid2">
             <label className="application-label">
-              Plaque
+              License Plate
               <input className="application-input" type="text" value={formData.vehicle_plate}
-                onChange={(e) => updateField("vehicle_plate", e.target.value)} required placeholder="AB 1234 CI" />
+                onChange={(e) => updateField("vehicle_plate", e.target.value)} required placeholder="ABC 1234" />
             </label>
             <label className="application-label">
-              Année
+              Year
               <input className="application-input" type="number" value={formData.vehicle_year}
                 onChange={(e) => updateField("vehicle_year", e.target.value)} required min={1990} max={2030} />
             </label>
           </div>
           <label className="application-label">
-            Catégorie
+            Category
             <select className="application-select" value={formData.vehicle_category}
               onChange={(e) => updateField("vehicle_category", e.target.value)}>
               {VEHICLE_CATEGORIES_APP.map((c) => (
@@ -1411,16 +1412,12 @@ function ApplicationSection({ token }) {
 
         {error && <p className="form-error">{error}</p>}
         <button className="application-submit-btn" type="submit" disabled={submitting}>
-          {submitting ? "Envoi en cours…" : "Soumettre ma candidature"}
+          {submitting ? "Submitting…" : "Submit Application"}
         </button>
       </form>
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Dashboard
-// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // WalletSection — Sprint 33
@@ -1460,29 +1457,29 @@ function WalletSection({ token }) {
       setWallet(result.wallet);
       setTxs((prev) => [result.transaction, ...prev]);
       setTopupAmount("");
-      setTopupSuccess(`✅ Rechargement de ${amount.toLocaleString("fr-FR")} XOF effectué !`);
+      setTopupSuccess(`✅ Top-up of ${formatUSD(amount)} completed!`);
     } catch (err) { setTopupError(err.message); }
     finally { setTopping(false); }
   }
 
-  if (loading) return <div className="status loading">⏳ Chargement du portefeuille…</div>;
+  if (loading) return <div className="status loading">⏳ Loading wallet…</div>;
   if (error) return <p className="form-error">{error}</p>;
 
   return (
     <div className="wallet-section">
-      <h2 className="estimate-title">💰 Mon portefeuille</h2>
+      <h2 className="estimate-title">💰 My Wallet</h2>
 
       {wallet && (
         <div className="wallet-balance-card">
-          <p className="wallet-balance-label">Solde disponible</p>
+          <p className="wallet-balance-label">Available Balance</p>
           <p className="wallet-balance-amount">
-            {wallet.balance_xof.toLocaleString("fr-FR")} <span className="wallet-currency">XOF</span>
+            {formatUSD(wallet.balance_xof)}
           </p>
         </div>
       )}
 
       <form className="wallet-topup-form" onSubmit={handleTopup}>
-        <h3 className="wallet-subtitle">Recharger via Mobile Money</h3>
+        <h3 className="wallet-subtitle">Top Up Your Wallet</h3>
         {topupError && <p className="form-error">{topupError}</p>}
         {topupSuccess && <p className="form-success">{topupSuccess}</p>}
         <div className="wallet-topup-row">
@@ -1491,21 +1488,21 @@ function WalletSection({ token }) {
             min="100"
             step="100"
             className="wallet-amount-input"
-            placeholder="Montant (XOF)"
+            placeholder="Amount in cents (100 = $1.00)"
             value={topupAmount}
             onChange={(e) => setTopupAmount(e.target.value)}
             required
           />
           <button type="submit" className="booking-btn" disabled={topping}>
-            {topping ? "Rechargement…" : "Recharger"}
+            {topping ? "Processing…" : "Top Up"}
           </button>
         </div>
-        <p className="wallet-note">💳 Orange Money · MTN MoMo · Carte bancaire</p>
+        <p className="wallet-note">💳 Apple Pay · Google Pay · Credit / Debit Card</p>
       </form>
 
       <div className="wallet-history">
-        <h3 className="wallet-subtitle">Historique des transactions</h3>
-        {txs.length === 0 && <p className="muted-text">Aucune transaction pour le moment.</p>}
+        <h3 className="wallet-subtitle">Transaction History</h3>
+        {txs.length === 0 && <p className="muted-text">No transactions yet.</p>}
         {txs.map((tx) => (
           <div key={tx.tx_id} className="wallet-tx-row">
             <span className="wallet-tx-icon">{TX_ICONS[tx.tx_type] ?? "•"}</span>
@@ -1514,10 +1511,10 @@ function WalletSection({ token }) {
               {tx.reference_id && <span className="wallet-tx-ref">#{tx.reference_id.slice(-8)}</span>}
             </div>
             <span className="wallet-tx-amount" style={{ color: TX_COLORS[tx.tx_type] }}>
-              {tx.tx_type === "debit" ? "−" : "+"}{tx.amount_xof.toLocaleString("fr-FR")} XOF
+              {tx.tx_type === "debit" ? "−" : "+"}{formatUSD(tx.amount_xof)}
             </span>
             <span className="wallet-tx-time">
-              {new Date(tx.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
+              {new Date(tx.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "short" })}
             </span>
           </div>
         ))}
@@ -1525,6 +1522,10 @@ function WalletSection({ token }) {
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------------
 
 function Dashboard({ user, token, onLogout }) {
   const [activeTrip, setActiveTrip] = useState(null);
@@ -1556,10 +1557,10 @@ function Dashboard({ user, token, onLogout }) {
           >
             🔔{unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}
           </button>
-          <button className="logout-btn" onClick={onLogout}>Déconnexion</button>
+          <button className="logout-btn" onClick={onLogout}>Sign Out</button>
         </div>
       </header>
-      <div className="status ok">✓ Connecté — <strong>{user.email}</strong></div>
+      <div className="status ok">✓ Signed in — <strong>{user.email}</strong></div>
       <div className="role-badge">{user.role} · {user.provider}</div>
 
       {showBooking && (
@@ -1587,7 +1588,7 @@ function Dashboard({ user, token, onLogout }) {
               className={`mode-tab ${mode === "ride" ? "active" : ""}`}
               onClick={() => setMode("ride")}
             >
-              🚕 Trajet
+              🚕 Ride
             </button>
             <button
               className={`mode-tab ${mode === "assistance" ? "active" : ""}`}
@@ -1599,19 +1600,19 @@ function Dashboard({ user, token, onLogout }) {
               className={`mode-tab ${mode === "trips" ? "active" : ""}`}
               onClick={() => setMode("trips")}
             >
-              📜 Mes trajets
+              📜 My Trips
             </button>
             <button
               className={`mode-tab ${mode === "history" ? "active" : ""}`}
               onClick={() => setMode("history")}
             >
-              📋 Historique
+              📋 History
             </button>
             <button
               className={`mode-tab ${mode === "profile" ? "active" : ""}`}
               onClick={() => setMode("profile")}
             >
-              👤 Profil
+              👤 Profile
             </button>
             <button
               className={`mode-tab ${mode === "notifications" ? "active" : ""}`}
@@ -1623,19 +1624,19 @@ function Dashboard({ user, token, onLogout }) {
               className={`mode-tab ${mode === "places" ? "active" : ""}`}
               onClick={() => setMode("places")}
             >
-              📍 Lieux
+              📍 Places
             </button>
             <button
               className={`mode-tab ${mode === "apply" ? "active" : ""}`}
               onClick={() => setMode("apply")}
             >
-              🧑‍✈️ Devenir chauffeur
+              🧑‍✈️ Become a Driver
             </button>
             <button
               className={`mode-tab ${mode === "wallet" ? "active" : ""}`}
               onClick={() => setMode("wallet")}
             >
-              💰 Portefeuille
+              💰 Wallet
             </button>
           </div>
           {mode === "ride" && (
@@ -1646,13 +1647,13 @@ function Dashboard({ user, token, onLogout }) {
           )}
           {mode === "trips" && (
             <div className="history-section">
-              <h2 className="estimate-title">Mes trajets</h2>
+              <h2 className="estimate-title">My Trips</h2>
               <TripHistory token={token} />
             </div>
           )}
           {mode === "history" && (
             <div className="history-section">
-              <h2 className="estimate-title">Mes demandes d'assistance</h2>
+              <h2 className="estimate-title">My Assistance Requests</h2>
               <AssistanceHistory token={token} />
             </div>
           )}
@@ -1675,8 +1676,8 @@ function AccessDenied({ role, onLogout }) {
   return (
     <div className="app">
       <h1>Ziza Customer</h1>
-      <div className="status error">✗ Accès refusé — rôle attendu : {REQUIRED_ROLE} · vous avez : {role}</div>
-      <button className="logout-btn" onClick={onLogout}>Déconnexion</button>
+      <div className="status error">✗ Access denied — expected role: {REQUIRED_ROLE} · you have: {role}</div>
+      <button className="logout-btn" onClick={onLogout}>Sign Out</button>
     </div>
   );
 }
@@ -1750,7 +1751,7 @@ export default function App() {
   }
 
   if (!token) return <LoginForm onEmailLogin={handleEmailLogin} onGoogleLogin={handleGoogleLogin} error={loginError} loading={loginLoading} />;
-  if (!user)  return <div className="app"><div className="status loading">⏳ Chargement…</div></div>;
+  if (!user)  return <div className="app"><div className="status loading">⏳ Loading…</div></div>;
   if (user.role !== REQUIRED_ROLE) return <AccessDenied role={user.role} onLogout={handleLogout} />;
   return <Dashboard user={user} token={token} onLogout={handleLogout} />;
 }

@@ -23,25 +23,25 @@ const TOKEN_KEY = "ziza_token";
 const ASSISTANCE_TYPES = ["breakdown", "flat_tyre", "tow", "fuel", "lockout"];
 
 const TYPE_LABELS = {
-  breakdown: "🔧 Panne mécanique",
-  flat_tyre: "🔴 Pneu crevé",
-  tow:       "🚛 Remorquage",
-  fuel:      "⛽ Carburant",
-  lockout:   "🔑 Clés perdues",
+  breakdown: "🔧 Breakdown",
+  flat_tyre: "🔴 Flat Tire",
+  tow:       "🚛 Tow Truck",
+  fuel:      "⛽ Out of Fuel",
+  lockout:   "🔑 Locked Out",
 };
 
 const STATUS_LABELS = {
-  pending:     "En attente",
-  accepted:    "Acceptée",
-  in_progress: "En cours",
-  completed:   "Terminée",
-  cancelled:   "Annulée",
-  resolved:    "Résolue",
+  pending:     "Pending",
+  accepted:    "Accepted",
+  in_progress: "In Progress",
+  completed:   "Completed",
+  cancelled:   "Cancelled",
+  resolved:    "Resolved",
 };
 
-function formatXOF(n) {
+function formatUSD(n) {
   if (n == null) return "—";
-  return new Intl.NumberFormat("fr-FR").format(n) + " XOF";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n / 100);
 }
 
 // ---------------------------------------------------------------------------
@@ -54,19 +54,19 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 34 — Analytics avancées</p>
+      <p className="subtitle">Sprint 34 — Advanced Analytics</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
-        <button type="submit" disabled={loading}>{loading ? "Connexion…" : "Se connecter"}</button>
+        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
+        <button type="submit" disabled={loading}>{loading ? "Signing in…" : "Sign In"}</button>
       </form>
       {firebaseEnabled && (
         <button className="google-btn" onClick={onGoogleLogin} disabled={loading}>
-          <span>G</span> Continuer avec Google
+          <span>G</span> Continue with Google
         </button>
       )}
       {error && <p className="form-error">{error}</p>}
-      <p className="hint">Dev: admin@ziza.dev / ziza2024</p>
+      <p className="hint">Demo: admin@ziza.dev / ziza2024</p>
     </div>
   );
 }
@@ -76,16 +76,16 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
 // ---------------------------------------------------------------------------
 
 const DOC_TYPE_LABELS = {
-  license:      "🪪 Permis de conduire",
-  insurance:    "📋 Assurance",
-  registration: "📄 Carte grise",
-  id_card:      "🪪 Carte d'identité",
+  license:      "🪪 Driver's License",
+  insurance:    "📋 Vehicle Insurance",
+  registration: "📄 Vehicle Registration",
+  id_card:      "🪪 Government ID",
 };
 
 const DOC_STATUS_LABELS = {
-  pending:  "⏳ En attente",
-  approved: "✅ Approuvé",
-  rejected: "✗ Rejeté",
+  pending:  "⏳ Pending",
+  approved: "✅ Approved",
+  rejected: "✗ Rejected",
 };
 
 const PAGE_SIZE_DOCS = 10;
@@ -121,12 +121,12 @@ function DocumentsPanel({ token }) {
   return (
     <div className="documents-panel-admin">
       <div className="panel-header">
-        <h2 className="panel-title">📄 Documents KYC</h2>
+        <h2 className="panel-title">📄 KYC Documents</h2>
         <button className="refresh-btn" onClick={() => load(page)} disabled={loading}>↻</button>
       </div>
       {error && <p className="form-error">{error}</p>}
-      {loading && <div className="status loading">⏳ Chargement…</div>}
-      {!loading && docs.length === 0 && <p className="muted-msg">Aucun document soumis.</p>}
+      {loading && <div className="status loading">⏳ Loading…</div>}
+      {!loading && docs.length === 0 && <p className="muted-msg">No documents submitted.</p>}
       {docs.map((d) => (
         <div key={d.document_id} className={`doc-admin-row doc-admin-${d.status}`}>
           <div className="doc-admin-main">
@@ -137,8 +137,8 @@ function DocumentsPanel({ token }) {
           </div>
           <div className="doc-admin-meta">
             <span>🧑‍✈️ {d.driver_email}</span>
-            <a className="doc-admin-url" href={d.url} target="_blank" rel="noreferrer">Voir le document ↗</a>
-            <span>{new Date(d.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}</span>
+            <a className="doc-admin-url" href={d.url} target="_blank" rel="noreferrer">View document ↗</a>
+            <span>{new Date(d.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" })}</span>
           </div>
           {d.note_admin && <p className="doc-admin-note">💬 {d.note_admin}</p>}
           {d.status === "pending" && (
@@ -146,7 +146,7 @@ function DocumentsPanel({ token }) {
               <input
                 className="payout-note-input"
                 type="text"
-                placeholder="Note (optionnelle)"
+                placeholder="Note (optional)"
                 value={noteInputs[d.document_id] ?? ""}
                 onChange={(e) => setNoteInputs((prev) => ({ ...prev, [d.document_id]: e.target.value }))}
               />
@@ -154,21 +154,21 @@ function DocumentsPanel({ token }) {
                 className="payout-approve-btn"
                 disabled={acting === d.document_id}
                 onClick={() => handleStatus(d.document_id, "approved")}
-              >✅ Approuver</button>
+              >✅ Approve</button>
               <button
                 className="payout-reject-btn"
                 disabled={acting === d.document_id}
                 onClick={() => handleStatus(d.document_id, "rejected")}
-              >✗ Rejeter</button>
+              >✗ Reject</button>
             </div>
           )}
         </div>
       ))}
       {(docs.length === PAGE_SIZE_DOCS || page > 0) && (
         <div className="pagination">
-          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Précédent</button>
+          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Previous</button>
           <span className="page-info">Page {page + 1}</span>
-          <button className="page-btn" onClick={() => load(page + 1)} disabled={docs.length < PAGE_SIZE_DOCS || loading}>Suivant →</button>
+          <button className="page-btn" onClick={() => load(page + 1)} disabled={docs.length < PAGE_SIZE_DOCS || loading}>Next →</button>
         </div>
       )}
     </div>
@@ -203,7 +203,7 @@ function StatsPanel({ token }) {
 
   useEffect(() => { load(); }, [load]);
 
-  if (loading && !stats) return <div className="status loading">⏳ Chargement statistiques…</div>;
+  if (loading && !stats) return <div className="status loading">⏳ Loading statistics…</div>;
   if (error) return <p className="form-error">{error}</p>;
   if (!stats) return null;
 
@@ -212,29 +212,29 @@ function StatsPanel({ token }) {
   return (
     <div className="stats-panel">
       <div className="panel-header">
-        <h2 className="panel-title">Vue d'ensemble</h2>
+        <h2 className="panel-title">Overview</h2>
         <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
       </div>
       <div className="stats-grid">
         <StatCard
-          label="Courses totales"
+          label="Total Trips"
           value={trips.total}
-          sub={`${trips.by_status?.completed ?? 0} terminées · ${trips.by_status?.pending ?? 0} en attente`}
+          sub={`${trips.by_status?.completed ?? 0} completed · ${trips.by_status?.pending ?? 0} pending`}
         />
         <StatCard
-          label="Chiffre d'affaires"
-          value={formatXOF(trips.total_revenue_xof)}
-          sub="Courses terminées"
+          label="Revenue"
+          value={formatUSD(trips.total_revenue_xof)}
+          sub="Completed trips"
         />
         <StatCard
-          label="Assistances"
+          label="Assistance Requests"
           value={assistance.total}
-          sub={`${assistance.by_status?.resolved ?? 0} résolues · ${assistance.by_status?.pending ?? 0} en attente`}
+          sub={`${assistance.by_status?.resolved ?? 0} resolved · ${assistance.by_status?.pending ?? 0} pending`}
         />
         <StatCard
-          label="Chauffeurs"
+          label="Drivers"
           value={drivers.total}
-          sub={`${drivers.by_status?.active ?? 0} actifs`}
+          sub={`${drivers.by_status?.active ?? 0} active`}
         />
       </div>
     </div>
@@ -253,12 +253,12 @@ function TripRow({ trip }) {
           {STATUS_LABELS[trip.status] ?? trip.status}
         </span>
         <span className="trip-customer">{trip.customer_email}</span>
-        {trip.fare_xof && <span className="trip-fare">{formatXOF(trip.fare_xof)}</span>}
+        {trip.fare_xof && <span className="trip-fare">{formatUSD(trip.fare_xof)}</span>}
       </div>
       <div className="trip-row-meta">
-        {trip.distance_km != null && <span>🛣️ {trip.distance_km.toFixed(1)} km</span>}
+        {trip.distance_km != null && <span>🛣️ {trip.distance_km.toFixed(1)} mi</span>}
         {trip.duration_min != null && <span>⏱️ {trip.duration_min} min</span>}
-        <span className="trip-date">{new Date(trip.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}</span>
+        <span className="trip-date">{new Date(trip.created_at).toLocaleString("en-US", { dateStyle: "short", timeStyle: "short" })}</span>
       </div>
     </div>
   );
@@ -269,12 +269,12 @@ function TripRow({ trip }) {
 // ---------------------------------------------------------------------------
 
 const TRIP_STATUSES = [
-  { value: "",            label: "Tous les statuts" },
-  { value: "pending",     label: "En attente" },
-  { value: "accepted",    label: "Acceptée" },
-  { value: "in_progress", label: "En cours" },
-  { value: "completed",   label: "Terminée" },
-  { value: "cancelled",   label: "Annulée" },
+  { value: "",            label: "All statuses" },
+  { value: "pending",     label: "Pending" },
+  { value: "accepted",    label: "Accepted" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "completed",   label: "Completed" },
+  { value: "cancelled",   label: "Cancelled" },
 ];
 
 function TripFilterBar({ filters, onChange, onSearch, onReset, loading }) {
@@ -292,7 +292,7 @@ function TripFilterBar({ filters, onChange, onSearch, onReset, loading }) {
       <input
         className="filter-input"
         type="text"
-        placeholder="Email client…"
+        placeholder="Customer email…"
         value={filters.customerEmail}
         onChange={(e) => onChange("customerEmail", e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && onSearch()}
@@ -302,17 +302,17 @@ function TripFilterBar({ filters, onChange, onSearch, onReset, loading }) {
         type="date"
         value={filters.dateFrom}
         onChange={(e) => onChange("dateFrom", e.target.value)}
-        title="Date début"
+        title="Start date"
       />
       <input
         className="filter-input filter-date"
         type="date"
         value={filters.dateTo}
         onChange={(e) => onChange("dateTo", e.target.value)}
-        title="Date fin"
+        title="End date"
       />
       <button className="filter-search-btn" onClick={onSearch} disabled={loading}>🔍</button>
-      <button className="filter-reset-btn" onClick={onReset} disabled={loading} title="Réinitialiser">✕</button>
+      <button className="filter-reset-btn" onClick={onReset} disabled={loading} title="Reset">✕</button>
     </div>
   );
 }
@@ -361,7 +361,7 @@ function TripsPanel({ token }) {
   return (
     <div className="trips-panel">
       <div className="panel-header">
-        <h2 className="panel-title">Toutes les courses</h2>
+        <h2 className="panel-title">All Trips</h2>
         <button className="refresh-btn" onClick={() => load(page)} disabled={loading}>↻</button>
       </div>
       <TripFilterBar
@@ -373,16 +373,16 @@ function TripsPanel({ token }) {
       />
       {error && <p className="form-error">{error}</p>}
       {!loading && trips.length === 0 && (
-        <div className="empty-state">Aucune course enregistrée.</div>
+        <div className="empty-state">No trips recorded.</div>
       )}
       <div className="trip-list-admin">
         {trips.map((t) => <TripRow key={t.trip_id} trip={t} />)}
       </div>
       {(trips.length === PAGE_SIZE || page > 0) && (
         <div className="pagination">
-          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Précédent</button>
+          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Previous</button>
           <span className="page-info">Page {page + 1}</span>
-          <button className="page-btn" onClick={() => load(page + 1)} disabled={trips.length < PAGE_SIZE || loading}>Suivant →</button>
+          <button className="page-btn" onClick={() => load(page + 1)} disabled={trips.length < PAGE_SIZE || loading}>Next →</button>
         </div>
       )}
     </div>
@@ -417,8 +417,8 @@ function CapabilityEditor({ token, driver, onSaved, onCancel }) {
 
   return (
     <div className="cap-editor">
-      <div className="cap-editor-title">Compétences — <strong>{driver.email}</strong></div>
-      <div className="cap-hint">Vide = le chauffeur voit toutes les demandes d'assistance.</div>
+      <div className="cap-editor-title">Capabilities — <strong>{driver.email}</strong></div>
+      <div className="cap-hint">Empty = driver sees all assistance requests.</div>
       <div className="cap-grid">
         {ASSISTANCE_TYPES.map((type) => (
           <button key={type} className={`cap-btn ${selected.has(type) ? "selected" : ""}`} onClick={() => toggle(type)}>
@@ -428,8 +428,8 @@ function CapabilityEditor({ token, driver, onSaved, onCancel }) {
       </div>
       {error && <p className="form-error">{error}</p>}
       <div className="cap-actions">
-        <button className="cap-save-btn" onClick={handleSave} disabled={saving}>{saving ? "Enregistrement…" : "✓ Enregistrer"}</button>
-        <button className="cap-cancel-btn" onClick={onCancel} disabled={saving}>Annuler</button>
+        <button className="cap-save-btn" onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "✓ Save"}</button>
+        <button className="cap-cancel-btn" onClick={onCancel} disabled={saving}>Cancel</button>
       </div>
     </div>
   );
@@ -456,13 +456,13 @@ function DriverRow({ driver, onEdit, onStatusChange }) {
           <span className={`driver-status-badge ${driver.status}`}>{driver.status}</span>
         </div>
         <div className="driver-card-actions">
-          <button className="edit-caps-btn" onClick={() => onEdit(driver)}>Compétences</button>
+          <button className="edit-caps-btn" onClick={() => onEdit(driver)}>Capabilities</button>
           {driver.status !== "suspended" ? (
             <button
               className="suspend-btn"
               onClick={() => handleStatus("suspended")}
               disabled={changingStatus}
-              title="Suspendre ce chauffeur"
+              title="Suspend this driver"
             >
               🚫
             </button>
@@ -471,7 +471,7 @@ function DriverRow({ driver, onEdit, onStatusChange }) {
               className="activate-btn"
               onClick={() => handleStatus("active")}
               disabled={changingStatus}
-              title="Réactiver ce chauffeur"
+              title="Reactivate this driver"
             >
               ✅
             </button>
@@ -481,7 +481,7 @@ function DriverRow({ driver, onEdit, onStatusChange }) {
       <div className="driver-caps">
         {driver.capabilities.length > 0
           ? driver.capabilities.map((c) => <span key={c} className="cap-chip">{TYPE_LABELS[c] ?? c}</span>)
-          : <span className="cap-all">Toutes les demandes</span>
+          : <span className="cap-all">All requests</span>
         }
       </div>
     </div>
@@ -524,12 +524,12 @@ function DriversPanel({ token }) {
   return (
     <div className="drivers-panel">
       <div className="panel-header">
-        <h2 className="panel-title">Chauffeurs enregistrés</h2>
-        <button className="refresh-btn" onClick={load} disabled={loading}>{loading ? "…" : "↻ Actualiser"}</button>
+        <h2 className="panel-title">Registered Drivers</h2>
+        <button className="refresh-btn" onClick={load} disabled={loading}>{loading ? "…" : "↻ Refresh"}</button>
       </div>
       {error && <p className="form-error">{error}</p>}
       {editing && <CapabilityEditor token={token} driver={editing} onSaved={handleSaved} onCancel={() => setEditing(null)} />}
-      {!loading && drivers.length === 0 && <div className="empty-state">Aucun chauffeur enregistré.</div>}
+      {!loading && drivers.length === 0 && <div className="empty-state">No drivers registered.</div>}
       <div className="driver-list">
         {drivers.map((d) => (
           <DriverRow key={d.driver_id} driver={d} onEdit={setEditing} onStatusChange={handleStatusChange} />
@@ -554,7 +554,7 @@ function UserRow({ u }) {
       </div>
       <div className="user-row-meta">
         <span className="user-provider">{u.provider}</span>
-        <span className="user-date">{new Date(u.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}</span>
+        <span className="user-date">{new Date(u.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" })}</span>
       </div>
     </div>
   );
@@ -565,10 +565,10 @@ function UserRow({ u }) {
 // ---------------------------------------------------------------------------
 
 const USER_ROLES = [
-  { value: "",         label: "Tous les rôles" },
+  { value: "",         label: "All roles" },
   { value: "admin",    label: "Admin" },
-  { value: "driver",   label: "Chauffeur" },
-  { value: "customer", label: "Client" },
+  { value: "driver",   label: "Driver" },
+  { value: "customer", label: "Customer" },
 ];
 
 function UsersPanel({ token }) {
@@ -602,7 +602,7 @@ function UsersPanel({ token }) {
   return (
     <div className="users-panel">
       <div className="panel-header">
-        <h2 className="panel-title">Utilisateurs enregistrés</h2>
+        <h2 className="panel-title">Registered Users</h2>
         <button className="refresh-btn" onClick={() => load(activeRole, activeEmail)} disabled={loading}>{loading ? "…" : "↻"}</button>
       </div>
 
@@ -626,11 +626,11 @@ function UsersPanel({ token }) {
           onKeyDown={(e) => e.key === "Enter" && handleSearch()}
         />
         <button className="filter-search-btn" onClick={handleSearch} disabled={loading}>🔍</button>
-        <button className="filter-reset-btn" onClick={handleReset} disabled={loading} title="Réinitialiser">✕</button>
+        <button className="filter-reset-btn" onClick={handleReset} disabled={loading} title="Reset">✕</button>
       </div>
 
       {error && <p className="form-error">{error}</p>}
-      {!loading && users.length === 0 && <div className="empty-state">Aucun utilisateur enregistré.</div>}
+      {!loading && users.length === 0 && <div className="empty-state">No users registered.</div>}
       <div className="user-list">
         {users.map((u) => <UserRow key={u.user_id} u={u} />)}
       </div>
@@ -643,11 +643,11 @@ function UsersPanel({ token }) {
 // ---------------------------------------------------------------------------
 
 const ASSIST_TYPE_LABELS = {
-  breakdown: "🔧 Panne",
-  flat_tyre: "🔴 Pneu",
-  tow:       "🚛 Remorquage",
-  fuel:      "⛽ Carburant",
-  lockout:   "🔑 Clés",
+  breakdown: "🔧 Breakdown",
+  flat_tyre: "🔴 Flat Tire",
+  tow:       "🚛 Tow Truck",
+  fuel:      "⛽ Fuel",
+  lockout:   "🔑 Lockout",
 };
 
 function AssistanceRow({ req }) {
@@ -663,7 +663,7 @@ function AssistanceRow({ req }) {
       <div className="assist-row-meta">
         {req.eta_min != null && <span>⏱️ ETA {req.eta_min} min</span>}
         {req.note && <span className="assist-note-admin">"{req.note}"</span>}
-        <span className="trip-date">{new Date(req.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}</span>
+        <span className="trip-date">{new Date(req.created_at).toLocaleString("en-US", { dateStyle: "short", timeStyle: "short" })}</span>
       </div>
     </div>
   );
@@ -691,23 +691,23 @@ function AssistancePanel({ token }) {
   return (
     <div className="assist-panel">
       <div className="panel-header">
-        <h2 className="panel-title">Demandes d'assistance</h2>
+        <h2 className="panel-title">Assistance Requests</h2>
         <div className="panel-actions">
           <button className="refresh-btn" onClick={() => load(page)} disabled={loading}>↻</button>
         </div>
       </div>
       {error && <p className="form-error">{error}</p>}
       {!loading && requests.length === 0 && (
-        <div className="empty-state">Aucune demande enregistrée.</div>
+        <div className="empty-state">No requests recorded.</div>
       )}
       <div className="trip-list-admin">
         {requests.map((r) => <AssistanceRow key={r.request_id} req={r} />)}
       </div>
       {(requests.length === PAGE_SIZE || page > 0) && (
         <div className="pagination">
-          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Précédent</button>
+          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Previous</button>
           <span className="page-info">Page {page + 1}</span>
-          <button className="page-btn" onClick={() => load(page + 1)} disabled={requests.length < PAGE_SIZE || loading}>Suivant →</button>
+          <button className="page-btn" onClick={() => load(page + 1)} disabled={requests.length < PAGE_SIZE || loading}>Next →</button>
         </div>
       )}
     </div>
@@ -760,7 +760,7 @@ function PromoPanel({ token }) {
   return (
     <div className="promo-panel">
       <div className="panel-header">
-        <h2 className="panel-title">Codes promo</h2>
+        <h2 className="panel-title">Promo Codes</h2>
         <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
       </div>
 
@@ -769,7 +769,7 @@ function PromoPanel({ token }) {
         <div className="promo-form-row">
           <input
             className="promo-code-input"
-            placeholder="Code (ex: ZIZA10)"
+            placeholder="Code (e.g. ZIZA10)"
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
             maxLength={32}
@@ -780,7 +780,7 @@ function PromoPanel({ token }) {
             type="number"
             min="1"
             max="100"
-            placeholder="% remise"
+            placeholder="% discount"
             value={pct}
             onChange={(e) => setPct(e.target.value)}
             required
@@ -789,12 +789,12 @@ function PromoPanel({ token }) {
             className="promo-max-input"
             type="number"
             min="1"
-            placeholder="Max utilisations"
+            placeholder="Max uses"
             value={maxUses}
             onChange={(e) => setMaxUses(e.target.value)}
           />
           <button type="submit" className="cap-save-btn" disabled={creating}>
-            {creating ? "…" : "✚ Créer"}
+            {creating ? "…" : "✚ Create"}
           </button>
         </div>
         {createError && <p className="form-error">{createError}</p>}
@@ -802,7 +802,7 @@ function PromoPanel({ token }) {
 
       {error && <p className="form-error">{error}</p>}
       {!loading && promos.length === 0 && (
-        <div className="empty-state">Aucun code promo créé.</div>
+        <div className="empty-state">No promo codes created.</div>
       )}
       <div className="promo-list">
         {promos.map((p) => (
@@ -811,16 +811,16 @@ function PromoPanel({ token }) {
               <span className="promo-code-badge">{p.code}</span>
               <span className="promo-pct">-{p.discount_pct}%</span>
               <span className={`promo-status ${p.active ? "active" : "inactive"}`}>
-                {p.active ? "Actif" : "Inactif"}
+                {p.active ? "Active" : "Inactive"}
               </span>
             </div>
             <div className="promo-row-meta">
-              <span>{p.uses} utilisation{p.uses !== 1 ? "s" : ""}{p.max_uses ? ` / ${p.max_uses}` : ""}</span>
-              {p.expires_at && <span>Expire: {new Date(p.expires_at).toLocaleDateString("fr-FR")}</span>}
+              <span>{p.uses} use{p.uses !== 1 ? "s" : ""}{p.max_uses ? ` / ${p.max_uses}` : ""}</span>
+              {p.expires_at && <span>Expires: {new Date(p.expires_at).toLocaleDateString("en-US")}</span>}
             </div>
             {p.active && (
               <button className="promo-deactivate-btn" onClick={() => handleDeactivate(p.code)}>
-                Désactiver
+                Deactivate
               </button>
             )}
           </div>
@@ -835,9 +835,9 @@ function PromoPanel({ token }) {
 // ---------------------------------------------------------------------------
 
 const PAYOUT_STATUS_LABELS = {
-  pending:  "⏳ En attente",
-  approved: "✅ Approuvé",
-  rejected: "✗ Rejeté",
+  pending:  "⏳ Pending",
+  approved: "✅ Approved",
+  rejected: "✗ Rejected",
 };
 
 const PAGE_SIZE_PAYOUT = 10;
@@ -872,22 +872,22 @@ function PayoutsPanel({ token }) {
   return (
     <div className="payouts-panel">
       <div className="panel-header">
-        <h2 className="panel-title">💸 Demandes de retrait</h2>
+        <h2 className="panel-title">💸 Payout Requests</h2>
         <button className="refresh-btn" onClick={() => load(page)} disabled={loading}>↻</button>
       </div>
-      {loading && <div className="status loading">⏳ Chargement…</div>}
-      {!loading && payouts.length === 0 && <p className="muted-msg">Aucune demande de retrait.</p>}
+      {loading && <div className="status loading">⏳ Loading…</div>}
+      {!loading && payouts.length === 0 && <p className="muted-msg">No payout requests.</p>}
       {payouts.map((p) => (
         <div key={p.payout_id} className={`payout-row payout-row-${p.status}`}>
           <div className="payout-row-main">
-            <span className="payout-row-amount">{formatXOF(p.amount_xof)}</span>
+            <span className="payout-row-amount">{formatUSD(p.amount_xof)}</span>
             <span className={`payout-row-status status-${p.status}`}>
               {PAYOUT_STATUS_LABELS[p.status] ?? p.status}
             </span>
           </div>
           <div className="payout-row-meta">
             <span>🧑‍✈️ {p.driver_email}</span>
-            <span>{new Date(p.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}</span>
+            <span>{new Date(p.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" })}</span>
           </div>
           {p.note_admin && <p className="payout-row-note">💬 {p.note_admin}</p>}
           {p.status === "pending" && (
@@ -895,7 +895,7 @@ function PayoutsPanel({ token }) {
               <input
                 className="payout-note-input"
                 type="text"
-                placeholder="Note (optionnelle)"
+                placeholder="Note (optional)"
                 value={noteInputs[p.payout_id] ?? ""}
                 onChange={(e) => setNoteInputs((prev) => ({ ...prev, [p.payout_id]: e.target.value }))}
               />
@@ -903,21 +903,21 @@ function PayoutsPanel({ token }) {
                 className="payout-approve-btn"
                 disabled={acting === p.payout_id}
                 onClick={() => handleStatus(p.payout_id, "approved")}
-              >✅ Approuver</button>
+              >✅ Approve</button>
               <button
                 className="payout-reject-btn"
                 disabled={acting === p.payout_id}
                 onClick={() => handleStatus(p.payout_id, "rejected")}
-              >✗ Rejeter</button>
+              >✗ Reject</button>
             </div>
           )}
         </div>
       ))}
       {(payouts.length === PAGE_SIZE_PAYOUT || page > 0) && (
         <div className="pagination">
-          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Précédent</button>
+          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Previous</button>
           <span className="page-info">Page {page + 1}</span>
-          <button className="page-btn" onClick={() => load(page + 1)} disabled={payouts.length < PAGE_SIZE_PAYOUT || loading}>Suivant →</button>
+          <button className="page-btn" onClick={() => load(page + 1)} disabled={payouts.length < PAGE_SIZE_PAYOUT || loading}>Next →</button>
         </div>
       )}
     </div>
@@ -933,7 +933,7 @@ const COMMISSION_CATEGORY_LABELS = {
   comfort:    "🚙 Comfort",
   premium:    "🏎️ Premium",
   assistance: "🔧 Assistance",
-  default:    "📦 Défaut",
+  default:    "📦 Default",
 };
 
 function CommissionPanel({ token }) {
@@ -972,7 +972,7 @@ function CommissionPanel({ token }) {
     if (!editing) return;
     const rate = parseInt(editing.rate_pct, 10);
     if (isNaN(rate) || rate < 0 || rate > 100) {
-      setSaveError("Le taux doit être entre 0 et 100."); return;
+      setSaveError("Rate must be between 0 and 100."); return;
     }
     setSaving(true); setSaveError(null);
     try {
@@ -999,15 +999,15 @@ function CommissionPanel({ token }) {
   return (
     <div className="commission-panel">
       <div className="panel-header">
-        <h2 className="panel-title">💰 Commission &amp; Batch payout</h2>
+        <h2 className="panel-title">💰 Commission &amp; Batch Payout</h2>
         <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
       </div>
 
       {/* Commission rates table */}
       <section className="commission-section">
-        <h3 className="commission-section-title">Taux de commission par catégorie</h3>
+        <h3 className="commission-section-title">Commission rates by category</h3>
         {error && <p className="form-error">{error}</p>}
-        {loading && <div className="status loading">⏳ Chargement…</div>}
+        {loading && <div className="status loading">⏳ Loading…</div>}
         {!loading && (
           <div className="commission-grid">
             {CATS.map((cat) => {
@@ -1023,7 +1023,7 @@ function CommissionPanel({ token }) {
                     onClick={() => startEdit(cat)}
                     disabled={saving}
                   >
-                    Modifier
+                    Edit
                   </button>
                 </div>
               );
@@ -1036,7 +1036,7 @@ function CommissionPanel({ token }) {
           <form className="commission-edit-form" onSubmit={handleSave}>
             <div className="commission-edit-row">
               <span className="commission-edit-label">
-                {COMMISSION_CATEGORY_LABELS[editing.category]} — taux (%)
+                {COMMISSION_CATEGORY_LABELS[editing.category]} — rate (%)
               </span>
               <input
                 className="commission-rate-input"
@@ -1049,7 +1049,7 @@ function CommissionPanel({ token }) {
                 required
               />
               <button className="cap-save-btn" type="submit" disabled={saving}>
-                {saving ? "…" : "✓ Enregistrer"}
+                {saving ? "…" : "✓ Save"}
               </button>
               <button
                 className="cap-cancel-btn"
@@ -1057,48 +1057,48 @@ function CommissionPanel({ token }) {
                 onClick={() => setEditing(null)}
                 disabled={saving}
               >
-                Annuler
+                Cancel
               </button>
             </div>
             {saveError && <p className="form-error">{saveError}</p>}
           </form>
         )}
-        {saveSuccess && <p className="surge-success">✓ Taux mis à jour avec succès</p>}
+        {saveSuccess && <p className="surge-success">✓ Rate updated successfully</p>}
       </section>
 
       {/* Batch payout section */}
       <section className="commission-section batch-section">
-        <h3 className="commission-section-title">Batch payout</h3>
+        <h3 className="commission-section-title">Batch Payout</h3>
         <p className="commission-hint">
-          Lance le traitement de toutes les demandes de retrait approuvées.
-          Les demandes déjà traitées sont ignorées (idempotent).
+          Processes all approved payout requests.
+          Already-processed requests are ignored (idempotent).
         </p>
         <button
           className="batch-run-btn"
           onClick={handleBatch}
           disabled={batching}
         >
-          {batching ? "⏳ Traitement en cours…" : "🚀 Lancer batch payout"}
+          {batching ? "⏳ Processing…" : "🚀 Run Batch Payout"}
         </button>
 
         {batchError && <p className="form-error">✗ {batchError}</p>}
         {batchResult && (
           <div className="batch-result">
             <div className="batch-result-row">
-              <span className="batch-result-label">✅ Traitées</span>
+              <span className="batch-result-label">✅ Processed</span>
               <span className="batch-result-value">{batchResult.processed}</span>
             </div>
             <div className="batch-result-row">
-              <span className="batch-result-label">✗ Échouées</span>
+              <span className="batch-result-label">✗ Failed</span>
               <span className="batch-result-value">{batchResult.failed}</span>
             </div>
             <div className="batch-result-row">
-              <span className="batch-result-label">Montant net total</span>
-              <span className="batch-result-value">{formatXOF(batchResult.total_net_xof)}</span>
+              <span className="batch-result-label">Total net amount</span>
+              <span className="batch-result-value">{formatUSD(batchResult.total_net_xof)}</span>
             </div>
             <div className="batch-result-row">
-              <span className="batch-result-label">Commission totale</span>
-              <span className="batch-result-value">{formatXOF(batchResult.total_commission_xof)}</span>
+              <span className="batch-result-label">Total commission</span>
+              <span className="batch-result-value">{formatUSD(batchResult.total_commission_xof)}</span>
             </div>
           </div>
         )}
@@ -1139,11 +1139,11 @@ function RatingsPanel({ token }) {
   return (
     <div className="ratings-panel">
       <div className="panel-header">
-        <h2 className="panel-title">⭐ Avis clients</h2>
+        <h2 className="panel-title">⭐ Customer Reviews</h2>
         <button className="refresh-btn" onClick={() => load(page)} disabled={loading}>↻</button>
       </div>
-      {loading && <div className="status loading">⏳ Chargement…</div>}
-      {!loading && ratings.length === 0 && <p className="muted-msg">Aucun avis pour l&apos;instant.</p>}
+      {loading && <div className="status loading">⏳ Loading…</div>}
+      {!loading && ratings.length === 0 && <p className="muted-msg">No reviews yet.</p>}
       {ratings.map((r) => (
         <div key={r.rating_id} className="rating-row">
           <div className="rating-row-main">
@@ -1152,16 +1152,16 @@ function RatingsPanel({ token }) {
           </div>
           {r.comment && <p className="rating-comment">&ldquo;{r.comment}&rdquo;</p>}
           <div className="rating-row-meta">
-            <span>🧑‍✈️ Chauffeur {r.driver_id.slice(0, 8)}…</span>
-            <span>{new Date(r.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}</span>
+            <span>🧑‍✈️ Driver {r.driver_id.slice(0, 8)}…</span>
+            <span>{new Date(r.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" })}</span>
           </div>
         </div>
       ))}
       {(ratings.length === PAGE_SIZE_RATINGS || page > 0) && (
         <div className="pagination">
-          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Précédent</button>
+          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Previous</button>
           <span className="page-info">Page {page + 1}</span>
-          <button className="page-btn" onClick={() => load(page + 1)} disabled={ratings.length < PAGE_SIZE_RATINGS || loading}>Suivant →</button>
+          <button className="page-btn" onClick={() => load(page + 1)} disabled={ratings.length < PAGE_SIZE_RATINGS || loading}>Next →</button>
         </div>
       )}
     </div>
@@ -1193,7 +1193,7 @@ function SurgePanel({ token }) {
   async function handleSave(e) {
     e.preventDefault();
     const val = parseFloat(input);
-    if (isNaN(val)) { setError("Valeur invalide."); return; }
+    if (isNaN(val)) { setError("Invalid value."); return; }
     setSaving(true); setError(null); setSuccess(false);
     try {
       const d = await adminSetSurge(token, val);
@@ -1210,22 +1210,22 @@ function SurgePanel({ token }) {
   return (
     <div className="surge-panel">
       <div className="panel-header">
-        <h2 className="panel-title">⚙️ Tarification dynamique</h2>
+        <h2 className="panel-title">⚙️ Dynamic Pricing</h2>
         <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
       </div>
-      {loading && <div className="status loading">⏳ Chargement…</div>}
+      {loading && <div className="status loading">⏳ Loading…</div>}
       {!loading && current !== null && (
         <div className="surge-current">
-          <span className="surge-label">Multiplicateur actuel :</span>
+          <span className="surge-label">Current multiplier:</span>
           <span className="surge-value" style={{ color: surgeColor }}>×{current}</span>
-          {current === 1.0 && <span className="surge-badge normal">Prix normal</span>}
-          {current > 1.0 && current < 2.0 && <span className="surge-badge moderate">Modéré</span>}
-          {current >= 2.0 && <span className="surge-badge high">Forte demande</span>}
+          {current === 1.0 && <span className="surge-badge normal">Normal price</span>}
+          {current > 1.0 && current < 2.0 && <span className="surge-badge moderate">Moderate</span>}
+          {current >= 2.0 && <span className="surge-badge high">High demand</span>}
         </div>
       )}
       <form className="surge-form" onSubmit={handleSave}>
         <label className="surge-form-label">
-          Nouveau multiplicateur (1.0 – 5.0)
+          New multiplier (1.0 – 5.0)
           <div className="surge-input-row">
             <input
               className="surge-input"
@@ -1238,16 +1238,16 @@ function SurgePanel({ token }) {
               disabled={saving}
             />
             <button className="surge-set-btn" type="submit" disabled={saving}>
-              {saving ? "…" : "Appliquer"}
+              {saving ? "…" : "Apply"}
             </button>
           </div>
         </label>
         {error && <p className="form-error">{error}</p>}
-        {success && <p className="surge-success">✓ Multiplicateur mis à jour</p>}
+        {success && <p className="surge-success">✓ Multiplier updated</p>}
       </form>
       <div className="surge-hint">
-        <p>1.0 = prix de base · 2.0 = prix doublé · max 5.0</p>
-        <p>Prend effet immédiatement sur les prochaines estimations.</p>
+        <p>1.0 = base price · 2.0 = double price · max 5.0</p>
+        <p>Takes effect immediately on next estimates.</p>
       </div>
     </div>
   );
@@ -1258,18 +1258,18 @@ function SurgePanel({ token }) {
 // ---------------------------------------------------------------------------
 
 const APP_STATUS_LABELS = {
-  submitted:    "📤 Soumise",
-  under_review: "🔍 En révision",
-  approved:     "✅ Approuvée",
-  rejected:     "✗ Rejetée",
+  submitted:    "📤 Submitted",
+  under_review: "🔍 Under Review",
+  approved:     "✅ Approved",
+  rejected:     "✗ Rejected",
 };
 
 const APP_STATUS_FILTERS = [
-  { value: "",            label: "Toutes" },
-  { value: "submitted",   label: "Soumises" },
-  { value: "under_review", label: "En révision" },
-  { value: "approved",    label: "Approuvées" },
-  { value: "rejected",    label: "Rejetées" },
+  { value: "",            label: "All" },
+  { value: "submitted",   label: "Submitted" },
+  { value: "under_review", label: "Under Review" },
+  { value: "approved",    label: "Approved" },
+  { value: "rejected",    label: "Rejected" },
 ];
 
 const PAGE_SIZE_APPS = 10;
@@ -1306,7 +1306,7 @@ function ApplicationsPanel({ token }) {
   return (
     <div className="applications-panel">
       <div className="panel-header">
-        <h2 className="panel-title">📝 Candidatures chauffeur</h2>
+        <h2 className="panel-title">📝 Driver Applications</h2>
         <button className="refresh-btn" onClick={() => load(page)} disabled={loading}>↻</button>
       </div>
 
@@ -1321,8 +1321,8 @@ function ApplicationsPanel({ token }) {
       </div>
 
       {error && <p className="form-error">{error}</p>}
-      {loading && <div className="status loading">⏳ Chargement…</div>}
-      {!loading && apps.length === 0 && <p className="muted-msg">Aucune candidature.</p>}
+      {loading && <div className="status loading">⏳ Loading…</div>}
+      {!loading && apps.length === 0 && <p className="muted-msg">No applications.</p>}
 
       {apps.map((a) => (
         <div key={a.application_id} className={`application-row-admin application-row-${a.status}`}>
@@ -1336,7 +1336,7 @@ function ApplicationsPanel({ token }) {
           <div className="application-admin-meta">
             <span>🚗 {a.vehicle_make} {a.vehicle_model} ({a.vehicle_year}) — {a.vehicle_plate}</span>
             <span>📦 {a.vehicle_category}</span>
-            <span>{new Date(a.submitted_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}</span>
+            <span>{new Date(a.submitted_at).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" })}</span>
           </div>
           {a.notes_admin && <p className="application-admin-note">💬 {a.notes_admin}</p>}
           {(a.status === "submitted" || a.status === "under_review") && (
@@ -1344,7 +1344,7 @@ function ApplicationsPanel({ token }) {
               <input
                 className="payout-note-input"
                 type="text"
-                placeholder="Note (optionnelle)"
+                placeholder="Note (optional)"
                 value={noteInputs[a.application_id] ?? ""}
                 onChange={(e) => setNoteInputs((prev) => ({ ...prev, [a.application_id]: e.target.value }))}
               />
@@ -1353,18 +1353,18 @@ function ApplicationsPanel({ token }) {
                   className="payout-approve-btn"
                   disabled={acting === a.application_id}
                   onClick={() => handleReview(a.application_id, "under_review")}
-                >🔍 En révision</button>
+                >🔍 Under Review</button>
               )}
               <button
                 className="payout-approve-btn"
                 disabled={acting === a.application_id}
                 onClick={() => handleReview(a.application_id, "approved")}
-              >✅ Approuver</button>
+              >✅ Approve</button>
               <button
                 className="payout-reject-btn"
                 disabled={acting === a.application_id}
                 onClick={() => handleReview(a.application_id, "rejected")}
-              >✗ Rejeter</button>
+              >✗ Reject</button>
             </div>
           )}
         </div>
@@ -1372,9 +1372,9 @@ function ApplicationsPanel({ token }) {
 
       {(apps.length === PAGE_SIZE_APPS || page > 0) && (
         <div className="pagination">
-          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Précédent</button>
+          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Previous</button>
           <span className="page-info">Page {page + 1}</span>
-          <button className="page-btn" onClick={() => load(page + 1)} disabled={apps.length < PAGE_SIZE_APPS || loading}>Suivant →</button>
+          <button className="page-btn" onClick={() => load(page + 1)} disabled={apps.length < PAGE_SIZE_APPS || loading}>Next →</button>
         </div>
       )}
     </div>
@@ -1409,17 +1409,17 @@ function LiveMapPanel({ token }) {
   return (
     <div className="live-map-panel">
       <div className="panel-header">
-        <h2 className="panel-title">🗺️ Chauffeurs en ligne</h2>
+        <h2 className="panel-title">🗺️ Online Drivers</h2>
         <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
       </div>
       {error && <p className="form-error">{error}</p>}
-      {loading && <div className="status loading">⏳ Chargement…</div>}
+      {loading && <div className="status loading">⏳ Loading…</div>}
       {!loading && drivers.length === 0 && (
-        <p className="muted-msg">Aucun chauffeur en ligne actuellement.</p>
+        <p className="muted-msg">No drivers online currently.</p>
       )}
       {!loading && drivers.length > 0 && (
         <div className="live-drivers-count">
-          <span className="live-badge">🟢 {drivers.length} chauffeur{drivers.length > 1 ? "s" : ""} en ligne</span>
+          <span className="live-badge">🟢 {drivers.length} driver{drivers.length > 1 ? "s" : ""} online</span>
         </div>
       )}
       <div className="live-drivers-table">
@@ -1427,20 +1427,20 @@ function LiveMapPanel({ token }) {
           <div key={d.driver_id} className="live-driver-row">
             <div className="live-driver-main">
               <span className="live-driver-name">🧑‍✈️ {d.email}</span>
-              <span className="live-driver-status online">🟢 En ligne</span>
+              <span className="live-driver-status online">🟢 Online</span>
             </div>
             <div className="live-driver-meta">
               {d.lat != null && d.lng != null ? (
                 <span className="live-driver-coords">📍 {d.lat.toFixed(4)}, {d.lng.toFixed(4)}</span>
               ) : (
-                <span className="live-driver-coords muted">📍 Position inconnue</span>
+                <span className="live-driver-coords muted">📍 Location unknown</span>
               )}
               {d.heading != null && (
                 <span className="live-driver-heading">🧭 {d.heading}°</span>
               )}
               {d.last_updated && (
                 <span className="live-driver-time">
-                  ⏱️ {new Date(d.last_updated).toLocaleTimeString("fr-FR")}
+                  ⏱️ {new Date(d.last_updated).toLocaleTimeString("en-US")}
                 </span>
               )}
             </div>
@@ -1448,7 +1448,7 @@ function LiveMapPanel({ token }) {
         ))}
       </div>
       <p className="muted-msg" style={{ marginTop: "12px", fontSize: ".8rem" }}>
-        Actualisation automatique toutes les 30 secondes.
+        Auto-refresh every 30 seconds.
       </p>
     </div>
   );
@@ -1521,9 +1521,9 @@ function FlagsPanel({ token }) {
       </div>
       {error && <p className="form-error">{error}</p>}
       {saveError && <p className="form-error">{saveError}</p>}
-      {loading && <div className="status loading">⏳ Chargement…</div>}
+      {loading && <div className="status loading">⏳ Loading…</div>}
 
-      {!loading && flags.length === 0 && <p className="muted-msg">Aucun flag configuré.</p>}
+      {!loading && flags.length === 0 && <p className="muted-msg">No flags configured.</p>}
 
       <div className="flags-grid">
         {flags.map((flag) => (
@@ -1537,9 +1537,9 @@ function FlagsPanel({ token }) {
                 className={`flag-toggle ${flag.enabled ? "flag-toggle-on" : "flag-toggle-off"}`}
                 disabled={saving === flag.name}
                 onClick={() => handleToggle(flag)}
-                title={flag.enabled ? "Désactiver" : "Activer"}
+                title={flag.enabled ? "Disable" : "Enable"}
               >
-                {flag.enabled ? "✅ Activé" : "⛔ Désactivé"}
+                {flag.enabled ? "✅ Enabled" : "⛔ Disabled"}
               </button>
               <div className="flag-rollout">
                 <label className="flag-rollout-label">Rollout</label>
@@ -1560,17 +1560,17 @@ function FlagsPanel({ token }) {
 
       {/* Invite Codes */}
       <div className="invite-code-section">
-        <h3 className="section-subtitle">🎟️ Codes d'invitation</h3>
+        <h3 className="section-subtitle">🎟️ Invite Codes</h3>
         <form className="invite-code-form" onSubmit={handleCreateCode}>
           <input
             type="text"
             className="invite-code-input"
-            placeholder="Code (ex: BETA-LAUNCH-001)"
+            placeholder="Code (e.g., BETA-LAUNCH-001)"
             value={newCode}
             onChange={(e) => setNewCode(e.target.value)}
             required
           />
-          <label>Max utilisations</label>
+          <label>Max uses</label>
           <input
             type="number"
             className="invite-uses-input"
@@ -1579,14 +1579,14 @@ function FlagsPanel({ token }) {
             onChange={(e) => setMaxUses(parseInt(e.target.value, 10) || 1)}
           />
           <button type="submit" className="batch-run-btn" disabled={creatingCode}>
-            {creatingCode ? "Création…" : "Créer le code"}
+            {creatingCode ? "Creating…" : "Create code"}
           </button>
         </form>
         {codeError && <p className="form-error">{codeError}</p>}
         {codeResult && (
           <div className="batch-result">
-            <p className="batch-result-row">✅ Code créé : <strong>{codeResult.code}</strong></p>
-            <p className="batch-result-row">Max utilisations : {codeResult.max_uses}</p>
+            <p className="batch-result-row">✅ Code created: <strong>{codeResult.code}</strong></p>
+            <p className="batch-result-row">Max uses: {codeResult.max_uses}</p>
           </div>
         )}
       </div>
@@ -1598,7 +1598,7 @@ function FlagsPanel({ token }) {
 // CitiesPanel — Sprint 32
 // ---------------------------------------------------------------------------
 
-const COUNTRY_DEFAULT = "Côte d'Ivoire";
+const COUNTRY_DEFAULT = "United States";
 
 function CitiesPanel({ token }) {
   const [cities, setCities] = useState([]);
@@ -1609,7 +1609,7 @@ function CitiesPanel({ token }) {
   const [saveError, setSaveError] = useState(null);
   const [form, setForm] = useState({
     name: "", country: COUNTRY_DEFAULT,
-    center_lat: "", center_lng: "", radius_km: "30", active: true,
+    center_lat: "", center_lng: "", radius_km: "50", active: true,
   });
 
   const load = useCallback(() => {
@@ -1637,7 +1637,7 @@ function CitiesPanel({ token }) {
       });
       setCities((prev) => [...prev, created]);
       setShowForm(false);
-      setForm({ name: "", country: COUNTRY_DEFAULT, center_lat: "", center_lng: "", radius_km: "30", active: true });
+      setForm({ name: "", country: COUNTRY_DEFAULT, center_lat: "", center_lng: "", radius_km: "50", active: true });
     } catch (err) { setSaveError(err.message); }
     finally { setSaving(false); }
   }
@@ -1654,36 +1654,36 @@ function CitiesPanel({ token }) {
   return (
     <div className="cities-panel">
       <div className="panel-header">
-        <h2 className="panel-title">🌍 Villes desservies</h2>
+        <h2 className="panel-title">🌍 Served Cities</h2>
         <div style={{ display: "flex", gap: "8px" }}>
           <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
           <button className="batch-run-btn" onClick={() => setShowForm((v) => !v)}>
-            {showForm ? "✕ Annuler" : "+ Nouvelle ville"}
+            {showForm ? "✕ Cancel" : "+ New City"}
           </button>
         </div>
       </div>
 
       {error && <p className="form-error">{error}</p>}
-      {loading && <div className="status loading">⏳ Chargement…</div>}
+      {loading && <div className="status loading">⏳ Loading…</div>}
 
       {showForm && (
         <form className="city-form" onSubmit={handleCreate}>
-          <h3 className="section-subtitle">Ajouter une ville</h3>
+          <h3 className="section-subtitle">Add a City</h3>
           {saveError && <p className="form-error">{saveError}</p>}
           <div className="city-form-grid">
-            <label>Nom
-              <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Abidjan" />
+            <label>Name
+              <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Newark" />
             </label>
-            <label>Pays
+            <label>Country
               <input value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} />
             </label>
-            <label>Latitude centre
-              <input type="number" step="any" required value={form.center_lat} onChange={(e) => setForm({ ...form, center_lat: e.target.value })} placeholder="5.3364" />
+            <label>Center Latitude
+              <input type="number" step="any" required value={form.center_lat} onChange={(e) => setForm({ ...form, center_lat: e.target.value })} placeholder="40.7357" />
             </label>
-            <label>Longitude centre
-              <input type="number" step="any" required value={form.center_lng} onChange={(e) => setForm({ ...form, center_lng: e.target.value })} placeholder="-4.0267" />
+            <label>Center Longitude
+              <input type="number" step="any" required value={form.center_lng} onChange={(e) => setForm({ ...form, center_lng: e.target.value })} placeholder="-74.1724" />
             </label>
-            <label>Rayon (km)
+            <label>Radius (km)
               <input type="number" step="1" min="1" value={form.radius_km} onChange={(e) => setForm({ ...form, radius_km: e.target.value })} />
             </label>
             <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -1692,7 +1692,7 @@ function CitiesPanel({ token }) {
             </label>
           </div>
           <button type="submit" className="batch-run-btn" disabled={saving}>
-            {saving ? "Création…" : "Créer la ville"}
+            {saving ? "Creating…" : "Create city"}
           </button>
         </form>
       )}
@@ -1717,7 +1717,7 @@ function CitiesPanel({ token }) {
                 style={{ fontSize: ".8rem", padding: "4px 10px" }}
                 onClick={() => handleToggleActive(city)}
               >
-                {city.active ? "Désactiver" : "Activer"}
+                {city.active ? "Deactivate" : "Activate"}
               </button>
             </div>
           </div>
@@ -1735,7 +1735,7 @@ function KPICard({ label, value, unit = "", icon = "📊" }) {
   return (
     <div className="kpi-card">
       <span className="kpi-icon">{icon}</span>
-      <span className="kpi-value">{typeof value === "number" ? value.toLocaleString("fr-FR") : value}{unit}</span>
+      <span className="kpi-value">{typeof value === "number" ? value.toLocaleString("en-US") : value}{unit}</span>
       <span className="kpi-label">{label}</span>
     </div>
   );
@@ -1781,71 +1781,71 @@ function AnalyticsPanel({ token }) {
   return (
     <div className="analytics-panel">
       <div className="panel-header">
-        <h2 className="panel-title">📈 Analytics avancées</h2>
+        <h2 className="panel-title">📈 Advanced Analytics</h2>
         <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
       </div>
       {error && <p className="form-error">{error}</p>}
-      {loading && <div className="status loading">⏳ Chargement des analytics…</div>}
+      {loading && <div className="status loading">⏳ Loading analytics…</div>}
 
       {kpis && (
         <div className="kpi-grid">
-          <KPICard icon="👥" label="Utilisateurs" value={kpis.total_users} />
-          <KPICard icon="🧑‍✈️" label="Chauffeurs" value={kpis.total_drivers} />
-          <KPICard icon="🟢" label="En ligne" value={kpis.online_drivers} />
-          <KPICard icon="🚕" label="Courses totales" value={kpis.total_trips} />
-          <KPICard icon="✅" label="Taux complétion" value={kpis.completion_rate_pct} unit="%" />
-          <KPICard icon="💰" label="Revenu total" value={Math.round(kpis.total_revenue_xof).toLocaleString("fr-FR")} unit=" XOF" />
-          <KPICard icon="⭐" label="Note moyenne" value={kpis.avg_rating} />
+          <KPICard icon="👥" label="Users" value={kpis.total_users} />
+          <KPICard icon="🧑‍✈️" label="Drivers" value={kpis.total_drivers} />
+          <KPICard icon="🟢" label="Online" value={kpis.online_drivers} />
+          <KPICard icon="🚕" label="Total Trips" value={kpis.total_trips} />
+          <KPICard icon="✅" label="Completion Rate" value={kpis.completion_rate_pct} unit="%" />
+          <KPICard icon="💰" label="Total Revenue" value={formatUSD(kpis.total_revenue_xof)} />
+          <KPICard icon="⭐" label="Avg Rating" value={kpis.avg_rating} />
         </div>
       )}
 
       {/* Revenue chart (text-based sparkline) */}
       <div className="analytics-section">
         <div className="analytics-section-header">
-          <h3 className="analytics-subtitle">💰 Revenu par période</h3>
+          <h3 className="analytics-subtitle">💰 Revenue by Period</h3>
           <div className="period-tabs">
             {["day", "week", "month"].map((p) => (
               <button
                 key={p}
                 className={`period-tab ${revPeriod === p ? "active" : ""}`}
                 onClick={() => { setRevPeriod(p); loadRevenue(p); }}
-              >{p === "day" ? "Jour" : p === "week" ? "Semaine" : "Mois"}</button>
+              >{p === "day" ? "Day" : p === "week" ? "Week" : "Month"}</button>
             ))}
           </div>
         </div>
-        {revenue.length === 0 && <p className="muted-msg">Aucune donnée de revenu.</p>}
+        {revenue.length === 0 && <p className="muted-msg">No revenue data.</p>}
         {revenue.map((r) => (
           <div key={r.period} className="analytics-bar-row">
             <span className="analytics-bar-label">{r.period}</span>
-            <span className="analytics-bar-trips">{r.trip_count} courses</span>
-            <span className="analytics-bar-revenue">{r.revenue_xof.toLocaleString("fr-FR")} XOF</span>
+            <span className="analytics-bar-trips">{r.trip_count} trips</span>
+            <span className="analytics-bar-revenue">{formatUSD(r.revenue_xof)}</span>
           </div>
         ))}
       </div>
 
       {/* Category breakdown */}
       <div className="analytics-section">
-        <h3 className="analytics-subtitle">🚗 Répartition par catégorie</h3>
-        {categories.length === 0 && <p className="muted-msg">Aucune donnée.</p>}
+        <h3 className="analytics-subtitle">🚗 Breakdown by Category</h3>
+        {categories.length === 0 && <p className="muted-msg">No data.</p>}
         {categories.map((c) => (
           <div key={c.category} className="analytics-bar-row">
             <span className="analytics-bar-label" style={{ textTransform: "capitalize" }}>{c.category}</span>
-            <span className="analytics-bar-trips">{c.trip_count} courses</span>
-            <span className="analytics-bar-revenue">moy. {c.avg_fare_xof.toLocaleString("fr-FR")} XOF</span>
+            <span className="analytics-bar-trips">{c.trip_count} trips</span>
+            <span className="analytics-bar-revenue">avg. {formatUSD(c.avg_fare_xof)}</span>
           </div>
         ))}
       </div>
 
       {/* Hourly demand (mini bar chart) */}
       <div className="analytics-section">
-        <h3 className="analytics-subtitle">⏰ Demande par heure</h3>
+        <h3 className="analytics-subtitle">⏰ Hourly Demand</h3>
         <div className="hourly-chart">
           {hourly.map((h) => (
             <div key={h.hour} className="hourly-bar-col">
               <div
                 className="hourly-bar"
                 style={{ height: `${Math.round((h.trip_count / maxHourly) * 60)}px` }}
-                title={`${h.hour}h: ${h.trip_count} courses`}
+                title={`Hour ${h.hour}: ${h.trip_count} trips`}
               />
               <span className="hourly-label">{h.hour}</span>
             </div>
@@ -1856,13 +1856,13 @@ function AnalyticsPanel({ token }) {
       {/* Top customers */}
       {topCustomers.length > 0 && (
         <div className="analytics-section">
-          <h3 className="analytics-subtitle">👑 Top clients</h3>
+          <h3 className="analytics-subtitle">👑 Top Customers</h3>
           {topCustomers.map((c, i) => (
             <div key={c.user_id} className="analytics-bar-row">
               <span className="analytics-rank">#{i + 1}</span>
               <span className="analytics-bar-label">{c.email}</span>
-              <span className="analytics-bar-trips">{c.trip_count} courses</span>
-              <span className="analytics-bar-revenue">{c.total_spent_xof.toLocaleString("fr-FR")} XOF</span>
+              <span className="analytics-bar-trips">{c.trip_count} trips</span>
+              <span className="analytics-bar-revenue">{formatUSD(c.total_spent_xof)}</span>
             </div>
           ))}
         </div>
@@ -1871,12 +1871,12 @@ function AnalyticsPanel({ token }) {
       {/* Driver performance */}
       {driverPerf.length > 0 && (
         <div className="analytics-section">
-          <h3 className="analytics-subtitle">🏆 Performance chauffeurs</h3>
+          <h3 className="analytics-subtitle">🏆 Driver Performance</h3>
           {driverPerf.map((d, i) => (
             <div key={d.driver_id} className="analytics-bar-row">
               <span className="analytics-rank">#{i + 1}</span>
               <span className="analytics-bar-label">{d.email}</span>
-              <span className="analytics-bar-trips">{d.trip_count} courses</span>
+              <span className="analytics-bar-trips">{d.trip_count} trips</span>
               <span className="analytics-bar-rating">⭐ {d.avg_rating}</span>
             </div>
           ))}
@@ -1892,21 +1892,21 @@ function AnalyticsPanel({ token }) {
 
 const TABS = [
   { id: "stats",        label: "📊 Stats" },
-  { id: "trips",        label: "🚕 Courses" },
-  { id: "assist",       label: "🆘 Assistances" },
-  { id: "drivers",      label: "🧑‍✈️ Chauffeurs" },
+  { id: "trips",        label: "🚕 Trips" },
+  { id: "assist",       label: "🆘 Assistance" },
+  { id: "drivers",      label: "🧑‍✈️ Drivers" },
   { id: "live",         label: "🗺️ Live" },
-  { id: "cities",       label: "🌍 Villes" },
+  { id: "cities",       label: "🌍 Cities" },
   { id: "analytics",    label: "📈 Analytics" },
   { id: "promos",       label: "🏷️ Promos" },
-  { id: "payouts",      label: "💸 Retraits",    pendingKey: "payout_requests" },
-  { id: "ratings",      label: "⭐ Avis" },
-  { id: "documents",    label: "📄 Documents",   pendingKey: "documents" },
+  { id: "payouts",      label: "💸 Payouts",      pendingKey: "payout_requests" },
+  { id: "ratings",      label: "⭐ Reviews" },
+  { id: "documents",    label: "📄 Documents",    pendingKey: "documents" },
   { id: "commission",   label: "💰 Commission" },
-  { id: "applications", label: "📝 Candidatures" },
+  { id: "applications", label: "📝 Applications" },
   { id: "flags",        label: "🚩 Feature Flags" },
-  { id: "settings",     label: "⚙️ Paramètres" },
-  { id: "users",        label: "👥 Utilisateurs" },
+  { id: "settings",     label: "⚙️ Settings" },
+  { id: "users",        label: "👥 Users" },
 ];
 
 function Dashboard({ user, token, onLogout }) {
@@ -1927,9 +1927,9 @@ function Dashboard({ user, token, onLogout }) {
     <div className="app admin-app">
       <header className="dash-header">
         <h1>Ziza Admin</h1>
-        <button className="logout-btn" onClick={onLogout}>Déconnexion</button>
+        <button className="logout-btn" onClick={onLogout}>Logout</button>
       </header>
-      <div className="status ok">✓ Connecté — <strong>{user.email}</strong></div>
+      <div className="status ok">✓ Signed in — <strong>{user.email}</strong></div>
       <div className="role-badge">{user.role} · {user.provider}</div>
 
       <div className="admin-tabs">
@@ -1970,8 +1970,8 @@ function AccessDenied({ role, onLogout }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <div className="status error">✗ Accès refusé — rôle attendu : {REQUIRED_ROLE} · vous avez : {role}</div>
-      <button className="logout-btn" onClick={onLogout}>Déconnexion</button>
+      <div className="status error">✗ Access denied — expected role: {REQUIRED_ROLE} · you have: {role}</div>
+      <button className="logout-btn" onClick={onLogout}>Logout</button>
     </div>
   );
 }
@@ -2033,7 +2033,7 @@ export default function App() {
   }
 
   if (!token) return <LoginForm onEmailLogin={handleEmailLogin} onGoogleLogin={handleGoogleLogin} error={loginError} loading={loginLoading} />;
-  if (!user)  return <div className="app"><div className="status loading">⏳ Chargement…</div></div>;
+  if (!user)  return <div className="app"><div className="status loading">⏳ Loading…</div></div>;
   if (user.role !== REQUIRED_ROLE) return <AccessDenied role={user.role} onLogout={handleLogout} />;
   return <Dashboard user={user} token={token} onLogout={handleLogout} />;
 }
