@@ -9,6 +9,9 @@
     "assetBundlePatterns": [
       "**/*"
     ],
+    "splash": {
+      "backgroundColor": "#F97316"
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.zizatransportation.customer"
@@ -17,12 +20,7 @@
       "adaptiveIcon": {
         "backgroundColor": "#F97316"
       },
-      "package": "com.zizatransportation.customer",
-      "config": {
-        "googleMaps": {
-          "apiKey": ""
-        }
-      }
+      "package": "com.zizatransportation.customer"
     },
     "plugins": [
       "expo-notifications"

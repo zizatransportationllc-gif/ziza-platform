@@ -9,6 +9,9 @@
     "assetBundlePatterns": [
       "**/*"
     ],
+    "splash": {
+      "backgroundColor": "#1D4ED8"
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.zizatransportation.driver",
