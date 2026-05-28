@@ -1,6 +1,6 @@
 /**
  * NotificationsScreen — in-app notification center.
- * Sprint 27 — Application mobile customer
+ * Sprint 35
  */
 import React, { useEffect, useState } from "react";
 import {
@@ -16,16 +16,15 @@ import {
   markAllNotificationsRead,
   NotificationRecord,
 } from "../api";
+import { useAuth } from "../context/AuthContext";
 
-interface Props {
-  token: string;
-}
-
-export default function NotificationsScreen({ token }: Props): React.ReactElement {
+export default function NotificationsScreen(): React.ReactElement {
+  const { token } = useAuth();
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
+    if (!token) return;
     try {
       const data = await listNotifications(token);
       setNotifications(data);
@@ -36,11 +35,10 @@ export default function NotificationsScreen({ token }: Props): React.ReactElemen
     }
   };
 
-  useEffect(() => {
-    load();
-  }, [token]);
+  useEffect(() => { load(); }, [token]);
 
   const handleMarkAllRead = async () => {
+    if (!token) return;
     await markAllNotificationsRead(token).catch(() => {});
     load();
   };
@@ -58,7 +56,7 @@ export default function NotificationsScreen({ token }: Props): React.ReactElemen
       <View style={styles.header}>
         <Text style={styles.heading}>Notifications</Text>
         <TouchableOpacity onPress={handleMarkAllRead}>
-          <Text style={styles.markRead}>Tout lire</Text>
+          <Text style={styles.markRead}>Mark all read</Text>
         </TouchableOpacity>
       </View>
       <FlatList
@@ -71,7 +69,7 @@ export default function NotificationsScreen({ token }: Props): React.ReactElemen
           </View>
         )}
         ListEmptyComponent={
-          <Text style={styles.empty}>Aucune notification.</Text>
+          <Text style={styles.empty}>No notifications.</Text>
         }
       />
     </View>
@@ -89,11 +87,7 @@ const styles = StyleSheet.create({
   },
   heading: { fontSize: 22, fontWeight: "bold" },
   markRead: { color: "#F97316", fontWeight: "600" },
-  item: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
-    paddingVertical: 12,
-  },
+  item: { borderBottomWidth: 1, borderBottomColor: "#f3f4f6", paddingVertical: 12 },
   unread: { backgroundColor: "#FFF7ED" },
   itemTitle: { fontWeight: "bold", fontSize: 15 },
   itemBody: { color: "#374151", marginTop: 2 },

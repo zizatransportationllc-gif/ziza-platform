@@ -1,25 +1,23 @@
 /**
  * TrackingScreen — live trip tracking with driver position and ETA.
- * Sprint 27 — Application mobile customer
+ * Sprint 35
  */
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
+import { useAuth } from "../context/AuthContext";
 import { useTrip } from "../hooks/useTrip";
 import { useTracking } from "../hooks/useTracking";
 import TrackingMap from "../components/TrackingMap";
 import EtaCard from "../components/EtaCard";
 
-interface Props {
-  token: string;
-}
-
 type TrackingRouteProp = RouteProp<RootStackParamList, "Tracking">;
 type TrackingNavProp = NativeStackNavigationProp<RootStackParamList, "Tracking">;
 
-export default function TrackingScreen({ token }: Props): React.ReactElement {
+export default function TrackingScreen(): React.ReactElement {
+  const { token } = useAuth();
   const route = useRoute<TrackingRouteProp>();
   const navigation = useNavigation<TrackingNavProp>();
   const { tripId } = route.params;
@@ -31,7 +29,7 @@ export default function TrackingScreen({ token }: Props): React.ReactElement {
     if (!trip) return;
     navigation.navigate("Payment", {
       tripId: trip.trip_id,
-      checkoutUrl: `https://pay.ziza.ci/checkout/${trip.trip_id}`,
+      checkoutUrl: `https://pay.ziza.dev/checkout/${trip.trip_id}`,
     });
   };
 
@@ -39,19 +37,19 @@ export default function TrackingScreen({ token }: Props): React.ReactElement {
     <View style={styles.container}>
       <TrackingMap
         driverPosition={position}
-        originLat={trip?.origin_lat ?? 5.32}
-        originLng={trip?.origin_lng ?? -4.02}
-        destLat={trip?.dest_lat ?? 5.36}
-        destLng={trip?.dest_lng ?? -3.98}
+        originLat={trip?.origin_lat ?? 40.7357}
+        originLng={trip?.origin_lng ?? -74.1724}
+        destLat={trip?.dest_lat ?? 40.7282}
+        destLng={trip?.dest_lng ?? -74.0776}
       />
       <View style={styles.info}>
-        <Text style={styles.status}>Statut : {trip?.status ?? "…"}</Text>
+        <Text style={styles.status}>Status: {trip?.status ?? "…"}</Text>
         {trip?.eta_minutes != null && (
           <EtaCard etaMinutes={trip.eta_minutes} />
         )}
         {trip?.status === "completed" && (
           <TouchableOpacity style={styles.payButton} onPress={handlePay}>
-            <Text style={styles.payText}>Procéder au paiement</Text>
+            <Text style={styles.payText}>Proceed to Payment</Text>
           </TouchableOpacity>
         )}
       </View>

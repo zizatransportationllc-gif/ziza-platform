@@ -1,6 +1,6 @@
 /**
  * HistoryScreen — customer trip history list.
- * Sprint 27 — Application mobile customer
+ * Sprint 35
  */
 import React, { useEffect, useState } from "react";
 import {
@@ -11,17 +11,16 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { listTripHistory, TripResponse } from "../api";
+import { useAuth } from "../context/AuthContext";
 import TripCard from "../components/TripCard";
 
-interface Props {
-  token: string;
-}
-
-export default function HistoryScreen({ token }: Props): React.ReactElement {
+export default function HistoryScreen(): React.ReactElement {
+  const { token } = useAuth();
   const [trips, setTrips] = useState<TripResponse[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!token) return;
     listTripHistory(token)
       .then(setTrips)
       .catch(() => {})
@@ -38,13 +37,13 @@ export default function HistoryScreen({ token }: Props): React.ReactElement {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>Mes trajets</Text>
+      <Text style={styles.heading}>My Trips</Text>
       <FlatList
         data={trips}
         keyExtractor={(item) => item.trip_id}
         renderItem={({ item }) => <TripCard trip={item} />}
         ListEmptyComponent={
-          <Text style={styles.empty}>Aucun trajet pour l'instant.</Text>
+          <Text style={styles.empty}>No trips yet.</Text>
         }
       />
     </View>

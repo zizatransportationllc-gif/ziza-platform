@@ -1,6 +1,6 @@
 /**
- * HomeScreen — trip booking: origin/destination, category picker, estimate, confirm.
- * Sprint 27 — Application mobile customer
+ * HomeScreen — trip booking: category picker, estimate, confirm.
+ * Sprint 35
  */
 import React, { useState, useEffect } from "react";
 import {
@@ -20,17 +20,19 @@ import {
   CategoryInfo,
   EstimateResponse,
 } from "../api";
+import { useAuth } from "../context/AuthContext";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import CategoryPicker from "../components/CategoryPicker";
 import PromoInput from "../components/PromoInput";
 
-interface Props {
-  token: string;
-}
-
 type HomeNavProp = NativeStackNavigationProp<RootStackParamList, "Home">;
 
-export default function HomeScreen({ token }: Props): React.ReactElement {
+// Newark, NJ demo coords
+const ORIGIN = { lat: 40.7357, lng: -74.1724 };
+const DEST   = { lat: 40.7282, lng: -74.0776 };
+
+export default function HomeScreen(): React.ReactElement {
+  const { token } = useAuth();
   const navigation = useNavigation<HomeNavProp>();
   const [categories, setCategories] = useState<CategoryInfo[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
@@ -39,16 +41,21 @@ export default function HomeScreen({ token }: Props): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    listCategories(token)
-      .then(setCategories)
-      .catch(() => {});
+    if (!token) return;
+    listCategories(token).then(setCategories).catch(() => {});
   }, [token]);
 
   const handleEstimate = async () => {
+    if (!token) return;
     setLoading(true);
     setError(null);
     try {
-      const est = await getEstimate(token, 5.32, -4.02, 5.36, -3.98, selectedCategory);
+      const est = await getEstimate(
+        token,
+        ORIGIN.lat, ORIGIN.lng,
+        DEST.lat,   DEST.lng,
+        selectedCategory
+      );
       setEstimate(est);
     } catch (e: any) {
       setError(e.message);
@@ -58,7 +65,7 @@ export default function HomeScreen({ token }: Props): React.ReactElement {
   };
 
   const handleBook = async () => {
-    if (!estimate) return;
+    if (!token || !estimate) return;
     setLoading(true);
     try {
       const trip = await createTrip(token, estimate.estimate_id);
@@ -72,7 +79,7 @@ export default function HomeScreen({ token }: Props): React.ReactElement {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.heading}>Réserver un trajet</Text>
+      <Text style={styles.heading}>Book a Ride</Text>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <CategoryPicker
         categories={categories}
@@ -80,17 +87,21 @@ export default function HomeScreen({ token }: Props): React.ReactElement {
         onSelect={setSelectedCategory}
       />
       <TouchableOpacity style={styles.button} onPress={handleEstimate} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Obtenir un tarif</Text>}
+        {loading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Get Fare Estimate</Text>
+        )}
       </TouchableOpacity>
       {estimate && (
         <View style={styles.estimateBox}>
-          <Text style={styles.price}>{estimate.price_xof} XOF</Text>
+          <Text style={styles.price}>${(estimate.price_xof / 100).toFixed(2)}</Text>
           <Text style={styles.detail}>
             {estimate.distance_km} km · ~{estimate.duration_min} min
           </Text>
-          <PromoInput token={token} estimateId={estimate.estimate_id} />
+          <PromoInput token={token!} estimateId={estimate.estimate_id} />
           <TouchableOpacity style={[styles.button, styles.confirmButton]} onPress={handleBook}>
-            <Text style={styles.buttonText}>Confirmer la réservation</Text>
+            <Text style={styles.buttonText}>Confirm Booking</Text>
           </TouchableOpacity>
         </View>
       )}

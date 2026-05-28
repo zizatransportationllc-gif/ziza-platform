@@ -1,6 +1,6 @@
 /**
  * AssistanceScreen — request roadside assistance.
- * Sprint 27 — Application mobile customer
+ * Sprint 35
  */
 import React, { useState } from "react";
 import {
@@ -11,29 +11,28 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { requestAssistance, AssistanceResponse } from "../api";
-
-interface Props {
-  token: string;
-}
+import { useAuth } from "../context/AuthContext";
 
 const ASSISTANCE_TYPES = [
-  { key: "flat_tire", label: "Crevaison" },
-  { key: "breakdown", label: "Panne" },
+  { key: "flat_tire", label: "Flat Tire" },
+  { key: "breakdown", label: "Breakdown" },
   { key: "accident", label: "Accident" },
-  { key: "other", label: "Autre" },
+  { key: "other", label: "Other" },
 ];
 
-export default function AssistanceScreen({ token }: Props): React.ReactElement {
+export default function AssistanceScreen(): React.ReactElement {
+  const { token } = useAuth();
   const [request, setRequest] = useState<AssistanceResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleRequest = async (type: string) => {
+    if (!token) return;
     setLoading(true);
     setError(null);
     try {
-      // Using a fixed Abidjan location for demo; real app uses device GPS
-      const res = await requestAssistance(token, type, 5.345, -4.024);
+      // Newark, NJ demo location — real app uses device GPS
+      const res = await requestAssistance(token, type, 40.7357, -74.1724);
       setRequest(res);
     } catch (e: any) {
       setError(e.message);
@@ -45,16 +44,16 @@ export default function AssistanceScreen({ token }: Props): React.ReactElement {
   if (request) {
     return (
       <View style={styles.container}>
-        <Text style={styles.success}>Demande envoyée ✓</Text>
-        <Text style={styles.detail}>Type : {request.type}</Text>
-        <Text style={styles.detail}>Statut : {request.status}</Text>
+        <Text style={styles.success}>Request sent ✓</Text>
+        <Text style={styles.detail}>Type: {request.type}</Text>
+        <Text style={styles.detail}>Status: {request.status}</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>Demander une assistance</Text>
+      <Text style={styles.heading}>Request Assistance</Text>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {loading ? (
         <ActivityIndicator size="large" color="#F97316" />

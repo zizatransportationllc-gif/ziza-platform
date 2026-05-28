@@ -1,6 +1,6 @@
 /**
  * PlacesScreen — autocomplete address search for origin/destination.
- * Sprint 27 — Application mobile customer
+ * Sprint 35
  */
 import React, { useState } from "react";
 import {
@@ -15,14 +15,12 @@ import {
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { searchPlaces, PlaceResult } from "../api";
-
-interface Props {
-  token: string;
-}
+import { useAuth } from "../context/AuthContext";
 
 type PlacesRouteProp = RouteProp<RootStackParamList, "Places">;
 
-export default function PlacesScreen({ token }: Props): React.ReactElement {
+export default function PlacesScreen(): React.ReactElement {
+  const { token } = useAuth();
   const navigation = useNavigation();
   const route = useRoute<PlacesRouteProp>();
   const { onSelect } = route.params;
@@ -34,6 +32,7 @@ export default function PlacesScreen({ token }: Props): React.ReactElement {
   const handleSearch = async (text: string) => {
     setQuery(text);
     if (text.length < 3) { setResults([]); return; }
+    if (!token) return;
     setLoading(true);
     try {
       const places = await searchPlaces(token, text);
@@ -56,7 +55,7 @@ export default function PlacesScreen({ token }: Props): React.ReactElement {
         style={styles.input}
         value={query}
         onChangeText={handleSearch}
-        placeholder="Rechercher une adresse…"
+        placeholder="Search address…"
         autoFocus
       />
       {loading && <ActivityIndicator color="#F97316" style={{ marginVertical: 8 }} />}

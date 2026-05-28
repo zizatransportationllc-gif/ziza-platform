@@ -1,6 +1,6 @@
 /**
  * LoginScreen — email/password authentication.
- * Sprint 27 — Application mobile customer
+ * Sprint 35
  */
 import React, { useState } from "react";
 import {
@@ -13,13 +13,11 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { login } from "../api";
+import { login as apiLogin } from "../api";
+import { useAuth } from "../context/AuthContext";
 
-interface Props {
-  onLoginSuccess: (token: string) => void;
-}
-
-export default function LoginScreen({ onLoginSuccess }: Props): React.ReactElement {
+export default function LoginScreen(): React.ReactElement {
+  const { login } = useAuth();
   const [email, setEmail] = useState("customer@ziza.dev");
   const [password, setPassword] = useState("ziza2024");
   const [loading, setLoading] = useState(false);
@@ -29,10 +27,10 @@ export default function LoginScreen({ onLoginSuccess }: Props): React.ReactEleme
     setLoading(true);
     setError(null);
     try {
-      const data = await login(email, password);
-      onLoginSuccess(data.access_token);
+      const data = await apiLogin(email, password);
+      await login(data.access_token);
     } catch (e: any) {
-      setError(e.message || "Échec de connexion");
+      setError(e.message || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -44,7 +42,7 @@ export default function LoginScreen({ onLoginSuccess }: Props): React.ReactEleme
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <Text style={styles.title}>Ziza Customer</Text>
-      <Text style={styles.subtitle}>Sprint 27 — Application mobile</Text>
+      <Text style={styles.subtitle}>Sprint 35 — Mobile App</Text>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <TextInput
         style={styles.input}
@@ -58,7 +56,7 @@ export default function LoginScreen({ onLoginSuccess }: Props): React.ReactEleme
         style={styles.input}
         value={password}
         onChangeText={setPassword}
-        placeholder="Mot de passe"
+        placeholder="Password"
         secureTextEntry
       />
       <TouchableOpacity
@@ -69,7 +67,7 @@ export default function LoginScreen({ onLoginSuccess }: Props): React.ReactEleme
         {loading ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.buttonText}>Se connecter</Text>
+          <Text style={styles.buttonText}>Sign In</Text>
         )}
       </TouchableOpacity>
     </KeyboardAvoidingView>

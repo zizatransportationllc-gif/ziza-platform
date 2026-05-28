@@ -1,6 +1,6 @@
 /**
  * AppNavigator — React Navigation stack for mobile-customer.
- * Sprint 27 — Application mobile customer
+ * Sprint 35
  */
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
@@ -40,57 +40,21 @@ export default function AppNavigator({
   return (
     <NavigationContainer>
       <Stack.Navigator
-        screenOptions={{ headerStyle: { backgroundColor: "#F97316" } }}
+        screenOptions={{ headerStyle: { backgroundColor: "#F97316" }, headerTintColor: "#fff" }}
       >
         {isAuthenticated ? (
           <>
-            <Stack.Screen
-              name="Home"
-              component={HomeScreen}
-              options={{ title: "Ziza — Réserver un trajet" }}
-            />
-            <Stack.Screen
-              name="Tracking"
-              component={TrackingScreen}
-              options={{ title: "Suivi en temps réel" }}
-            />
-            <Stack.Screen
-              name="Payment"
-              component={PaymentScreen}
-              options={{ title: "Paiement" }}
-            />
-            <Stack.Screen
-              name="History"
-              component={HistoryScreen}
-              options={{ title: "Mes trajets" }}
-            />
-            <Stack.Screen
-              name="Assistance"
-              component={AssistanceScreen}
-              options={{ title: "Assistance" }}
-            />
-            <Stack.Screen
-              name="Places"
-              component={PlacesScreen}
-              options={{ title: "Choisir un lieu" }}
-            />
-            <Stack.Screen
-              name="Profile"
-              component={ProfileScreen}
-              options={{ title: "Profil" }}
-            />
-            <Stack.Screen
-              name="Notifications"
-              component={NotificationsScreen}
-              options={{ title: "Notifications" }}
-            />
+            <Stack.Screen name="Home" component={HomeScreen} options={{ title: "Ziza — Book a Ride" }} />
+            <Stack.Screen name="Tracking" component={TrackingScreen} options={{ title: "Live Tracking" }} />
+            <Stack.Screen name="Payment" component={PaymentScreen} options={{ title: "Payment" }} />
+            <Stack.Screen name="History" component={HistoryScreen} options={{ title: "My Trips" }} />
+            <Stack.Screen name="Assistance" component={AssistanceScreen} options={{ title: "Assistance" }} />
+            <Stack.Screen name="Places" component={PlacesScreen} options={{ title: "Search Location" }} />
+            <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: "Profile" }} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: "Notifications" }} />
           </>
         ) : (
-          <Stack.Screen
-            name="Login"
-            component={LoginScreen}
-            options={{ headerShown: false }}
-          />
+          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
         )}
       </Stack.Navigator>
     </NavigationContainer>
