@@ -1,11 +1,10 @@
 /**
  * AuthContext — shared auth + online-status for mobile-driver.
- * Sprint 37 — fix prop-drilling crash identical to mobile-customer Sprint 35 fix.
- *
- * Provides token, isOnline, login(), logout(), setOnline() to all screens
- * so React Navigation never needs to pass custom props manually.
+ * Sprint 39 — adds Expo push token registration on login.
  */
 import React, { createContext, useContext, useState, useEffect } from "react";
+import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
 import {
   getStoredToken,
   storeToken,
@@ -13,6 +12,8 @@ import {
   logout as apiLogout,
   getDriverProfile,
   setDriverOnline,
+  registerDeviceToken,
+  deregisterDeviceToken,
 } from "../api";
 
 interface AuthContextType {
@@ -26,6 +27,49 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+// ---------------------------------------------------------------------------
+// Push token helpers
+// ---------------------------------------------------------------------------
+
+async function _getExpoPushToken(): Promise<string | null> {
+  try {
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status !== "granted") return null;
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
+    const tokenData = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined
+    );
+    return tokenData.data;
+  } catch {
+    return null;
+  }
+}
+
+async function _registerPush(authToken: string): Promise<void> {
+  const pushToken = await _getExpoPushToken();
+  if (pushToken) {
+    await registerDeviceToken(authToken, pushToken, "android").catch(() => {});
+  }
+}
+
+async function _deregisterPush(authToken: string): Promise<void> {
+  try {
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
+    const tokenData = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined
+    );
+    await deregisterDeviceToken(authToken, tokenData.data).catch(() => {});
+  } catch {
+    // ignore
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Provider
+// ---------------------------------------------------------------------------
+
 export function AuthProvider({
   children,
 }: {
@@ -35,7 +79,6 @@ export function AuthProvider({
   const [ready, setReady] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
 
-  // Restore session on mount
   useEffect(() => {
     getStoredToken()
       .then(async (t) => {
@@ -45,8 +88,9 @@ export function AuthProvider({
             const profile = await getDriverProfile(t);
             setIsOnline(profile.is_online);
           } catch {
-            // Profile fetch failed — start offline; user can re-toggle
+            // profile fetch failed — start offline
           }
+          await _registerPush(t);
         }
       })
       .finally(() => setReady(true));
@@ -61,11 +105,15 @@ export function AuthProvider({
     } catch {
       setIsOnline(false);
     }
+    await _registerPush(newToken);
   };
 
   const logout = async () => {
     try {
-      if (token) await apiLogout(token);
+      if (token) {
+        await _deregisterPush(token);
+        await apiLogout(token);
+      }
     } catch {
       await clearToken();
     }
@@ -79,7 +127,7 @@ export function AuthProvider({
       await setDriverOnline(token, online);
       setIsOnline(online);
     } catch {
-      // API error — keep current state; DispatchScreen shows error via useDispatch
+      // API error — keep current state
     }
   };
 

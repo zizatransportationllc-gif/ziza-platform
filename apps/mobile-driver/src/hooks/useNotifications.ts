@@ -1,6 +1,9 @@
 /**
- * useNotifications — sets up Expo notification listeners for mobile-customer.
+ * useNotifications — sets up Expo notification listeners for mobile-driver.
  * Sprint 39 — foreground display + tap handling + Android channel creation.
+ *
+ * Critical for drivers: push notifications are the primary mechanism to alert
+ * them of new trip/assistance requests without relying solely on polling.
  */
 import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
@@ -14,10 +17,10 @@ export function useNotifications(_token: string | null): void {
     // Android 8+ requires an explicit notification channel
     if (Platform.OS === "android") {
       Notifications.setNotificationChannelAsync("default", {
-        name: "Ziza",
+        name: "Ziza Driver",
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
-        lightColor: "#F97316",
+        lightColor: "#1D4ED8",
         sound: "default",
       }).catch(() => {});
     }
@@ -25,15 +28,15 @@ export function useNotifications(_token: string | null): void {
     // Notification received while app is in foreground
     receivedRef.current = Notifications.addNotificationReceivedListener(
       (_notification) => {
-        // setNotificationHandler (App.tsx) already shows the alert.
-        // Future: update badge / refresh trip status here.
+        // setNotificationHandler (App.tsx) handles display.
+        // Future: trigger immediate dispatch poll to refresh trip list.
       }
     );
 
-    // User taps a notification (foreground, background, or killed)
+    // User taps the notification
     responseRef.current = Notifications.addNotificationResponseReceivedListener(
       (_response) => {
-        // Future Phase 2: navigate based on _response.notification.request.content.data
+        // Future Phase 2: navigate to Dispatch or ActiveTrip based on data.
       }
     );
 

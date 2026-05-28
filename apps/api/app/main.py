@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 36.
+"""Ziza API — Sprint 39.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -132,6 +132,10 @@ app = FastAPI(
 # Sprint 25: activate rate limiter if enabled in settings
 if settings.rate_limit_enabled:
     set_rate_limit_enabled(True)
+
+# Sprint 39: Expo Push channel — always active, no credentials required
+from app.notifications.expo_push import ExpoPushChannel  # noqa: E402
+register_channel(ExpoPushChannel())
 
 # Sprint 26: register external notification channels when credentials are set
 if settings.sendgrid_api_key:

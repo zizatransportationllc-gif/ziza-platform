@@ -121,8 +121,8 @@ async def _dispatch_external(
 ) -> None:
     """Dispatch an event to all registered external notification channels.
 
-    Sprint 26: looks up the user's email (for email/SMS channels) and device
-    tokens (for push channels), then calls the dispatcher for each.
+    Sprint 26: email/SMS channels receive the user's email as recipient.
+    Sprint 39: push channels receive each registered device token in turn.
 
     Completely fire-and-forget — never raises.
     """
@@ -133,18 +133,15 @@ async def _dispatch_external(
         return
 
     try:
-        # Resolve user email for email/SMS channels
+        # Resolve user for email/SMS channels
         user_result = await db.execute(select(User).where(User.id == user_uuid))
         user: User | None = user_result.scalar_one_or_none()
         if user is None:
             return
 
-        # Dispatch to each channel
-        # For push channels: look up device tokens
-        # For email/SMS: use user.email / user.phone
-        # The dispatcher sends once per call; we call once with the email as
-        # recipient (channels that need a token handle it themselves)
         payload = data or {"event_type": event_type}
+
+        # 1. Email / SMS channels — recipient = user email
         await dispatch_external(
             db=db,
             user_uuid=user_uuid,
@@ -154,6 +151,25 @@ async def _dispatch_external(
             body=body,
             data=payload,
         )
+
+        # 2. Push channels — one call per registered device token (Sprint 39)
+        token_rows = (
+            await db.execute(
+                select(DeviceToken).where(DeviceToken.user_id == user_uuid)
+            )
+        ).scalars().all()
+
+        for dt in token_rows:
+            await dispatch_external(
+                db=db,
+                user_uuid=user_uuid,
+                recipient=dt.token,
+                event_type=event_type,
+                title=title,
+                body=body,
+                data=payload,
+            )
+
     except Exception:
         pass  # never break the caller
 
