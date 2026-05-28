@@ -12,6 +12,7 @@ import {
   getWallet, topupWallet, getWalletTransactions, // Sprint 33
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
+import { EstimateMap, TripMap } from "./TripMap";
 
 const REQUIRED_ROLE = "customer";
 const TOKEN_KEY = "ziza_token";
@@ -328,6 +329,18 @@ function EstimateSection({ token, onTripCreated }) {
             </button>
           )}
           {promoError && <p className="promo-error">{promoError}</p>}
+          {/* Map preview — origin / destination */}
+          {(() => {
+            const o = customOrigin ?? NJ_LOCATIONS[origin];
+            const d = customDest   ?? NJ_LOCATIONS[dest];
+            return (
+              <EstimateMap
+                originLat={o.lat} originLng={o.lng}
+                destLat={d.lat}   destLng={d.lng}
+              />
+            );
+          })()}
+
           <button className="book-btn" onClick={handleBook} disabled={booking}>
             {booking ? "Booking…" : "🚕 Book This Ride"}
           </button>
@@ -640,6 +653,9 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
             </div>
           </div>
         )}
+
+        {/* Live map — driver position + route */}
+        <TripMap trip={trip} driverLocation={driverLocation} />
         {trip.vehicle && (trip.status === "accepted" || trip.status === "in_progress") && (
           <div className="vehicle-badge">
             <span className="vehicle-badge-plate">🚗 {trip.vehicle.plate}</span>

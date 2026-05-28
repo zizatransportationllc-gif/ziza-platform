@@ -16,6 +16,7 @@ import {
   adminGetCategoryBreakdown, adminGetHourlyDemand, adminGetTopCustomers, // Sprint 34
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
+import LiveMap from "./LiveMap";
 
 const REQUIRED_ROLE = "admin";
 const TOKEN_KEY = "ziza_token";
@@ -1417,36 +1418,38 @@ function LiveMapPanel({ token }) {
       {!loading && drivers.length === 0 && (
         <p className="muted-msg">No drivers online currently.</p>
       )}
+
+      {/* Mapbox live map */}
+      {!loading && <LiveMap drivers={drivers} />}
+
+      {/* Text list (scrollable detail below the map) */}
       {!loading && drivers.length > 0 && (
-        <div className="live-drivers-count">
-          <span className="live-badge">🟢 {drivers.length} driver{drivers.length > 1 ? "s" : ""} online</span>
+        <div className="live-drivers-table" style={{ marginTop: "12px" }}>
+          {drivers.map((d) => (
+            <div key={d.driver_id} className="live-driver-row">
+              <div className="live-driver-main">
+                <span className="live-driver-name">🧑‍✈️ {d.email}</span>
+                <span className="live-driver-status online">🟢 Online</span>
+              </div>
+              <div className="live-driver-meta">
+                {d.lat != null && d.lng != null ? (
+                  <span className="live-driver-coords">📍 {d.lat.toFixed(4)}, {d.lng.toFixed(4)}</span>
+                ) : (
+                  <span className="live-driver-coords muted">📍 Location unknown</span>
+                )}
+                {d.heading != null && (
+                  <span className="live-driver-heading">🧭 {d.heading}°</span>
+                )}
+                {d.last_updated && (
+                  <span className="live-driver-time">
+                    ⏱️ {new Date(d.last_updated).toLocaleTimeString("en-US")}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       )}
-      <div className="live-drivers-table">
-        {drivers.map((d) => (
-          <div key={d.driver_id} className="live-driver-row">
-            <div className="live-driver-main">
-              <span className="live-driver-name">🧑‍✈️ {d.email}</span>
-              <span className="live-driver-status online">🟢 Online</span>
-            </div>
-            <div className="live-driver-meta">
-              {d.lat != null && d.lng != null ? (
-                <span className="live-driver-coords">📍 {d.lat.toFixed(4)}, {d.lng.toFixed(4)}</span>
-              ) : (
-                <span className="live-driver-coords muted">📍 Location unknown</span>
-              )}
-              {d.heading != null && (
-                <span className="live-driver-heading">🧭 {d.heading}°</span>
-              )}
-              {d.last_updated && (
-                <span className="live-driver-time">
-                  ⏱️ {new Date(d.last_updated).toLocaleTimeString("en-US")}
-                </span>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
       <p className="muted-msg" style={{ marginTop: "12px", fontSize: ".8rem" }}>
         Auto-refresh every 30 seconds.
       </p>

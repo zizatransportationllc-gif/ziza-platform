@@ -16,6 +16,7 @@ import {
   registerDeviceToken,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
+import DriverMap from "./DriverMap";
 
 const REQUIRED_ROLE = "driver";
 const TOKEN_KEY = "ziza_token";
@@ -888,6 +889,14 @@ function LocationSection({ token }) {
         </div>
       )}
       {!current && <p className="muted">No location recorded.</p>}
+
+      {/* Interactive map — tap to update position */}
+      <DriverMap
+        lat={current?.lat ?? null}
+        lng={current?.lng ?? null}
+        onMapClick={(lat, lng) => push(lat, lng)}
+        activeTrip={null}
+      />
 
       {/* Quick-pick from NJ landmarks */}
       <div className="location-row">

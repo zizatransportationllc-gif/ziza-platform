@@ -372,3 +372,10 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .hourly-bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; gap: 2px; }
 .hourly-bar { width: 100%; background: var(--color-primary); border-radius: 2px 2px 0 0; min-height: 2px; opacity: .75; transition: height .3s; }
 .hourly-label { font-size: .6rem; color: var(--color-muted); }
+
+/* ── Mapbox live map ── */
+.live-map-container { border-radius: var(--radius); overflow: hidden; margin: var(--space-3) 0; box-shadow: 0 2px 12px rgba(0,0,0,.18); }
+.live-map-container .mapboxgl-ctrl-bottom-left,
+.live-map-container .mapboxgl-ctrl-bottom-right { display: none; }
+.live-map-legend { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); padding: 0 2px; }
+.live-badge { font-size: 0.82rem; color: var(--color-muted); }

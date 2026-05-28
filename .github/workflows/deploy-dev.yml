@@ -52,7 +52,7 @@ jobs:
           IMAGE_LATEST="${{ env.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/${{ matrix.app }}:latest"
 
           if [ "${{ matrix.app }}" = "web-customer" ] || [ "${{ matrix.app }}" = "web-driver" ] || [ "${{ matrix.app }}" = "web-admin" ]; then
-            BUILD_ARGS="--build-arg VITE_API_URL=${{ vars.ZIZA_API_URL }}"
+            BUILD_ARGS="--build-arg VITE_API_URL=${{ vars.ZIZA_API_URL }} --build-arg VITE_MAPBOX_TOKEN=${{ vars.VITE_MAPBOX_TOKEN }}"
           else
             BUILD_ARGS=""
           fi

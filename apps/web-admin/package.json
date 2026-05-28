@@ -9,9 +9,11 @@
     "preview": "vite preview --host 0.0.0.0 --port 3003"
   },
   "dependencies": {
+    "firebase": "^10.14.1",
+    "mapbox-gl": "^3.24.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "firebase": "^10.14.1"
+    "react-map-gl": "^8.1.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
