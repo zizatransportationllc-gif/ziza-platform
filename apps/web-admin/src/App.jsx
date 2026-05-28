@@ -14,6 +14,7 @@ import {
   adminListCities, adminCreateCity, adminUpdateCity, // Sprint 32
   adminGetKPIs, adminGetRevenue, adminGetDriverPerformance, // Sprint 34
   adminGetCategoryBreakdown, adminGetHourlyDemand, adminGetTopCustomers, // Sprint 34
+  adminGetServices, adminSetService, // Sprint 36
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 import LiveMap from "./LiveMap";
@@ -55,7 +56,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 34 — Advanced Analytics</p>
+      <p className="subtitle">Sprint 36 — Service Activation</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
@@ -1890,6 +1891,104 @@ function AnalyticsPanel({ token }) {
 }
 
 // ---------------------------------------------------------------------------
+// Services Panel — Sprint 36
+// ---------------------------------------------------------------------------
+
+const SERVICE_DEFS = [
+  {
+    key: "rideshare_customer",
+    icon: "🚕",
+    label: "Ride-share for Customers",
+    desc: "Allow customers to book rides.",
+  },
+  {
+    key: "rideshare_driver",
+    icon: "🧑‍✈️",
+    label: "Ride-share for Drivers",
+    desc: "Allow drivers to see and accept ride requests.",
+  },
+  {
+    key: "assistance_customer",
+    icon: "🆘",
+    label: "Assistance for Customers",
+    desc: "Allow customers to request roadside assistance.",
+  },
+  {
+    key: "assistance_driver",
+    icon: "🔧",
+    label: "Assistance for Drivers",
+    desc: "Allow drivers to accept assistance requests.",
+  },
+];
+
+function ServicesPanel({ token }) {
+  const [flags, setFlags] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(null);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(() => {
+    setLoading(true); setError(null);
+    adminGetServices(token)
+      .then(setFlags)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleToggle(key, currentValue) {
+    setSaving(key);
+    try {
+      const updated = await adminSetService(token, { [key]: !currentValue });
+      setFlags(updated);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  return (
+    <div className="services-panel">
+      <div className="panel-header">
+        <h2 className="panel-title">🔧 Service Activation</h2>
+        <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
+      </div>
+      {error && <p className="form-error">{error}</p>}
+      {loading && <div className="status loading">⏳ Loading…</div>}
+      {flags && (
+        <div className="services-grid">
+          {SERVICE_DEFS.map(({ key, icon, label, desc }) => {
+            const enabled = flags[key];
+            const busy = saving === key;
+            return (
+              <div key={key} className={`service-card ${enabled ? "service-on" : "service-off"}`}>
+                <div className="service-card-top">
+                  <span className="service-icon">{icon}</span>
+                  <span className="service-label">{label}</span>
+                  <span className={`service-badge ${enabled ? "badge-on" : "badge-off"}`}>
+                    {enabled ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                <p className="service-desc">{desc}</p>
+                <button
+                  className={`service-toggle-btn ${enabled ? "toggle-disable" : "toggle-enable"}`}
+                  disabled={busy}
+                  onClick={() => handleToggle(key, enabled)}
+                >
+                  {busy ? "…" : enabled ? "Deactivate" : "Activate"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard — tabbed navigation
 // ---------------------------------------------------------------------------
 
@@ -1908,6 +2007,7 @@ const TABS = [
   { id: "commission",   label: "💰 Commission" },
   { id: "applications", label: "📝 Applications" },
   { id: "flags",        label: "🚩 Feature Flags" },
+  { id: "services",     label: "🔧 Services" },
   { id: "settings",     label: "⚙️ Settings" },
   { id: "users",        label: "👥 Users" },
 ];
@@ -1961,10 +2061,11 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "cities"       && <CitiesPanel          token={token} />}
       {activeTab === "analytics"    && <AnalyticsPanel       token={token} />}
       {activeTab === "flags"        && <FlagsPanel          token={token} />}
+      {activeTab === "services"     && <ServicesPanel       token={token} />}
       {activeTab === "settings"     && <SurgePanel          token={token} />}
       {activeTab === "users"        && <UsersPanel          token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 34</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 36</p>
     </div>
   );
 }

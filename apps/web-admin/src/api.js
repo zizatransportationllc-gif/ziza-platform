@@ -540,3 +540,36 @@ export async function adminGetTopCustomers(token, limit = 10) {
   );
   return _json(res);
 }
+
+// ---------------------------------------------------------------------------
+// Sprint 36 — Service activation flags
+// ---------------------------------------------------------------------------
+
+/**
+ * Get all 4 service on/off flags.
+ * Returns { rideshare_customer, rideshare_driver, assistance_customer, assistance_driver }
+ */
+export async function adminGetServices(token) {
+  const res = await fetch(`${API_BASE}/v1/admin/services`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
+/**
+ * Update one or more service flags (partial update).
+ * @param {string} token
+ * @param {object} updates - e.g. { rideshare_customer: false }
+ */
+export async function adminSetService(token, updates) {
+  const res = await fetch(`${API_BASE}/v1/admin/services`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(updates),
+  });
+  return _json(res);
+}

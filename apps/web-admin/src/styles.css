@@ -379,3 +379,21 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .live-map-container .mapboxgl-ctrl-bottom-right { display: none; }
 .live-map-legend { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); padding: 0 2px; }
 .live-badge { font-size: 0.82rem; color: var(--color-muted); }
+
+/* ── Sprint 36 — Service Activation Panel ── */
+.services-panel { width: 100%; }
+.services-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-4); margin-top: var(--space-3); }
+.service-card { background: var(--color-surface); border: 1.5px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); transition: border-color .15s; }
+.service-card.service-on  { border-color: #16A34A; }
+.service-card.service-off { border-color: #DC2626; opacity: .85; }
+.service-card-top { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.service-icon  { font-size: 1.4rem; }
+.service-label { font-weight: 600; font-size: 0.95rem; flex: 1; }
+.service-badge { font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.badge-on  { background: #DCFCE7; color: #15803D; }
+.badge-off { background: #FEE2E2; color: #B91C1C; }
+.service-desc  { font-size: 0.82rem; color: var(--color-muted); margin: 0; }
+.service-toggle-btn { margin-top: var(--space-1); padding: var(--space-2) var(--space-4); border: none; border-radius: var(--radius-md); font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: opacity .15s; }
+.service-toggle-btn:disabled { opacity: .5; cursor: not-allowed; }
+.toggle-enable  { background: #16A34A; color: #fff; }
+.toggle-disable { background: #DC2626; color: #fff; }
