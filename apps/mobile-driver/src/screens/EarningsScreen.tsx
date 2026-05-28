@@ -8,6 +8,11 @@ import { useAuth } from "../context/AuthContext";
 import { getMyEarnings, EarningsResponse } from "../api";
 import EarningsChart from "../components/EarningsChart";
 
+function formatUSD(n: number | null | undefined): string {
+  if (n == null) return "—";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format((n ?? 0) / 100);
+}
+
 export default function EarningsScreen(): React.ReactElement {
   const { token } = useAuth();
   const [earnings, setEarnings] = useState<EarningsResponse | null>(null);
@@ -31,13 +36,13 @@ export default function EarningsScreen(): React.ReactElement {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>Mes gains</Text>
+      <Text style={styles.heading}>My Earnings</Text>
       {earnings && (
         <>
           <View style={styles.totalCard}>
-            <Text style={styles.totalLabel}>Total cumulé</Text>
-            <Text style={styles.totalAmount}>{earnings.total_xof.toLocaleString()} XOF</Text>
-            <Text style={styles.totalTrips}>{earnings.total_trips} trajets</Text>
+            <Text style={styles.totalLabel}>Total earned</Text>
+            <Text style={styles.totalAmount}>{formatUSD(earnings.total_xof)}</Text>
+            <Text style={styles.totalTrips}>{earnings.total_trips} trips</Text>
           </View>
           <EarningsChart
             todayXof={earnings.today_xof}
@@ -46,14 +51,14 @@ export default function EarningsScreen(): React.ReactElement {
           />
           <View style={styles.row}>
             <View style={styles.statBox}>
-              <Text style={styles.statLabel}>Aujourd'hui</Text>
-              <Text style={styles.statValue}>{earnings.today_xof.toLocaleString()}</Text>
-              <Text style={styles.statSub}>{earnings.today_trips} trajets</Text>
+              <Text style={styles.statLabel}>Today</Text>
+              <Text style={styles.statValue}>{formatUSD(earnings.today_xof)}</Text>
+              <Text style={styles.statSub}>{earnings.today_trips} trips</Text>
             </View>
             <View style={styles.statBox}>
-              <Text style={styles.statLabel}>Cette semaine</Text>
-              <Text style={styles.statValue}>{earnings.week_xof.toLocaleString()}</Text>
-              <Text style={styles.statSub}>{earnings.week_trips} trajets</Text>
+              <Text style={styles.statLabel}>This week</Text>
+              <Text style={styles.statValue}>{formatUSD(earnings.week_xof)}</Text>
+              <Text style={styles.statSub}>{earnings.week_trips} trips</Text>
             </View>
           </View>
         </>
@@ -85,6 +90,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   statLabel: { fontSize: 12, color: "#6B7280" },
-  statValue: { fontSize: 20, fontWeight: "bold", color: "#1D4ED8" },
+  statValue: { fontSize: 18, fontWeight: "bold", color: "#1D4ED8" },
   statSub: { fontSize: 12, color: "#9CA3AF" },
 });

@@ -13,6 +13,11 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { listDriverTripHistory, TripResponse } from "../api";
 
+function formatUSD(n: number | null | undefined): string {
+  if (n == null) return "—";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format((n ?? 0) / 100);
+}
+
 export default function HistoryScreen(): React.ReactElement {
   const { token } = useAuth();
   const [trips, setTrips] = useState<TripResponse[]>([]);
@@ -36,20 +41,20 @@ export default function HistoryScreen(): React.ReactElement {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>Historique des trajets</Text>
+      <Text style={styles.heading}>Trip History</Text>
       <FlatList
         data={trips}
         keyExtractor={(item) => item.trip_id}
         renderItem={({ item }) => (
           <View style={styles.row}>
             <Text style={styles.date}>
-              {new Date(item.created_at).toLocaleDateString("fr-FR")}
+              {new Date(item.created_at).toLocaleDateString("en-US")}
             </Text>
-            <Text style={styles.price}>{item.price_xof} XOF</Text>
+            <Text style={styles.price}>{formatUSD(item.price_xof)}</Text>
           </View>
         )}
         ListEmptyComponent={
-          <Text style={styles.empty}>Aucun trajet effectué.</Text>
+          <Text style={styles.empty}>No trips yet.</Text>
         }
       />
     </View>

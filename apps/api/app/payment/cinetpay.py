@@ -53,7 +53,7 @@ class CinetPayAdapter:
             "transaction_id": ref,
             "amount": amount_xof,
             "currency": "XOF",
-            "description": f"Ziza — course {ref[:8]}",
+            "description": f"Ziza — ride {ref[:8]}",
             "return_url": return_url,
             "notify_url": notify_url,
         }

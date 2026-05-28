@@ -11,9 +11,9 @@ export default function ProfileScreen(): React.ReactElement {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>Mon profil</Text>
+      <Text style={styles.heading}>My Profile</Text>
       <TouchableOpacity style={styles.logoutButton} onPress={logout}>
-        <Text style={styles.logoutText}>Se déconnecter</Text>
+        <Text style={styles.logoutText}>Sign Out</Text>
       </TouchableOpacity>
     </View>
   );

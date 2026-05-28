@@ -38,13 +38,12 @@ const MAX_POLL_ATTEMPTS = 16; // ~40 seconds
 
 type PaymentState = "checkout" | "polling" | "paid" | "failed" | "timeout";
 
-function formatXOF(n: number | null | undefined): string {
+function formatUSD(n: number | null | undefined): string {
   if (n == null) return "—";
-  return new Intl.NumberFormat("fr-CI", {
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "XOF",
-    maximumFractionDigits: 0,
-  }).format(n);
+    currency: "USD",
+  }).format((n ?? 0) / 100);
 }
 
 export default function PaymentScreen(): React.ReactElement {
@@ -122,9 +121,9 @@ export default function PaymentScreen(): React.ReactElement {
     return (
       <View style={styles.resultContainer}>
         <ActivityIndicator size="large" color="#F97316" />
-        <Text style={styles.pollingText}>Vérification du paiement…</Text>
+        <Text style={styles.pollingText}>Verifying payment…</Text>
         <Text style={styles.pollingHint}>
-          Cela prend généralement quelques secondes.
+          This usually takes a few seconds.
         </Text>
       </View>
     );
@@ -134,15 +133,15 @@ export default function PaymentScreen(): React.ReactElement {
     return (
       <View style={styles.resultContainer}>
         <Text style={styles.resultIcon}>✅</Text>
-        <Text style={styles.resultTitle}>Paiement confirmé !</Text>
+        <Text style={styles.resultTitle}>Payment confirmed!</Text>
         {amountXof != null && (
-          <Text style={styles.resultAmount}>{formatXOF(amountXof)}</Text>
+          <Text style={styles.resultAmount}>{formatUSD(amountXof)}</Text>
         )}
         <TouchableOpacity
           style={styles.doneButton}
           onPress={() => navigation.navigate("Home")}
         >
-          <Text style={styles.doneText}>Retour à l'accueil</Text>
+          <Text style={styles.doneText}>Back to home</Text>
         </TouchableOpacity>
       </View>
     );
@@ -152,15 +151,15 @@ export default function PaymentScreen(): React.ReactElement {
     return (
       <View style={styles.resultContainer}>
         <Text style={styles.resultIcon}>❌</Text>
-        <Text style={styles.resultTitle}>Paiement échoué</Text>
+        <Text style={styles.resultTitle}>Payment failed</Text>
         <Text style={styles.resultHint}>
-          Le paiement n'a pas abouti. Vérifiez votre solde Mobile Money et réessayez.
+          The payment did not go through. Please check your balance and try again.
         </Text>
         <TouchableOpacity
           style={[styles.doneButton, styles.retryButton]}
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.doneText}>Réessayer</Text>
+          <Text style={styles.doneText}>Retry</Text>
         </TouchableOpacity>
       </View>
     );
@@ -170,15 +169,15 @@ export default function PaymentScreen(): React.ReactElement {
     return (
       <View style={styles.resultContainer}>
         <Text style={styles.resultIcon}>⏱️</Text>
-        <Text style={styles.resultTitle}>Délai dépassé</Text>
+        <Text style={styles.resultTitle}>Still processing</Text>
         <Text style={styles.resultHint}>
-          Le paiement est en cours de traitement. Vérifiez votre historique de courses.
+          The payment is still being processed. Check your trip history for the final status.
         </Text>
         <TouchableOpacity
           style={styles.doneButton}
           onPress={() => navigation.navigate("History")}
         >
-          <Text style={styles.doneText}>Voir mes courses</Text>
+          <Text style={styles.doneText}>View my trips</Text>
         </TouchableOpacity>
       </View>
     );

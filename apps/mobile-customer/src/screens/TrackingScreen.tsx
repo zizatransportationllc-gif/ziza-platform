@@ -40,8 +40,8 @@ export default function TrackingScreen(): React.ReactElement {
       });
     } catch (e: any) {
       Alert.alert(
-        "Erreur de paiement",
-        e.message || "Impossible d'initialiser le paiement. Réessayez.",
+        "Payment Error",
+        e.message || "Could not initialize payment. Please try again.",
       );
     } finally {
       setPayLoading(false);
@@ -58,7 +58,7 @@ export default function TrackingScreen(): React.ReactElement {
         destLng={trip?.dest_lng ?? -4.0100}
       />
       <View style={styles.info}>
-        <Text style={styles.status}>Statut : {trip?.status ?? "…"}</Text>
+        <Text style={styles.status}>Status: {trip?.status ?? "…"}</Text>
         {trip?.eta_minutes != null && (
           <EtaCard etaMinutes={trip.eta_minutes} />
         )}
@@ -71,7 +71,7 @@ export default function TrackingScreen(): React.ReactElement {
             {payLoading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.payText}>💳 Procéder au paiement</Text>
+              <Text style={styles.payText}>💳 Proceed to Payment</Text>
             )}
           </TouchableOpacity>
         )}

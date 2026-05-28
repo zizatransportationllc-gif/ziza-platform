@@ -30,7 +30,7 @@ export default function LoginScreen(): React.ReactElement {
       const data = await apiLogin(email, password);
       await login(data.access_token, data.refresh_token ?? null);
     } catch (e: any) {
-      setError(e.message || "Échec de connexion");
+      setError(e.message || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -56,7 +56,7 @@ export default function LoginScreen(): React.ReactElement {
         style={styles.input}
         value={password}
         onChangeText={setPassword}
-        placeholder="Mot de passe"
+        placeholder="Password"
         secureTextEntry
       />
       <TouchableOpacity
@@ -67,7 +67,7 @@ export default function LoginScreen(): React.ReactElement {
         {loading ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.buttonText}>Se connecter</Text>
+          <Text style={styles.buttonText}>Sign In</Text>
         )}
       </TouchableOpacity>
     </KeyboardAvoidingView>

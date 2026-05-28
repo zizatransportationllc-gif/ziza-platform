@@ -19,6 +19,11 @@ import { startTrip, completeTrip, buildNavigationUrl, TripResponse } from "../ap
 
 type ActiveTripRouteProp = RouteProp<RootStackParamList, "ActiveTrip">;
 
+function formatUSD(n: number | null | undefined): string {
+  if (n == null) return "—";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format((n ?? 0) / 100);
+}
+
 export default function ActiveTripScreen(): React.ReactElement {
   const { token } = useAuth();
   const route = useRoute<ActiveTripRouteProp>();
@@ -33,7 +38,7 @@ export default function ActiveTripScreen(): React.ReactElement {
       const updated = await startTrip(token, tripId);
       setCurrentTrip(updated);
     } catch (e: any) {
-      Alert.alert("Erreur", e.message);
+      Alert.alert("Error", e.message);
     } finally {
       setLoading(false);
     }
@@ -46,7 +51,7 @@ export default function ActiveTripScreen(): React.ReactElement {
       const updated = await completeTrip(token, tripId);
       setCurrentTrip(updated);
     } catch (e: any) {
-      Alert.alert("Erreur", e.message);
+      Alert.alert("Error", e.message);
     } finally {
       setLoading(false);
     }
@@ -62,14 +67,14 @@ export default function ActiveTripScreen(): React.ReactElement {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>Mission #{tripId.slice(0, 8)}</Text>
-      <Text style={styles.status}>Statut : {status}</Text>
+      <Text style={styles.heading}>Trip #{tripId.slice(0, 8)}</Text>
+      <Text style={styles.status}>Status: {status}</Text>
       {currentTrip && (
-        <Text style={styles.price}>{currentTrip.price_xof} XOF</Text>
+        <Text style={styles.price}>{formatUSD(currentTrip.price_xof)}</Text>
       )}
 
       <TouchableOpacity style={styles.navButton} onPress={handleNavigate}>
-        <Text style={styles.navText}>🗺 Naviguer vers la destination</Text>
+        <Text style={styles.navText}>🗺 Navigate to destination</Text>
       </TouchableOpacity>
 
       <ActiveTripActions

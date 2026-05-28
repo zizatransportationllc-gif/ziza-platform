@@ -59,7 +59,7 @@ export default function DispatchScreen(): React.ReactElement {
     <View style={styles.container}>
       <View style={styles.onlineRow}>
         <Text style={styles.onlineLabel}>
-          {isOnline ? "🟢 En ligne" : "⚫ Hors ligne"}
+          {isOnline ? "🟢 Online" : "⚫ Offline"}
         </Text>
         <Switch
           value={isOnline}
@@ -74,7 +74,7 @@ export default function DispatchScreen(): React.ReactElement {
         <ActivityIndicator size="large" color="#1D4ED8" style={{ marginTop: 40 }} />
       ) : !isOnline ? (
         <Text style={styles.offlineMsg}>
-          Passez en ligne pour recevoir des missions.
+          Go online to receive trips.
         </Text>
       ) : (
         <FlatList
@@ -101,7 +101,7 @@ export default function DispatchScreen(): React.ReactElement {
             )
           }
           ListEmptyComponent={
-            <Text style={styles.empty}>Aucune mission disponible.</Text>
+            <Text style={styles.empty}>No trips available.</Text>
           }
         />
       )}
