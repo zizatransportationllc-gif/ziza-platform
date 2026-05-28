@@ -574,7 +574,14 @@ async def create_trip(
 
     ``category`` selects the vehicle class (economy / comfort / premium) and
     adjusts the fare accordingly.  Defaults to economy.
+    Blocked with HTTP 503 when the admin has disabled ride-share for customers.
     """
+    flags = await crud.get_service_flags(db)
+    if not flags["rideshare_customer"]:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Le service de covoiturage est temporairement désactivé pour les clients.",
+        )
     trip = await crud.create_trip(
         db, claims, body.estimate_id,
         promo_code=body.promo_code,
@@ -792,11 +799,19 @@ async def accept_trip(
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TripResponse:
-    """Driver accepts a pending trip → accepted."""
+    """Driver accepts a pending trip → accepted.
+    Blocked with HTTP 503 when the admin has disabled ride-share for drivers.
+    """
     if claims.role != "driver":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only drivers can accept trips",
+        )
+    flags = await crud.get_service_flags(db)
+    if not flags["rideshare_driver"]:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Le service de covoiturage est temporairement désactivé pour les chauffeurs.",
         )
     trip = await crud.accept_trip(db, trip_id, claims.user_id)
     return _trip_response(trip)
@@ -1021,7 +1036,14 @@ async def create_assistance_request(
     """Customer creates a roadside assistance request.
 
     Type must be one of: breakdown, flat_tyre, tow, fuel, lockout.
+    Blocked with HTTP 503 when the admin has disabled assistance for customers.
     """
+    flags = await crud.get_service_flags(db)
+    if not flags["assistance_customer"]:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Le service d'assistance est temporairement désactivé pour les clients.",
+        )
     req = await crud.create_assistance_request(
         db, claims, body.type, body.lat, body.lng, body.note
     )
@@ -1093,11 +1115,19 @@ async def accept_assistance(
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AssistanceResponse:
-    """Driver accepts a pending assistance request → accepted."""
+    """Driver accepts a pending assistance request → accepted.
+    Blocked with HTTP 503 when the admin has disabled assistance for drivers.
+    """
     if claims.role != "driver":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only drivers can accept assistance requests",
+        )
+    flags = await crud.get_service_flags(db)
+    if not flags["assistance_driver"]:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Le service d'assistance est temporairement désactivé pour les chauffeurs.",
         )
     req = await crud.accept_assistance(db, req_id, claims.user_id)
     return _assistance_response(req)
