@@ -3512,14 +3512,6 @@ async def admin_platform_kpis(
 # Sprint 36 — Service activation flags
 # ===========================================================================
 
-_SERVICE_KEYS = {
-    "rideshare_customer": "service.rideshare.customer",
-    "rideshare_driver":   "service.rideshare.driver",
-    "assistance_customer": "service.assistance.customer",
-    "assistance_driver":   "service.assistance.driver",
-}
-
-
 class ServiceFlagsResponse(BaseModel):
     rideshare_customer: bool
     rideshare_driver: bool
@@ -3534,39 +3526,6 @@ class ServiceFlagUpdateRequest(BaseModel):
     assistance_driver: bool | None = None
 
 
-async def _get_service_flags(db: AsyncSession) -> dict[str, bool]:
-    """Read all 4 service flags from platform_settings (default True)."""
-    from sqlalchemy import select as _select  # noqa: PLC0415
-    rows = (
-        await db.execute(
-            _select(PlatformSetting).where(
-                PlatformSetting.key.in_(list(_SERVICE_KEYS.values()))
-            )
-        )
-    ).scalars().all()
-    stored = {r.key: r.value for r in rows}
-    return {
-        field: stored.get(db_key, "true").lower() == "true"
-        for field, db_key in _SERVICE_KEYS.items()
-    }
-
-
-async def _set_service_flag(db: AsyncSession, db_key: str, value: bool) -> None:
-    """Upsert a single service flag in platform_settings."""
-    from sqlalchemy import select as _select  # noqa: PLC0415
-    result = await db.execute(
-        _select(PlatformSetting).where(PlatformSetting.key == db_key)
-    )
-    row = result.scalar_one_or_none()
-    now = datetime.now(timezone.utc)
-    if row is None:
-        row = PlatformSetting(key=db_key, value=str(value).lower(), updated_at=now)
-        db.add(row)
-    else:
-        row.value = str(value).lower()
-        row.updated_at = now
-
-
 @app.get("/v1/admin/services", response_model=ServiceFlagsResponse,
          summary="Get all service activation flags (Sprint 36)")
 async def admin_get_services(
@@ -3576,7 +3535,7 @@ async def admin_get_services(
     """Admin-only. Returns the current on/off state for each service × audience combination."""
     if claims.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-    flags = await _get_service_flags(db)
+    flags = await crud.get_service_flags(db)
     return ServiceFlagsResponse(**flags)
 
 
@@ -3598,10 +3557,5 @@ async def admin_set_services(
     if claims.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     updates = body.model_dump(exclude_none=True)
-    for field, new_val in updates.items():
-        db_key = _SERVICE_KEYS[field]
-        await _set_service_flag(db, db_key, new_val)
-    if updates:
-        await db.commit()
-    flags = await _get_service_flags(db)
+    flags = await crud.set_service_flags(db, updates)
     return ServiceFlagsResponse(**flags)

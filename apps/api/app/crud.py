@@ -4225,3 +4225,51 @@ async def get_platform_kpis(db: AsyncSession) -> dict:
         "total_revenue_xof": float(total_revenue),
         "avg_rating": round(float(avg_rating), 2),
     }
+
+
+# ---------------------------------------------------------------------------
+# Sprint 36 — Service activation flags
+# ---------------------------------------------------------------------------
+
+_SERVICE_FLAG_KEYS = {
+    "rideshare_customer":  "service.rideshare.customer",
+    "rideshare_driver":    "service.rideshare.driver",
+    "assistance_customer": "service.assistance.customer",
+    "assistance_driver":   "service.assistance.driver",
+}
+
+
+async def get_service_flags(db: AsyncSession) -> dict[str, bool]:
+    """Return all 4 service on/off flags from platform_settings (defaults to True)."""
+    rows = (
+        await db.execute(
+            select(PlatformSetting).where(
+                PlatformSetting.key.in_(list(_SERVICE_FLAG_KEYS.values()))
+            )
+        )
+    ).scalars().all()
+    stored = {r.key: r.value for r in rows}
+    return {
+        field: stored.get(db_key, "true").lower() == "true"
+        for field, db_key in _SERVICE_FLAG_KEYS.items()
+    }
+
+
+async def set_service_flags(db: AsyncSession, updates: dict[str, bool]) -> dict[str, bool]:
+    """Upsert one or more service flags and return the full current state."""
+    now = datetime.now(timezone.utc)
+    for field, new_val in updates.items():
+        db_key = _SERVICE_FLAG_KEYS[field]
+        result = await db.execute(
+            select(PlatformSetting).where(PlatformSetting.key == db_key)
+        )
+        row = result.scalar_one_or_none()
+        if row is None:
+            row = PlatformSetting(key=db_key, value=str(new_val).lower(), updated_at=now)
+            db.add(row)
+        else:
+            row.value = str(new_val).lower()
+            row.updated_at = now
+    if updates:
+        await db.commit()
+    return await get_service_flags(db)
