@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   login, fetchMe, fetchDemo, registerUser, fetchEstimate, createTrip, getTrip, cancelTrip, rateTrip,
   createAssistanceRequest, getAssistanceRequest, cancelAssistanceRequest, listMyAssistance, listMyTrips,
@@ -10,26 +10,13 @@ import {
   registerDeviceToken,
   submitApplication, getApplicationStatus, // Sprint 30
   getWallet, topupWallet, getWalletTransactions, // Sprint 33
+  searchPlaces, // Sprint 43
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 import { EstimateMap, TripMap } from "./TripMap";
 
 const REQUIRED_ROLE = "customer";
 const TOKEN_KEY = "ziza_token";
-
-// Predefined New Jersey landmarks for the estimate form
-const NJ_LOCATIONS = {
-  "Downtown Newark":    { lat: 40.7357, lng: -74.1724 },
-  "Jersey City":        { lat: 40.7178, lng: -74.0431 },
-  "Hoboken":            { lat: 40.7440, lng: -74.0324 },
-  "Trenton":            { lat: 40.2171, lng: -74.7429 },
-  "Hackensack":         { lat: 40.8859, lng: -74.0435 },
-  "Princeton":          { lat: 40.3573, lng: -74.6672 },
-  "Elizabeth":          { lat: 40.6640, lng: -74.2107 },
-  "Newark Airport":     { lat: 40.6895, lng: -74.1745 },
-};
-
-const LOCATION_NAMES = Object.keys(NJ_LOCATIONS);
 
 // Sprint 20 — saved places constants
 const PLACE_LABEL_ICONS = { home: "🏠", work: "💼", other: "📍" };
@@ -82,7 +69,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Customer</h1>
-      <p className="subtitle">Sprint 42 — Payment Status</p>
+      <p className="subtitle">Sprint 43 — Address &amp; GPS Picker</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
@@ -100,12 +87,105 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
 }
 
 // ---------------------------------------------------------------------------
+// AddressInput — Sprint 43: debounced autocomplete + GPS button
+// ---------------------------------------------------------------------------
+
+function AddressInput({ icon, placeholder, value, onSelect, token, onGps }) {
+  const [query, setQuery] = useState(value?.name ?? "");
+  const [suggestions, setSuggestions] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const debounceRef = useRef(null);
+
+  // Sync label when external value changes (e.g. GPS or saved-place set it)
+  useEffect(() => { setQuery(value?.name ?? ""); }, [value]);
+
+  function handleChange(e) {
+    const q = e.target.value;
+    setQuery(q);
+    onSelect(null); // clear current selection
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (q.length < 3) { setSuggestions([]); return; }
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const results = await searchPlaces(token, q);
+        setSuggestions(results);
+      } catch { setSuggestions([]); }
+      finally { setSearching(false); }
+    }, 350);
+  }
+
+  function handleSelectSuggestion(place) {
+    setQuery(place.name);
+    setSuggestions([]);
+    onSelect({ lat: place.lat, lng: place.lng, name: place.name });
+  }
+
+  function handleBlur() {
+    // delay so onMouseDown on suggestion fires first
+    setTimeout(() => setSuggestions([]), 180);
+  }
+
+  return (
+    <div className="address-input-wrap">
+      <div className="address-input-row">
+        <span className="address-input-icon">{icon}</span>
+        <input
+          className={`address-input${value ? " address-input-set" : ""}`}
+          value={query}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          placeholder={placeholder}
+          autoComplete="off"
+        />
+        {onGps && (
+          <button
+            type="button"
+            className="address-gps-btn"
+            onClick={onGps}
+            title="Use my GPS location"
+          >
+            📡
+          </button>
+        )}
+        {searching && <span className="address-loading">…</span>}
+        {value && (
+          <button
+            type="button"
+            className="address-clear-btn"
+            onClick={() => { setQuery(""); setSuggestions([]); onSelect(null); }}
+            title="Clear"
+          >✕</button>
+        )}
+      </div>
+      {suggestions.length > 0 && (
+        <div className="address-suggestions">
+          {suggestions.map((s) => (
+            <button
+              key={s.place_id}
+              type="button"
+              className="address-suggestion-item"
+              onMouseDown={() => handleSelectSuggestion(s)}
+            >
+              <span className="address-suggestion-name">
+                {s.name.length > 55 ? s.name.slice(0, 55) + "…" : s.name}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Estimate form + fare card + "Book" button
 // ---------------------------------------------------------------------------
 
 function EstimateSection({ token, onTripCreated }) {
-  const [origin, setOrigin] = useState(LOCATION_NAMES[0]);
-  const [dest, setDest]     = useState(LOCATION_NAMES[1]);
+  const [origin, setOrigin] = useState(null); // { name, lat, lng } | null
+  const [dest, setDest]     = useState(null); // { name, lat, lng } | null
+  const [gpsLoading, setGpsLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [booking, setBooking] = useState(false);
@@ -117,8 +197,6 @@ function EstimateSection({ token, onTripCreated }) {
   const [promoError, setPromoError] = useState(null);
   // Sprint 20: saved-places quick-pick
   const [savedPlaces, setSavedPlaces] = useState([]);
-  const [customOrigin, setCustomOrigin] = useState(null); // { name, lat, lng } | null
-  const [customDest, setCustomDest]     = useState(null);
   const [showPlacePicker, setShowPlacePicker] = useState(false);
   // Sprint 21: vehicle category
   const [selectedCategory, setSelectedCategory] = useState("economy");
@@ -127,14 +205,31 @@ function EstimateSection({ token, onTripCreated }) {
     listPlaces(token).then(setSavedPlaces).catch(() => {});
   }, [token]);
 
+  async function handleGps() {
+    if (!navigator.geolocation) { setError("GPS not supported by your browser."); return; }
+    setGpsLoading(true); setError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        setOrigin({ lat, lng, name: `My location (${lat.toFixed(4)}, ${lng.toFixed(4)})` });
+        setResult(null);
+        setGpsLoading(false);
+      },
+      (err) => {
+        setError(`GPS error: ${err.message}`);
+        setGpsLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
-    const o = customOrigin ?? NJ_LOCATIONS[origin];
-    const d = customDest   ?? NJ_LOCATIONS[dest];
-    if (o.lat === d.lat && o.lng === d.lng) { setError("Choose two different locations."); return; }
+    if (!origin || !dest) { setError("Set both pickup and drop-off locations."); return; }
+    if (origin.lat === dest.lat && origin.lng === dest.lng) { setError("Choose two different locations."); return; }
     setLoading(true); setError(null); setResult(null); setPromoApplied(null); setPromoInput(""); setSelectedCategory("economy");
     try {
-      const data = await fetchEstimate(token, o.lat, o.lng, d.lat, d.lng);
+      const data = await fetchEstimate(token, origin.lat, origin.lng, dest.lat, dest.lng);
       setResult(data);
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
@@ -190,15 +285,15 @@ function EstimateSection({ token, onTripCreated }) {
                   </span>
                   <button
                     type="button"
-                    className={`place-picker-btn ${customOrigin?.place_id === p.place_id ? "active" : ""}`}
-                    onClick={() => { setCustomOrigin({ ...p }); setShowPlacePicker(false); }}
+                    className={`place-picker-btn ${origin?.place_id === p.place_id ? "active" : ""}`}
+                    onClick={() => { setOrigin({ ...p }); setShowPlacePicker(false); setResult(null); }}
                   >
                     Pickup
                   </button>
                   <button
                     type="button"
-                    className={`place-picker-btn ${customDest?.place_id === p.place_id ? "active" : ""}`}
-                    onClick={() => { setCustomDest({ ...p }); setShowPlacePicker(false); }}
+                    className={`place-picker-btn ${dest?.place_id === p.place_id ? "active" : ""}`}
+                    onClick={() => { setDest({ ...p }); setShowPlacePicker(false); setResult(null); }}
                   >
                     Drop-off
                   </button>
@@ -206,50 +301,32 @@ function EstimateSection({ token, onTripCreated }) {
               ))}
             </div>
           )}
-          {/* Active custom-place chips */}
-          <div className="place-chips">
-            {customOrigin && (
-              <span className="place-chip">
-                📍 Pickup: <strong>{customOrigin.name}</strong>
-                <button className="place-chip-clear" onClick={() => setCustomOrigin(null)}>✕</button>
-              </span>
-            )}
-            {customDest && (
-              <span className="place-chip">
-                🏁 Drop-off: <strong>{customDest.name}</strong>
-                <button className="place-chip-clear" onClick={() => setCustomDest(null)}>✕</button>
-              </span>
-            )}
-          </div>
         </div>
       )}
 
+      {/* Sprint 43: address inputs with autocomplete + GPS */}
       <form className="estimate-form" onSubmit={handleSubmit}>
-        <div className="estimate-row">
-          <label>
-            <span className="estimate-label">📍 Pickup</span>
-            <select
-              value={origin}
-              onChange={(e) => { setOrigin(e.target.value); setCustomOrigin(null); }}
-              disabled={!!customOrigin}
-              style={customOrigin ? { opacity: 0.4 } : {}}
-            >
-              {LOCATION_NAMES.map((n) => <option key={n}>{n}</option>)}
-            </select>
-          </label>
-          <label>
-            <span className="estimate-label">🏁 Drop-off</span>
-            <select
-              value={dest}
-              onChange={(e) => { setDest(e.target.value); setCustomDest(null); }}
-              disabled={!!customDest}
-              style={customDest ? { opacity: 0.4 } : {}}
-            >
-              {LOCATION_NAMES.map((n) => <option key={n}>{n}</option>)}
-            </select>
-          </label>
-        </div>
-        <button type="submit" className="estimate-btn" disabled={loading || booking}>
+        <AddressInput
+          icon="📍"
+          placeholder="Pickup address…"
+          value={origin}
+          onSelect={(v) => { setOrigin(v); setResult(null); }}
+          token={token}
+          onGps={gpsLoading ? null : handleGps}
+        />
+        {gpsLoading && <p className="address-gps-hint">📡 Detecting your location…</p>}
+        <AddressInput
+          icon="🏁"
+          placeholder="Drop-off address…"
+          value={dest}
+          onSelect={(v) => { setDest(v); setResult(null); }}
+          token={token}
+        />
+        <button
+          type="submit"
+          className="estimate-btn"
+          disabled={loading || booking || !origin || !dest}
+        >
           {loading ? "Calculating…" : "Get Estimate"}
         </button>
       </form>
@@ -330,16 +407,12 @@ function EstimateSection({ token, onTripCreated }) {
           )}
           {promoError && <p className="promo-error">{promoError}</p>}
           {/* Map preview — origin / destination */}
-          {(() => {
-            const o = customOrigin ?? NJ_LOCATIONS[origin];
-            const d = customDest   ?? NJ_LOCATIONS[dest];
-            return (
-              <EstimateMap
-                originLat={o.lat} originLng={o.lng}
-                destLat={d.lat}   destLng={d.lng}
-              />
-            );
-          })()}
+          {origin && dest && (
+            <EstimateMap
+              originLat={origin.lat} originLng={origin.lng}
+              destLat={dest.lat}     destLng={dest.lng}
+            />
+          )}
 
           <button className="book-btn" onClick={handleBook} disabled={booking}>
             {booking ? "Booking…" : "🚕 Book This Ride"}
@@ -1741,7 +1814,7 @@ function Dashboard({ user, token, onLogout }) {
         </>
       )}
 
-      <p className="footer">App: <strong>web-customer</strong> · Sprint 42</p>
+      <p className="footer">App: <strong>web-customer</strong> · Sprint 43</p>
     </div>
   );
 }

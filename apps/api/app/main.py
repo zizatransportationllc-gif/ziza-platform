@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 42.
+"""Ziza API — Sprint 43.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -74,6 +74,7 @@ Endpoints:
   POST  /v1/places                                 create a saved place (max 10)
   PATCH /v1/places/{place_id}                      update a saved place (label/name/lat/lng)
   DELETE /v1/places/{place_id}                     delete a saved place
+  GET   /v1/places/autocomplete?q=                 geocode a free-text address query via Nominatim (Sprint 43)
   GET   /v1/categories                             list vehicle categories + fare multipliers
   GET   /v1/trips/{trip_id}/tracking               customer polls driver live position (Sprint 23)
   POST  /v1/payments/intent                        customer creates a payment intent for a completed trip (Sprint 24)
@@ -2186,6 +2187,52 @@ async def delete_place(
     from fastapi.responses import Response as _Response  # noqa: PLC0415
     await crud.delete_saved_place(db, claims.user_id, place_id)
     return _Response(status_code=204)
+
+
+# ---------------------------------------------------------------------------
+# Address autocomplete — Sprint 43 (Nominatim / OpenStreetMap proxy)
+# ---------------------------------------------------------------------------
+
+class PlaceSearchResult(BaseModel):
+    place_id: str
+    name: str
+    address: str
+    lat: float
+    lng: float
+
+
+@app.get("/v1/places/autocomplete", tags=["places"])
+async def search_places_autocomplete(
+    q: str,
+    _: Claims = Depends(get_current_user),
+) -> list[PlaceSearchResult]:
+    """Geocode a free-text address query via Nominatim (OpenStreetMap).
+
+    Returns up to 5 results sorted by relevance.  Requires at least 3 characters.
+    """
+    if len(q.strip()) < 3:
+        return []
+    import httpx  # noqa: PLC0415
+    async with httpx.AsyncClient(
+        timeout=6.0,
+        headers={"User-Agent": "ZizaPlatform/1.0 (support@ziza.ci)"},
+    ) as client:
+        resp = await client.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": q, "format": "json", "limit": 5, "addressdetails": 0},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    return [
+        PlaceSearchResult(
+            place_id=str(item["place_id"]),
+            name=item.get("display_name", "")[:80],
+            address=item.get("display_name", ""),
+            lat=float(item["lat"]),
+            lng=float(item["lon"]),
+        )
+        for item in data
+    ]
 
 
 # ---------------------------------------------------------------------------

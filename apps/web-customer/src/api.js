@@ -552,3 +552,23 @@ export async function getWalletTransactions(token, limit = 20, offset = 0) {
   );
   return _json(res); // WalletTransactionResponse[]
 }
+
+// ---------------------------------------------------------------------------
+// Sprint 43 — Address autocomplete (Nominatim proxy)
+// ---------------------------------------------------------------------------
+
+/**
+ * Geocode a free-text address query.
+ * Returns PlaceSearchResult[]: { place_id, name, address, lat, lng }
+ */
+export async function searchPlaces(token, query) {
+  const res = await fetch(
+    `${API_BASE}/v1/places/autocomplete?q=${encodeURIComponent(query)}`,
+    { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Search error (${res.status})`);
+  }
+  return res.json(); // PlaceSearchResult[]
+}
