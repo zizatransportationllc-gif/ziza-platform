@@ -2,22 +2,35 @@
   "expo": {
     "name": "Ziza Customer",
     "slug": "ziza-customer",
+    "owner": "zizatransportationllc",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "ci.ziza.customer"
+      "bundleIdentifier": "com.zizatransportation.customer"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#F97316"
       },
-      "package": "ci.ziza.customer"
+      "package": "com.zizatransportation.customer",
+      "config": {
+        "googleMaps": {
+          "apiKey": ""
+        }
+      }
     },
     "plugins": [
       "expo-notifications"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "cd385854-11bf-43d9-a476-c0af59bd8afb"
+      }
+    }
   }
 }
