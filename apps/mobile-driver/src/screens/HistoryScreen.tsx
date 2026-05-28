@@ -1,6 +1,6 @@
 /**
  * HistoryScreen — driver trip history.
- * Sprint 28 — Application mobile driver
+ * Sprint 37 — uses useAuth() instead of props.
  */
 import React, { useEffect, useState } from "react";
 import {
@@ -10,17 +10,16 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
+import { useAuth } from "../context/AuthContext";
 import { listDriverTripHistory, TripResponse } from "../api";
 
-interface Props {
-  token: string;
-}
-
-export default function HistoryScreen({ token }: Props): React.ReactElement {
+export default function HistoryScreen(): React.ReactElement {
+  const { token } = useAuth();
   const [trips, setTrips] = useState<TripResponse[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!token) return;
     listDriverTripHistory(token)
       .then(setTrips)
       .catch(() => {})

@@ -1,24 +1,22 @@
 /**
- * LocationScreen — toggle GPS sharing and show current position.
- * Sprint 28 — Application mobile driver
+ * LocationScreen — GPS sharing status screen.
+ * Sprint 37 — uses useAuth() instead of props.
  */
 import React, { useState, useEffect } from "react";
-import { View, Text, Switch, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { useBackgroundLocation } from "../hooks/useBackgroundLocation";
+import { useAuth } from "../context/AuthContext";
 import { getDriverLocation, LocationResponse } from "../api";
 
-interface Props {
-  token: string;
-  isOnline: boolean;
-}
-
-export default function LocationScreen({ token, isOnline }: Props): React.ReactElement {
+export default function LocationScreen(): React.ReactElement {
+  const { token, isOnline } = useAuth();
   const [location, setLocation] = useState<LocationResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useBackgroundLocation(token, isOnline);
 
   useEffect(() => {
+    if (!token) return;
     getDriverLocation(token)
       .then(setLocation)
       .catch(() => {})

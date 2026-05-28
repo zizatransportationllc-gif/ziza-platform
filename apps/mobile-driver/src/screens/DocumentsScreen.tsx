@@ -1,6 +1,6 @@
 /**
  * DocumentsScreen — KYC document submission and status.
- * Sprint 28 — Application mobile driver
+ * Sprint 37 — uses useAuth() instead of props.
  */
 import React, { useEffect, useState } from "react";
 import {
@@ -12,11 +12,8 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
+import { useAuth } from "../context/AuthContext";
 import { listMyDocuments, submitDocument, DocumentResponse } from "../api";
-
-interface Props {
-  token: string;
-}
 
 const DOC_TYPES = ["license", "insurance", "vehicle_registration", "id_card"];
 
@@ -26,7 +23,8 @@ const STATUS_COLORS: Record<string, string> = {
   rejected: "#EF4444",
 };
 
-export default function DocumentsScreen({ token }: Props): React.ReactElement {
+export default function DocumentsScreen(): React.ReactElement {
+  const { token } = useAuth();
   const [documents, setDocuments] = useState<DocumentResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [docType, setDocType] = useState(DOC_TYPES[0]);
@@ -34,6 +32,7 @@ export default function DocumentsScreen({ token }: Props): React.ReactElement {
   const [submitting, setSubmitting] = useState(false);
 
   const load = () => {
+    if (!token) return;
     listMyDocuments(token)
       .then(setDocuments)
       .catch(() => {})
@@ -43,7 +42,7 @@ export default function DocumentsScreen({ token }: Props): React.ReactElement {
   useEffect(() => { load(); }, [token]);
 
   const handleSubmit = async () => {
-    if (!url.trim()) return;
+    if (!url.trim() || !token) return;
     setSubmitting(true);
     try {
       await submitDocument(token, docType, url.trim());

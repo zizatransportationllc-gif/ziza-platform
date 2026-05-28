@@ -1,6 +1,6 @@
 /**
  * ActiveTripScreen — accept → start → complete lifecycle + navigation deep link.
- * Sprint 28 — Application mobile driver
+ * Sprint 37 — uses useAuth() instead of props.
  */
 import React, { useState } from "react";
 import {
@@ -13,23 +13,21 @@ import {
 } from "react-native";
 import { useRoute, RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "../navigation/AppNavigator";
+import { useAuth } from "../context/AuthContext";
 import ActiveTripActions from "../components/ActiveTripActions";
 import { startTrip, completeTrip, buildNavigationUrl, TripResponse } from "../api";
 
-interface Props {
-  token: string;
-  trip: TripResponse | null;
-}
-
 type ActiveTripRouteProp = RouteProp<RootStackParamList, "ActiveTrip">;
 
-export default function ActiveTripScreen({ token, trip }: Props): React.ReactElement {
+export default function ActiveTripScreen(): React.ReactElement {
+  const { token } = useAuth();
   const route = useRoute<ActiveTripRouteProp>();
   const { tripId } = route.params;
-  const [currentTrip, setCurrentTrip] = useState<TripResponse | null>(trip);
+  const [currentTrip, setCurrentTrip] = useState<TripResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleStart = async () => {
+    if (!token) return;
     setLoading(true);
     try {
       const updated = await startTrip(token, tripId);
@@ -42,6 +40,7 @@ export default function ActiveTripScreen({ token, trip }: Props): React.ReactEle
   };
 
   const handleComplete = async () => {
+    if (!token) return;
     setLoading(true);
     try {
       const updated = await completeTrip(token, tripId);
@@ -56,16 +55,7 @@ export default function ActiveTripScreen({ token, trip }: Props): React.ReactEle
   const handleNavigate = () => {
     if (!currentTrip) return;
     const url = buildNavigationUrl(currentTrip.dest_lat, currentTrip.dest_lng);
-    Linking.canOpenURL(url)
-      .then((supported) => {
-        if (supported) return Linking.openURL(url);
-        const fallback = buildNavigationUrl(
-          currentTrip.dest_lat,
-          currentTrip.dest_lng
-        );
-        return Linking.openURL(fallback);
-      })
-      .catch(() => {});
+    Linking.openURL(url).catch(() => {});
   };
 
   const status = currentTrip?.status ?? "accepted";

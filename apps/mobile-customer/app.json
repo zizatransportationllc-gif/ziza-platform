@@ -14,16 +14,29 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.zizatransportation.customer"
+      "bundleIdentifier": "com.zizatransportation.customer",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Ziza uses your location to find drivers near you and calculate fares."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#F97316"
       },
-      "package": "com.zizatransportation.customer"
+      "package": "com.zizatransportation.customer",
+      "permissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ]
     },
     "plugins": [
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Ziza uses your location to find drivers near you and calculate fares."
+        }
+      ]
     ],
     "extra": {
       "eas": {

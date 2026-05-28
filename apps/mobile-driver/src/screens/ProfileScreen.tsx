@@ -1,30 +1,18 @@
 /**
  * ProfileScreen — driver profile and logout.
- * Sprint 28 — Application mobile driver
+ * Sprint 37 — uses useAuth() instead of props.
  */
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { logout, clearToken } from "../api";
+import { useAuth } from "../context/AuthContext";
 
-interface Props {
-  token: string;
-  onLogout: () => void;
-}
-
-export default function ProfileScreen({ token, onLogout }: Props): React.ReactElement {
-  const handleLogout = async () => {
-    try {
-      await logout(token);
-    } catch {
-      await clearToken();
-    }
-    onLogout();
-  };
+export default function ProfileScreen(): React.ReactElement {
+  const { logout } = useAuth();
 
   return (
     <View style={styles.container}>
       <Text style={styles.heading}>Mon profil</Text>
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+      <TouchableOpacity style={styles.logoutButton} onPress={logout}>
         <Text style={styles.logoutText}>Se déconnecter</Text>
       </TouchableOpacity>
     </View>

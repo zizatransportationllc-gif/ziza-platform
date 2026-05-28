@@ -1,6 +1,6 @@
 /**
  * DispatchScreen — lists available trips and assistance sorted by proximity.
- * Sprint 28 — Application mobile driver
+ * Sprint 37 — uses useAuth() instead of props.
  */
 import React, { useState } from "react";
 import {
@@ -16,40 +16,34 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { useDispatch } from "../hooks/useDispatch";
+import { useAuth } from "../context/AuthContext";
 import TripDispatchCard from "../components/TripDispatchCard";
 import AssistanceDispatchCard from "../components/AssistanceDispatchCard";
 import { TripResponse, AssistanceResponse, acceptTrip, acceptAssistance } from "../api";
 
-interface Props {
-  token: string;
-  isOnline: boolean;
-  onToggleOnline: (v: boolean) => void;
-}
-
 type DispatchNavProp = NativeStackNavigationProp<RootStackParamList, "Dispatch">;
 
-export default function DispatchScreen({
-  token,
-  isOnline,
-  onToggleOnline,
-}: Props): React.ReactElement {
+export default function DispatchScreen(): React.ReactElement {
+  const { token, isOnline, setOnline } = useAuth();
   const navigation = useNavigation<DispatchNavProp>();
-  const { trips, assistance, loading } = useDispatch(isOnline ? token : null);
+  const { trips, assistance, loading, error } = useDispatch(isOnline ? token : null);
   const [accepting, setAccepting] = useState(false);
 
   const handleAcceptTrip = async (trip: TripResponse) => {
+    if (!token) return;
     setAccepting(true);
     try {
       const accepted = await acceptTrip(token, trip.trip_id);
       navigation.navigate("ActiveTrip", { tripId: accepted.trip_id });
-    } catch {
-      // Show error in prod — silenced here for brevity
+    } catch (e: any) {
+      // Show error — silent for now
     } finally {
       setAccepting(false);
     }
   };
 
   const handleAcceptAssistance = async (req: AssistanceResponse) => {
+    if (!token) return;
     setAccepting(true);
     try {
       await acceptAssistance(token, req.request_id);
@@ -69,10 +63,12 @@ export default function DispatchScreen({
         </Text>
         <Switch
           value={isOnline}
-          onValueChange={onToggleOnline}
+          onValueChange={setOnline}
           trackColor={{ true: "#1D4ED8" }}
         />
       </View>
+
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       {loading ? (
         <ActivityIndicator size="large" color="#1D4ED8" style={{ marginTop: 40 }} />
@@ -127,4 +123,5 @@ const styles = StyleSheet.create({
   onlineLabel: { fontSize: 16, fontWeight: "600" },
   offlineMsg: { textAlign: "center", color: "#6B7280", marginTop: 60, fontSize: 16 },
   empty: { textAlign: "center", color: "#9CA3AF", marginTop: 40 },
+  errorText: { color: "#EF4444", textAlign: "center", marginTop: 8, fontSize: 13 },
 });

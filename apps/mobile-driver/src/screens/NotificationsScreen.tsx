@@ -1,6 +1,6 @@
 /**
  * NotificationsScreen — driver notification center.
- * Sprint 28 — Application mobile driver
+ * Sprint 37 — uses useAuth() instead of props.
  */
 import React, { useEffect, useState } from "react";
 import {
@@ -11,17 +11,16 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
+import { useAuth } from "../context/AuthContext";
 import { listNotifications, markAllNotificationsRead, NotificationRecord } from "../api";
 
-interface Props {
-  token: string;
-}
-
-export default function NotificationsScreen({ token }: Props): React.ReactElement {
+export default function NotificationsScreen(): React.ReactElement {
+  const { token } = useAuth();
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
+    if (!token) return;
     try {
       const data = await listNotifications(token);
       setNotifications(data);
@@ -35,6 +34,7 @@ export default function NotificationsScreen({ token }: Props): React.ReactElemen
   useEffect(() => { load(); }, [token]);
 
   const handleMarkAllRead = async () => {
+    if (!token) return;
     await markAllNotificationsRead(token).catch(() => {});
     load();
   };

@@ -1,6 +1,6 @@
 /**
  * LoginScreen — driver email/password authentication.
- * Sprint 28 — Application mobile driver
+ * Sprint 37 — uses useAuth().login() instead of onLoginSuccess prop.
  */
 import React, { useState } from "react";
 import {
@@ -13,13 +13,11 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { login } from "../api";
+import { login as apiLogin } from "../api";
+import { useAuth } from "../context/AuthContext";
 
-interface Props {
-  onLoginSuccess: (token: string) => void;
-}
-
-export default function LoginScreen({ onLoginSuccess }: Props): React.ReactElement {
+export default function LoginScreen(): React.ReactElement {
+  const { login } = useAuth();
   const [email, setEmail] = useState("driver@ziza.dev");
   const [password, setPassword] = useState("ziza2024");
   const [loading, setLoading] = useState(false);
@@ -29,8 +27,8 @@ export default function LoginScreen({ onLoginSuccess }: Props): React.ReactEleme
     setLoading(true);
     setError(null);
     try {
-      const data = await login(email, password);
-      onLoginSuccess(data.access_token);
+      const data = await apiLogin(email, password);
+      await login(data.access_token);
     } catch (e: any) {
       setError(e.message || "Échec de connexion");
     } finally {
@@ -44,7 +42,7 @@ export default function LoginScreen({ onLoginSuccess }: Props): React.ReactEleme
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <Text style={styles.title}>Ziza Driver</Text>
-      <Text style={styles.subtitle}>Sprint 28 — Application mobile driver</Text>
+      <Text style={styles.subtitle}>Sprint 37 — Application mobile driver</Text>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <TextInput
         style={styles.input}
@@ -83,7 +81,7 @@ const styles = StyleSheet.create({
     padding: 24,
     backgroundColor: "#fff",
   },
-  title: { fontSize: 28, fontWeight: "bold", textAlign: "center", marginBottom: 4 },
+  title: { fontSize: 28, fontWeight: "bold", textAlign: "center", marginBottom: 4, color: "#1D4ED8" },
   subtitle: { fontSize: 14, color: "#888", textAlign: "center", marginBottom: 24 },
   input: {
     borderWidth: 1,

@@ -1,6 +1,6 @@
 /**
  * HomeScreen — trip booking: category picker, estimate, confirm.
- * Sprint 35
+ * Sprint 38 — origin = real GPS; destination = demo fixed point (address picker → Phase 3).
  */
 import React, { useState, useEffect } from "react";
 import {
@@ -10,7 +10,9 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  Alert,
 } from "react-native";
+import * as Location from "expo-location";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
@@ -27,9 +29,9 @@ import PromoInput from "../components/PromoInput";
 
 type HomeNavProp = NativeStackNavigationProp<RootStackParamList, "Home">;
 
-// Newark, NJ demo coords
-const ORIGIN = { lat: 40.7357, lng: -74.1724 };
-const DEST   = { lat: 40.7282, lng: -74.0776 };
+// TODO Phase 3 — replace with address search / destination picker.
+// For now the destination is a fixed demo point 5 km from any origin.
+const DEMO_DEST = { lat: 40.7282, lng: -74.0776 };
 
 export default function HomeScreen(): React.ReactElement {
   const { token } = useAuth();
@@ -39,6 +41,7 @@ export default function HomeScreen(): React.ReactElement {
   const [estimate, setEstimate] = useState<EstimateResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [gpsLabel, setGpsLabel] = useState<string>("Tap to get fare estimate");
 
   useEffect(() => {
     if (!token) return;
@@ -49,12 +52,31 @@ export default function HomeScreen(): React.ReactElement {
     if (!token) return;
     setLoading(true);
     setError(null);
+    setEstimate(null);
     try {
+      // Request foreground location permission
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Location required",
+          "Please enable location access so Ziza can find drivers near you.",
+        );
+        return;
+      }
+
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const { latitude, longitude } = pos.coords;
+      setGpsLabel(`📍 ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+
       const est = await getEstimate(
         token,
-        ORIGIN.lat, ORIGIN.lng,
-        DEST.lat,   DEST.lng,
-        selectedCategory
+        latitude,
+        longitude,
+        DEMO_DEST.lat,
+        DEMO_DEST.lng,
+        selectedCategory,
       );
       setEstimate(est);
     } catch (e: any) {
@@ -80,6 +102,7 @@ export default function HomeScreen(): React.ReactElement {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.heading}>Book a Ride</Text>
+      <Text style={styles.gpsHint}>{gpsLabel}</Text>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <CategoryPicker
         categories={categories}
@@ -100,7 +123,7 @@ export default function HomeScreen(): React.ReactElement {
             {estimate.distance_km} km · ~{estimate.duration_min} min
           </Text>
           <PromoInput token={token!} estimateId={estimate.estimate_id} />
-          <TouchableOpacity style={[styles.button, styles.confirmButton]} onPress={handleBook}>
+          <TouchableOpacity style={[styles.button, styles.confirmButton]} onPress={handleBook} disabled={loading}>
             <Text style={styles.buttonText}>Confirm Booking</Text>
           </TouchableOpacity>
         </View>
@@ -111,7 +134,8 @@ export default function HomeScreen(): React.ReactElement {
 
 const styles = StyleSheet.create({
   container: { padding: 20 },
-  heading: { fontSize: 22, fontWeight: "bold", marginBottom: 16 },
+  heading: { fontSize: 22, fontWeight: "bold", marginBottom: 4 },
+  gpsHint: { fontSize: 13, color: "#6B7280", marginBottom: 16 },
   button: {
     backgroundColor: "#F97316",
     borderRadius: 8,

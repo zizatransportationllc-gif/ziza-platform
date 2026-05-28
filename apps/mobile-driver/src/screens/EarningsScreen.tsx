@@ -1,21 +1,20 @@
 /**
  * EarningsScreen — driver earnings dashboard.
- * Sprint 28 — Application mobile driver
+ * Sprint 37 — uses useAuth() instead of props.
  */
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
+import { useAuth } from "../context/AuthContext";
 import { getMyEarnings, EarningsResponse } from "../api";
 import EarningsChart from "../components/EarningsChart";
 
-interface Props {
-  token: string;
-}
-
-export default function EarningsScreen({ token }: Props): React.ReactElement {
+export default function EarningsScreen(): React.ReactElement {
+  const { token } = useAuth();
   const [earnings, setEarnings] = useState<EarningsResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!token) return;
     getMyEarnings(token)
       .then(setEarnings)
       .catch(() => {})
