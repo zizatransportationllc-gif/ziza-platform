@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 41.
+"""Ziza API — Sprint 42.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -1299,6 +1299,7 @@ class AdminTripRecord(BaseModel):
     customer_email: str
     driver_id: str | None = None
     category: str = "economy"  # Sprint 21
+    paid_at: str | None = None  # Sprint 42: ISO-8601 UTC timestamp when payment confirmed
     created_at: str
     updated_at: str
 

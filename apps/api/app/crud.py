@@ -1435,6 +1435,7 @@ async def admin_list_trips(
             "customer_email": customer.email,
             "driver_id": str(trip.driver_id) if trip.driver_id else None,
             "category": getattr(trip, "category", "economy"),
+            "paid_at": _utc(trip.paid_at).isoformat() if trip.paid_at else None,
             "created_at": trip.created_at.isoformat(),
             "updated_at": trip.updated_at.isoformat(),
         })

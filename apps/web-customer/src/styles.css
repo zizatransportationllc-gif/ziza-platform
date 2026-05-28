@@ -228,6 +228,11 @@ html, body {
 .history-status { font-size: 0.85rem; color: var(--color-muted); }
 .history-note { font-size: 0.82rem; color: var(--color-muted); font-style: italic; }
 .history-date { font-size: 0.78rem; color: var(--color-muted); margin-top: var(--space-1); }
+/* Sprint 42 — payment status in history */
+.history-item-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.history-paid-badge { background: #dcfce7; color: #16a34a; font-size: 0.75rem; font-weight: 700; border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+.history-pay-btn { margin-top: var(--space-2); background: var(--color-accent); color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-2) var(--space-4); font-size: 0.85rem; font-weight: 700; cursor: pointer; width: 100%; }
+.history-pay-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .history-empty { text-align: center; color: var(--color-muted); font-size: 0.9rem; padding: var(--space-6) 0; margin: 0; }
 
 /* ── Sprint 13: Trip history (customer) ─────────────────────────────────── */

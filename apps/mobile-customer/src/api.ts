@@ -75,6 +75,7 @@ export interface TripResponse {
   dest_lng: number;
   price_xof: number;
   eta_minutes: number | null;
+  paid_at: string | null;  // Sprint 42: set when payment is confirmed
   created_at: string;
 }
 

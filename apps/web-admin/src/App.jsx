@@ -56,7 +56,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 36 — Service Activation</p>
+      <p className="subtitle">Sprint 42 — Payment Status</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
@@ -209,7 +209,7 @@ function StatsPanel({ token }) {
   if (error) return <p className="form-error">{error}</p>;
   if (!stats) return null;
 
-  const { trips, assistance, drivers } = stats;
+  const { trips, assistance, drivers, payments } = stats;
 
   return (
     <div className="stats-panel">
@@ -238,6 +238,13 @@ function StatsPanel({ token }) {
           value={drivers.total}
           sub={`${drivers.by_status?.active ?? 0} active`}
         />
+        {payments && (
+          <StatCard
+            label="💳 Confirmed Payments"
+            value={payments.total_paid}
+            sub={formatUSD(payments.total_paid_xof)}
+          />
+        )}
       </div>
     </div>
   );
@@ -256,6 +263,9 @@ function TripRow({ trip }) {
         </span>
         <span className="trip-customer">{trip.customer_email}</span>
         {trip.fare_xof && <span className="trip-fare">{formatUSD(trip.fare_xof)}</span>}
+        {trip.paid_at && (
+          <span className="trip-paid-badge">💳 Paid</span>
+        )}
       </div>
       <div className="trip-row-meta">
         {trip.distance_km != null && <span>🛣️ {trip.distance_km.toFixed(1)} mi</span>}
@@ -2065,7 +2075,7 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "settings"     && <SurgePanel          token={token} />}
       {activeTab === "users"        && <UsersPanel          token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 36</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 42</p>
     </div>
   );
 }

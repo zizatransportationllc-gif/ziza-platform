@@ -82,7 +82,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Customer</h1>
-      <p className="subtitle">Sprint 41 — CinetPay Payment</p>
+      <p className="subtitle">Sprint 42 — Payment Status</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
@@ -846,7 +846,7 @@ function AssistanceStatusCard({ token, request, onRequestUpdate, onNewRequest })
 }
 
 // ---------------------------------------------------------------------------
-// Trip history — Sprint 13
+// Trip history — Sprint 13 / Sprint 42: payment status badges
 // ---------------------------------------------------------------------------
 
 const TRIP_PAGE = 10;
@@ -856,6 +856,8 @@ function TripHistory({ token }) {
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [payingId, setPayingId] = useState(null);
+  const [payError, setPayError] = useState(null);
 
   const load = useCallback(async (p = 0) => {
     setLoading(true); setError(null);
@@ -869,30 +871,65 @@ function TripHistory({ token }) {
 
   useEffect(() => { load(0); }, [load]);
 
+  async function handlePay(tripId) {
+    setPayingId(tripId); setPayError(null);
+    try {
+      const intent = await createPaymentIntent(token, tripId);
+      // Open checkout URL in a new tab; payment status will update on next reload
+      if (intent.checkout_url && !intent.checkout_url.includes("localhost")) {
+        window.open(intent.checkout_url, "_blank", "noopener");
+      } else {
+        // Dev/mock: simulate inline
+        await simulatePayment(intent.provider_ref);
+        await load(page);
+      }
+    } catch (e) { setPayError(e.message); }
+    finally { setPayingId(null); }
+  }
+
   if (loading && trips.length === 0) return <p className="history-empty">⏳ Loading…</p>;
   if (error) return <p className="form-error">{error}</p>;
   if (trips.length === 0) return <p className="history-empty">No trips yet.</p>;
 
   return (
     <>
+      {payError && <p className="form-error">{payError}</p>}
       <div className="history-list">
-        {trips.map((t) => (
-          <div key={t.trip_id} className={`history-item history-item-${t.status}`}>
-            <div className="history-type">{STATUS_LABELS[t.status] ?? t.status}</div>
-            {t.fare_xof && (
-              <div className="history-fare">{formatUSD(t.fare_xof)}</div>
-            )}
-            <div className="history-meta">
-              {t.distance_km != null && <span>🛣️ {t.distance_km.toFixed(1)} mi</span>}
-              {t.duration_min != null && <span>⏱️ {t.duration_min} min</span>}
+        {trips.map((t) => {
+          const isPaid = !!t.paid_at;
+          const canPay = t.status === "completed" && !isPaid;
+          return (
+            <div key={t.trip_id} className={`history-item history-item-${t.status}`}>
+              <div className="history-item-header">
+                <div className="history-type">{STATUS_LABELS[t.status] ?? t.status}</div>
+                {isPaid && (
+                  <span className="history-paid-badge">💳 Paid</span>
+                )}
+              </div>
+              {t.fare_xof && (
+                <div className="history-fare">{formatUSD(t.fare_xof)}</div>
+              )}
+              <div className="history-meta">
+                {t.distance_km != null && <span>🛣️ {t.distance_km.toFixed(1)} mi</span>}
+                {t.duration_min != null && <span>⏱️ {t.duration_min} min</span>}
+              </div>
+              <div className="history-date">
+                {new Date(t.created_at).toLocaleDateString("en-US", {
+                  day: "2-digit", month: "short", year: "numeric",
+                })}
+              </div>
+              {canPay && (
+                <button
+                  className="history-pay-btn"
+                  onClick={() => handlePay(t.trip_id)}
+                  disabled={payingId === t.trip_id}
+                >
+                  {payingId === t.trip_id ? "Loading…" : "💳 Pay Now"}
+                </button>
+              )}
             </div>
-            <div className="history-date">
-              {new Date(t.created_at).toLocaleDateString("en-US", {
-                day: "2-digit", month: "short", year: "numeric",
-              })}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       {(trips.length === TRIP_PAGE || page > 0) && (
         <div className="trip-history-pagination">
@@ -1704,7 +1741,7 @@ function Dashboard({ user, token, onLogout }) {
         </>
       )}
 
-      <p className="footer">App: <strong>web-customer</strong> · Sprint 41</p>
+      <p className="footer">App: <strong>web-customer</strong> · Sprint 42</p>
     </div>
   );
 }
