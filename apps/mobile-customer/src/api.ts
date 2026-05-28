@@ -1,5 +1,5 @@
 /**
- * API client for mobile-customer — Sprint 27.
+ * API client for mobile-customer — Sprint 40.
  * Isolated per frontend-isolation rule (no shared code with web frontends).
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -8,6 +8,18 @@ const API_BASE =
   (process.env.EXPO_PUBLIC_API_URL as string) || "http://localhost:8000";
 
 const TOKEN_KEY = "ziza_access_token";
+const REFRESH_TOKEN_KEY = "ziza_refresh_token";
+
+// ---------------------------------------------------------------------------
+// Error type — carries HTTP status for 401 detection
+// ---------------------------------------------------------------------------
+
+export class ApiError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -16,7 +28,7 @@ const TOKEN_KEY = "ziza_access_token";
 async function _json<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error((err as any).detail || `HTTP ${res.status}`);
+    throw new ApiError(res.status, (err as any).detail || `HTTP ${res.status}`);
   }
   return res.json() as Promise<T>;
 }
@@ -132,6 +144,25 @@ export async function clearToken(): Promise<void> {
   await AsyncStorage.removeItem(TOKEN_KEY);
 }
 
+/** Store access + refresh tokens together (token rotation). */
+export async function storeTokenPair(
+  accessToken: string,
+  refreshToken: string | null | undefined
+): Promise<void> {
+  const pairs: [string, string][] = [[TOKEN_KEY, accessToken]];
+  if (refreshToken) pairs.push([REFRESH_TOKEN_KEY, refreshToken]);
+  await AsyncStorage.multiSet(pairs);
+}
+
+export async function getStoredRefreshToken(): Promise<string | null> {
+  return AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+}
+
+/** Clear both tokens (used on logout / session expiry). */
+export async function clearTokenPair(): Promise<void> {
+  await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_TOKEN_KEY]);
+}
+
 // ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
@@ -146,16 +177,19 @@ export async function login(
     body: JSON.stringify({ email, password }),
   });
   const data = await _json<TokenResponse>(res);
-  await storeToken(data.access_token);
+  await storeTokenPair(data.access_token, data.refresh_token);
   return data;
 }
 
 export async function logout(token: string): Promise<void> {
+  // Send the stored refresh token so the server can revoke it
+  const refreshToken = await getStoredRefreshToken();
   await fetch(`${API_BASE}/v1/auth/logout`, {
     method: "POST",
-    headers: _auth(token),
+    headers: { ..._auth(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: refreshToken ?? "" }),
   }).catch(() => {});
-  await clearToken();
+  await clearTokenPair();
 }
 
 export async function refreshAccessToken(
@@ -167,8 +201,23 @@ export async function refreshAccessToken(
     body: JSON.stringify({ refresh_token: refreshToken }),
   });
   const data = await _json<TokenResponse>(res);
-  await storeToken(data.access_token);
+  // Store the rotated token pair (new access + new refresh)
+  await storeTokenPair(data.access_token, data.refresh_token);
   return data;
+}
+
+export interface MeResponse {
+  id: string;
+  user_id: string;
+  email: string;
+  role: string;
+  provider: string;
+}
+
+/** Lightweight token validation — returns the authenticated user's claims. */
+export async function fetchMe(token: string): Promise<MeResponse> {
+  const res = await fetch(`${API_BASE}/v1/me`, { headers: _auth(token) });
+  return _json<MeResponse>(res);
 }
 
 // ---------------------------------------------------------------------------

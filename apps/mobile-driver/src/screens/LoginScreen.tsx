@@ -1,6 +1,6 @@
 /**
  * LoginScreen — driver email/password authentication.
- * Sprint 37 — uses useAuth().login() instead of onLoginSuccess prop.
+ * Sprint 40 — passes refresh token to AuthContext for persistent sessions.
  */
 import React, { useState } from "react";
 import {
@@ -28,7 +28,7 @@ export default function LoginScreen(): React.ReactElement {
     setError(null);
     try {
       const data = await apiLogin(email, password);
-      await login(data.access_token);
+      await login(data.access_token, data.refresh_token ?? null);
     } catch (e: any) {
       setError(e.message || "Échec de connexion");
     } finally {
@@ -42,7 +42,7 @@ export default function LoginScreen(): React.ReactElement {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <Text style={styles.title}>Ziza Driver</Text>
-      <Text style={styles.subtitle}>Sprint 37 — Application mobile driver</Text>
+      <Text style={styles.subtitle}>Sprint 40 — Application mobile driver</Text>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <TextInput
         style={styles.input}

@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 39.
+"""Ziza API — Sprint 40.
 
 Endpoints:
   GET   /health                                    liveness probe

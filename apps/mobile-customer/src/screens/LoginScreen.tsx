@@ -1,6 +1,6 @@
 /**
  * LoginScreen — email/password authentication.
- * Sprint 35
+ * Sprint 40 — passes refresh token to AuthContext for persistent sessions.
  */
 import React, { useState } from "react";
 import {
@@ -28,7 +28,7 @@ export default function LoginScreen(): React.ReactElement {
     setError(null);
     try {
       const data = await apiLogin(email, password);
-      await login(data.access_token);
+      await login(data.access_token, data.refresh_token ?? null);
     } catch (e: any) {
       setError(e.message || "Login failed");
     } finally {
@@ -42,7 +42,7 @@ export default function LoginScreen(): React.ReactElement {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <Text style={styles.title}>Ziza Customer</Text>
-      <Text style={styles.subtitle}>Sprint 35 — Mobile App</Text>
+      <Text style={styles.subtitle}>Sprint 40 — Mobile App</Text>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <TextInput
         style={styles.input}

@@ -1,23 +1,35 @@
 /**
  * AuthContext — shared auth state for mobile-customer.
- * Sprint 39 — adds Expo push token registration on login.
+ * Sprint 40 — auto token refresh on cold start (silent re-auth).
+ *
+ * Cold-start flow:
+ *   1. Read stored access token.
+ *   2. Validate via fetchMe() — catches expired tokens (401).
+ *   3. On 401: attempt silent refresh with stored refresh token.
+ *      • Success → swap in new pair, continue.
+ *      • Failure (revoked / expired) → clear storage, show Login.
+ *   4. Network errors are transient — keep session alive offline.
  */
 import React, { createContext, useContext, useState, useEffect } from "react";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import {
   getStoredToken,
-  storeToken,
-  clearToken,
+  storeTokenPair,
+  getStoredRefreshToken,
+  clearTokenPair,
   logout as apiLogout,
+  refreshAccessToken,
+  fetchMe,
   registerDeviceToken,
   deregisterDeviceToken,
+  ApiError,
 } from "../api";
 
 interface AuthContextType {
   token: string | null;
   ready: boolean;
-  login: (token: string) => Promise<void>;
+  login: (accessToken: string, refreshToken?: string | null) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -75,29 +87,59 @@ export function AuthProvider({
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    getStoredToken()
-      .then(async (t) => {
-        setToken(t);
-        // Re-register push token on cold start (token may have rotated)
-        if (t) await _registerPush(t);
-      })
-      .finally(() => setReady(true));
+    (async () => {
+      try {
+        const storedAccess = await getStoredToken();
+        if (!storedAccess) return; // no token stored → show Login
+
+        let activeToken = storedAccess;
+
+        // --- Validate token (lightweight ping to /v1/me) ---
+        try {
+          await fetchMe(storedAccess);
+        } catch (err) {
+          if (err instanceof ApiError && err.status === 401) {
+            // Access token expired — attempt silent refresh
+            const storedRefresh = await getStoredRefreshToken();
+            if (!storedRefresh) {
+              await clearTokenPair();
+              return; // no refresh token → show Login
+            }
+            try {
+              const newPair = await refreshAccessToken(storedRefresh);
+              activeToken = newPair.access_token;
+            } catch {
+              // Refresh token revoked or expired → force re-login
+              await clearTokenPair();
+              return;
+            }
+          }
+          // Network / server error → treat as transient, keep token alive
+        }
+
+        setToken(activeToken);
+        await _registerPush(activeToken);
+      } finally {
+        setReady(true);
+      }
+    })();
   }, []);
 
-  const login = async (newToken: string) => {
-    await storeToken(newToken);
-    setToken(newToken);
-    await _registerPush(newToken);
+  const login = async (
+    accessToken: string,
+    refreshToken?: string | null
+  ) => {
+    await storeTokenPair(accessToken, refreshToken);
+    setToken(accessToken);
+    await _registerPush(accessToken);
   };
 
   const logout = async () => {
-    try {
-      if (token) {
-        await _deregisterPush(token);
-        await apiLogout(token);
-      }
-    } catch {
-      await clearToken();
+    if (token) {
+      await _deregisterPush(token).catch(() => {});
+      await apiLogout(token).catch(() => clearTokenPair());
+    } else {
+      await clearTokenPair();
     }
     setToken(null);
   };
