@@ -1,15 +1,17 @@
 /**
  * TrackingScreen — live trip tracking with driver position and ETA.
- * Sprint 35
+ * Sprint 41 — "Payer" button creates a real payment intent before navigating
+ *             to PaymentScreen (was a hardcoded fake URL in Sprint 35).
  */
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import React, { useState } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { useAuth } from "../context/AuthContext";
 import { useTrip } from "../hooks/useTrip";
 import { useTracking } from "../hooks/useTracking";
+import { createPaymentIntent } from "../api";
 import TrackingMap from "../components/TrackingMap";
 import EtaCard from "../components/EtaCard";
 
@@ -24,32 +26,53 @@ export default function TrackingScreen(): React.ReactElement {
 
   const { trip } = useTrip(token, tripId);
   const { position } = useTracking(token, trip?.driver_id ?? null, trip?.status ?? null);
+  const [payLoading, setPayLoading] = useState(false);
 
-  const handlePay = () => {
-    if (!trip) return;
-    navigation.navigate("Payment", {
-      tripId: trip.trip_id,
-      checkoutUrl: `https://pay.ziza.dev/checkout/${trip.trip_id}`,
-    });
+  const handlePay = async () => {
+    if (!trip || !token) return;
+    setPayLoading(true);
+    try {
+      // Create (or retrieve existing) payment intent from the API
+      const intent = await createPaymentIntent(token, trip.trip_id);
+      navigation.navigate("Payment", {
+        tripId: trip.trip_id,
+        checkoutUrl: intent.checkout_url,
+      });
+    } catch (e: any) {
+      Alert.alert(
+        "Erreur de paiement",
+        e.message || "Impossible d'initialiser le paiement. Réessayez.",
+      );
+    } finally {
+      setPayLoading(false);
+    }
   };
 
   return (
     <View style={styles.container}>
       <TrackingMap
         driverPosition={position}
-        originLat={trip?.origin_lat ?? 40.7357}
-        originLng={trip?.origin_lng ?? -74.1724}
-        destLat={trip?.dest_lat ?? 40.7282}
-        destLng={trip?.dest_lng ?? -74.0776}
+        originLat={trip?.origin_lat ?? 5.3545}
+        originLng={trip?.origin_lng ?? -4.0083}
+        destLat={trip?.dest_lat ?? 5.3600}
+        destLng={trip?.dest_lng ?? -4.0100}
       />
       <View style={styles.info}>
-        <Text style={styles.status}>Status: {trip?.status ?? "…"}</Text>
+        <Text style={styles.status}>Statut : {trip?.status ?? "…"}</Text>
         {trip?.eta_minutes != null && (
           <EtaCard etaMinutes={trip.eta_minutes} />
         )}
         {trip?.status === "completed" && (
-          <TouchableOpacity style={styles.payButton} onPress={handlePay}>
-            <Text style={styles.payText}>Proceed to Payment</Text>
+          <TouchableOpacity
+            style={[styles.payButton, payLoading && styles.payButtonDisabled]}
+            onPress={handlePay}
+            disabled={payLoading}
+          >
+            {payLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.payText}>💳 Procéder au paiement</Text>
+            )}
           </TouchableOpacity>
         )}
       </View>
@@ -68,5 +91,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 12,
   },
+  payButtonDisabled: { opacity: 0.6 },
   payText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
 });

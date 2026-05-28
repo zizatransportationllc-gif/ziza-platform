@@ -86,12 +86,15 @@ export interface DriverPosition {
 }
 
 export interface PaymentIntentResponse {
-  payment_id: string;
+  intent_id: string;
   trip_id: string;
   amount_xof: number;
+  provider: string;
   provider_ref: string;
   checkout_url: string;
-  status: string;
+  status: string;  // "pending" | "paid" | "failed"
+  created_at: string;
+  updated_at: string;
 }
 
 export interface PromoResponse {
@@ -355,6 +358,18 @@ export async function getPaymentStatus(
     headers: _auth(token),
   });
   return _json<{ status: string; provider_ref: string }>(res);
+}
+
+/** Sprint 41 — fetch payment intent by trip_id. Returns null if no intent yet. */
+export async function getTripPayment(
+  token: string,
+  tripId: string
+): Promise<PaymentIntentResponse | null> {
+  const res = await fetch(`${API_BASE}/v1/trips/${tripId}/payment`, {
+    headers: _auth(token),
+  });
+  if (res.status === 404) return null;
+  return _json<PaymentIntentResponse>(res);
 }
 
 // ---------------------------------------------------------------------------

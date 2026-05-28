@@ -19,6 +19,7 @@ class MockPaymentAdapter:
         amount_xof: int,
         ref: str,
         return_url: str,
+        notify_url: str | None = None,
     ) -> dict:
         """Return a deterministic fake checkout URL."""
         return {

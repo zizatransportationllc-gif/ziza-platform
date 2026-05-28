@@ -28,6 +28,7 @@ class StripeAdapter:
         amount_xof: int,
         ref: str,
         return_url: str,
+        notify_url: str | None = None,  # unused by Stripe (webhook registered in dashboard)
     ) -> dict:
         """Create a Stripe Checkout Session.
 

@@ -1,7 +1,11 @@
-"""CinetPayAdapter — Sprint 24.
+"""CinetPayAdapter — Sprint 41.
 
 Production adapter for CinetPay (leader in West Africa / Ivory Coast).
 Requires ``cinetpay_api_key`` and ``cinetpay_site_id`` settings.
+
+Sprint 41: uses the CinetPay v2 JSON API (POST) instead of a hand-built
+redirect URL.  The API returns a ``payment_url`` which the customer is
+redirected to; the ``notify_url`` receives the webhook callback.
 
 Docs: https://cinetpay.com/docs/api
 """
@@ -16,7 +20,7 @@ class CinetPayAdapter:
     """CinetPay payment adapter (Ivory Coast / West Africa)."""
 
     _provider_name = "cinetpay"
-    _CHECKOUT_URL = "https://api-checkout.cinetpay.com/v2/payment"
+    _API_URL = "https://api-checkout.cinetpay.com/v2/payment"
 
     def __init__(self, api_key: str, site_id: str) -> None:
         self._api_key = api_key
@@ -27,28 +31,48 @@ class CinetPayAdapter:
         amount_xof: int,
         ref: str,
         return_url: str,
+        notify_url: str | None = None,
     ) -> dict:
-        """Create a CinetPay payment session.
+        """Create a CinetPay payment session via the v2 JSON API.
 
-        Returns ``{"provider_ref": ref, "checkout_url": url}``.
-        The ``checkout_url`` embeds the payment parameters as query params;
-        the customer is redirected there to complete the transaction.
+        Posts to the CinetPay endpoint and returns the ``payment_url`` from
+        the response so the customer can be redirected there.
+
+        Returns ``{"provider_ref": ref, "checkout_url": payment_url}``.
+        Raises ``RuntimeError`` if CinetPay rejects the request.
         """
-        # Build the signed payment URL (CinetPay cashier format v2).
-        params = {
+        import httpx  # noqa: PLC0415
+
+        if not notify_url:
+            # Derive notify_url from return_url: swap /return → webhook path
+            notify_url = return_url.replace("/payment/return", "/v1/payments/webhook")
+
+        payload = {
             "apikey": self._api_key,
             "site_id": self._site_id,
             "transaction_id": ref,
             "amount": amount_xof,
             "currency": "XOF",
+            "description": f"Ziza — course {ref[:8]}",
             "return_url": return_url,
-            "notify_url": return_url.replace("/return", "/webhook"),
+            "notify_url": notify_url,
         }
-        query = "&".join(f"{k}={v}" for k, v in params.items())
-        checkout_url = f"{self._CHECKOUT_URL}?{query}"
+
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(self._API_URL, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+
+        # CinetPay returns code "201" on success
+        code = str(data.get("code", ""))
+        if code != "201":
+            msg = data.get("message") or data.get("description") or "unknown error"
+            raise RuntimeError(f"CinetPay rejected the request: {msg} (code {code})")
+
+        payment_url = data["data"]["payment_url"]
         return {
             "provider_ref": ref,
-            "checkout_url": checkout_url,
+            "checkout_url": payment_url,
         }
 
     async def verify_webhook(

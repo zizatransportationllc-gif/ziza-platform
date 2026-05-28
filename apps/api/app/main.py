@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 40.
+"""Ziza API — Sprint 41.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -2400,6 +2400,7 @@ async def create_payment_intent(
     intent_data = await crud.create_payment_intent(
         db, claims, body.trip_id, adapter,
         return_url=settings.payment_return_url,
+        notify_url=settings.payment_notify_url or None,
     )
     return PaymentIntentResponse(**intent_data)
 

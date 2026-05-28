@@ -381,11 +381,14 @@ html, body {
 .payment-section { margin: var(--space-3) 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .payment-card { display: flex; align-items: center; gap: var(--space-3); background: color-mix(in srgb, #34d399 8%, transparent); border: 1px solid #34d399; border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); }
 .payment-card-paid { background: color-mix(in srgb, #34d399 15%, transparent); border-color: #10b981; }
+.payment-card-failed { background: color-mix(in srgb, #f87171 10%, transparent); border-color: #ef4444; }
 .payment-icon { font-size: 1.4rem; flex-shrink: 0; }
 .payment-info { display: flex; flex-direction: column; gap: 2px; }
 .payment-label { font-size: 0.82rem; color: var(--color-muted); }
 .payment-amount { font-size: 1rem; font-weight: 700; color: var(--color-fg); }
 .payment-status-paid { font-size: 0.88rem; font-weight: 700; color: #10b981; text-transform: uppercase; letter-spacing: 0.04em; }
+.payment-status-failed { font-size: 0.88rem; font-weight: 700; color: #ef4444; text-transform: uppercase; letter-spacing: 0.04em; }
+.payment-hint { font-size: 0.78rem; color: var(--color-muted); text-align: center; margin: 0; }
 .payment-btn { display: block; width: 100%; padding: var(--space-3) var(--space-4); background: #10b981; color: #fff; border: none; border-radius: var(--radius-md); font-size: 0.95rem; font-weight: 600; cursor: pointer; text-align: center; text-decoration: none; transition: opacity 0.15s; }
 .payment-btn:hover:not(:disabled) { opacity: 0.88; }
 .payment-btn:disabled { opacity: 0.5; cursor: not-allowed; }

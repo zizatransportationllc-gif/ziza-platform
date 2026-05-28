@@ -67,10 +67,13 @@ const ASSISTANCE_STATUS_LABELS = {
 
 const ASSISTANCE_TERMINAL = new Set(["resolved", "cancelled"]);
 
-function formatUSD(n) {
+/** Sprint 41 — display amounts in CFA Francs (XOF), used across all payment UI. */
+function formatXOF(n) {
   if (n == null) return "—";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n / 100);
+  return new Intl.NumberFormat("fr-CI", { style: "currency", currency: "XOF", maximumFractionDigits: 0 }).format(n);
 }
+// Keep alias for backward-compat with any call sites that still use formatUSD
+const formatUSD = formatXOF;
 
 // ---------------------------------------------------------------------------
 // Login form
@@ -82,7 +85,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Customer</h1>
-      <p className="subtitle">Sprint 34 — Advanced Analytics</p>
+      <p className="subtitle">Sprint 41 — Paiement CinetPay</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
@@ -482,23 +485,41 @@ function PaymentSection({ token, tripId, fareXof }) {
         <div className="payment-card payment-card-paid">
           <span className="payment-icon">✅</span>
           <div className="payment-info">
-            <div className="payment-status-paid">Paid</div>
-            <div className="payment-amount">{formatUSD(intent.amount_xof)}</div>
+            <div className="payment-status-paid">Paiement confirmé</div>
+            <div className="payment-amount">{formatXOF(intent.amount_xof)}</div>
           </div>
         </div>
       </div>
     );
   }
 
+  if (intent && intent.status === "failed") {
+    return (
+      <div className="payment-section">
+        <div className="payment-card payment-card-failed">
+          <span className="payment-icon">❌</span>
+          <div className="payment-info">
+            <div className="payment-status-failed">Paiement échoué</div>
+            <div className="payment-amount">{formatXOF(intent.amount_xof)}</div>
+          </div>
+        </div>
+        <button className="payment-btn" onClick={handlePay} disabled={loading}>
+          {loading ? "Chargement…" : "🔄 Réessayer"}
+        </button>
+      </div>
+    );
+  }
+
   if (intent && intent.status === "pending") {
     const isMock = intent.checkout_url && intent.checkout_url.includes("localhost");
+    const providerLabel = intent.provider === "cinetpay" ? "CinetPay (Mobile Money)" : intent.provider;
     return (
       <div className="payment-section">
         <div className="payment-card">
           <span className="payment-icon">💳</span>
           <div className="payment-info">
-            <div className="payment-label">Payment Pending</div>
-            <div className="payment-amount">{formatUSD(intent.amount_xof)}</div>
+            <div className="payment-label">Paiement en attente…</div>
+            <div className="payment-amount">{formatXOF(intent.amount_xof)}</div>
           </div>
         </div>
         {isMock && (
@@ -507,7 +528,7 @@ function PaymentSection({ token, tripId, fareXof }) {
             onClick={handleSimulate}
             disabled={simulating}
           >
-            {simulating ? "Simulating…" : "🧪 Simulate Payment (dev)"}
+            {simulating ? "Simulation…" : "🧪 Simuler le paiement (dev)"}
           </button>
         )}
         {!isMock && intent.checkout_url && (
@@ -517,9 +538,12 @@ function PaymentSection({ token, tripId, fareXof }) {
             target="_blank"
             rel="noopener noreferrer"
           >
-            Pay with {intent.provider}
+            Payer via {providerLabel}
           </a>
         )}
+        <p className="payment-hint">
+          La page se met à jour automatiquement après confirmation.
+        </p>
         {error && <p className="form-error">{error}</p>}
       </div>
     );
@@ -533,7 +557,7 @@ function PaymentSection({ token, tripId, fareXof }) {
         onClick={handlePay}
         disabled={loading}
       >
-        {loading ? "Initializing…" : `💳 Pay ${formatUSD(fareXof || 0)}`}
+        {loading ? "Chargement…" : `💳 Payer ${formatXOF(fareXof || 0)}`}
       </button>
       {error && <p className="form-error">{error}</p>}
     </div>
@@ -1683,7 +1707,7 @@ function Dashboard({ user, token, onLogout }) {
         </>
       )}
 
-      <p className="footer">App: <strong>web-customer</strong> · Sprint 34</p>
+      <p className="footer">App: <strong>web-customer</strong> · Sprint 41</p>
     </div>
   );
 }

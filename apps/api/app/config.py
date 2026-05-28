@@ -98,6 +98,9 @@ class Settings(BaseSettings):
 
     # Default return URL after payment (override in production)
     payment_return_url: str = "https://app.ziza.ci/payment/return"
+    # Webhook URL for payment provider callbacks (Sprint 41)
+    # Defaults to empty — CinetPay adapter derives it from payment_return_url
+    payment_notify_url: str = ""
 
     # ------------------------------------------------------------------
     # Notifications — Sprint 26

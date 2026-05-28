@@ -2643,6 +2643,7 @@ async def create_payment_intent(
     trip_id: str,
     adapter,
     return_url: str = "https://app.ziza.ci/payment/return",
+    notify_url: str | None = None,
 ) -> dict:
     """Create (or return existing) PaymentIntent for a completed trip.
 
@@ -2706,6 +2707,7 @@ async def create_payment_intent(
         amount_xof=amount,
         ref=str(intent.id),
         return_url=return_url,
+        notify_url=notify_url or None,
     )
     intent.provider_ref = checkout["provider_ref"]
     intent.checkout_url = checkout["checkout_url"]
