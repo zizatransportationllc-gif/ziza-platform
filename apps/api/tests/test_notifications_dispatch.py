@@ -178,7 +178,9 @@ def test_complete_trip_mock_channel_receives_email_recipient():
 
     assert len(MockChannel.sent) >= 1
     recipients = [s["recipient"] for s in MockChannel.sent]
-    assert all("@" in r for r in recipients)
+    # At least one dispatch must target the customer email.
+    # Other dispatches may use device tokens (no "@"), so we use any() not all().
+    assert any("@" in r for r in recipients)
 
 
 # ---------------------------------------------------------------------------

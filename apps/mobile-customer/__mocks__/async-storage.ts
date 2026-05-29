@@ -22,6 +22,12 @@ const AsyncStorageMock = {
     async (keys: string[]): Promise<Array<[string, string | null]>> =>
       keys.map((k) => [k, _store[k] ?? null])
   ),
+  multiSet: jest.fn(async (pairs: [string, string][]): Promise<void> => {
+    pairs.forEach(([key, value]) => { _store[key] = value; });
+  }),
+  multiRemove: jest.fn(async (keys: string[]): Promise<void> => {
+    keys.forEach((k) => delete _store[k]);
+  }),
 };
 
 export default AsyncStorageMock;

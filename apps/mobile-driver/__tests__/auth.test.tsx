@@ -33,9 +33,9 @@ test("login() stores access token in AsyncStorage after successful response", as
 
   await login("driver@ziza.dev", "ziza2024");
 
-  expect(AsyncStorage.setItem).toHaveBeenCalledWith(
-    "ziza_access_token",
-    "drv_tok_abc123"
+  // login() calls storeTokenPair() which uses multiSet (Sprint 40)
+  expect(AsyncStorage.multiSet).toHaveBeenCalledWith(
+    expect.arrayContaining([["ziza_access_token", "drv_tok_abc123"]])
   );
 });
 
