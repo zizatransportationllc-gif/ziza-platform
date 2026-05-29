@@ -1,4 +1,4 @@
-"""Sprint 32 — Multi-city tests (6 tests).
+"""Sprint 46 — Multi-city / zone tests (6 tests).
 
 Covers:
   GET  /v1/cities
@@ -8,9 +8,9 @@ Covers:
   PATCH /v1/admin/cities/{id}
 
 Scenarios:
-  - Public list returns seeded default cities (active only)
-  - Admin list includes inactive cities
-  - Admin can create a new city
+  - Public list returns only active cities (activating Newark to verify)
+  - Admin list includes inactive cities (8 NJ cities seeded as inactive)
+  - Admin can create a new city/zone (with zone_type)
   - Admin can update a city (toggle active, change radius)
   - Duplicate city name returns 409
   - Non-admin cannot create city (403)
@@ -24,9 +24,10 @@ client = TestClient(app)
 
 NEW_CITY = {
     "name": "San Pedro",
-    "country": "Côte d'Ivoire",
-    "center_lat": 4.7459,
-    "center_lng": -6.6362,
+    "country": "United States",
+    "zone_type": "city",
+    "center_lat": 40.6501,
+    "center_lng": -74.3496,
     "radius_km": 15.0,
     "active": True,
 }
@@ -63,35 +64,61 @@ def _customer() -> str:
 # ---------------------------------------------------------------------------
 
 def test_public_list_cities_returns_active_only():
-    """GET /v1/cities returns only active cities (Abidjan seeded as active)."""
+    """GET /v1/cities returns only active cities.
+
+    All NJ default cities are seeded as inactive. We activate Newark, verify it
+    appears in the public list, then deactivate it again.
+    """
     a_tok = _admin()
     # Trigger seeding via admin endpoint
-    client.get("/v1/admin/cities", headers=_h(a_tok))
+    cities = client.get("/v1/admin/cities", headers=_h(a_tok)).json()
+    newark = next((c for c in cities if c["name"] == "Newark"), None)
+    assert newark is not None, "Newark not seeded"
 
-    r = client.get("/v1/cities")
-    assert r.status_code == 200, r.text
-    data = r.json()
-    assert isinstance(data, list)
-    # All returned cities must be active
-    assert all(c["active"] is True for c in data)
-    # Abidjan should be in there
-    names = [c["name"] for c in data]
-    assert "Abidjan" in names
+    # Activate Newark so the public list is non-empty
+    client.patch(
+        f"/v1/admin/cities/{newark['city_id']}",
+        headers=_h(a_tok),
+        json={"active": True},
+    )
+
+    try:
+        r = client.get("/v1/cities")
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert isinstance(data, list)
+        # All returned cities must be active
+        assert all(c["active"] is True for c in data)
+        # Newark should be in there
+        names = [c["name"] for c in data]
+        assert "Newark" in names
+        # zone_type field must be present
+        assert all("zone_type" in c for c in data)
+    finally:
+        # Deactivate Newark so other tests see no active cities (fail-open)
+        client.patch(
+            f"/v1/admin/cities/{newark['city_id']}",
+            headers=_h(a_tok),
+            json={"active": False},
+        )
 
 
 def test_admin_list_cities_includes_inactive():
-    """GET /v1/admin/cities includes inactive cities."""
+    """GET /v1/admin/cities includes inactive cities.
+
+    Multiple NJ cities are seeded as inactive — should all appear.
+    """
     a_tok = _admin()
     r = client.get("/v1/admin/cities", headers=_h(a_tok))
     assert r.status_code == 200, r.text
     data = r.json()
     assert isinstance(data, list)
-    # Bouaké and Yamoussoukro seeded as inactive — should appear
+    # 8 default NJ cities seeded; all inactive by default
     assert len(data) >= 3
 
 
 def test_admin_create_city():
-    """POST /v1/admin/cities creates a new city."""
+    """POST /v1/admin/cities creates a new city/zone."""
     a_tok = _admin()
     import uuid
     unique_name = f"TestCity-{uuid.uuid4().hex[:6]}"
@@ -104,6 +131,7 @@ def test_admin_create_city():
     data = r.json()
     assert data["name"] == unique_name
     assert data["radius_km"] == 15.0
+    assert data["zone_type"] == "city"
     assert "city_id" in data
 
 
@@ -138,7 +166,7 @@ def test_duplicate_city_name_returns_409():
     r = client.post(
         "/v1/admin/cities",
         headers=_h(a_tok),
-        json={**NEW_CITY, "name": "Abidjan"},  # already exists
+        json={**NEW_CITY, "name": "Newark"},  # already seeded by default
     )
     assert r.status_code == 409, r.text
 

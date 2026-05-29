@@ -51,15 +51,15 @@ CATEGORY_MULTIPLIERS: dict[str, float] = {
 }
 
 CATEGORY_LABELS: dict[str, str] = {
-    "economy": "Économique",
-    "comfort": "Confort",
+    "economy": "Economy",
+    "comfort": "Comfort",
     "premium": "Premium",
 }
 
 CATEGORY_DESCRIPTIONS: dict[str, str] = {
-    "economy": "Trajet standard au meilleur prix",
-    "comfort": "Véhicule spacieux et climatisé",
-    "premium": "Berline haut de gamme",
+    "economy": "Standard ride at the best price",
+    "comfort": "Spacious air-conditioned vehicle",
+    "premium": "High-end sedan",
 }
 
 
@@ -669,8 +669,8 @@ async def accept_trip(db: AsyncSession, trip_id: str, auth_user_id: str) -> Trip
     await _push_notification(
         db, trip.customer_id,
         "trip_accepted",
-        "🚗 Chauffeur en route",
-        "Un chauffeur a accepté votre course. Il arrive bientôt !",
+        "🚗 Driver on the way",
+        "A driver accepted your ride. They are on the way!",
     )
     return trip
 
@@ -723,8 +723,8 @@ async def complete_trip(db: AsyncSession, trip_id: str, auth_user_id: str) -> Tr
     await _push_notification(
         db, trip.customer_id,
         "trip_completed",
-        "✅ Trajet terminé",
-        f"Votre course est terminée{fare_str}. Merci d'avoir choisi Ziza !",
+        "✅ Trip completed",
+        f"Your ride is done{fare_str}. Thank you for choosing Ziza!",
     )
     return trip
 
@@ -1023,8 +1023,8 @@ async def accept_assistance(
     req.driver_id = driver.id
     req.updated_at = datetime.now(timezone.utc)
     # Sprint 23: use driver's real position when available; fall back to city centre
-    d_lat = getattr(driver, "current_lat", None) or _ABIDJAN_LAT
-    d_lng = getattr(driver, "current_lng", None) or _ABIDJAN_LNG
+    d_lat = getattr(driver, "current_lat", None) or _NEWARK_LAT
+    d_lng = getattr(driver, "current_lng", None) or _NEWARK_LNG
     req.eta_min = _compute_eta_min(d_lat, d_lng, req.lat, req.lng)
     await db.commit()
     await db.refresh(req)
@@ -1100,9 +1100,9 @@ async def get_driver_rating_stats(
 # Driver Capabilities — Sprint 10
 # ---------------------------------------------------------------------------
 
-# Abidjan city centre used as the default dispatch origin for ETA calculation
-_ABIDJAN_LAT: float = 5.345317
-_ABIDJAN_LNG: float = -4.024429
+# Newark, NJ city centre used as the default dispatch origin for ETA calculation
+_NEWARK_LAT: float = 40.7357
+_NEWARK_LNG: float = -74.1724
 
 
 def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
@@ -2153,25 +2153,25 @@ async def admin_update_document_status(
     reviewed_driver = driver_result.scalar_one_or_none()
     if reviewed_driver is not None:
         doc_type_label = {
-            "license": "Permis de conduire",
-            "insurance": "Assurance",
-            "registration": "Carte grise",
-            "id_card": "Carte d'identité",
+            "license": "Driver's License",
+            "insurance": "Vehicle Insurance",
+            "registration": "Vehicle Registration",
+            "id_card": "Government ID",
         }.get(doc.type, doc.type)
         if new_status == "approved":
             await _push_notification(
                 db, reviewed_driver.user_id,
                 "document_approved",
-                "✅ Document approuvé",
-                f"Votre {doc_type_label} a été approuvé par l'équipe Ziza.",
+                "✅ Document approved",
+                f"Your {doc_type_label} has been approved by the Ziza team.",
             )
         else:
             note_suffix = f" — {note_admin}" if note_admin else ""
             await _push_notification(
                 db, reviewed_driver.user_id,
                 "document_rejected",
-                "❌ Document rejeté",
-                f"Votre {doc_type_label} a été rejeté{note_suffix}. Veuillez soumettre un nouveau document.",
+                "❌ Document rejected",
+                f"Your {doc_type_label} was rejected{note_suffix}. Please submit a new document.",
             )
 
     return {
@@ -2766,12 +2766,12 @@ async def confirm_payment(
     # Sprint 26: notify the customer when payment is confirmed
     if new_status == "paid" and customer_uuid is not None:
         amount_xof = intent.amount_xof
-        amount_str = f"{amount_xof:,} XOF".replace(",", " ") if amount_xof else ""
+        amount_str = f"${amount_xof / 100:,.2f}" if amount_xof else ""
         await _push_notification(
             db, customer_uuid,
             "payment_confirmed",
-            "💳 Paiement confirmé",
-            f"Votre paiement de {amount_str} a été confirmé. Merci !",
+            "💳 Payment confirmed",
+            f"Your payment{(' of ' + amount_str) if amount_str else ''} has been confirmed. Thank you!",
         )
 
     return _intent_to_dict(intent)
@@ -3288,8 +3288,8 @@ async def run_payout_batch(db: AsyncSession) -> dict:
                     db,
                     user.id,
                     "payout_failed",
-                    "Virement échoué",
-                    f"Votre virement de {req.amount_xof:,} XOF a échoué. ({exc})",
+                    "Payout failed",
+                    f"Your payout of ${req.amount_xof / 100:,.2f} failed. ({exc})",
                 )
             except Exception:
                 pass
@@ -3312,7 +3312,7 @@ async def create_application(db: AsyncSession, auth_id: str, data: dict) -> dict
     """Submit a new driver application (one per user, 409 if already exists)."""
     user = await _get_user_by_auth_id(db, auth_id)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Utilisateur introuvable.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
     auth_user_id = user.id
 
     existing = await db.scalar(
@@ -3321,7 +3321,7 @@ async def create_application(db: AsyncSession, auth_id: str, data: dict) -> dict
     if existing is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Une candidature existe déjà pour cet utilisateur.",
+            detail="An application already exists for this user.",
         )
 
     app_obj = DriverApplication(
@@ -3377,7 +3377,7 @@ async def admin_get_application(db: AsyncSession, application_id: uuid.UUID) -> 
         select(DriverApplication).where(DriverApplication.id == application_id)
     )
     if app_obj is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidature introuvable.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found.")
     return _application_to_dict(app_obj)
 
 
@@ -3397,14 +3397,14 @@ async def admin_review_application(
     if new_status not in {"approved", "rejected", "under_review"}:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Statut invalide: {new_status!r}. Valeurs acceptées: approved, rejected, under_review.",
+            detail=f"Invalid status: {new_status!r}. Accepted values: approved, rejected, under_review.",
         )
 
     app_obj = await db.scalar(
         select(DriverApplication).where(DriverApplication.id == application_id)
     )
     if app_obj is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidature introuvable.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found.")
 
     app_obj.status = new_status
     app_obj.reviewed_at = datetime.now(timezone.utc)
@@ -3561,18 +3561,18 @@ async def use_invite_code(db: AsyncSession, code: str) -> dict:
     if invite is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Code d'invitation invalide.",
+            detail="Invalid invite code.",
         )
     now = datetime.now(timezone.utc)
     if invite.expires_at and invite.expires_at < now:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Code d'invitation expiré.",
+            detail="Invite code has expired.",
         )
     if invite.used_count >= invite.max_uses:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Code d'invitation épuisé.",
+            detail="Invite code has been exhausted.",
         )
     invite.used_count += 1
     await db.commit()
@@ -3632,17 +3632,17 @@ async def admin_set_user_role(
     if user_id == admin_user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Un admin ne peut pas modifier son propre rôle.",
+            detail="An admin cannot change their own role.",
         )
     valid_roles = {"customer", "driver", "admin"}
     if new_role not in valid_roles:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Rôle invalide: {new_role!r}. Valeurs: {sorted(valid_roles)}",
+            detail=f"Invalid role: {new_role!r}. Valid values: {sorted(valid_roles)}",
         )
     user = await db.scalar(select(User).where(User.id == user_id))
     if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Utilisateur introuvable.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
     user.role = new_role
     await db.commit()
     return {"user_id": str(user.id), "email": user.email, "role": user.role}
@@ -3676,6 +3676,7 @@ def _city_to_dict(city: City) -> dict:
         "city_id": str(city.id),
         "name": city.name,
         "country": city.country,
+        "zone_type": getattr(city, "zone_type", "city"),
         "center_lat": city.center_lat,
         "center_lng": city.center_lng,
         "radius_km": city.radius_km,
@@ -3722,7 +3723,7 @@ async def get_city(db: AsyncSession, city_id: uuid.UUID) -> dict:
     """Get a single city by ID (404 if not found)."""
     city = await db.scalar(select(City).where(City.id == city_id))
     if city is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ville introuvable.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="City not found.")
     return _city_to_dict(city)
 
 
@@ -3734,17 +3735,19 @@ async def create_city(
     center_lng: float,
     radius_km: float,
     active: bool = True,
+    zone_type: str = "city",
 ) -> dict:
-    """Create a new city. 409 if name already exists."""
+    """Create a new city/state/country zone. 409 if name already exists."""
     existing = await db.scalar(select(City).where(City.name == name))
     if existing is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Une ville nommée «{name}» existe déjà.",
+            detail=f"A zone named '{name}' already exists.",
         )
     city = City(
         name=name,
         country=country,
+        zone_type=zone_type,
         center_lat=center_lat,
         center_lng=center_lng,
         radius_km=radius_km,
@@ -3764,8 +3767,8 @@ async def update_city(
     """Update city fields. Returns updated city dict. 404 if not found."""
     city = await db.scalar(select(City).where(City.id == city_id))
     if city is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ville introuvable.")
-    allowed = {"name", "country", "center_lat", "center_lng", "radius_km", "active"}
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="City not found.")
+    allowed = {"name", "country", "zone_type", "center_lat", "center_lng", "radius_km", "active"}
     for key, val in updates.items():
         if key in allowed and val is not None:
             setattr(city, key, val)
@@ -3803,7 +3806,7 @@ async def create_service_zone(
     """Create a service zone. 404 if city doesn't exist."""
     city = await db.scalar(select(City).where(City.id == city_id))
     if city is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ville introuvable.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="City not found.")
     zone = ServiceZone(
         city_id=city_id,
         name=name,
@@ -3943,7 +3946,7 @@ async def get_wallet(db: AsyncSession, auth_id: str) -> dict:
     """Return the user's wallet (creates it if it doesn't exist)."""
     user = await _get_user_by_auth_id(db, auth_id)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Utilisateur introuvable.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
     wallet = await _get_or_create_wallet(db, user.id)
     return _wallet_to_dict(wallet)
 
@@ -3959,11 +3962,11 @@ async def wallet_topup(
     if amount_xof <= 0:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Le montant du rechargement doit être positif.",
+            detail="Top-up amount must be positive.",
         )
     user = await _get_user_by_auth_id(db, auth_id)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Utilisateur introuvable.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
     wallet = await _get_or_create_wallet(db, user.id)
     wallet.balance_xof += amount_xof
     wallet.updated_at = _dt.now(_tz.utc)
@@ -3993,16 +3996,16 @@ async def wallet_pay_trip(
     if amount_xof <= 0:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Le montant du paiement doit être positif.",
+            detail="Payment amount must be positive.",
         )
     user = await _get_user_by_auth_id(db, auth_id)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Utilisateur introuvable.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
     wallet = await _get_or_create_wallet(db, user.id)
     if wallet.balance_xof < amount_xof:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail=f"Solde insuffisant: {wallet.balance_xof:.0f} XOF disponible, {amount_xof:.0f} XOF requis.",
+            detail=f"Insufficient balance: {wallet.balance_xof:.0f} available, {amount_xof:.0f} required.",
         )
     wallet.balance_xof -= amount_xof
     wallet.updated_at = _dt.now(_tz.utc)
@@ -4033,7 +4036,7 @@ async def wallet_refund(
     if amount_xof <= 0:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Le montant du remboursement doit être positif.",
+            detail="Refund amount must be positive.",
         )
     wallet = await _get_or_create_wallet(db, user_id)
     wallet.balance_xof += amount_xof
@@ -4063,7 +4066,7 @@ async def get_wallet_transactions(
     """Return paginated transaction history for the user's wallet."""
     user = await _get_user_by_auth_id(db, auth_id)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Utilisateur introuvable.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
     wallet = await _get_or_create_wallet(db, user.id)
     stmt = (
         select(WalletTransaction)
@@ -4088,7 +4091,7 @@ async def admin_adjust_wallet(
     if new_balance < 0:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"L'ajustement ne peut pas amener le solde sous zéro (solde actuel: {wallet.balance_xof:.0f} XOF).",
+            detail=f"Adjustment cannot bring the balance below zero (current balance: {wallet.balance_xof:.0f}).",
         )
     wallet.balance_xof = new_balance
     wallet.updated_at = _dt.now(_tz.utc)

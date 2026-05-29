@@ -57,7 +57,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 45 — Zone Enforcement</p>
+      <p className="subtitle">Sprint 46 — US/NJ Zones</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
@@ -1613,7 +1613,7 @@ function FlagsPanel({ token }) {
 // CitiesPanel — Sprint 32 / Sprint 45 (zone enforcement + sub-zone management)
 // ---------------------------------------------------------------------------
 
-const COUNTRY_DEFAULT = "Côte d'Ivoire";
+const COUNTRY_DEFAULT = "United States";
 
 /**
  * CityZones — collapsible sub-zone list for a single city.
@@ -1735,7 +1735,7 @@ function CitiesPanel({ token }) {
   const [saveError, setSaveError] = useState(null);
   const [editRadius, setEditRadius] = useState({}); // city_id → new radius string
   const [form, setForm] = useState({
-    name: "", country: COUNTRY_DEFAULT,
+    name: "", country: COUNTRY_DEFAULT, zone_type: "city",
     center_lat: "", center_lng: "", radius_km: "50", active: true,
   });
 
@@ -1768,6 +1768,7 @@ function CitiesPanel({ token }) {
       const created = await adminCreateCity(token, {
         name: form.name.trim(),
         country: form.country,
+        zone_type: form.zone_type,
         center_lat: parseFloat(form.center_lat),
         center_lng: parseFloat(form.center_lng),
         radius_km: parseFloat(form.radius_km),
@@ -1775,7 +1776,7 @@ function CitiesPanel({ token }) {
       });
       setCities((prev) => [...prev, created]);
       setShowForm(false);
-      setForm({ name: "", country: COUNTRY_DEFAULT, center_lat: "", center_lng: "", radius_km: "50", active: true });
+      setForm({ name: "", country: COUNTRY_DEFAULT, zone_type: "city", center_lat: "", center_lng: "", radius_km: "50", active: true });
     } catch (err) { setSaveError(err.message); }
     finally { setSaving(false); }
   }
@@ -1856,10 +1857,10 @@ function CitiesPanel({ token }) {
 
           <div className="zone-onboarding-actions">
             <div className="zone-onboarding-option">
-              <strong>Option 1 — Quick start (Côte d'Ivoire)</strong>
+              <strong>Option 1 — Quick start (New Jersey)</strong>
               <p style={{ margin: "4px 0 8px", color: "#6b7280", fontSize: ".85rem" }}>
-                Load the pre-configured zones for Abidjan (40 km), Bouaké (20 km),
-                and Yamoussoukro (20 km). You can deactivate or adjust them afterwards.
+                Load the pre-configured zones for Newark (15 km), Jersey City (12 km),
+                Trenton (12 km) and more NJ cities. You can activate or adjust them afterwards.
               </p>
               <button
                 className="batch-run-btn"
@@ -1867,7 +1868,7 @@ function CitiesPanel({ token }) {
                 onClick={handleSeedDefaults}
                 disabled={seeding}
               >
-                {seeding ? "⏳ Loading…" : "🌍 Load default Ivorian zones"}
+                {seeding ? "⏳ Loading…" : "🗺️ Load New Jersey default zones"}
               </button>
             </div>
 
@@ -1896,16 +1897,23 @@ function CitiesPanel({ token }) {
           {saveError && <p className="form-error">{saveError}</p>}
           <div className="city-form-grid">
             <label>Name
-              <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Abidjan" />
+              <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Newark" />
             </label>
             <label>Country
               <input value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} />
             </label>
+            <label>Zone Type
+              <select value={form.zone_type} onChange={(e) => setForm({ ...form, zone_type: e.target.value })}>
+                <option value="city">City</option>
+                <option value="state">State</option>
+                <option value="country">Country</option>
+              </select>
+            </label>
             <label>Center Latitude
-              <input type="number" step="any" required value={form.center_lat} onChange={(e) => setForm({ ...form, center_lat: e.target.value })} placeholder="5.3364" />
+              <input type="number" step="any" required value={form.center_lat} onChange={(e) => setForm({ ...form, center_lat: e.target.value })} placeholder="40.7357" />
             </label>
             <label>Center Longitude
-              <input type="number" step="any" required value={form.center_lng} onChange={(e) => setForm({ ...form, center_lng: e.target.value })} placeholder="-4.0267" />
+              <input type="number" step="any" required value={form.center_lng} onChange={(e) => setForm({ ...form, center_lng: e.target.value })} placeholder="-74.1724" />
             </label>
             <label>Radius (km)
               <input type="number" step="1" min="1" value={form.radius_km} onChange={(e) => setForm({ ...form, radius_km: e.target.value })} />
@@ -1916,7 +1924,7 @@ function CitiesPanel({ token }) {
             </label>
           </div>
           <button type="submit" className="batch-run-btn" disabled={saving}>
-            {saving ? "Creating…" : "Create city"}
+            {saving ? "Creating…" : "Create zone"}
           </button>
         </form>
       )}
@@ -2248,7 +2256,7 @@ const TABS = [
   { id: "assist",       label: "🆘 Assistance" },
   { id: "drivers",      label: "🧑‍✈️ Drivers" },
   { id: "live",         label: "🗺️ Live" },
-  { id: "cities",       label: "🌍 Cities" },
+  { id: "cities",       label: "🗺️ Zones" },
   { id: "analytics",    label: "📈 Analytics" },
   { id: "promos",       label: "🏷️ Promos" },
   { id: "payouts",      label: "💸 Payouts",      pendingKey: "payout_requests" },
@@ -2315,7 +2323,7 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "settings"     && <SurgePanel          token={token} />}
       {activeTab === "users"        && <UsersPanel          token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 45</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 46</p>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 45.
+"""Ziza API — Sprint 46.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -589,7 +589,7 @@ async def create_trip(
     if not flags["rideshare_customer"]:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Le service de covoiturage est temporairement désactivé pour les clients.",
+            detail="The rideshare service is temporarily unavailable for customers.",
         )
     trip = await crud.create_trip(
         db, claims, body.estimate_id,
@@ -820,7 +820,7 @@ async def accept_trip(
     if not flags["rideshare_driver"]:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Le service de covoiturage est temporairement désactivé pour les chauffeurs.",
+            detail="The rideshare service is temporarily unavailable for drivers.",
         )
     trip = await crud.accept_trip(db, trip_id, claims.user_id)
     return _trip_response(trip)
@@ -1051,7 +1051,7 @@ async def create_assistance_request(
     if not flags["assistance_customer"]:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Le service d'assistance est temporairement désactivé pour les clients.",
+            detail="The assistance service is temporarily unavailable for customers.",
         )
     # Sprint 45: enforce service zone restrictions
     await crud._check_zone_coverage(db, body.lat, body.lng)
@@ -1138,7 +1138,7 @@ async def accept_assistance(
     if not flags["assistance_driver"]:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Le service d'assistance est temporairement désactivé pour les chauffeurs.",
+            detail="The assistance service is temporarily unavailable for drivers.",
         )
     req = await crud.accept_assistance(db, req_id, claims.user_id)
     return _assistance_response(req)
@@ -3019,6 +3019,7 @@ class CityResponse(BaseModel):
     city_id: str
     name: str
     country: str
+    zone_type: str = "city"
     center_lat: float
     center_lng: float
     radius_km: float
@@ -3028,7 +3029,8 @@ class CityResponse(BaseModel):
 
 class CreateCityRequest(BaseModel):
     name: str
-    country: str = "Côte d'Ivoire"
+    country: str = "United States"
+    zone_type: str = "city"
     center_lat: float
     center_lng: float
     radius_km: float = 30.0
@@ -3038,6 +3040,7 @@ class CreateCityRequest(BaseModel):
 class UpdateCityRequest(BaseModel):
     name: str | None = None
     country: str | None = None
+    zone_type: str | None = None
     center_lat: float | None = None
     center_lng: float | None = None
     radius_km: float | None = None
@@ -3244,6 +3247,7 @@ async def admin_create_city(
         db,
         name=body.name,
         country=body.country,
+        zone_type=body.zone_type,
         center_lat=body.center_lat,
         center_lng=body.center_lng,
         radius_km=body.radius_km,

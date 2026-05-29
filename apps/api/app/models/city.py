@@ -1,7 +1,9 @@
-"""City and ServiceZone models — Sprint 32.
+"""City and ServiceZone models — Sprint 32 / Sprint 46 (US/NJ localization).
 
-City: a supported city with a center point and service radius.
+City: a supported city/state/country zone with a center point and service radius.
 ServiceZone: a named sub-zone within a city (GeoJSON polygon stored as text).
+
+zone_type values: "city" | "state" | "country"
 """
 from __future__ import annotations
 
@@ -23,7 +25,9 @@ class City(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
-    country: Mapped[str] = mapped_column(String(64), nullable=False, default="Côte d'Ivoire")
+    country: Mapped[str] = mapped_column(String(64), nullable=False, default="United States")
+    # zone_type: "city" | "state" | "country" — Sprint 46
+    zone_type: Mapped[str] = mapped_column(String(16), nullable=False, default="city")
     center_lat: Mapped[float] = mapped_column(Float, nullable=False)
     center_lng: Mapped[float] = mapped_column(Float, nullable=False)
     radius_km: Mapped[float] = mapped_column(Float, nullable=False, default=30.0)
@@ -55,30 +59,82 @@ class ServiceZone(Base):
     city: Mapped["City"] = relationship("City", back_populates="zones")
 
 
-# Default cities to seed on first use
+# ---------------------------------------------------------------------------
+# Sprint 46 — Default zones: major New Jersey cities
+# All inactive by default so zone enforcement stays OFF until the admin
+# explicitly activates a zone (prevents accidental restriction on first deploy).
+# ---------------------------------------------------------------------------
 DEFAULT_CITIES = [
     {
-        "name": "Abidjan",
-        "country": "Côte d'Ivoire",
-        "center_lat": 5.3364,
-        "center_lng": -4.0267,
-        "radius_km": 40.0,
-        "active": True,
+        "name": "Newark",
+        "country": "United States",
+        "zone_type": "city",
+        "center_lat": 40.7357,
+        "center_lng": -74.1724,
+        "radius_km": 15.0,
+        "active": False,
     },
     {
-        "name": "Bouaké",
-        "country": "Côte d'Ivoire",
-        "center_lat": 7.6906,
-        "center_lng": -5.0298,
-        "radius_km": 20.0,
-        "active": False,  # not yet active
+        "name": "Jersey City",
+        "country": "United States",
+        "zone_type": "city",
+        "center_lat": 40.7178,
+        "center_lng": -74.0431,
+        "radius_km": 12.0,
+        "active": False,
     },
     {
-        "name": "Yamoussoukro",
-        "country": "Côte d'Ivoire",
-        "center_lat": 6.8276,
-        "center_lng": -5.2893,
-        "radius_km": 20.0,
-        "active": False,  # not yet active
+        "name": "Trenton",
+        "country": "United States",
+        "zone_type": "city",
+        "center_lat": 40.2206,
+        "center_lng": -74.7597,
+        "radius_km": 12.0,
+        "active": False,
+    },
+    {
+        "name": "Camden",
+        "country": "United States",
+        "zone_type": "city",
+        "center_lat": 39.9259,
+        "center_lng": -75.1196,
+        "radius_km": 10.0,
+        "active": False,
+    },
+    {
+        "name": "Paterson",
+        "country": "United States",
+        "zone_type": "city",
+        "center_lat": 40.9176,
+        "center_lng": -74.1719,
+        "radius_km": 10.0,
+        "active": False,
+    },
+    {
+        "name": "Elizabeth",
+        "country": "United States",
+        "zone_type": "city",
+        "center_lat": 40.6640,
+        "center_lng": -74.2107,
+        "radius_km": 10.0,
+        "active": False,
+    },
+    {
+        "name": "Edison",
+        "country": "United States",
+        "zone_type": "city",
+        "center_lat": 40.5187,
+        "center_lng": -74.4121,
+        "radius_km": 10.0,
+        "active": False,
+    },
+    {
+        "name": "Woodbridge",
+        "country": "United States",
+        "zone_type": "city",
+        "center_lat": 40.5576,
+        "center_lng": -74.2846,
+        "radius_km": 10.0,
+        "active": False,
     },
 ]
