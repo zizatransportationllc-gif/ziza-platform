@@ -416,6 +416,40 @@ export async function searchPlaces(
 }
 
 // ---------------------------------------------------------------------------
+// Geo — Sprint 45: zone coverage check
+// ---------------------------------------------------------------------------
+
+export interface ZoneCoverageResult {
+  lat: number;
+  lng: number;
+  in_service: boolean;
+  city_name: string | null;
+  city_id: string | null;
+}
+
+/**
+ * Check if a lat/lng point is within any active service zone.
+ * Public endpoint — no auth token required.
+ * Fails open (returns in_service=true) on any network error.
+ */
+export async function checkPointInService(
+  lat: number,
+  lng: number
+): Promise<ZoneCoverageResult> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/v1/geo/point-in-service?lat=${lat}&lng=${lng}`,
+      { headers: { Accept: "application/json" } }
+    );
+    if (!res.ok) return { lat, lng, in_service: true, city_name: null, city_id: null };
+    return res.json() as Promise<ZoneCoverageResult>;
+  } catch {
+    // Fail-open: don't block the user on network errors
+    return { lat, lng, in_service: true, city_name: null, city_id: null };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Notifications
 // ---------------------------------------------------------------------------
 

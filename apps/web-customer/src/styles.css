@@ -165,6 +165,8 @@ html, body {
 .address-suggestion-item:hover { background: var(--color-bg); }
 .address-suggestion-name { font-size: 0.88rem; display: block; }
 .address-gps-hint { font-size: 0.8rem; color: #1d4ed8; margin: 2px 0 0 2px; }
+/* Sprint 45 — zone warning */
+.address-zone-warning { font-size: 0.8rem; color: #b45309; background: #fffbeb; border: 1px solid #fcd34d; border-radius: var(--radius); padding: 4px var(--space-2); margin: 4px 0 0; }
 .fare-card { margin-top: var(--space-4); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-5); text-align: center; }
 .fare-amount { font-size: 2.2rem; font-weight: 700; color: var(--color-accent); margin-bottom: var(--space-2); }
 .fare-meta { display: flex; justify-content: center; gap: var(--space-4); color: var(--color-muted); font-size: 0.9rem; margin-bottom: var(--space-2); flex-wrap: wrap; }

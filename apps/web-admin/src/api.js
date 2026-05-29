@@ -487,6 +487,59 @@ export async function checkPointInService(lat, lng) {
 }
 
 // ---------------------------------------------------------------------------
+// Sprint 45 — Service zone management (admin)
+// ---------------------------------------------------------------------------
+
+/** List service zones, optionally filtered by city_id (admin, includes inactive). */
+export async function adminListServiceZones(token, cityId = null) {
+  const qs = cityId ? `?city_id=${cityId}&include_inactive=true` : "?include_inactive=true";
+  const res = await fetch(`${API_BASE}/v1/admin/service-zones${qs}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // ServiceZoneResponse[]
+}
+
+/** Create a service zone (admin). */
+export async function adminCreateServiceZone(token, data) {
+  const res = await fetch(`${API_BASE}/v1/admin/service-zones`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(data),
+  });
+  return _json(res); // ServiceZoneResponse
+}
+
+/** Update a service zone's name and/or active status (admin). */
+export async function adminUpdateServiceZone(token, zoneId, updates) {
+  const res = await fetch(`${API_BASE}/v1/admin/service-zones/${zoneId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(updates),
+  });
+  return _json(res); // ServiceZoneResponse
+}
+
+/** Delete a service zone permanently (admin). */
+export async function adminDeleteServiceZone(token, zoneId) {
+  const res = await fetch(`${API_BASE}/v1/admin/service-zones/${zoneId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok && res.status !== 204) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Error ${res.status}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Sprint 34 — Advanced Analytics
 // ---------------------------------------------------------------------------
 

@@ -3836,6 +3836,66 @@ async def find_city_for_point(
     return None
 
 
+async def _check_zone_coverage(
+    db: AsyncSession,
+    lat: float,
+    lng: float,
+) -> None:
+    """Raise HTTP 422 if the point is outside all active service cities.
+
+    Sprint 45 — zone enforcement.
+    No-op when no active cities are configured (backward-compatible with
+    environments that have not set up any zones yet).
+    """
+    active_count = await db.scalar(
+        select(func.count()).select_from(City).where(City.active.is_(True))
+    )
+    if not active_count:
+        return  # No zones configured — allow all locations
+    city = await find_city_for_point(db, lat, lng)
+    if city is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "This location is outside our service area. "
+                "Please choose an address within a covered zone."
+            ),
+        )
+
+
+async def update_service_zone(
+    db: AsyncSession,
+    zone_id: uuid.UUID,
+    name: str | None = None,
+    active: bool | None = None,
+) -> dict:
+    """Update a service zone's name and/or active status. 404 if not found."""
+    zone = await db.scalar(select(ServiceZone).where(ServiceZone.id == zone_id))
+    if zone is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Zone not found.")
+    if name is not None:
+        zone.name = name
+    if active is not None:
+        zone.active = active
+    await db.commit()
+    await db.refresh(zone)
+    city = await db.scalar(select(City).where(City.id == zone.city_id))
+    city_name = city.name if city else ""
+    return _zone_to_dict(zone, city_name)
+
+
+async def delete_service_zone(
+    db: AsyncSession,
+    zone_id: uuid.UUID,
+) -> None:
+    """Delete a service zone. 404 if not found."""
+    zone = await db.scalar(select(ServiceZone).where(ServiceZone.id == zone_id))
+    if zone is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Zone not found.")
+    await db.delete(zone)
+    await db.commit()
+
+
 # ---------------------------------------------------------------------------
 # Sprint 33 — Customer Wallet
 # ---------------------------------------------------------------------------

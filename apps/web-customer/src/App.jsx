@@ -11,6 +11,7 @@ import {
   submitApplication, getApplicationStatus, // Sprint 30
   getWallet, topupWallet, getWalletTransactions, // Sprint 33
   searchPlaces, // Sprint 43
+  checkPointInService, // Sprint 45
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 import { EstimateMap, TripMap } from "./TripMap";
@@ -69,7 +70,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Customer</h1>
-      <p className="subtitle">Sprint 44 — Road Routing</p>
+      <p className="subtitle">Sprint 45 — Zone Enforcement</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
@@ -88,9 +89,10 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
 
 // ---------------------------------------------------------------------------
 // AddressInput — Sprint 43: debounced autocomplete + GPS button
+//               Sprint 45: zone warning prop
 // ---------------------------------------------------------------------------
 
-function AddressInput({ icon, placeholder, value, onSelect, token, onGps }) {
+function AddressInput({ icon, placeholder, value, onSelect, token, onGps, zoneWarning }) {
   const [query, setQuery] = useState(value?.name ?? "");
   const [suggestions, setSuggestions] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -174,6 +176,10 @@ function AddressInput({ icon, placeholder, value, onSelect, token, onGps }) {
           ))}
         </div>
       )}
+      {/* Sprint 45: zone warning shown below the input row */}
+      {zoneWarning && (
+        <p className="address-zone-warning">{zoneWarning}</p>
+      )}
     </div>
   );
 }
@@ -200,20 +206,42 @@ function EstimateSection({ token, onTripCreated }) {
   const [showPlacePicker, setShowPlacePicker] = useState(false);
   // Sprint 21: vehicle category
   const [selectedCategory, setSelectedCategory] = useState("economy");
+  // Sprint 45: zone coverage state — null=unchecked, true=ok, false=outside
+  const [originInZone, setOriginInZone] = useState(null);
+  const [destInZone, setDestInZone]     = useState(null);
 
   useEffect(() => {
     listPlaces(token).then(setSavedPlaces).catch(() => {});
   }, [token]);
 
+  // Sprint 45: zone check helpers (fail-open — don't block on API error)
+  async function checkOriginZone(place) {
+    if (!place) { setOriginInZone(null); return; }
+    try {
+      const r = await checkPointInService(place.lat, place.lng);
+      setOriginInZone(r.in_service !== false);
+    } catch { setOriginInZone(true); }
+  }
+
+  async function checkDestZone(place) {
+    if (!place) { setDestInZone(null); return; }
+    try {
+      const r = await checkPointInService(place.lat, place.lng);
+      setDestInZone(r.in_service !== false);
+    } catch { setDestInZone(true); }
+  }
+
   async function handleGps() {
     if (!navigator.geolocation) { setError("GPS not supported by your browser."); return; }
     setGpsLoading(true); setError(null);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords;
-        setOrigin({ lat, lng, name: `My location (${lat.toFixed(4)}, ${lng.toFixed(4)})` });
+        const place = { lat, lng, name: `My location (${lat.toFixed(4)}, ${lng.toFixed(4)})` };
+        setOrigin(place);
         setResult(null);
         setGpsLoading(false);
+        await checkOriginZone(place);
       },
       (err) => {
         setError(`GPS error: ${err.message}`);
@@ -227,6 +255,10 @@ function EstimateSection({ token, onTripCreated }) {
     e.preventDefault();
     if (!origin || !dest) { setError("Set both pickup and drop-off locations."); return; }
     if (origin.lat === dest.lat && origin.lng === dest.lng) { setError("Choose two different locations."); return; }
+    if (originInZone === false || destInZone === false) {
+      setError("One or more locations are outside our service area. Please choose addresses within a covered zone.");
+      return;
+    }
     setLoading(true); setError(null); setResult(null); setPromoApplied(null); setPromoInput(""); setSelectedCategory("economy");
     try {
       const data = await fetchEstimate(token, origin.lat, origin.lng, dest.lat, dest.lng);
@@ -304,28 +336,31 @@ function EstimateSection({ token, onTripCreated }) {
         </div>
       )}
 
-      {/* Sprint 43: address inputs with autocomplete + GPS */}
+      {/* Sprint 43: address inputs with autocomplete + GPS
+          Sprint 45: zone check after selection */}
       <form className="estimate-form" onSubmit={handleSubmit}>
         <AddressInput
           icon="📍"
           placeholder="Pickup address…"
           value={origin}
-          onSelect={(v) => { setOrigin(v); setResult(null); }}
+          onSelect={(v) => { setOrigin(v); setResult(null); checkOriginZone(v); }}
           token={token}
           onGps={gpsLoading ? null : handleGps}
+          zoneWarning={originInZone === false ? "⚠️ This pickup is outside our service area." : null}
         />
         {gpsLoading && <p className="address-gps-hint">📡 Detecting your location…</p>}
         <AddressInput
           icon="🏁"
           placeholder="Drop-off address…"
           value={dest}
-          onSelect={(v) => { setDest(v); setResult(null); }}
+          onSelect={(v) => { setDest(v); setResult(null); checkDestZone(v); }}
           token={token}
+          zoneWarning={destInZone === false ? "⚠️ This drop-off is outside our service area." : null}
         />
         <button
           type="submit"
           className="estimate-btn"
-          disabled={loading || booking || !origin || !dest}
+          disabled={loading || booking || !origin || !dest || originInZone === false || destInZone === false}
         >
           {loading ? "Calculating…" : "Get Estimate"}
         </button>
@@ -1814,7 +1849,7 @@ function Dashboard({ user, token, onLogout }) {
         </>
       )}
 
-      <p className="footer">App: <strong>web-customer</strong> · Sprint 44</p>
+      <p className="footer">App: <strong>web-customer</strong> · Sprint 45</p>
     </div>
   );
 }

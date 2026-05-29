@@ -12,6 +12,7 @@ import {
   adminListFlags, adminSetFlag, // Sprint 31
   adminListLiveDrivers, adminSetUserRole, adminCreateInviteCode, // Sprint 31
   adminListCities, adminCreateCity, adminUpdateCity, // Sprint 32
+  adminListServiceZones, adminCreateServiceZone, adminUpdateServiceZone, adminDeleteServiceZone, // Sprint 45
   adminGetKPIs, adminGetRevenue, adminGetDriverPerformance, // Sprint 34
   adminGetCategoryBreakdown, adminGetHourlyDemand, adminGetTopCustomers, // Sprint 34
   adminGetServices, adminSetService, // Sprint 36
@@ -56,7 +57,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 42 — Payment Status</p>
+      <p className="subtitle">Sprint 45 — Zone Enforcement</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
@@ -1609,10 +1610,120 @@ function FlagsPanel({ token }) {
 }
 
 // ---------------------------------------------------------------------------
-// CitiesPanel — Sprint 32
+// CitiesPanel — Sprint 32 / Sprint 45 (zone enforcement + sub-zone management)
 // ---------------------------------------------------------------------------
 
-const COUNTRY_DEFAULT = "United States";
+const COUNTRY_DEFAULT = "Côte d'Ivoire";
+
+/**
+ * CityZones — collapsible sub-zone list for a single city.
+ * Shows existing zones, lets admin toggle active and delete them,
+ * and provides a quick "Add zone" inline form.
+ */
+function CityZones({ token, city }) {
+  const [open, setOpen] = useState(false);
+  const [zones, setZones] = useState([]);
+  const [loadingZ, setLoadingZ] = useState(false);
+  const [zoneName, setZoneName] = useState("");
+  const [zoneErr, setZoneErr] = useState(null);
+
+  const loadZones = useCallback(async () => {
+    setLoadingZ(true);
+    try {
+      const data = await adminListServiceZones(token, city.city_id);
+      setZones(data);
+    } catch (e) { setZoneErr(e.message); }
+    finally { setLoadingZ(false); }
+  }, [token, city.city_id]);
+
+  useEffect(() => { if (open) loadZones(); }, [open, loadZones]);
+
+  async function handleAddZone(e) {
+    e.preventDefault();
+    if (!zoneName.trim()) return;
+    setZoneErr(null);
+    try {
+      const created = await adminCreateServiceZone(token, {
+        city_id: city.city_id,
+        name: zoneName.trim(),
+        active: true,
+      });
+      setZones((prev) => [...prev, created]);
+      setZoneName("");
+    } catch (e) { setZoneErr(e.message); }
+  }
+
+  async function handleToggleZone(zone) {
+    try {
+      const updated = await adminUpdateServiceZone(token, zone.zone_id, { active: !zone.active });
+      setZones((prev) => prev.map((z) => z.zone_id === zone.zone_id ? updated : z));
+    } catch (e) { setZoneErr(e.message); }
+  }
+
+  async function handleDeleteZone(zone) {
+    if (!window.confirm(`Delete zone "${zone.name}"?`)) return;
+    try {
+      await adminDeleteServiceZone(token, zone.zone_id);
+      setZones((prev) => prev.filter((z) => z.zone_id !== zone.zone_id));
+    } catch (e) { setZoneErr(e.message); }
+  }
+
+  return (
+    <div className="city-zones-wrap">
+      <button
+        className="zone-toggle-btn"
+        onClick={() => setOpen((v) => !v)}
+      >
+        {open ? "▲" : "▼"} Sub-zones ({open ? zones.length : "…"})
+      </button>
+
+      {open && (
+        <div className="city-zones-body">
+          {zoneErr && <p className="form-error" style={{ margin: "4px 0" }}>{zoneErr}</p>}
+          {loadingZ && <p style={{ color: "#94a3b8", fontSize: ".8rem" }}>⏳ Loading zones…</p>}
+
+          {zones.length === 0 && !loadingZ && (
+            <p style={{ color: "#94a3b8", fontSize: ".8rem", margin: "4px 0" }}>No sub-zones defined.</p>
+          )}
+
+          {zones.map((zone) => (
+            <div key={zone.zone_id} className={`zone-row ${zone.active ? "" : "zone-inactive"}`}>
+              <span className="zone-name">{zone.active ? "🟢" : "⚪"} {zone.name}</span>
+              <div style={{ display: "flex", gap: "6px" }}>
+                <button
+                  className={zone.active ? "payout-reject-btn" : "payout-approve-btn"}
+                  style={{ fontSize: ".75rem", padding: "2px 8px" }}
+                  onClick={() => handleToggleZone(zone)}
+                >
+                  {zone.active ? "Off" : "On"}
+                </button>
+                <button
+                  className="payout-reject-btn"
+                  style={{ fontSize: ".75rem", padding: "2px 8px" }}
+                  onClick={() => handleDeleteZone(zone)}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          ))}
+
+          <form className="zone-add-form" onSubmit={handleAddZone}>
+            <input
+              value={zoneName}
+              onChange={(e) => setZoneName(e.target.value)}
+              placeholder="New sub-zone name…"
+              style={{ flex: 1 }}
+            />
+            <button type="submit" className="batch-run-btn" style={{ fontSize: ".8rem", padding: "4px 10px" }}>
+              + Add
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function CitiesPanel({ token }) {
   const [cities, setCities] = useState([]);
@@ -1621,6 +1732,7 @@ function CitiesPanel({ token }) {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [editRadius, setEditRadius] = useState({}); // city_id → new radius string
   const [form, setForm] = useState({
     name: "", country: COUNTRY_DEFAULT,
     center_lat: "", center_lng: "", radius_km: "50", active: true,
@@ -1663,12 +1775,39 @@ function CitiesPanel({ token }) {
     } catch (err) { setError(err.message); }
   }
 
-  const STATUS_COLOR = { true: "#16a34a", false: "#94a3b8" };
+  async function handleSaveRadius(city) {
+    const km = parseFloat(editRadius[city.city_id]);
+    if (!km || km <= 0) return;
+    try {
+      const updated = await adminUpdateCity(token, city.city_id, { radius_km: km });
+      setCities((prev) => prev.map((c) => c.city_id === city.city_id ? updated : c));
+      setEditRadius((prev) => { const n = { ...prev }; delete n[city.city_id]; return n; });
+    } catch (err) { setError(err.message); }
+  }
+
+  const activeCities = cities.filter((c) => c.active);
 
   return (
     <div className="cities-panel">
+      {/* ── Enforcement banner ─────────────────────────────────────── */}
+      <div className={`zone-enforcement-banner ${activeCities.length > 0 ? "zone-enforced" : "zone-open"}`}>
+        {activeCities.length > 0 ? (
+          <>
+            ✅ <strong>Zone enforcement ACTIVE</strong> — {activeCities.length} active{" "}
+            {activeCities.length === 1 ? "zone" : "zones"} covering{" "}
+            {activeCities.map((c) => `${c.name} (${c.radius_km} km)`).join(", ")}.
+            Trip pickups, destinations, and assistance requests outside these areas are rejected.
+          </>
+        ) : (
+          <>
+            ⚠️ <strong>No active zones</strong> — all locations are currently accepted.
+            Activate at least one city to enforce geographic restrictions.
+          </>
+        )}
+      </div>
+
       <div className="panel-header">
-        <h2 className="panel-title">🌍 Served Cities</h2>
+        <h2 className="panel-title">🌍 Service Zones</h2>
         <div style={{ display: "flex", gap: "8px" }}>
           <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
           <button className="batch-run-btn" onClick={() => setShowForm((v) => !v)}>
@@ -1682,27 +1821,27 @@ function CitiesPanel({ token }) {
 
       {showForm && (
         <form className="city-form" onSubmit={handleCreate}>
-          <h3 className="section-subtitle">Add a City</h3>
+          <h3 className="section-subtitle">Add a City / Zone</h3>
           {saveError && <p className="form-error">{saveError}</p>}
           <div className="city-form-grid">
             <label>Name
-              <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Newark" />
+              <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Abidjan" />
             </label>
             <label>Country
               <input value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} />
             </label>
             <label>Center Latitude
-              <input type="number" step="any" required value={form.center_lat} onChange={(e) => setForm({ ...form, center_lat: e.target.value })} placeholder="40.7357" />
+              <input type="number" step="any" required value={form.center_lat} onChange={(e) => setForm({ ...form, center_lat: e.target.value })} placeholder="5.3364" />
             </label>
             <label>Center Longitude
-              <input type="number" step="any" required value={form.center_lng} onChange={(e) => setForm({ ...form, center_lng: e.target.value })} placeholder="-74.1724" />
+              <input type="number" step="any" required value={form.center_lng} onChange={(e) => setForm({ ...form, center_lng: e.target.value })} placeholder="-4.0267" />
             </label>
             <label>Radius (km)
               <input type="number" step="1" min="1" value={form.radius_km} onChange={(e) => setForm({ ...form, radius_km: e.target.value })} />
             </label>
             <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
-              Active
+              Active on creation
             </label>
           </div>
           <button type="submit" className="batch-run-btn" disabled={saving}>
@@ -1715,17 +1854,44 @@ function CitiesPanel({ token }) {
         {cities.map((city) => (
           <div key={city.city_id} className={`city-row ${city.active ? "city-active" : "city-inactive"}`}>
             <div className="city-main">
-              <span className="city-name">🌍 {city.name}</span>
+              <span className="city-name">{city.active ? "🟢" : "⚪"} {city.name}</span>
               <span className="city-country">{city.country}</span>
             </div>
             <div className="city-meta">
               <span>📍 {city.center_lat.toFixed(4)}, {city.center_lng.toFixed(4)}</span>
-              <span>📏 {city.radius_km} km</span>
+
+              {/* Inline radius editor */}
+              {editRadius[city.city_id] !== undefined ? (
+                <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                  <input
+                    type="number" min="1" step="1"
+                    value={editRadius[city.city_id]}
+                    onChange={(e) => setEditRadius((prev) => ({ ...prev, [city.city_id]: e.target.value }))}
+                    style={{ width: "60px", padding: "2px 4px", fontSize: ".8rem" }}
+                  />
+                  <span style={{ fontSize: ".8rem" }}>km</span>
+                  <button
+                    className="payout-approve-btn"
+                    style={{ fontSize: ".75rem", padding: "2px 8px" }}
+                    onClick={() => handleSaveRadius(city)}
+                  >✓</button>
+                  <button
+                    className="payout-reject-btn"
+                    style={{ fontSize: ".75rem", padding: "2px 8px" }}
+                    onClick={() => setEditRadius((prev) => { const n = { ...prev }; delete n[city.city_id]; return n; })}
+                  >✕</button>
+                </span>
+              ) : (
+                <span
+                  className="city-radius-badge"
+                  onClick={() => setEditRadius((prev) => ({ ...prev, [city.city_id]: String(city.radius_km) }))}
+                  title="Click to edit radius"
+                >
+                  📏 {city.radius_km} km ✏️
+                </span>
+              )}
             </div>
             <div className="city-footer-row">
-              <span style={{ color: STATUS_COLOR[city.active], fontWeight: 600 }}>
-                {city.active ? "🟢 Active" : "⚪ Inactive"}
-              </span>
               <button
                 className={city.active ? "payout-reject-btn" : "payout-approve-btn"}
                 style={{ fontSize: ".8rem", padding: "4px 10px" }}
@@ -1734,6 +1900,9 @@ function CitiesPanel({ token }) {
                 {city.active ? "Deactivate" : "Activate"}
               </button>
             </div>
+
+            {/* Sub-zones for this city */}
+            <CityZones token={token} city={city} />
           </div>
         ))}
       </div>
@@ -2075,7 +2244,7 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "settings"     && <SurgePanel          token={token} />}
       {activeTab === "users"        && <UsersPanel          token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 42</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 45</p>
     </div>
   );
 }

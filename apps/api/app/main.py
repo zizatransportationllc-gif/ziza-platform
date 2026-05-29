@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 43.
+"""Ziza API — Sprint 45.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -428,6 +428,10 @@ async def estimate(
     from datetime import datetime  # noqa: PLC0415
     from app.pricing import get_route_info, calculate_fare  # noqa: PLC0415
     from app.models.estimate import Estimate  # noqa: PLC0415
+
+    # Sprint 45: enforce service zone restrictions (no-op if no active cities)
+    await crud._check_zone_coverage(db, body.origin_lat, body.origin_lng)
+    await crud._check_zone_coverage(db, body.dest_lat, body.dest_lng)
 
     route = await get_route_info(
         body.origin_lat, body.origin_lng,
@@ -1049,6 +1053,8 @@ async def create_assistance_request(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Le service d'assistance est temporairement désactivé pour les clients.",
         )
+    # Sprint 45: enforce service zone restrictions
+    await crud._check_zone_coverage(db, body.lat, body.lng)
     req = await crud.create_assistance_request(
         db, claims, body.type, body.lat, body.lng, body.note
     )
@@ -3312,6 +3318,47 @@ async def admin_list_service_zones(
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid city_id UUID")
     rows = await crud.list_service_zones(db, city_id=cid, include_inactive=include_inactive)
     return [ServiceZoneResponse(**r) for r in rows]
+
+
+class UpdateServiceZoneRequest(BaseModel):
+    name: str | None = None
+    active: bool | None = None
+
+
+@app.patch("/v1/admin/service-zones/{zone_id}", response_model=ServiceZoneResponse,
+           summary="Admin: update a service zone (Sprint 45)")
+async def admin_update_service_zone(
+    zone_id: str,
+    body: UpdateServiceZoneRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only. Update a zone's name and/or active status."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    try:
+        zid = uuid.UUID(zone_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid zone_id UUID")
+    result = await crud.update_service_zone(db, zid, name=body.name, active=body.active)
+    return ServiceZoneResponse(**result)
+
+
+@app.delete("/v1/admin/service-zones/{zone_id}", status_code=204,
+            summary="Admin: delete a service zone (Sprint 45)")
+async def admin_delete_service_zone(
+    zone_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only. Permanently deletes a service zone."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    try:
+        zid = uuid.UUID(zone_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid zone_id UUID")
+    await crud.delete_service_zone(db, zid)
 
 
 @app.get("/v1/geo/point-in-service", response_model=PointInCityResponse,

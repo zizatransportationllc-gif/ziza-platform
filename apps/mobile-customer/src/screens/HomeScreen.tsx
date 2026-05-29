@@ -1,6 +1,7 @@
 /**
  * HomeScreen — trip booking: origin + destination picker, estimate, confirm.
  * Sprint 43 — address search + GPS for pickup; address search for drop-off.
+ * Sprint 45 — zone coverage check after each location selection.
  */
 import React, { useState, useEffect } from "react";
 import {
@@ -19,6 +20,7 @@ import {
   listCategories,
   getEstimate,
   createTrip,
+  checkPointInService,
   CategoryInfo,
   EstimateResponse,
 } from "../api";
@@ -53,10 +55,21 @@ export default function HomeScreen(): React.ReactElement {
   const [origin, setOrigin] = useState<LocationPoint | null>(null);
   const [destination, setDestination] = useState<LocationPoint | null>(null);
 
+  // Sprint 45: zone coverage — null=unchecked, true=ok, false=outside zone
+  const [originInZone, setOriginInZone] = useState<boolean | null>(null);
+  const [destInZone, setDestInZone]     = useState<boolean | null>(null);
+
   useEffect(() => {
     if (!token) return;
     listCategories(token).then(setCategories).catch(() => {});
   }, [token]);
+
+  // Sprint 45: async zone check helper
+  const checkZone = async (point: LocationPoint | null): Promise<boolean | null> => {
+    if (!point) return null;
+    const result = await checkPointInService(point.lat, point.lng);
+    return result.in_service;
+  };
 
   // ── GPS: auto-detect origin ────────────────────────────────────────────────
   const handleGPS = async () => {
@@ -75,12 +88,16 @@ export default function HomeScreen(): React.ReactElement {
         accuracy: Location.Accuracy.Balanced,
       });
       const { latitude, longitude } = pos.coords;
-      setOrigin({
+      const place: LocationPoint = {
         lat: latitude,
         lng: longitude,
         name: `My location (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`,
-      });
+      };
+      setOrigin(place);
       setEstimate(null);
+      // Sprint 45: zone check
+      const inZone = await checkZone(place);
+      setOriginInZone(inZone);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -91,11 +108,17 @@ export default function HomeScreen(): React.ReactElement {
   // ── Open address search screen ─────────────────────────────────────────────
   const openSearch = (role: "origin" | "destination") => {
     navigation.navigate("Places", {
-      onSelect: (place: { lat: number; lng: number; name: string }) => {
+      onSelect: async (place: { lat: number; lng: number; name: string }) => {
         if (role === "origin") {
           setOrigin(place);
+          setOriginInZone(null);
+          const inZone = await checkZone(place);
+          setOriginInZone(inZone);
         } else {
           setDestination(place);
+          setDestInZone(null);
+          const inZone = await checkZone(place);
+          setDestInZone(inZone);
         }
         setEstimate(null);
       },
@@ -105,6 +128,16 @@ export default function HomeScreen(): React.ReactElement {
   // ── Estimate ───────────────────────────────────────────────────────────────
   const handleEstimate = async () => {
     if (!token || !origin || !destination) return;
+
+    // Sprint 45: block if outside zone
+    if (originInZone === false || destInZone === false) {
+      Alert.alert(
+        "Outside service area",
+        "One or more locations are outside our service area. Please choose addresses within a covered zone.",
+      );
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setEstimate(null);
@@ -139,7 +172,9 @@ export default function HomeScreen(): React.ReactElement {
     }
   };
 
-  const canEstimate = !!origin && !!destination && !loading;
+  const canEstimate =
+    !!origin && !!destination && !loading &&
+    originInZone !== false && destInZone !== false;
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -165,15 +200,21 @@ export default function HomeScreen(): React.ReactElement {
           </TouchableOpacity>
         </View>
         {origin && (
-          <View style={styles.locationChip}>
-            <Text style={styles.locationChipText} numberOfLines={2}>{origin.name}</Text>
+          <View style={[styles.locationChip, originInZone === false && styles.locationChipWarning]}>
+            <Text style={[styles.locationChipText, originInZone === false && styles.locationChipTextWarning]} numberOfLines={2}>
+              {origin.name}
+            </Text>
             <TouchableOpacity
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              onPress={() => { setOrigin(null); setEstimate(null); }}
+              onPress={() => { setOrigin(null); setOriginInZone(null); setEstimate(null); }}
             >
               <Text style={styles.clearBtn}>✕</Text>
             </TouchableOpacity>
           </View>
+        )}
+        {/* Sprint 45: zone warning */}
+        {originInZone === false && (
+          <Text style={styles.zoneWarning}>⚠️ This pickup is outside our service area.</Text>
         )}
       </View>
 
@@ -187,15 +228,21 @@ export default function HomeScreen(): React.ReactElement {
           <Text style={styles.searchBtnText}>Search address…</Text>
         </TouchableOpacity>
         {destination && (
-          <View style={styles.locationChip}>
-            <Text style={styles.locationChipText} numberOfLines={2}>{destination.name}</Text>
+          <View style={[styles.locationChip, destInZone === false && styles.locationChipWarning]}>
+            <Text style={[styles.locationChipText, destInZone === false && styles.locationChipTextWarning]} numberOfLines={2}>
+              {destination.name}
+            </Text>
             <TouchableOpacity
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              onPress={() => { setDestination(null); setEstimate(null); }}
+              onPress={() => { setDestination(null); setDestInZone(null); setEstimate(null); }}
             >
               <Text style={styles.clearBtn}>✕</Text>
             </TouchableOpacity>
           </View>
+        )}
+        {/* Sprint 45: zone warning */}
+        {destInZone === false && (
+          <Text style={styles.zoneWarning}>⚠️ This drop-off is outside our service area.</Text>
         )}
       </View>
 
@@ -219,7 +266,9 @@ export default function HomeScreen(): React.ReactElement {
 
       {!canEstimate && !loading && (
         <Text style={styles.hintText}>
-          {!origin && !destination
+          {originInZone === false || destInZone === false
+            ? "Please choose locations within our service area."
+            : !origin && !destination
             ? "Set pickup and drop-off to estimate your fare."
             : !origin
             ? "Set your pickup location."
@@ -293,8 +342,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#BBF7D0",
   },
+  locationChipWarning: {
+    backgroundColor: "#FFFBEB",
+    borderColor: "#FCD34D",
+  },
   locationChipText: { flex: 1, fontSize: 13, color: "#166534", fontWeight: "500" },
+  locationChipTextWarning: { color: "#92400E" },
   clearBtn: { color: "#9CA3AF", fontSize: 14, paddingLeft: 8 },
+  zoneWarning: {
+    fontSize: 12,
+    color: "#B45309",
+    marginTop: 6,
+  },
 
   button: {
     backgroundColor: "#F97316",

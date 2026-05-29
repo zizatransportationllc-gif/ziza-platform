@@ -572,3 +572,17 @@ export async function searchPlaces(token, query) {
   }
   return res.json(); // PlaceSearchResult[]
 }
+
+/**
+ * Sprint 45 — Check if a lat/lng is within any active service zone.
+ * Public endpoint — no token required.
+ * Returns { in_service: bool, city_name: str|null, city_id: str|null }
+ */
+export async function checkPointInService(lat, lng) {
+  const res = await fetch(
+    `${API_BASE}/v1/geo/point-in-service?lat=${lat}&lng=${lng}`,
+    { headers: { Accept: "application/json" } },
+  );
+  if (!res.ok) return { in_service: true }; // fail-open: don't block on API error
+  return res.json();
+}
