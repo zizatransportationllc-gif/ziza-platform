@@ -3277,6 +3277,23 @@ async def admin_update_city(
     return CityResponse(**result)
 
 
+@app.delete("/v1/admin/cities/{city_id}", status_code=204,
+            summary="Admin: delete a zone (Sprint 46)")
+async def admin_delete_city(
+    city_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only. Deletes the zone and all its service sub-zones (CASCADE)."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    try:
+        cid = uuid.UUID(city_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid UUID")
+    await crud.delete_city(db, cid)
+
+
 @app.get("/v1/cities/{city_id}", response_model=CityResponse,
          summary="Get a single city (Sprint 32)")
 async def get_city(

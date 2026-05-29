@@ -488,6 +488,16 @@ export async function adminUpdateCity(token, cityId, updates) {
   return _json(res); // CityResponse
 }
 
+/** Delete a zone / city (admin). Returns true on success. */
+export async function adminDeleteCity(token, cityId) {
+  const res = await fetch(`${API_BASE}/v1/admin/cities/${cityId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (res.status === 204) return true;
+  return _json(res);
+}
+
 /** List active cities (public). */
 export async function listCities() {
   const res = await fetch(`${API_BASE}/v1/cities`, {

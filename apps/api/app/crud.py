@@ -3899,6 +3899,18 @@ async def delete_service_zone(
     await db.commit()
 
 
+async def delete_city(
+    db: AsyncSession,
+    city_id: uuid.UUID,
+) -> None:
+    """Delete a city and all its service zones (CASCADE). 404 if not found."""
+    city = await db.scalar(select(City).where(City.id == city_id))
+    if city is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="City not found.")
+    await db.delete(city)
+    await db.commit()
+
+
 # ---------------------------------------------------------------------------
 # Sprint 33 — Customer Wallet
 # ---------------------------------------------------------------------------

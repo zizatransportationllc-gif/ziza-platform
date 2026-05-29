@@ -11,7 +11,7 @@ import {
   adminListApplications, adminReviewApplication, // Sprint 30
   adminListFlags, adminSetFlag, // Sprint 31
   adminListLiveDrivers, adminSetUserRole, adminCreateInviteCode, // Sprint 31
-  adminListCities, adminCreateCity, adminUpdateCity, adminSeedDefaultCities, // Sprint 32 / 45
+  adminListCities, adminCreateCity, adminUpdateCity, adminDeleteCity, adminSeedDefaultCities, // Sprint 32 / 45 / 46
   adminListServiceZones, adminCreateServiceZone, adminUpdateServiceZone, adminDeleteServiceZone, // Sprint 45
   adminGetKPIs, adminGetRevenue, adminGetDriverPerformance, // Sprint 34
   adminGetCategoryBreakdown, adminGetHourlyDemand, adminGetTopCustomers, // Sprint 34
@@ -1830,6 +1830,15 @@ function CitiesPanel({ token }) {
     finally { setSaving(false); }
   }
 
+  async function handleDelete(city) {
+    if (!window.confirm(`Delete zone "${city.name}"? This cannot be undone.`)) return;
+    try {
+      await adminDeleteCity(token, city.city_id);
+      setCities((prev) => prev.filter((c) => c.city_id !== city.city_id));
+      if (editCity === city.city_id) setEditCity(null);
+    } catch (err) { setError(err.message); }
+  }
+
   const activeCities = cities.filter((c) => c.active);
   const isEmpty = !loading && cities.length === 0;
 
@@ -2052,6 +2061,13 @@ function CitiesPanel({ token }) {
                 onClick={() => openEditCity(city)}
               >
                 ✏️ Edit
+              </button>
+              <button
+                className="payout-reject-btn"
+                style={{ fontSize: ".8rem", padding: "4px 10px" }}
+                onClick={() => handleDelete(city)}
+              >
+                🗑️ Delete
               </button>
             </div>
 
