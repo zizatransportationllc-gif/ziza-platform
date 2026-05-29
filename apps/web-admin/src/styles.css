@@ -413,3 +413,12 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .zone-name { font-size: .82rem; }
 .zone-add-form { display: flex; gap: 6px; margin-top: 6px; }
 .zone-add-form input { padding: 4px 8px; border: 1px solid var(--color-border); border-radius: var(--radius); font-size: .82rem; background: var(--color-surface); color: var(--color-text); }
+
+/* ── Zone onboarding empty-state card ── */
+.zone-onboarding-card { background: var(--color-surface); border: 1.5px dashed var(--color-border); border-radius: var(--radius-md); padding: var(--space-6); text-align: center; margin-top: var(--space-4); }
+.zone-onboarding-icon { font-size: 2.5rem; margin-bottom: var(--space-2); }
+.zone-onboarding-title { font-size: 1.1rem; font-weight: 700; margin: 0 0 var(--space-2); }
+.zone-onboarding-desc { font-size: 0.88rem; color: var(--color-muted); margin: 0 auto var(--space-3); max-width: 480px; line-height: 1.5; }
+.zone-onboarding-actions { display: flex; flex-direction: column; gap: var(--space-4); align-items: center; margin-top: var(--space-4); }
+.zone-onboarding-option { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); max-width: 400px; width: 100%; text-align: left; }
+.zone-onboarding-divider { color: var(--color-muted); font-size: .85rem; }

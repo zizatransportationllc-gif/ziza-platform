@@ -3190,13 +3190,43 @@ async def list_cities(
          summary="Admin: list all cities including inactive (Sprint 32)")
 async def admin_list_cities(
     include_inactive: bool = True,
+    seed: bool = True,  # Sprint 45: pass seed=false to get the raw list without auto-seeding
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Admin-only. Returns all cities."""
+    """Admin-only. Returns all cities.
+    By default triggers default-city seeding on the first call.
+    Pass seed=false to inspect the raw DB state without seeding."""
     if claims.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-    rows = await crud.list_cities(db, include_inactive=include_inactive)
+    if seed:
+        rows = await crud.list_cities(db, include_inactive=include_inactive)
+    else:
+        # Raw query — no auto-seed
+        from sqlalchemy import select as _select  # noqa: PLC0415
+        from app.models.city import City as _City  # noqa: PLC0415
+        stmt = _select(_City)
+        if not include_inactive:
+            stmt = stmt.where(_City.active.is_(True))
+        stmt = stmt.order_by(_City.name)
+        rows_raw = (await db.scalars(stmt)).all()
+        return [CityResponse(**crud._city_to_dict(c)) for c in rows_raw]
+    return [CityResponse(**r) for r in rows]
+
+
+@app.post("/v1/admin/cities/seed-defaults", response_model=list[CityResponse],
+          summary="Admin: seed default cities (Sprint 45)")
+async def admin_seed_default_cities(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only. Seeds the default cities (Abidjan, Bouaké, Yamoussoukro) if
+    the cities table is empty, then returns all cities.  Idempotent — safe to
+    call multiple times.  This is the explicit action that enables zone
+    enforcement for the first time."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    rows = await crud.list_cities(db, include_inactive=True)  # triggers _ensure_city_defaults
     return [CityResponse(**r) for r in rows]
 
 

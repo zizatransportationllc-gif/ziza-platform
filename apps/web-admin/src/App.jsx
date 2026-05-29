@@ -11,7 +11,7 @@ import {
   adminListApplications, adminReviewApplication, // Sprint 30
   adminListFlags, adminSetFlag, // Sprint 31
   adminListLiveDrivers, adminSetUserRole, adminCreateInviteCode, // Sprint 31
-  adminListCities, adminCreateCity, adminUpdateCity, // Sprint 32
+  adminListCities, adminCreateCity, adminUpdateCity, adminSeedDefaultCities, // Sprint 32 / 45
   adminListServiceZones, adminCreateServiceZone, adminUpdateServiceZone, adminDeleteServiceZone, // Sprint 45
   adminGetKPIs, adminGetRevenue, adminGetDriverPerformance, // Sprint 34
   adminGetCategoryBreakdown, adminGetHourlyDemand, adminGetTopCustomers, // Sprint 34
@@ -1728,6 +1728,7 @@ function CityZones({ token, city }) {
 function CitiesPanel({ token }) {
   const [cities, setCities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1738,13 +1739,24 @@ function CitiesPanel({ token }) {
     center_lat: "", center_lng: "", radius_km: "50", active: true,
   });
 
+  // Load with seed=false so admin sees the real DB state (empty until explicitly seeded)
   const load = useCallback(() => {
     setLoading(true); setError(null);
-    adminListCities(token)
+    adminListCities(token, { seed: false })
       .then(setCities)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [token]);
+
+  // Explicit seed action — triggered by the onboarding button
+  async function handleSeedDefaults() {
+    setSeeding(true); setError(null);
+    try {
+      const seeded = await adminSeedDefaultCities(token);
+      setCities(seeded);
+    } catch (e) { setError(e.message); }
+    finally { setSeeding(false); }
+  }
 
   useEffect(() => { load(); }, [load]);
 
@@ -1786,38 +1798,97 @@ function CitiesPanel({ token }) {
   }
 
   const activeCities = cities.filter((c) => c.active);
+  const isEmpty = !loading && cities.length === 0;
 
   return (
     <div className="cities-panel">
-      {/* ── Enforcement banner ─────────────────────────────────────── */}
-      <div className={`zone-enforcement-banner ${activeCities.length > 0 ? "zone-enforced" : "zone-open"}`}>
-        {activeCities.length > 0 ? (
-          <>
-            ✅ <strong>Zone enforcement ACTIVE</strong> — {activeCities.length} active{" "}
-            {activeCities.length === 1 ? "zone" : "zones"} covering{" "}
-            {activeCities.map((c) => `${c.name} (${c.radius_km} km)`).join(", ")}.
-            Trip pickups, destinations, and assistance requests outside these areas are rejected.
-          </>
-        ) : (
-          <>
-            ⚠️ <strong>No active zones</strong> — all locations are currently accepted.
-            Activate at least one city to enforce geographic restrictions.
-          </>
-        )}
-      </div>
+
+      {/* ── Enforcement banner (only shown once at least one city exists) ── */}
+      {!isEmpty && (
+        <div className={`zone-enforcement-banner ${activeCities.length > 0 ? "zone-enforced" : "zone-open"}`}>
+          {activeCities.length > 0 ? (
+            <>
+              ✅ <strong>Zone enforcement ACTIVE</strong> — customers can only book trips and
+              request assistance within: {activeCities.map((c) => (
+                <strong key={c.city_id}> {c.name} ({c.radius_km} km radius)</strong>
+              ))}.
+              <br />
+              <span style={{ opacity: .8 }}>Deactivate a zone to stop serving that area. Adjust the radius (✏️) to fine-tune coverage.</span>
+            </>
+          ) : (
+            <>
+              ⚠️ <strong>All zones deactivated</strong> — zone enforcement is currently OFF.
+              All locations are accepted. Activate at least one zone to restrict bookings
+              to specific areas.
+            </>
+          )}
+        </div>
+      )}
 
       <div className="panel-header">
-        <h2 className="panel-title">🌍 Service Zones</h2>
+        <h2 className="panel-title">🗺️ Service Zones</h2>
         <div style={{ display: "flex", gap: "8px" }}>
           <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
-          <button className="batch-run-btn" onClick={() => setShowForm((v) => !v)}>
-            {showForm ? "✕ Cancel" : "+ New City"}
-          </button>
+          {!isEmpty && (
+            <button className="batch-run-btn" onClick={() => setShowForm((v) => !v)}>
+              {showForm ? "✕ Cancel" : "+ New Zone"}
+            </button>
+          )}
         </div>
       </div>
 
       {error && <p className="form-error">{error}</p>}
       {loading && <div className="status loading">⏳ Loading…</div>}
+
+      {/* ── Onboarding state: no zones configured yet ─────────────── */}
+      {isEmpty && (
+        <div className="zone-onboarding-card">
+          <div className="zone-onboarding-icon">🗺️</div>
+          <h3 className="zone-onboarding-title">No service zones configured</h3>
+          <p className="zone-onboarding-desc">
+            Zone enforcement is currently <strong>OFF</strong> — customers can book
+            trips and request assistance from any location.
+          </p>
+          <p className="zone-onboarding-desc">
+            To restrict bookings to specific geographic areas, configure at least
+            one zone. Each zone is defined by a city center and a coverage radius.
+          </p>
+
+          <div className="zone-onboarding-actions">
+            <div className="zone-onboarding-option">
+              <strong>Option 1 — Quick start (Côte d'Ivoire)</strong>
+              <p style={{ margin: "4px 0 8px", color: "#6b7280", fontSize: ".85rem" }}>
+                Load the pre-configured zones for Abidjan (40 km), Bouaké (20 km),
+                and Yamoussoukro (20 km). You can deactivate or adjust them afterwards.
+              </p>
+              <button
+                className="batch-run-btn"
+                style={{ backgroundColor: "#16a34a" }}
+                onClick={handleSeedDefaults}
+                disabled={seeding}
+              >
+                {seeding ? "⏳ Loading…" : "🌍 Load default Ivorian zones"}
+              </button>
+            </div>
+
+            <div className="zone-onboarding-divider">— or —</div>
+
+            <div className="zone-onboarding-option">
+              <strong>Option 2 — Custom zone</strong>
+              <p style={{ margin: "4px 0 8px", color: "#6b7280", fontSize: ".85rem" }}>
+                Define your own zone by providing the center coordinates and
+                coverage radius (in km).
+              </p>
+              <button
+                className="batch-run-btn"
+                onClick={() => setShowForm(true)}
+              >
+                ＋ Create a custom zone
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <form className="city-form" onSubmit={handleCreate}>

@@ -434,9 +434,27 @@ export async function adminCreateInviteCode(token, code, maxUses = 1) {
 // Sprint 32 — Multi-city & Geofencing
 // ---------------------------------------------------------------------------
 
-/** List all cities including inactive (admin). */
-export async function adminListCities(token) {
-  const res = await fetch(`${API_BASE}/v1/admin/cities`, {
+/**
+ * List all cities (admin).
+ * Pass seed=false to get the raw DB state without triggering auto-seeding.
+ * Default seed=true matches legacy behaviour (and what tests rely on).
+ */
+export async function adminListCities(token, { seed = true } = {}) {
+  const qs = seed ? "" : "?seed=false";
+  const res = await fetch(`${API_BASE}/v1/admin/cities${qs}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // CityResponse[]
+}
+
+/**
+ * Seed the default Ivorian cities (Abidjan, Bouaké, Yamoussoukro) if the
+ * cities table is empty, then return all cities.  Idempotent.
+ * This is the explicit admin action that enables zone enforcement.
+ */
+export async function adminSeedDefaultCities(token) {
+  const res = await fetch(`${API_BASE}/v1/admin/cities/seed-defaults`, {
+    method: "POST",
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
   });
   return _json(res); // CityResponse[]
