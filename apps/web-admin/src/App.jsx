@@ -1734,6 +1734,8 @@ function CitiesPanel({ token }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [editRadius, setEditRadius] = useState({}); // city_id → new radius string
+  const [editCity, setEditCity] = useState(null);   // city being edited (null = none)
+  const [editForm, setEditForm] = useState({});     // fields for the edit form
   const [form, setForm] = useState({
     name: "", country: COUNTRY_DEFAULT, zone_type: "city",
     center_lat: "", center_lng: "", radius_km: "50", active: true,
@@ -1796,6 +1798,36 @@ function CitiesPanel({ token }) {
       setCities((prev) => prev.map((c) => c.city_id === city.city_id ? updated : c));
       setEditRadius((prev) => { const n = { ...prev }; delete n[city.city_id]; return n; });
     } catch (err) { setError(err.message); }
+  }
+
+  function openEditCity(city) {
+    setEditCity(city.city_id);
+    setEditForm({
+      name: city.name,
+      country: city.country,
+      zone_type: city.zone_type || "city",
+      center_lat: String(city.center_lat),
+      center_lng: String(city.center_lng),
+      radius_km: String(city.radius_km),
+    });
+  }
+
+  async function handleEditSave(e) {
+    e.preventDefault();
+    setSaving(true); setSaveError(null);
+    try {
+      const updated = await adminUpdateCity(token, editCity, {
+        name: editForm.name.trim(),
+        country: editForm.country,
+        zone_type: editForm.zone_type,
+        center_lat: parseFloat(editForm.center_lat),
+        center_lng: parseFloat(editForm.center_lng),
+        radius_km: parseFloat(editForm.radius_km),
+      });
+      setCities((prev) => prev.map((c) => c.city_id === editCity ? updated : c));
+      setEditCity(null);
+    } catch (err) { setSaveError(err.message); }
+    finally { setSaving(false); }
   }
 
   const activeCities = cities.filter((c) => c.active);
@@ -1929,12 +1961,48 @@ function CitiesPanel({ token }) {
         </form>
       )}
 
+      {/* ── Inline edit form for a zone ── */}
+      {editCity && (
+        <form className="city-form" onSubmit={handleEditSave} style={{ marginBottom: "16px" }}>
+          <h3 className="section-subtitle">✏️ Edit zone</h3>
+          {saveError && <p className="form-error">{saveError}</p>}
+          <div className="city-form-grid">
+            <label>Name
+              <input required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+            </label>
+            <label>Country
+              <input value={editForm.country} onChange={(e) => setEditForm({ ...editForm, country: e.target.value })} />
+            </label>
+            <label>Zone Type
+              <select value={editForm.zone_type} onChange={(e) => setEditForm({ ...editForm, zone_type: e.target.value })}>
+                <option value="city">City</option>
+                <option value="state">State</option>
+                <option value="country">Country</option>
+              </select>
+            </label>
+            <label>Center Latitude
+              <input type="number" step="any" required value={editForm.center_lat} onChange={(e) => setEditForm({ ...editForm, center_lat: e.target.value })} placeholder="40.0583" />
+            </label>
+            <label>Center Longitude
+              <input type="number" step="any" required value={editForm.center_lng} onChange={(e) => setEditForm({ ...editForm, center_lng: e.target.value })} placeholder="-74.4057" />
+            </label>
+            <label>Radius (km)
+              <input type="number" step="1" min="1" value={editForm.radius_km} onChange={(e) => setEditForm({ ...editForm, radius_km: e.target.value })} />
+            </label>
+          </div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button type="submit" className="batch-run-btn" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
+            <button type="button" className="payout-reject-btn" onClick={() => setEditCity(null)}>Cancel</button>
+          </div>
+        </form>
+      )}
+
       <div className="cities-grid">
         {cities.map((city) => (
           <div key={city.city_id} className={`city-row ${city.active ? "city-active" : "city-inactive"}`}>
             <div className="city-main">
               <span className="city-name">{city.active ? "🟢" : "⚪"} {city.name}</span>
-              <span className="city-country">{city.country}</span>
+              <span className="city-country">{city.country} · <em>{city.zone_type || "city"}</em></span>
             </div>
             <div className="city-meta">
               <span>📍 {city.center_lat.toFixed(4)}, {city.center_lng.toFixed(4)}</span>
@@ -1977,6 +2045,13 @@ function CitiesPanel({ token }) {
                 onClick={() => handleToggleActive(city)}
               >
                 {city.active ? "Deactivate" : "Activate"}
+              </button>
+              <button
+                className="batch-run-btn"
+                style={{ fontSize: ".8rem", padding: "4px 10px" }}
+                onClick={() => openEditCity(city)}
+              >
+                ✏️ Edit
               </button>
             </div>
 
