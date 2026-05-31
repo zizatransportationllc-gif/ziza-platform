@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 47.
+"""Ziza API — Sprint 48.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -22,28 +22,15 @@ Endpoints:
   POST  /v1/drivers/register                       create/upsert driver profile
   GET   /v1/drivers/me/profile                     driver profile (is_online, status)
   PUT   /v1/drivers/me/online                      toggle driver online/offline presence
-  GET   /v1/drivers/me/capabilities                driver reads their capability set
-  PUT   /v1/drivers/me/capabilities                driver replaces their capability set
   POST  /v1/trips/{trip_id}/rate                   customer rates a completed trip (1-5 stars)
   GET   /v1/trips/{trip_id}/rating                 get the rating for a trip
   GET   /v1/drivers/me/rating                      driver's own rating statistics
-  POST  /v1/assistance                             customer creates a roadside assistance request
-  GET   /v1/assistance/driver/available            pending assistance requests, filtered by capabilities
-  GET   /v1/assistance/driver/active               driver's current active assistance request
-  GET   /v1/assistance/{req_id}                    customer views their assistance request
-  PATCH /v1/assistance/{req_id}/cancel             customer cancels a pending request
-  PATCH /v1/assistance/{req_id}/accept             driver accepts a pending request (stores ETA)
-  PATCH /v1/assistance/{req_id}/start              driver starts the intervention
-  PATCH /v1/assistance/{req_id}/resolve            driver resolves the intervention
-  GET   /v1/admin/drivers                          admin lists all drivers + capabilities
-  PUT   /v1/admin/drivers/{driver_id}/capabilities admin sets capabilities for a driver
+  GET   /v1/admin/drivers                          admin lists all drivers
   GET   /v1/drivers/me/earnings                    driver's earnings summary (total, today, week)
   GET   /v1/admin/stats                            platform-wide statistics
   GET   /v1/admin/trips                            all trips paginated (admin view)
-  GET   /v1/admin/assistance                       all assistance requests paginated (admin view)
   POST  /v1/drivers/me/vehicle                     driver registers / updates their vehicle
   GET   /v1/drivers/me/vehicle                     driver gets their current vehicle
-  GET   /v1/assistance                             customer lists all their assistance requests
   GET   /v1/admin/users                            admin lists all registered users
   POST  /v1/admin/promos                           admin creates a promo code
   GET   /v1/admin/promos                           admin lists all promo codes
@@ -872,59 +859,6 @@ async def complete_trip(
 
 
 # ---------------------------------------------------------------------------
-# Driver Capabilities — Sprint 10
-# ---------------------------------------------------------------------------
-
-class CapabilitiesRequest(BaseModel):
-    capabilities: list[str] = Field(
-        default_factory=list,
-        description="Assistance types this driver handles. Empty = handles all.",
-    )
-
-
-class CapabilitiesResponse(BaseModel):
-    capabilities: list[str]
-
-
-@app.get("/v1/drivers/me/capabilities", tags=["capabilities"])
-async def get_my_capabilities(
-    claims: Claims = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> CapabilitiesResponse:
-    """Return the authenticated driver's declared capability set.
-
-    Empty list means the driver handles all assistance types.
-    """
-    if claims.role != "driver":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only drivers can access this endpoint",
-        )
-    caps = await crud.get_driver_capabilities(db, claims.user_id)
-    return CapabilitiesResponse(capabilities=caps)
-
-
-@app.put("/v1/drivers/me/capabilities", tags=["capabilities"])
-async def set_my_capabilities(
-    body: CapabilitiesRequest,
-    claims: Claims = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> CapabilitiesResponse:
-    """Replace the authenticated driver's capability set.
-
-    Send an empty list to remove all filters (handle everything).
-    Valid types: breakdown, flat_tyre, tow, fuel, lockout.
-    """
-    if claims.role != "driver":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only drivers can update capabilities",
-        )
-    caps = await crud.set_driver_capabilities(db, claims.user_id, body.capabilities)
-    return CapabilitiesResponse(capabilities=caps)
-
-
-# ---------------------------------------------------------------------------
 # Ratings — Sprint 8
 # ---------------------------------------------------------------------------
 
@@ -1007,189 +941,6 @@ async def get_my_rating(
 
 
 # ---------------------------------------------------------------------------
-# Roadside Assistance — Sprint 9
-# ---------------------------------------------------------------------------
-
-AssistanceType = Literal["breakdown", "flat_tyre", "tow", "fuel", "lockout"]
-
-
-class AssistanceCreateRequest(BaseModel):
-    type: AssistanceType = Field(..., description="breakdown | flat_tyre | tow | fuel | lockout")
-    lat: Annotated[float, Field(ge=-90, le=90, description="Customer latitude")]
-    lng: Annotated[float, Field(ge=-180, le=180, description="Customer longitude")]
-    note: str | None = Field(None, max_length=500)
-
-
-class AssistanceResponse(BaseModel):
-    request_id: str
-    type: str
-    status: str
-    lat: float
-    lng: float
-    note: str | None = None
-    eta_min: int | None = None   # set when driver accepts (Sprint 10)
-    created_at: str
-
-
-class ActiveAssistanceWrap(BaseModel):
-    """Wraps the driver's active assistance request (or None when the driver is free)."""
-    request: AssistanceResponse | None = None
-
-
-def _assistance_response(req) -> AssistanceResponse:
-    return AssistanceResponse(
-        request_id=str(req.id),
-        type=req.type,
-        status=req.status,
-        lat=req.lat,
-        lng=req.lng,
-        note=req.note,
-        eta_min=req.eta_min,
-        created_at=req.created_at.isoformat(),
-    )
-
-
-@app.post("/v1/assistance", tags=["assistance"], status_code=201)
-async def create_assistance_request(
-    body: AssistanceCreateRequest,
-    claims: Claims = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> AssistanceResponse:
-    """Customer creates a roadside assistance request.
-
-    Type must be one of: breakdown, flat_tyre, tow, fuel, lockout.
-    Blocked with HTTP 503 when the admin has disabled assistance for customers.
-    """
-    flags = await crud.get_service_flags(db)
-    if not flags["assistance_customer"]:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="The assistance service is temporarily unavailable for customers.",
-        )
-    # Sprint 45: enforce service zone restrictions
-    await crud._check_zone_coverage(db, body.lat, body.lng)
-    req = await crud.create_assistance_request(
-        db, claims, body.type, body.lat, body.lng, body.note
-    )
-    return _assistance_response(req)
-
-
-# IMPORTANT: literal paths (/driver/available, /driver/active) must be
-# registered BEFORE the parameterised path (/{req_id}) to avoid shadowing.
-
-@app.get("/v1/assistance/driver/available", tags=["assistance"])
-async def list_available_assistance(
-    claims: Claims = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> list[AssistanceResponse]:
-    """List pending assistance requests filtered by the driver's declared capabilities.
-
-    Only drivers may call this endpoint.
-    If the driver has no capabilities declared, all pending requests are returned.
-    """
-    if claims.role != "driver":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only drivers can view available assistance requests",
-        )
-    requests = await crud.list_available_assistance(db, auth_user_id=claims.user_id)
-    return [_assistance_response(r) for r in requests]
-
-
-@app.get("/v1/assistance/driver/active", tags=["assistance"])
-async def get_driver_active_assistance(
-    claims: Claims = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> ActiveAssistanceWrap:
-    """Return the driver's current assistance request (accepted or in_progress), or null."""
-    if claims.role != "driver":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only drivers can access this endpoint",
-        )
-    req = await crud.get_driver_active_assistance(db, claims.user_id)
-    return ActiveAssistanceWrap(request=_assistance_response(req) if req else None)
-
-
-@app.get("/v1/assistance/{req_id}", tags=["assistance"])
-async def get_assistance_request(
-    req_id: str,
-    claims: Claims = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> AssistanceResponse:
-    """Return the customer's assistance request detail."""
-    req = await crud.get_assistance_request(db, req_id, claims.user_id)
-    return _assistance_response(req)
-
-
-@app.patch("/v1/assistance/{req_id}/cancel", tags=["assistance"])
-async def cancel_assistance(
-    req_id: str,
-    claims: Claims = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> AssistanceResponse:
-    """Customer cancels a pending assistance request."""
-    req = await crud.cancel_assistance(db, req_id, claims.user_id)
-    return _assistance_response(req)
-
-
-@app.patch("/v1/assistance/{req_id}/accept", tags=["assistance"])
-async def accept_assistance(
-    req_id: str,
-    claims: Claims = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> AssistanceResponse:
-    """Driver accepts a pending assistance request → accepted.
-    Blocked with HTTP 503 when the admin has disabled assistance for drivers.
-    """
-    if claims.role != "driver":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only drivers can accept assistance requests",
-        )
-    flags = await crud.get_service_flags(db)
-    if not flags["assistance_driver"]:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="The assistance service is temporarily unavailable for drivers.",
-        )
-    req = await crud.accept_assistance(db, req_id, claims.user_id)
-    return _assistance_response(req)
-
-
-@app.patch("/v1/assistance/{req_id}/start", tags=["assistance"])
-async def start_assistance(
-    req_id: str,
-    claims: Claims = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> AssistanceResponse:
-    """Driver starts the intervention → in_progress."""
-    if claims.role != "driver":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only drivers can start an assistance",
-        )
-    req = await crud.start_assistance(db, req_id, claims.user_id)
-    return _assistance_response(req)
-
-
-@app.patch("/v1/assistance/{req_id}/resolve", tags=["assistance"])
-async def resolve_assistance(
-    req_id: str,
-    claims: Claims = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> AssistanceResponse:
-    """Driver resolves the intervention → resolved."""
-    if claims.role != "driver":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only drivers can resolve an assistance",
-        )
-    req = await crud.resolve_assistance(db, req_id, claims.user_id)
-    return _assistance_response(req)
-
-
-# ---------------------------------------------------------------------------
 # Admin — Sprint 10
 # ---------------------------------------------------------------------------
 
@@ -1219,26 +970,6 @@ async def admin_list_drivers(
     rows = await crud.admin_list_drivers(db)
     return [AdminDriverRecord(**r) for r in rows]
 
-
-@app.put("/v1/admin/drivers/{driver_id}/capabilities", tags=["admin"])
-async def admin_set_driver_capabilities(
-    driver_id: str,
-    body: CapabilitiesRequest,
-    claims: Claims = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> CapabilitiesResponse:
-    """Admin: replace the capability set for any driver.
-
-    Valid types: breakdown, flat_tyre, tow, fuel, lockout.
-    Empty list removes all filters (driver handles everything).
-    """
-    if claims.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required",
-        )
-    caps = await crud.admin_set_driver_capabilities(db, driver_id, body.capabilities)
-    return CapabilitiesResponse(capabilities=caps)
 
 
 # ---------------------------------------------------------------------------
@@ -1305,7 +1036,6 @@ async def get_my_earnings(
 
 class AdminStats(BaseModel):
     trips: dict
-    assistance: dict
     drivers: dict
     payments: dict | None = None  # Sprint 24: payment totals
 
@@ -1329,7 +1059,7 @@ async def admin_get_stats(
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AdminStats:
-    """Admin: platform-wide statistics (trips, assistance, drivers, revenue)."""
+    """Admin: platform-wide statistics (trips, drivers, revenue)."""
     if claims.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -1466,20 +1196,6 @@ async def get_my_vehicle(
 
 
 # ---------------------------------------------------------------------------
-# Customer Assistance History — Sprint 12
-# ---------------------------------------------------------------------------
-
-@app.get("/v1/assistance", tags=["assistance"])
-async def list_my_assistance(
-    claims: Claims = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> list[AssistanceResponse]:
-    """Customer: list all their assistance requests, newest first."""
-    requests = await crud.list_customer_assistance(db, claims.user_id)
-    return [_assistance_response(r) for r in requests]
-
-
-# ---------------------------------------------------------------------------
 # Admin — User List — Sprint 12
 # ---------------------------------------------------------------------------
 
@@ -1511,42 +1227,6 @@ async def admin_list_users(
         )
     users = await crud.admin_list_users(db, role=role, email=email)
     return [AdminUserRecord(**u) for u in users]
-
-
-# ---------------------------------------------------------------------------
-# Admin — Assistance List — Sprint 13
-# ---------------------------------------------------------------------------
-
-class AdminAssistanceRecord(BaseModel):
-    request_id: str
-    type: str
-    status: str
-    lat: float
-    lng: float
-    note: str | None = None
-    eta_min: int | None = None
-    customer_email: str
-    driver_id: str | None = None
-    created_at: str
-    updated_at: str
-
-
-@app.get("/v1/admin/assistance", tags=["admin"])
-async def admin_list_assistance(
-    limit: int = 50,
-    offset: int = 0,
-    claims: Claims = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> list[AdminAssistanceRecord]:
-    """Admin: list all assistance requests (newest first, paginated)."""
-    if claims.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required",
-        )
-    limit = min(limit, 200)
-    rows = await crud.admin_list_assistance(db, limit=limit, offset=offset)
-    return [AdminAssistanceRecord(**r) for r in rows]
 
 
 # ---------------------------------------------------------------------------
@@ -2749,7 +2429,7 @@ class CommissionSettingResponse(BaseModel):
 class SetCommissionRequest(BaseModel):
     category: str = Field(
         ...,
-        description="economy | comfort | premium | assistance | default",
+        description="economy | comfort | premium | default",
     )
     rate_pct: Annotated[
         int,
@@ -2817,7 +2497,7 @@ async def admin_set_commission(
 ) -> CommissionSettingResponse:
     """Sprint 29 — Admin: create or update a commission rate for a category.
 
-    Valid categories: economy, comfort, premium, assistance, default.
+    Valid categories: economy, comfort, premium, default.
     The new rate takes effect immediately on subsequent balance calculations.
     """
     if claims.role != "admin":
@@ -3709,15 +3389,11 @@ async def admin_platform_kpis(
 class ServiceFlagsResponse(BaseModel):
     rideshare_customer: bool
     rideshare_driver: bool
-    assistance_customer: bool
-    assistance_driver: bool
 
 
 class ServiceFlagUpdateRequest(BaseModel):
     rideshare_customer: bool | None = None
     rideshare_driver: bool | None = None
-    assistance_customer: bool | None = None
-    assistance_driver: bool | None = None
 
 
 @app.get("/v1/admin/services", response_model=ServiceFlagsResponse,
@@ -3745,8 +3421,6 @@ async def admin_set_services(
     Fields:
       rideshare_customer  — ride-share available to customers
       rideshare_driver    — ride-share visible to drivers
-      assistance_customer — assistance available to customers
-      assistance_driver   — assistance jobs visible to drivers
     """
     if claims.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")

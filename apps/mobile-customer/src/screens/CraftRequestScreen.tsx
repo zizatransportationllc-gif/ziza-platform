@@ -112,10 +112,10 @@ export default function CraftRequestScreen(): React.ReactElement {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Request Roadside Help</Text>
-      <Text style={styles.subtitle}>Sprint 47 — Ziza Craft · Automotive assistance</Text>
+      <Text style={styles.subtitle}>Sprint 48 — Ziza Craft</Text>
 
       {/* Category picker */}
-      <Text style={styles.label}>Type of Assistance</Text>
+      <Text style={styles.label}>Type of Problem</Text>
       <View style={styles.categories}>
         {CRAFT_CATEGORIES.map((cat) => (
           <TouchableOpacity

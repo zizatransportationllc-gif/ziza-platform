@@ -15,7 +15,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.base import Claims
-from app.models.assistance import AssistanceRequest, ASSISTANCE_TYPES
 from app.models.device_token import DeviceToken
 from app.models.driver import Driver
 from app.models.driver_capability import DriverCapability
@@ -807,270 +806,6 @@ async def get_trip_rating(db: AsyncSession, trip_id: str) -> Rating | None:
     return result.scalar_one_or_none()
 
 
-# ---------------------------------------------------------------------------
-# Assistance — Sprint 9
-# ---------------------------------------------------------------------------
-
-_ASSISTANCE_CANCELLABLE = frozenset({"pending"})
-
-
-async def create_assistance_request(
-    db: AsyncSession,
-    claims: Claims,
-    req_type: str,
-    lat: float,
-    lng: float,
-    note: str | None,
-) -> AssistanceRequest:
-    """Create a new roadside assistance request for the authenticated customer.
-
-    Raises 422 if the type is not one of the allowed values.
-    """
-    user = await _get_user_by_auth_id(db, claims.user_id)
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found - call POST /v1/auth/register first",
-        )
-
-    if req_type not in ASSISTANCE_TYPES:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid type '{req_type}'. Must be one of: {sorted(ASSISTANCE_TYPES)}",
-        )
-
-    req = AssistanceRequest(
-        customer_id=user.id,
-        type=req_type,
-        status="pending",
-        lat=lat,
-        lng=lng,
-        note=note,
-    )
-    db.add(req)
-    await db.commit()
-    await db.refresh(req)
-    return req
-
-
-async def get_assistance_request(
-    db: AsyncSession,
-    req_id: str,
-    auth_user_id: str,
-) -> AssistanceRequest:
-    """Return an assistance request, verified to belong to the calling customer."""
-    try:
-        req_uuid = uuid.UUID(req_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Invalid request_id format",
-        )
-
-    result = await db.execute(
-        select(AssistanceRequest).where(AssistanceRequest.id == req_uuid)
-    )
-    req: AssistanceRequest | None = result.scalar_one_or_none()
-    if req is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Assistance request not found",
-        )
-
-    user = await _get_user_by_auth_id(db, auth_user_id)
-    if user is None or req.customer_id != user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not your request",
-        )
-
-    return req
-
-
-async def cancel_assistance(
-    db: AsyncSession,
-    req_id: str,
-    auth_user_id: str,
-) -> AssistanceRequest:
-    """Customer cancels a pending assistance request.
-
-    Only allowed from 'pending' status. Raises 409 otherwise.
-    """
-    req = await get_assistance_request(db, req_id, auth_user_id)
-
-    if req.status not in _ASSISTANCE_CANCELLABLE:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot cancel a request in '{req.status}' status",
-        )
-
-    req.status = "cancelled"
-    req.updated_at = datetime.now(timezone.utc)
-    await db.commit()
-    await db.refresh(req)
-    return req
-
-
-async def list_available_assistance(
-    db: AsyncSession, auth_user_id: str | None = None
-) -> list[AssistanceRequest]:
-    """All pending assistance requests, filtered by driver capabilities if set.
-
-    If ``auth_user_id`` is provided and the driver has declared capabilities,
-    only requests of matching types are returned.
-    Empty capabilities = no filter (driver handles all types).
-    """
-    query = (
-        select(AssistanceRequest)
-        .where(AssistanceRequest.status == "pending")
-        .order_by(AssistanceRequest.created_at.desc())
-    )
-
-    if auth_user_id is not None:
-        driver = await _get_driver_by_auth_id(db, auth_user_id)
-        if driver is not None:
-            caps_result = await db.execute(
-                select(DriverCapability.type).where(
-                    DriverCapability.driver_id == driver.id
-                )
-            )
-            caps = list(caps_result.scalars().all())
-            if caps:  # non-empty → filter by declared capabilities
-                query = query.where(AssistanceRequest.type.in_(caps))
-
-    result = await db.execute(query)
-    return list(result.scalars().all())
-
-
-async def get_driver_active_assistance(
-    db: AsyncSession, auth_user_id: str
-) -> AssistanceRequest | None:
-    """Return the driver's current assistance request in accepted or in_progress state."""
-    driver = await _get_driver_by_auth_id(db, auth_user_id)
-    if driver is None:
-        return None
-    result = await db.execute(
-        select(AssistanceRequest)
-        .where(
-            AssistanceRequest.driver_id == driver.id,
-            AssistanceRequest.status.in_(["accepted", "in_progress"]),
-        )
-        .order_by(AssistanceRequest.created_at.desc())
-        .limit(1)
-    )
-    return result.scalar_one_or_none()
-
-
-async def _load_assistance_for_driver(
-    db: AsyncSession, req_id: str, driver: Driver
-) -> AssistanceRequest:
-    """Load an assistance request and verify it is assigned to this driver."""
-    try:
-        req_uuid = uuid.UUID(req_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Invalid request_id format",
-        )
-
-    result = await db.execute(
-        select(AssistanceRequest).where(AssistanceRequest.id == req_uuid)
-    )
-    req: AssistanceRequest | None = result.scalar_one_or_none()
-    if req is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Assistance request not found",
-        )
-    if req.driver_id != driver.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not your request",
-        )
-    return req
-
-
-async def accept_assistance(
-    db: AsyncSession, req_id: str, auth_user_id: str
-) -> AssistanceRequest:
-    """Driver accepts a pending assistance request → accepted.  Sets driver_id."""
-    driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
-
-    try:
-        req_uuid = uuid.UUID(req_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Invalid request_id format",
-        )
-
-    result = await db.execute(
-        select(AssistanceRequest).where(AssistanceRequest.id == req_uuid)
-    )
-    req: AssistanceRequest | None = result.scalar_one_or_none()
-    if req is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Assistance request not found",
-        )
-    if req.status != "pending":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Assistance request is not available (status: {req.status})",
-        )
-
-    req.status = "accepted"
-    req.driver_id = driver.id
-    req.updated_at = datetime.now(timezone.utc)
-    # Sprint 23: use driver's real position when available; fall back to city centre
-    d_lat = getattr(driver, "current_lat", None) or _NEWARK_LAT
-    d_lng = getattr(driver, "current_lng", None) or _NEWARK_LNG
-    req.eta_min = _compute_eta_min(d_lat, d_lng, req.lat, req.lng)
-    await db.commit()
-    await db.refresh(req)
-    return req
-
-
-async def start_assistance(
-    db: AsyncSession, req_id: str, auth_user_id: str
-) -> AssistanceRequest:
-    """Driver starts an accepted assistance request → in_progress."""
-    driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
-    req = await _load_assistance_for_driver(db, req_id, driver)
-
-    if req.status != "accepted":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot start a request in '{req.status}' status",
-        )
-
-    req.status = "in_progress"
-    req.updated_at = datetime.now(timezone.utc)
-    await db.commit()
-    await db.refresh(req)
-    return req
-
-
-async def resolve_assistance(
-    db: AsyncSession, req_id: str, auth_user_id: str
-) -> AssistanceRequest:
-    """Driver resolves an in_progress assistance request → resolved."""
-    driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
-    req = await _load_assistance_for_driver(db, req_id, driver)
-
-    if req.status != "in_progress":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot resolve a request in '{req.status}' status",
-        )
-
-    req.status = "resolved"
-    req.updated_at = datetime.now(timezone.utc)
-    await db.commit()
-    await db.refresh(req)
-    return req
-
-
 async def get_driver_rating_stats(
     db: AsyncSession,
     auth_user_id: str,
@@ -1126,61 +861,6 @@ def _compute_eta_min(
     return max(5, round(dist_km / 30 * 60) + 5)
 
 
-async def get_driver_capabilities(
-    db: AsyncSession, auth_user_id: str
-) -> list[str]:
-    """Return the list of assistance types the driver has declared.
-
-    Empty list means no filter — driver sees all pending requests.
-    """
-    driver = await _get_driver_by_auth_id(db, auth_user_id)
-    if driver is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Driver profile not found - call POST /v1/drivers/register first",
-        )
-    result = await db.execute(
-        select(DriverCapability.type).where(
-            DriverCapability.driver_id == driver.id
-        )
-    )
-    return sorted(result.scalars().all())
-
-
-async def set_driver_capabilities(
-    db: AsyncSession, auth_user_id: str, types: list[str]
-) -> list[str]:
-    """Replace the driver's capability set with the given list.
-
-    Validates all types against ASSISTANCE_TYPES.
-    Empty list = clears filter (driver handles all types).
-    Returns the new sorted capability list.
-    """
-    driver = await _get_driver_by_auth_id(db, auth_user_id)
-    if driver is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Driver profile not found - call POST /v1/drivers/register first",
-        )
-
-    invalid = [t for t in types if t not in ASSISTANCE_TYPES]
-    if invalid:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid types: {invalid}. Must be from: {sorted(ASSISTANCE_TYPES)}",
-        )
-
-    # Replace all capabilities atomically
-    await db.execute(
-        sa.delete(DriverCapability).where(DriverCapability.driver_id == driver.id)
-    )
-    unique_types = list(set(types))
-    for t in unique_types:
-        db.add(DriverCapability(driver_id=driver.id, type=t))
-    await db.commit()
-    return sorted(unique_types)
-
-
 async def admin_list_drivers(db: AsyncSession) -> list[dict]:
     """Return all driver profiles with user info and capabilities (admin view)."""
     result = await db.execute(
@@ -1219,45 +899,6 @@ async def admin_list_drivers(db: AsyncSession) -> list[dict]:
         })
     return out
 
-
-async def admin_set_driver_capabilities(
-    db: AsyncSession, driver_id_str: str, types: list[str]
-) -> list[str]:
-    """Admin replaces capabilities for any driver (identified by UUID string).
-
-    Returns the new sorted capability list.
-    """
-    try:
-        driver_uuid = uuid.UUID(driver_id_str)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Invalid driver_id format",
-        )
-
-    result = await db.execute(select(Driver).where(Driver.id == driver_uuid))
-    driver: Driver | None = result.scalar_one_or_none()
-    if driver is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Driver not found",
-        )
-
-    invalid = [t for t in types if t not in ASSISTANCE_TYPES]
-    if invalid:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid types: {invalid}. Must be from: {sorted(ASSISTANCE_TYPES)}",
-        )
-
-    await db.execute(
-        sa.delete(DriverCapability).where(DriverCapability.driver_id == driver.id)
-    )
-    unique_types_admin = list(set(types))
-    for t in unique_types_admin:
-        db.add(DriverCapability(driver_id=driver.id, type=t))
-    await db.commit()
-    return sorted(unique_types_admin)
 
 
 # ---------------------------------------------------------------------------
@@ -1351,13 +992,6 @@ async def admin_get_stats(db: AsyncSession) -> dict:
     )
     total_revenue_xof = int(r_rev.scalar() or 0)
 
-    # Assistance counts by status
-    r_assist = await db.execute(
-        select(AssistanceRequest.status, func.count(AssistanceRequest.id))
-        .group_by(AssistanceRequest.status)
-    )
-    assist_by_status: dict[str, int] = dict(r_assist.all())
-
     # Driver counts by status
     r_drivers = await db.execute(
         select(Driver.status, func.count(Driver.id)).group_by(Driver.status)
@@ -1380,10 +1014,6 @@ async def admin_get_stats(db: AsyncSession) -> dict:
             "total": sum(trips_by_status.values()),
             "by_status": trips_by_status,
             "total_revenue_xof": total_revenue_xof,
-        },
-        "assistance": {
-            "total": sum(assist_by_status.values()),
-            "by_status": assist_by_status,
         },
         "drivers": {
             "total": sum(drivers_by_status.values()),
@@ -1554,28 +1184,6 @@ async def upsert_vehicle(
 
 
 # ---------------------------------------------------------------------------
-# Customer Assistance History — Sprint 12
-# ---------------------------------------------------------------------------
-
-async def list_customer_assistance(
-    db: AsyncSession, auth_user_id: str
-) -> list[AssistanceRequest]:
-    """Return all assistance requests for the authenticated customer, newest first."""
-    user = await _get_user_by_auth_id(db, auth_user_id)
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found - call POST /v1/auth/register first",
-        )
-    result = await db.execute(
-        select(AssistanceRequest)
-        .where(AssistanceRequest.customer_id == user.id)
-        .order_by(AssistanceRequest.created_at.desc())
-    )
-    return list(result.scalars().all())
-
-
-# ---------------------------------------------------------------------------
 # Admin — User List — Sprint 12
 # ---------------------------------------------------------------------------
 
@@ -1611,7 +1219,7 @@ async def admin_list_users(
 
 
 # ---------------------------------------------------------------------------
-# Sprint 13 — Driver presence, driver trip history, admin assistance list
+# Sprint 13 — Driver presence, driver trip history
 # ---------------------------------------------------------------------------
 
 async def get_driver_profile(db: AsyncSession, auth_user_id: str) -> dict:
@@ -1665,35 +1273,6 @@ async def list_driver_trip_history(
     )
     return list(result.scalars().all())
 
-
-async def admin_list_assistance(
-    db: AsyncSession, limit: int = 50, offset: int = 0
-) -> list[dict]:
-    """Return all assistance requests (newest first) for admin view."""
-    result = await db.execute(
-        select(AssistanceRequest, User)
-        .join(User, AssistanceRequest.customer_id == User.id)
-        .order_by(AssistanceRequest.created_at.desc())
-        .limit(limit)
-        .offset(offset)
-    )
-    rows = result.all()
-    return [
-        {
-            "request_id": str(req.id),
-            "type": req.type,
-            "status": req.status,
-            "lat": req.lat,
-            "lng": req.lng,
-            "note": req.note,
-            "eta_min": req.eta_min,
-            "customer_email": user.email,
-            "driver_id": str(req.driver_id) if req.driver_id else None,
-            "created_at": _utc(req.created_at).isoformat(),
-            "updated_at": _utc(req.updated_at).isoformat(),
-        }
-        for req, user in rows
-    ]
 
 
 # ---------------------------------------------------------------------------
@@ -3058,7 +2637,6 @@ _DEFAULT_COMMISSION_RATES: dict[str, int] = {
     "economy": 15,
     "comfort": 18,
     "premium": 20,
-    "assistance": 12,
 }
 
 
@@ -3100,7 +2678,7 @@ async def set_commission(
 ) -> dict:
     """Create or update the commission rate for a given category.
 
-    ``category`` must be one of: economy, comfort, premium, assistance, default.
+    ``category`` must be one of: economy, comfort, premium, default.
     ``rate_pct`` must be 0–100.
     Raises 422 on invalid inputs.
     """
@@ -4328,13 +3906,11 @@ async def get_platform_kpis(db: AsyncSession) -> dict:
 _SERVICE_FLAG_KEYS = {
     "rideshare_customer":  "service.rideshare.customer",
     "rideshare_driver":    "service.rideshare.driver",
-    "assistance_customer": "service.assistance.customer",
-    "assistance_driver":   "service.assistance.driver",
 }
 
 
 async def get_service_flags(db: AsyncSession) -> dict[str, bool]:
-    """Return all 4 service on/off flags from platform_settings (defaults to True)."""
+    """Return all service on/off flags from platform_settings (defaults to True)."""
     rows = (
         await db.execute(
             select(PlatformSetting).where(

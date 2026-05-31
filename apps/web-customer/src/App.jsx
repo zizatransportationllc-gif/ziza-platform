@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
   login, fetchMe, fetchDemo, registerUser, fetchEstimate, createTrip, getTrip, cancelTrip, rateTrip,
-  createAssistanceRequest, getAssistanceRequest, cancelAssistanceRequest, listMyAssistance, listMyTrips,
+  listMyTrips,
   validatePromo, getProfile, updateProfile,
   listNotifications, getUnreadCount, markAllRead,
   listPlaces, createPlace, updatePlace, deletePlace,
@@ -13,7 +13,6 @@ import {
   searchPlaces, // Sprint 43
   checkPointInService, // Sprint 45
   createCraftRequest, getMyCraftRequests, getCraftRequestBids, selectCraftBid, cancelCraftRequest, // Sprint 48
-  // Note: createAssistanceRequest / getAssistanceRequest / cancelAssistanceRequest kept in api.js but not used (Assistance tab removed Sprint 48)
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 import { EstimateMap, TripMap } from "./TripMap";
@@ -39,24 +38,6 @@ const STATUS_LABELS = {
 
 const TERMINAL_STATUSES = new Set(["completed", "cancelled"]);
 
-const ASSISTANCE_TYPES = [
-  { value: "breakdown", label: "🔧 Breakdown" },
-  { value: "flat_tyre", label: "🔴 Flat Tire" },
-  { value: "tow",       label: "🚛 Tow Truck" },
-  { value: "fuel",      label: "⛽ Out of Fuel" },
-  { value: "lockout",   label: "🔑 Locked Out" },
-];
-
-const ASSISTANCE_STATUS_LABELS = {
-  pending:     "⏳ Waiting for a technician",
-  accepted:    "✓ Technician on the way",
-  in_progress: "🔧 Service in progress",
-  resolved:    "✅ Issue resolved",
-  cancelled:   "✗ Request cancelled",
-};
-
-const ASSISTANCE_TERMINAL = new Set(["resolved", "cancelled"]);
-
 function formatUSD(n) {
   if (n == null) return "—";
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n / 100);
@@ -72,7 +53,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Customer</h1>
-      <p className="subtitle">Sprint 45 — Zone Enforcement</p>
+      <p className="subtitle">Sprint 48 — Ziza Craft</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
@@ -825,137 +806,6 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
 }
 
 // ---------------------------------------------------------------------------
-// Assistance request form
-// ---------------------------------------------------------------------------
-
-function AssistanceSection({ token, onRequestCreated }) {
-  const [type, setType] = useState(ASSISTANCE_TYPES[0].value);
-  const [location, setLocation] = useState(LOCATION_NAMES[0]);
-  const [note, setNote] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setLoading(true); setError(null);
-    try {
-      const coords = NJ_LOCATIONS[location];
-      const req = await createAssistanceRequest(token, type, coords.lat, coords.lng, note || undefined);
-      onRequestCreated(req);
-    } catch (err) { setError(err.message); }
-    finally { setLoading(false); }
-  }
-
-  return (
-    <div className="assistance-section">
-      <h2 className="estimate-title">🆘 Request Assistance</h2>
-      <form className="assistance-form" onSubmit={handleSubmit}>
-        <div className="assistance-field">
-          <span className="estimate-label">Problem Type</span>
-          <div className="type-grid">
-            {ASSISTANCE_TYPES.map(({ value, label }) => (
-              <button
-                key={value}
-                type="button"
-                className={`type-btn ${type === value ? "selected" : ""}`}
-                onClick={() => setType(value)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="assistance-field">
-          <span className="estimate-label">📍 My Location</span>
-          <select
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            className="assistance-select"
-          >
-            {LOCATION_NAMES.map((n) => <option key={n}>{n}</option>)}
-          </select>
-        </div>
-        <div className="assistance-field">
-          <span className="estimate-label">Note (optional)</span>
-          <textarea
-            className="assistance-note"
-            placeholder="Describe your issue…"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={2}
-            maxLength={500}
-          />
-        </div>
-        {error && <p className="form-error">{error}</p>}
-        <button type="submit" className="estimate-btn" disabled={loading}>
-          {loading ? "Sending…" : "🆘 Request Help"}
-        </button>
-      </form>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Assistance status card — shown while request is active
-// ---------------------------------------------------------------------------
-
-function AssistanceStatusCard({ token, request, onRequestUpdate, onNewRequest }) {
-  const [cancelling, setCancelling] = useState(false);
-  const [error, setError] = useState(null);
-
-  // Poll every 5 s until terminal status
-  useEffect(() => {
-    if (ASSISTANCE_TERMINAL.has(request.status)) return;
-    const id = setInterval(async () => {
-      try {
-        const updated = await getAssistanceRequest(token, request.request_id);
-        onRequestUpdate(updated);
-      } catch (_) { /* swallow */ }
-    }, 5000);
-    return () => clearInterval(id);
-  }, [request.request_id, request.status]);
-
-  async function handleCancel() {
-    setCancelling(true); setError(null);
-    try {
-      const updated = await cancelAssistanceRequest(token, request.request_id);
-      onRequestUpdate(updated);
-    } catch (err) { setError(err.message); }
-    finally { setCancelling(false); }
-  }
-
-  const typeLabel = ASSISTANCE_TYPES.find((t) => t.value === request.type)?.label ?? request.type;
-
-  return (
-    <div className="assistance-status-section">
-      <h2 className="estimate-title">🆘 My Assistance</h2>
-      <div className={`assistance-card assistance-${request.status}`}>
-        <div className="assistance-type-badge">{typeLabel}</div>
-        <div className="assistance-status-label">
-          {ASSISTANCE_STATUS_LABELS[request.status] ?? request.status}
-        </div>
-        {request.note && <p className="assistance-note-display">{request.note}</p>}
-      </div>
-      {error && <p className="form-error">{error}</p>}
-      {request.status === "pending" && (
-        <button className="cancel-btn" onClick={handleCancel} disabled={cancelling}>
-          {cancelling ? "Cancelling…" : "Cancel Request"}
-        </button>
-      )}
-      {ASSISTANCE_TERMINAL.has(request.status) && (
-        <button
-          className="estimate-btn"
-          onClick={onNewRequest}
-          style={{ marginTop: "var(--space-4)" }}
-        >
-          New Request
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Trip history — Sprint 13 / Sprint 42: payment status badges
 // ---------------------------------------------------------------------------
 
@@ -1049,45 +899,6 @@ function TripHistory({ token }) {
         </div>
       )}
     </>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Assistance history — Sprint 12
-// ---------------------------------------------------------------------------
-
-function AssistanceHistory({ token }) {
-  const [history, setHistory] = useState(null);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    listMyAssistance(token)
-      .then(setHistory)
-      .catch((err) => setError(err.message));
-  }, [token]);
-
-  if (error) return <p className="form-error">{error}</p>;
-  if (history === null) return <p className="history-empty">⏳ Loading…</p>;
-  if (history.length === 0) return <p className="history-empty">No assistance requests yet.</p>;
-
-  return (
-    <div className="history-list">
-      {history.map((req) => {
-        const typeLabel = ASSISTANCE_TYPES.find((t) => t.value === req.type)?.label ?? req.type;
-        return (
-          <div key={req.request_id} className={`history-item history-item-${req.status}`}>
-            <div className="history-type">{typeLabel}</div>
-            <div className="history-status">{ASSISTANCE_STATUS_LABELS[req.status] ?? req.status}</div>
-            {req.note && <div className="history-note">{req.note}</div>}
-            <div className="history-date">
-              {new Date(req.created_at).toLocaleDateString("en-US", {
-                day: "2-digit", month: "short", year: "numeric",
-              })}
-            </div>
-          </div>
-        );
-      })}
-    </div>
   );
 }
 

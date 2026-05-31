@@ -104,15 +104,6 @@ export interface PromoResponse {
   final_price_xof: number;
 }
 
-export interface AssistanceResponse {
-  request_id: string;
-  type: string;
-  status: string;
-  driver_id: string | null;
-  latitude: number;
-  longitude: number;
-  created_at: string;
-}
 
 export interface PlaceResult {
   place_id: string;
@@ -371,33 +362,6 @@ export async function getTripPayment(
   });
   if (res.status === 404) return null;
   return _json<PaymentIntentResponse>(res);
-}
-
-// ---------------------------------------------------------------------------
-// Assistance
-// ---------------------------------------------------------------------------
-
-export async function requestAssistance(
-  token: string,
-  type: string,
-  lat: number,
-  lng: number
-): Promise<AssistanceResponse> {
-  const res = await fetch(`${API_BASE}/v1/assistance`, {
-    method: "POST",
-    headers: { ..._auth(token), "Content-Type": "application/json" },
-    body: JSON.stringify({ type, latitude: lat, longitude: lng }),
-  });
-  return _json<AssistanceResponse>(res);
-}
-
-export async function getActiveAssistance(
-  token: string
-): Promise<{ request: AssistanceResponse | null }> {
-  const res = await fetch(`${API_BASE}/v1/assistance/customer/active`, {
-    headers: _auth(token),
-  });
-  return _json<{ request: AssistanceResponse | null }>(res);
 }
 
 // ---------------------------------------------------------------------------

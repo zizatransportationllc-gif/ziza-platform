@@ -10,7 +10,6 @@ from app.models.vehicle import Vehicle  # noqa: F401
 from app.models.trip import Trip, TripEvent  # noqa: F401
 from app.models.estimate import Estimate  # noqa: F401
 from app.models.rating import Rating  # noqa: F401
-from app.models.assistance import AssistanceRequest  # noqa: F401
 from app.models.driver_capability import DriverCapability  # noqa: F401
 from app.models.promo import PromoCode  # noqa: F401
 from app.models.payout_request import PayoutRequest, CommissionSetting  # noqa: F401  — Sprint 29
@@ -30,7 +29,7 @@ from app.models.craft import Professional, CraftRequest, CraftBid  # noqa: F401 
 
 __all__ = [
     "Base", "User", "Driver", "Vehicle", "Trip", "TripEvent", "Estimate",
-    "Rating", "AssistanceRequest", "DriverCapability", "PromoCode",
+    "Rating", "DriverCapability", "PromoCode",
     "PayoutRequest", "CommissionSetting", "PlatformSetting", "DriverDocument", "Notification",
     "SavedPlace", "DriverLocation", "PaymentIntent", "RefreshToken",
     "DeviceToken", "DriverApplication", "FeatureFlag", "InviteCode",

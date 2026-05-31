@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import {
   login, fetchMe, registerUser,
   adminListDrivers, adminSetDriverCapabilities,
-  adminGetStats, adminListTrips, adminListUsers, adminListAssistance,
+  adminGetStats, adminListTrips, adminListUsers,
   adminCreatePromo, adminListPromos, adminDeactivatePromo, adminSetDriverStatus,
   adminListPayouts, adminUpdatePayoutStatus, adminListRatings,
   adminGetSurge, adminSetSurge,
@@ -23,16 +23,6 @@ import LiveMap from "./LiveMap";
 
 const REQUIRED_ROLE = "admin";
 const TOKEN_KEY = "ziza_token";
-
-const ASSISTANCE_TYPES = ["breakdown", "flat_tyre", "tow", "fuel", "lockout"];
-
-const TYPE_LABELS = {
-  breakdown: "🔧 Breakdown",
-  flat_tyre: "🔴 Flat Tire",
-  tow:       "🚛 Tow Truck",
-  fuel:      "⛽ Out of Fuel",
-  lockout:   "🔑 Locked Out",
-};
 
 const STATUS_LABELS = {
   pending:     "Pending",
@@ -58,7 +48,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 47 — Ziza Craft</p>
+      <p className="subtitle">Sprint 48 — Ziza Craft</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
@@ -211,7 +201,7 @@ function StatsPanel({ token }) {
   if (error) return <p className="form-error">{error}</p>;
   if (!stats) return null;
 
-  const { trips, assistance, drivers, payments } = stats;
+  const { trips, drivers, payments } = stats;
 
   return (
     <div className="stats-panel">
@@ -229,11 +219,6 @@ function StatsPanel({ token }) {
           label="Revenue"
           value={formatUSD(trips.total_revenue_xof)}
           sub="Completed trips"
-        />
-        <StatCard
-          label="Assistance Requests"
-          value={assistance.total}
-          sub={`${assistance.by_status?.resolved ?? 0} resolved · ${assistance.by_status?.pending ?? 0} pending`}
         />
         <StatCard
           label="Drivers"
@@ -404,56 +389,10 @@ function TripsPanel({ token }) {
 }
 
 // ---------------------------------------------------------------------------
-// Capability editor — inline for a single driver
-// ---------------------------------------------------------------------------
-
-function CapabilityEditor({ token, driver, onSaved, onCancel }) {
-  const [selected, setSelected] = useState(new Set(driver.capabilities));
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-
-  function toggle(type) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(type)) next.delete(type); else next.add(type);
-      return next;
-    });
-  }
-
-  async function handleSave() {
-    setSaving(true); setError(null);
-    try {
-      const result = await adminSetDriverCapabilities(token, driver.driver_id, Array.from(selected));
-      onSaved({ ...driver, capabilities: result.capabilities });
-    } catch (e) { setError(e.message); }
-    finally { setSaving(false); }
-  }
-
-  return (
-    <div className="cap-editor">
-      <div className="cap-editor-title">Capabilities — <strong>{driver.email}</strong></div>
-      <div className="cap-hint">Empty = driver sees all assistance requests.</div>
-      <div className="cap-grid">
-        {ASSISTANCE_TYPES.map((type) => (
-          <button key={type} className={`cap-btn ${selected.has(type) ? "selected" : ""}`} onClick={() => toggle(type)}>
-            {TYPE_LABELS[type]}
-          </button>
-        ))}
-      </div>
-      {error && <p className="form-error">{error}</p>}
-      <div className="cap-actions">
-        <button className="cap-save-btn" onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "✓ Save"}</button>
-        <button className="cap-cancel-btn" onClick={onCancel} disabled={saving}>Cancel</button>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Driver row
 // ---------------------------------------------------------------------------
 
-function DriverRow({ driver, onEdit, onStatusChange }) {
+function DriverRow({ driver, onStatusChange }) {
   const [changingStatus, setChangingStatus] = useState(false);
 
   async function handleStatus(newStatus) {
@@ -470,7 +409,6 @@ function DriverRow({ driver, onEdit, onStatusChange }) {
           <span className={`driver-status-badge ${driver.status}`}>{driver.status}</span>
         </div>
         <div className="driver-card-actions">
-          <button className="edit-caps-btn" onClick={() => onEdit(driver)}>Capabilities</button>
           {driver.status !== "suspended" ? (
             <button
               className="suspend-btn"
@@ -492,12 +430,6 @@ function DriverRow({ driver, onEdit, onStatusChange }) {
           )}
         </div>
       </div>
-      <div className="driver-caps">
-        {driver.capabilities.length > 0
-          ? driver.capabilities.map((c) => <span key={c} className="cap-chip">{TYPE_LABELS[c] ?? c}</span>)
-          : <span className="cap-all">All requests</span>
-        }
-      </div>
     </div>
   );
 }
@@ -509,7 +441,6 @@ function DriverRow({ driver, onEdit, onStatusChange }) {
 function DriversPanel({ token }) {
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [editing, setEditing] = useState(null);
   const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
@@ -520,11 +451,6 @@ function DriversPanel({ token }) {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
-
-  function handleSaved(updated) {
-    setDrivers((prev) => prev.map((d) => d.driver_id === updated.driver_id ? updated : d));
-    setEditing(null);
-  }
 
   async function handleStatusChange(driverId, newStatus) {
     try {
@@ -542,11 +468,10 @@ function DriversPanel({ token }) {
         <button className="refresh-btn" onClick={load} disabled={loading}>{loading ? "…" : "↻ Refresh"}</button>
       </div>
       {error && <p className="form-error">{error}</p>}
-      {editing && <CapabilityEditor token={token} driver={editing} onSaved={handleSaved} onCancel={() => setEditing(null)} />}
       {!loading && drivers.length === 0 && <div className="empty-state">No drivers registered.</div>}
       <div className="driver-list">
         {drivers.map((d) => (
-          <DriverRow key={d.driver_id} driver={d} onEdit={setEditing} onStatusChange={handleStatusChange} />
+          <DriverRow key={d.driver_id} driver={d} onStatusChange={handleStatusChange} />
         ))}
       </div>
     </div>
@@ -648,82 +573,6 @@ function UsersPanel({ token }) {
       <div className="user-list">
         {users.map((u) => <UserRow key={u.user_id} u={u} />)}
       </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Assistance panel — Sprint 13
-// ---------------------------------------------------------------------------
-
-const ASSIST_TYPE_LABELS = {
-  breakdown: "🔧 Breakdown",
-  flat_tyre: "🔴 Flat Tire",
-  tow:       "🚛 Tow Truck",
-  fuel:      "⛽ Fuel",
-  lockout:   "🔑 Lockout",
-};
-
-function AssistanceRow({ req }) {
-  return (
-    <div className="assist-row">
-      <div className="assist-row-main">
-        <span className={`trip-status-badge status-${req.status}`}>
-          {STATUS_LABELS[req.status] ?? req.status}
-        </span>
-        <span className="assist-type-label">{ASSIST_TYPE_LABELS[req.type] ?? req.type}</span>
-        <span className="trip-customer">{req.customer_email}</span>
-      </div>
-      <div className="assist-row-meta">
-        {req.eta_min != null && <span>⏱️ ETA {req.eta_min} min</span>}
-        {req.note && <span className="assist-note-admin">"{req.note}"</span>}
-        <span className="trip-date">{new Date(req.created_at).toLocaleString("en-US", { dateStyle: "short", timeStyle: "short" })}</span>
-      </div>
-    </div>
-  );
-}
-
-function AssistancePanel({ token }) {
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(0);
-  const [error, setError] = useState(null);
-  const PAGE_SIZE = 10;
-
-  const load = useCallback(async (p = 0) => {
-    setLoading(true); setError(null);
-    try {
-      const data = await adminListAssistance(token, PAGE_SIZE, p * PAGE_SIZE);
-      setRequests(data);
-      setPage(p);
-    } catch (e) { setError(e.message); }
-    finally { setLoading(false); }
-  }, [token]);
-
-  useEffect(() => { load(0); }, [load]);
-
-  return (
-    <div className="assist-panel">
-      <div className="panel-header">
-        <h2 className="panel-title">Assistance Requests</h2>
-        <div className="panel-actions">
-          <button className="refresh-btn" onClick={() => load(page)} disabled={loading}>↻</button>
-        </div>
-      </div>
-      {error && <p className="form-error">{error}</p>}
-      {!loading && requests.length === 0 && (
-        <div className="empty-state">No requests recorded.</div>
-      )}
-      <div className="trip-list-admin">
-        {requests.map((r) => <AssistanceRow key={r.request_id} req={r} />)}
-      </div>
-      {(requests.length === PAGE_SIZE || page > 0) && (
-        <div className="pagination">
-          <button className="page-btn" onClick={() => load(page - 1)} disabled={page === 0 || loading}>← Previous</button>
-          <span className="page-info">Page {page + 1}</span>
-          <button className="page-btn" onClick={() => load(page + 1)} disabled={requests.length < PAGE_SIZE || loading}>Next →</button>
-        </div>
-      )}
     </div>
   );
 }
@@ -943,11 +792,10 @@ function PayoutsPanel({ token }) {
 // ---------------------------------------------------------------------------
 
 const COMMISSION_CATEGORY_LABELS = {
-  economy:    "🚗 Economy",
-  comfort:    "🚙 Comfort",
-  premium:    "🏎️ Premium",
-  assistance: "🔧 Assistance",
-  default:    "📦 Default",
+  economy: "🚗 Economy",
+  comfort: "🚙 Comfort",
+  premium: "🏎️ Premium",
+  default: "📦 Default",
 };
 
 function CommissionPanel({ token }) {
@@ -1008,7 +856,7 @@ function CommissionPanel({ token }) {
     finally { setBatching(false); }
   }
 
-  const CATS = ["economy", "comfort", "premium", "assistance", "default"];
+  const CATS = ["economy", "comfort", "premium", "default"];
 
   return (
     <div className="commission-panel">
@@ -1851,8 +1699,7 @@ function CitiesPanel({ token }) {
         <div className={`zone-enforcement-banner ${activeCities.length > 0 ? "zone-enforced" : "zone-open"}`}>
           {activeCities.length > 0 ? (
             <>
-              ✅ <strong>Zone enforcement ACTIVE</strong> — customers can only book trips and
-              request assistance within: {activeCities.map((c) => (
+              ✅ <strong>Zone enforcement ACTIVE</strong> — customers can only book trips within: {activeCities.map((c) => (
                 <strong key={c.city_id}> {c.name} ({c.radius_km} km radius)</strong>
               ))}.
               <br />
@@ -1890,7 +1737,7 @@ function CitiesPanel({ token }) {
           <h3 className="zone-onboarding-title">No service zones configured</h3>
           <p className="zone-onboarding-desc">
             Zone enforcement is currently <strong>OFF</strong> — customers can book
-            trips and request assistance from any location.
+            trips from any location.
           </p>
           <p className="zone-onboarding-desc">
             To restrict bookings to specific geographic areas, configure at least
@@ -2257,18 +2104,6 @@ const SERVICE_DEFS = [
     label: "Ride-share for Drivers",
     desc: "Allow drivers to see and accept ride requests.",
   },
-  {
-    key: "assistance_customer",
-    icon: "🆘",
-    label: "Assistance for Customers",
-    desc: "Allow customers to request roadside assistance.",
-  },
-  {
-    key: "assistance_driver",
-    icon: "🔧",
-    label: "Assistance for Drivers",
-    desc: "Allow drivers to accept assistance requests.",
-  },
 ];
 
 function ServicesPanel({ token }) {
@@ -2543,7 +2378,6 @@ function CraftPanel({ token }) {
 const TABS = [
   { id: "stats",        label: "📊 Stats" },
   { id: "trips",        label: "🚕 Trips" },
-  { id: "assist",       label: "🆘 Assistance" },
   { id: "drivers",      label: "🧑‍✈️ Drivers" },
   { id: "live",         label: "🗺️ Live" },
   { id: "cities",       label: "🗺️ Zones" },
@@ -2596,10 +2430,9 @@ function Dashboard({ user, token, onLogout }) {
         })}
       </div>
 
-      {activeTab === "stats"      && <StatsPanel       token={token} />}
-      {activeTab === "trips"      && <TripsPanel       token={token} />}
-      {activeTab === "assist"     && <AssistancePanel  token={token} />}
-      {activeTab === "drivers"    && <DriversPanel     token={token} />}
+      {activeTab === "stats"      && <StatsPanel   token={token} />}
+      {activeTab === "trips"      && <TripsPanel   token={token} />}
+      {activeTab === "drivers"    && <DriversPanel token={token} />}
       {activeTab === "promos"     && <PromoPanel       token={token} />}
       {activeTab === "payouts"    && <PayoutsPanel     token={token} />}
       {activeTab === "ratings"    && <RatingsPanel     token={token} />}
@@ -2615,7 +2448,7 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "users"        && <UsersPanel          token={token} />}
       {activeTab === "craft"        && <CraftPanel          token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 47</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 48</p>
     </div>
   );
 }

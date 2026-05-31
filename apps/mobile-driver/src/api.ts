@@ -71,15 +71,6 @@ export interface TripResponse {
   created_at: string;
 }
 
-export interface AssistanceResponse {
-  request_id: string;
-  type: string;
-  status: string;
-  driver_id: string | null;
-  latitude: number;
-  longitude: number;
-  created_at: string;
-}
 
 export interface LocationResponse {
   driver_id: string;
@@ -326,61 +317,6 @@ export async function listDriverTripHistory(
     { headers: _auth(token) }
   );
   return _json<TripResponse[]>(res);
-}
-
-// ---------------------------------------------------------------------------
-// Assistance — dispatch
-// ---------------------------------------------------------------------------
-
-export async function listAvailableAssistance(
-  token: string
-): Promise<AssistanceResponse[]> {
-  const res = await fetch(`${API_BASE}/v1/assistance/driver/available`, {
-    headers: _auth(token),
-  });
-  return _json<AssistanceResponse[]>(res);
-}
-
-export async function acceptAssistance(
-  token: string,
-  requestId: string
-): Promise<AssistanceResponse> {
-  const res = await fetch(`${API_BASE}/v1/assistance/${requestId}/accept`, {
-    method: "PATCH",
-    headers: _auth(token),
-  });
-  return _json<AssistanceResponse>(res);
-}
-
-export async function startAssistance(
-  token: string,
-  requestId: string
-): Promise<AssistanceResponse> {
-  const res = await fetch(`${API_BASE}/v1/assistance/${requestId}/start`, {
-    method: "PATCH",
-    headers: _auth(token),
-  });
-  return _json<AssistanceResponse>(res);
-}
-
-export async function resolveAssistance(
-  token: string,
-  requestId: string
-): Promise<AssistanceResponse> {
-  const res = await fetch(`${API_BASE}/v1/assistance/${requestId}/resolve`, {
-    method: "PATCH",
-    headers: _auth(token),
-  });
-  return _json<AssistanceResponse>(res);
-}
-
-export async function getActiveAssistance(
-  token: string
-): Promise<{ request: AssistanceResponse | null }> {
-  const res = await fetch(`${API_BASE}/v1/assistance/driver/active`, {
-    headers: _auth(token),
-  });
-  return _json<{ request: AssistanceResponse | null }>(res);
 }
 
 // ---------------------------------------------------------------------------

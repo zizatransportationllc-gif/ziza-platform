@@ -3,8 +3,6 @@ import {
   login, fetchMe, registerUser, registerDriver,
   listAvailableTrips, getActiveTrip,
   acceptTrip, startTrip, completeTrip,
-  listAvailableAssistance, getActiveAssistance,
-  acceptAssistance, startAssistance, resolveAssistance,
   getMyRating, getMyEarnings, getDriverBalance,
   getMyVehicle, registerVehicle,
   getDriverProfile, setDriverOnline, listDriverTripHistory,
@@ -49,20 +47,6 @@ const STATUS_LABELS = {
   cancelled:   "✗ Ride cancelled by customer",
 };
 
-const ASSISTANCE_TYPE_LABELS = {
-  breakdown: "🔧 Breakdown",
-  flat_tyre: "🔴 Flat Tire",
-  tow:       "🚛 Tow Truck",
-  fuel:      "⛽ Out of Fuel",
-  lockout:   "🔑 Locked Out",
-};
-
-const ASSISTANCE_STATUS_LABELS = {
-  accepted:    "✓ Service accepted — on the way",
-  in_progress: "🔧 Service in progress",
-  resolved:    "✅ Service completed",
-  cancelled:   "✗ Cancelled by customer",
-};
 
 function formatUSD(n) {
   if (n == null) return "—";
@@ -79,7 +63,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Driver</h1>
-      <p className="subtitle">Sprint 34 — Advanced Analytics</p>
+      <p className="subtitle">Sprint 48 — Ziza Craft</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
@@ -336,49 +320,11 @@ function VehicleCard({ token, vehicle, onSaved }) {
 }
 
 // ---------------------------------------------------------------------------
-// Active assistance card — shown when driver has an ongoing intervention
+// Dispatch list — pending trips
 // ---------------------------------------------------------------------------
 
-function ActiveAssistanceCard({ token, request, onUpdate }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
-
-  async function handleAction(fn) {
-    setBusy(true); setError(null);
-    try { const updated = await fn(token, request.request_id); onUpdate(updated); }
-    catch (e) { setError(e.message); }
-    finally { setBusy(false); }
-  }
-
-  const typeLabel = ASSISTANCE_TYPE_LABELS[request.type] ?? request.type;
-
-  return (
-    <div className={`active-trip-card active-${request.status}`}>
-      <div className="assist-type-chip">{typeLabel}</div>
-      <div className="active-status">{ASSISTANCE_STATUS_LABELS[request.status] ?? request.status}</div>
-      {request.note && <p className="assist-note">{request.note}</p>}
-      {error && <p className="form-error">{error}</p>}
-      {request.status === "accepted" && (
-        <button className="action-btn start-btn" onClick={() => handleAction(startAssistance)} disabled={busy}>
-          {busy ? "…" : "🔧 Start Service"}
-        </button>
-      )}
-      {request.status === "in_progress" && (
-        <button className="action-btn complete-btn" onClick={() => handleAction(resolveAssistance)} disabled={busy}>
-          {busy ? "…" : "✅ Complete Service"}
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Unified dispatch list — pending trips + assistance requests
-// ---------------------------------------------------------------------------
-
-function AvailableTripsSection({ token, onTripAccepted, onAssistanceAccepted }) {
+function AvailableTripsSection({ token, onTripAccepted }) {
   const [trips, setTrips] = useState([]);
-  const [assistance, setAssistance] = useState([]);
   const [loading, setLoading] = useState(false);
   const [accepting, setAccepting] = useState(null);
   const [error, setError] = useState(null);
@@ -386,12 +332,8 @@ function AvailableTripsSection({ token, onTripAccepted, onAssistanceAccepted }) 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [t, a] = await Promise.all([
-        listAvailableTrips(token),
-        listAvailableAssistance(token),
-      ]);
+      const t = await listAvailableTrips(token);
       setTrips(t);
-      setAssistance(a);
     } catch (_) { /* silent */ }
     finally { setLoading(false); }
   }, [token]);
@@ -408,14 +350,6 @@ function AvailableTripsSection({ token, onTripAccepted, onAssistanceAccepted }) 
     catch (e) { setError(e.message); setAccepting(null); }
   }
 
-  async function handleAcceptAssistance(reqId) {
-    setAccepting(reqId); setError(null);
-    try { onAssistanceAccepted(await acceptAssistance(token, reqId)); }
-    catch (e) { setError(e.message); setAccepting(null); }
-  }
-
-  const totalItems = trips.length + assistance.length;
-
   return (
     <div className="available-section">
       <div className="available-header">
@@ -423,11 +357,11 @@ function AvailableTripsSection({ token, onTripAccepted, onAssistanceAccepted }) 
         <span className="live-badge">● Live</span>
       </div>
       {error && <p className="form-error">{error}</p>}
-      {loading && totalItems === 0 && (
+      {loading && trips.length === 0 && (
         <div className="status loading">⏳ Loading…</div>
       )}
-      {!loading && totalItems === 0 && (
-        <div className="empty-state">No missions available right now.</div>
+      {!loading && trips.length === 0 && (
+        <div className="empty-state">No trips available right now.</div>
       )}
       <div className="trip-list">
         {trips.map((t) => (
@@ -449,22 +383,6 @@ function AvailableTripsSection({ token, onTripAccepted, onAssistanceAccepted }) 
               disabled={accepting === t.trip_id}
             >
               {accepting === t.trip_id ? "Accepting…" : "✓ Accept"}
-            </button>
-          </div>
-        ))}
-        {assistance.map((a) => (
-          <div key={a.request_id} className="trip-card assist-card">
-            <div className="dispatch-tag tag-assist">🆘 Assistance</div>
-            <div className="trip-card-fare assist-type">
-              {ASSISTANCE_TYPE_LABELS[a.type] ?? a.type}
-            </div>
-            {a.note && <div className="trip-card-meta"><span>{a.note}</span></div>}
-            <button
-              className="action-btn accept-btn"
-              onClick={() => handleAcceptAssistance(a.request_id)}
-              disabled={accepting === a.request_id}
-            >
-              {accepting === a.request_id ? "Accepting…" : "✓ Accept"}
             </button>
           </div>
         ))}
@@ -957,7 +875,6 @@ function LocationSection({ token }) {
 
 function Dashboard({ user, token, onLogout }) {
   const [activeTrip, setActiveTrip] = useState(null);
-  const [activeAssistance, setActiveAssistance] = useState(null);
   const [initialized, setInitialized] = useState(false);
   const [ratingStats, setRatingStats] = useState(null);
   const [earnings, setEarnings] = useState(null);
@@ -979,7 +896,6 @@ function Dashboard({ user, token, onLogout }) {
   useEffect(() => {
     Promise.all([
       getActiveTrip(token).then(({ trip }) => { setActiveTrip(trip); }),
-      getActiveAssistance(token).then(({ request }) => { setActiveAssistance(request); }).catch(() => {}),
       getMyRating(token).then(setRatingStats).catch(() => {}),
       getMyEarnings(token).then(setEarnings).catch(() => {}),
       getDriverBalance(token).then(setBalance).catch(() => {}), // Sprint 29
@@ -1025,15 +941,7 @@ function Dashboard({ user, token, onLogout }) {
     }
   }
 
-  function handleAssistanceUpdate(updated) {
-    setActiveAssistance(updated);
-    if (["resolved", "cancelled"].includes(updated.status)) {
-      setTimeout(() => setActiveAssistance(null), 3000);
-    }
-  }
-
-  const hasActive = (activeTrip && !["completed", "cancelled"].includes(activeTrip.status))
-    || (activeAssistance && !["resolved", "cancelled"].includes(activeAssistance.status));
+  const hasActive = activeTrip && !["completed", "cancelled"].includes(activeTrip.status);
 
   if (!initialized) {
     return (
@@ -1075,13 +983,9 @@ function Dashboard({ user, token, onLogout }) {
       <EarningsCard earnings={earnings} balance={balance} />
       <RatingStats stats={ratingStats} />
 
-      {/* Active mission always shown regardless of tab */}
+      {/* Active trip always shown regardless of tab */}
       {hasActive ? (
-        activeTrip && !["completed", "cancelled"].includes(activeTrip.status) ? (
-          <ActiveTripCard token={token} trip={activeTrip} onUpdate={handleTripUpdate} />
-        ) : (
-          <ActiveAssistanceCard token={token} request={activeAssistance} onUpdate={handleAssistanceUpdate} />
-        )
+        <ActiveTripCard token={token} trip={activeTrip} onUpdate={handleTripUpdate} />
       ) : (
         <>
           {/* Tabs */}
@@ -1129,7 +1033,6 @@ function Dashboard({ user, token, onLogout }) {
               <AvailableTripsSection
                 token={token}
                 onTripAccepted={setActiveTrip}
-                onAssistanceAccepted={setActiveAssistance}
               />
             ) : (
               <div className="offline-notice">
@@ -1148,7 +1051,7 @@ function Dashboard({ user, token, onLogout }) {
         </>
       )}
 
-      <p className="footer">App: <strong>web-driver</strong> · Sprint 34</p>
+      <p className="footer">App: <strong>web-driver</strong> · Sprint 48</p>
     </div>
   );
 }

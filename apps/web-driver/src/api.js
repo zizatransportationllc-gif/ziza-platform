@@ -87,28 +87,6 @@ export const startTrip   = (token, id) => _patch(token, `${API_BASE}/v1/trips/${
 export const completeTrip = (token, id) => _patch(token, `${API_BASE}/v1/trips/${id}/complete`);
 
 // ---------------------------------------------------------------------------
-// Assistance marketplace
-// ---------------------------------------------------------------------------
-
-export async function listAvailableAssistance(token) {
-  const res = await fetch(`${API_BASE}/v1/assistance/driver/available`, {
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-  });
-  return _json(res); // AssistanceResponse[]
-}
-
-export async function getActiveAssistance(token) {
-  const res = await fetch(`${API_BASE}/v1/assistance/driver/active`, {
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-  });
-  return _json(res); // { request: AssistanceResponse | null }
-}
-
-export const acceptAssistance  = (token, id) => _patch(token, `${API_BASE}/v1/assistance/${id}/accept`);
-export const startAssistance   = (token, id) => _patch(token, `${API_BASE}/v1/assistance/${id}/start`);
-export const resolveAssistance = (token, id) => _patch(token, `${API_BASE}/v1/assistance/${id}/resolve`);
-
-// ---------------------------------------------------------------------------
 // Driver earnings — Sprint 11
 // ---------------------------------------------------------------------------
 

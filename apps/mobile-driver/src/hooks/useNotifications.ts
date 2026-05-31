@@ -3,7 +3,7 @@
  * Sprint 39 — foreground display + tap handling + Android channel creation.
  *
  * Critical for drivers: push notifications are the primary mechanism to alert
- * them of new trip/assistance requests without relying solely on polling.
+ * them of new trip requests without relying solely on polling.
  */
 import { useEffect, useRef } from "react";
 import { Platform } from "react-native";

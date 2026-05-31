@@ -15,11 +15,9 @@ def _now() -> datetime:
 
 
 class DriverCapability(Base):
-    """Records which assistance types a driver handles.
+    """Records driver capability types (legacy table, kept for schema compatibility).
 
     One row per (driver_id, type) pair.
-    Empty = no filter applied — the driver sees all pending requests.
-    Non-empty = dispatch only shows requests of matching types.
     """
 
     __tablename__ = "driver_capabilities"

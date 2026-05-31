@@ -1,6 +1,6 @@
 /**
- * DispatchScreen — lists available trips and assistance sorted by proximity.
- * Sprint 37 — uses useAuth() instead of props.
+ * DispatchScreen — lists available trips sorted by proximity.
+ * Sprint 48 — removed Assistance dispatch.
  */
 import React, { useState } from "react";
 import {
@@ -8,7 +8,6 @@ import {
   Text,
   FlatList,
   StyleSheet,
-  TouchableOpacity,
   ActivityIndicator,
   Switch,
 } from "react-native";
@@ -18,15 +17,14 @@ import { RootStackParamList } from "../navigation/AppNavigator";
 import { useDispatch } from "../hooks/useDispatch";
 import { useAuth } from "../context/AuthContext";
 import TripDispatchCard from "../components/TripDispatchCard";
-import AssistanceDispatchCard from "../components/AssistanceDispatchCard";
-import { TripResponse, AssistanceResponse, acceptTrip, acceptAssistance } from "../api";
+import { TripResponse, acceptTrip } from "../api";
 
 type DispatchNavProp = NativeStackNavigationProp<RootStackParamList, "Dispatch">;
 
 export default function DispatchScreen(): React.ReactElement {
   const { token, isOnline, setOnline } = useAuth();
   const navigation = useNavigation<DispatchNavProp>();
-  const { trips, assistance, loading, error } = useDispatch(isOnline ? token : null);
+  const { trips, loading, error } = useDispatch(isOnline ? token : null);
   const [accepting, setAccepting] = useState(false);
 
   const handleAcceptTrip = async (trip: TripResponse) => {
@@ -35,19 +33,6 @@ export default function DispatchScreen(): React.ReactElement {
     try {
       const accepted = await acceptTrip(token, trip.trip_id);
       navigation.navigate("ActiveTrip", { tripId: accepted.trip_id });
-    } catch (e: any) {
-      // Show error — silent for now
-    } finally {
-      setAccepting(false);
-    }
-  };
-
-  const handleAcceptAssistance = async (req: AssistanceResponse) => {
-    if (!token) return;
-    setAccepting(true);
-    try {
-      await acceptAssistance(token, req.request_id);
-      navigation.navigate("ActiveTrip", { tripId: req.request_id });
     } catch {
       // silent
     } finally {
@@ -78,28 +63,15 @@ export default function DispatchScreen(): React.ReactElement {
         </Text>
       ) : (
         <FlatList
-          data={[
-            ...trips.map((t) => ({ type: "trip" as const, data: t })),
-            ...assistance.map((a) => ({ type: "assistance" as const, data: a })),
-          ]}
-          keyExtractor={(item) =>
-            item.type === "trip" ? item.data.trip_id : item.data.request_id
-          }
-          renderItem={({ item }) =>
-            item.type === "trip" ? (
-              <TripDispatchCard
-                trip={item.data}
-                onAccept={() => handleAcceptTrip(item.data)}
-                disabled={accepting}
-              />
-            ) : (
-              <AssistanceDispatchCard
-                request={item.data}
-                onAccept={() => handleAcceptAssistance(item.data)}
-                disabled={accepting}
-              />
-            )
-          }
+          data={trips}
+          keyExtractor={(item) => item.trip_id}
+          renderItem={({ item }) => (
+            <TripDispatchCard
+              trip={item}
+              onAccept={() => handleAcceptTrip(item)}
+              disabled={accepting}
+            />
+          )}
           ListEmptyComponent={
             <Text style={styles.empty}>No trips available.</Text>
           }

@@ -24,7 +24,7 @@ def _now() -> datetime:
 
 #: Categories recognised by the commission system.
 COMMISSION_CATEGORIES = frozenset(
-    {"economy", "comfort", "premium", "assistance", "default"}
+    {"economy", "comfort", "premium", "default"}
 )
 
 
@@ -40,7 +40,7 @@ class CommissionSetting(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True, default=uuid.uuid4
     )
-    # "economy" | "comfort" | "premium" | "assistance" | "default"
+    # "economy" | "comfort" | "premium" | "default"
     category: Mapped[str] = mapped_column(
         String(32), nullable=False, unique=True, index=True
     )
