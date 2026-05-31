@@ -18,3 +18,6 @@ aiosqlite==0.20.0
 # Sprint 31 — Redis cache (fakeredis for tests, redis for prod)
 redis==5.0.8
 fakeredis==2.26.1
+
+# Sprint 49 — Local account creation (password hashing)
+bcrypt==4.2.1

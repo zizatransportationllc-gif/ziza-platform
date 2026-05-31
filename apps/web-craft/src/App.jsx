@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import {
-  login, fetchMe, registerUser, registerProfessional,
+  login, signup, fetchMe, registerUser, registerProfessional,
   getMyProfile, updateMyProfile,
   listOpenRequests, getCraftRequest,
   submitBid, getMyBids,
@@ -49,37 +49,59 @@ const DOCUMENT_STATUS_LABELS = {
 // Login form
 // ---------------------------------------------------------------------------
 
-function LoginForm({ onLogin, error, loading }) {
+function LoginForm({ onLogin, onSignup, error, loading }) {
+  const [tab, setTab] = useState("signin");
+  // Sign-in fields
   const [email, setEmail] = useState("professional@ziza.dev");
   const [password, setPassword] = useState("ziza2024");
+  // Sign-up fields
+  const [suEmail, setSuEmail] = useState("");
+  const [suPassword, setSuPassword] = useState("");
+  const [suConfirm, setSuConfirm] = useState("");
+  const [suName, setSuName] = useState("");
+  const [suPhone, setSuPhone] = useState("");
+  const [suError, setSuError] = useState(null);
+
+  function handleSignup(e) {
+    e.preventDefault();
+    setSuError(null);
+    if (suPassword !== suConfirm) { setSuError("Passwords do not match"); return; }
+    if (suPassword.length < 6) { setSuError("Password must be at least 6 characters"); return; }
+    onSignup(suEmail, suPassword, suName, suPhone);
+  }
+
   return (
     <div className="app">
       <h1>Ziza Craft</h1>
-      <p className="subtitle">Sprint 48 — Professional Dashboard</p>
-      <form
-        className="login-form"
-        onSubmit={(e) => { e.preventDefault(); onLogin(email, password); }}
-      >
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          required
-        />
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
-          required
-        />
-        <button type="submit" disabled={loading}>
-          {loading ? "Signing in…" : "Sign In"}
-        </button>
-      </form>
-      {error && <p className="form-error">{error}</p>}
-      <p className="hint">Dev: professional@ziza.dev / ziza2024</p>
+      <p className="subtitle">Sprint 49 — Professional Dashboard</p>
+      <div className="auth-tabs">
+        <button className={`auth-tab${tab === "signin" ? " active" : ""}`} onClick={() => setTab("signin")}>Sign In</button>
+        <button className={`auth-tab${tab === "signup" ? " active" : ""}`} onClick={() => setTab("signup")}>Join as Pro</button>
+      </div>
+      {tab === "signin" ? (
+        <>
+          <form className="login-form" onSubmit={(e) => { e.preventDefault(); onLogin(email, password); }}>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
+            <button type="submit" disabled={loading}>{loading ? "Signing in…" : "Sign In"}</button>
+          </form>
+          {error && <p className="form-error">{error}</p>}
+          <p className="hint">Dev: professional@ziza.dev / ziza2024</p>
+        </>
+      ) : (
+        <>
+          <form className="login-form" onSubmit={handleSignup}>
+            <input type="email" value={suEmail} onChange={(e) => setSuEmail(e.target.value)} placeholder="Email address" required />
+            <input type="password" value={suPassword} onChange={(e) => setSuPassword(e.target.value)} placeholder="Password (min. 6 characters)" required />
+            <input type="password" value={suConfirm} onChange={(e) => setSuConfirm(e.target.value)} placeholder="Confirm password" required />
+            <input type="text" value={suName} onChange={(e) => setSuName(e.target.value)} placeholder="Full name" />
+            <input type="tel" value={suPhone} onChange={(e) => setSuPhone(e.target.value)} placeholder="Phone number" />
+            <button type="submit" disabled={loading}>{loading ? "Creating account…" : "Join as Professional"}</button>
+          </form>
+          {(suError || error) && <p className="form-error">{suError || error}</p>}
+          <p className="hint">After sign-up, complete your professional profile to receive service requests.</p>
+        </>
+      )}
     </div>
   );
 }
@@ -774,13 +796,23 @@ export default function App() {
     finally { setLoginLoading(false); }
   }
 
+  async function handleSignup(email, password, name, phone) {
+    setLoginLoading(true); setLoginError(null);
+    try {
+      const { access_token } = await signup(email, password, name || null, phone || null);
+      localStorage.setItem(TOKEN_KEY, access_token);
+      setToken(access_token);
+    } catch (e) { setLoginError(e.message); }
+    finally { setLoginLoading(false); }
+  }
+
   function handleLogout() {
     localStorage.removeItem(TOKEN_KEY);
     setToken(null);
     setUser(null);
   }
 
-  if (!token) return <LoginForm onLogin={handleLogin} error={loginError} loading={loginLoading} />;
+  if (!token) return <LoginForm onLogin={handleLogin} onSignup={handleSignup} error={loginError} loading={loginLoading} />;
   if (!user)  return <div className="app"><div className="status loading">⏳ Loading…</div></div>;
   if (user.role !== REQUIRED_ROLE) return <AccessDenied role={user.role} onLogout={handleLogout} />;
   return <Dashboard user={user} token={token} onLogout={handleLogout} />;

@@ -282,6 +282,41 @@ async def _get_user_by_auth_id(db: AsyncSession, auth_user_id: str) -> User | No
     return result.scalar_one_or_none()
 
 
+async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
+    """Return a User row by email address (used by local-auth signup/login)."""
+    result = await db.execute(select(User).where(User.email == email))
+    return result.scalar_one_or_none()
+
+
+async def create_local_user(
+    db: AsyncSession,
+    *,
+    user_id: str,
+    email: str,
+    password_hash: str,
+    role: str,
+    name: str | None = None,
+    phone: str | None = None,
+) -> User:
+    """Create a new user with a bcrypt-hashed password (Sprint 49 — local auth).
+
+    Sets provider='local' to distinguish these accounts from Firebase/dev-seeded ones.
+    """
+    user = User(
+        user_id=user_id,
+        email=email,
+        role=role,
+        provider="local",
+        name=name,
+        phone=phone,
+        password_hash=password_hash,
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
 # ---------------------------------------------------------------------------
 # Trips — Sprint 6
 # ---------------------------------------------------------------------------

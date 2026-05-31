@@ -32,6 +32,15 @@ export async function fetchMe(token) {
   return _json(res);
 }
 
+export async function signup(email, password, name, phone) {
+  const res = await fetch(`${API_BASE}/v1/auth/signup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password, name: name || null, phone: phone || null, role: "professional" }),
+  });
+  return _json(res);
+}
+
 export async function registerUser(token) {
   const res = await fetch(`${API_BASE}/v1/auth/register`, {
     method: "POST",

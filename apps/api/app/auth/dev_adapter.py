@@ -68,6 +68,15 @@ class DevAdapter(AuthAdapter):
             )
         return self._build_token(email, user)
 
+    def issue_raw(self, email: str, user_id: str, role: str) -> str:
+        """Issue a JWT from explicit values — used for locally-created accounts.
+
+        Called from POST /v1/auth/signup and the DB-fallback path in
+        POST /v1/token.  No password check is performed here; the caller
+        is responsible for validating credentials before calling this.
+        """
+        return self._build_token(email, {"user_id": user_id, "role": role})
+
     def issue_for_user_id(self, auth_user_id: str) -> str:
         """Return a new access token for a known auth_user_id.
 

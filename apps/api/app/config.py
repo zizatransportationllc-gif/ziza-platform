@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     auth_dev_token_ttl_hours: int = 24
 
     # ------------------------------------------------------------------
+    # Local account creation — Sprint 49
+    # ------------------------------------------------------------------
+    # Extra code required to create an admin account via POST /v1/auth/signup.
+    # Override this in your .env or GCP secret to protect admin sign-up.
+    admin_signup_code: str = "ZIZA-ADMIN-2024"
+
+    # ------------------------------------------------------------------
     # JWT TTL — Sprint 25
     # ------------------------------------------------------------------
     # Access token lifetime in minutes (default 720 min = 12 h — extended for admin UX).

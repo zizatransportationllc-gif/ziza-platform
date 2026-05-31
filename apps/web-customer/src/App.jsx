@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
-  login, fetchMe, fetchDemo, registerUser, fetchEstimate, createTrip, getTrip, cancelTrip, rateTrip,
+  login, signup, fetchMe, fetchDemo, registerUser, fetchEstimate, createTrip, getTrip, cancelTrip, rateTrip,
   listMyTrips,
   validatePromo, getProfile, updateProfile,
   listNotifications, getUnreadCount, markAllRead,
@@ -47,25 +47,63 @@ function formatUSD(n) {
 // Login form
 // ---------------------------------------------------------------------------
 
-function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
+function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
+  const [tab, setTab] = useState("signin");
+  // Sign-in fields
   const [email, setEmail] = useState("customer@ziza.dev");
   const [password, setPassword] = useState("ziza2024");
+  // Sign-up fields
+  const [suEmail, setSuEmail] = useState("");
+  const [suPassword, setSuPassword] = useState("");
+  const [suConfirm, setSuConfirm] = useState("");
+  const [suName, setSuName] = useState("");
+  const [suPhone, setSuPhone] = useState("");
+  const [suError, setSuError] = useState(null);
+
+  function handleSignup(e) {
+    e.preventDefault();
+    setSuError(null);
+    if (suPassword !== suConfirm) { setSuError("Passwords do not match"); return; }
+    if (suPassword.length < 6) { setSuError("Password must be at least 6 characters"); return; }
+    onSignup(suEmail, suPassword, suName, suPhone);
+  }
+
   return (
     <div className="app">
       <h1>Ziza Customer</h1>
-      <p className="subtitle">Sprint 48 — Ziza Craft</p>
-      <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
-        <button type="submit" disabled={loading}>{loading ? "Signing in…" : "Sign In"}</button>
-      </form>
-      {firebaseEnabled && (
-        <button className="google-btn" onClick={onGoogleLogin} disabled={loading}>
-          <span>G</span> Continue with Google
-        </button>
+      <p className="subtitle">Sprint 49 — Account Creation</p>
+      <div className="auth-tabs">
+        <button className={`auth-tab${tab === "signin" ? " active" : ""}`} onClick={() => setTab("signin")}>Sign In</button>
+        <button className={`auth-tab${tab === "signup" ? " active" : ""}`} onClick={() => setTab("signup")}>Create Account</button>
+      </div>
+      {tab === "signin" ? (
+        <>
+          <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
+            <button type="submit" disabled={loading}>{loading ? "Signing in…" : "Sign In"}</button>
+          </form>
+          {firebaseEnabled && (
+            <button className="google-btn" onClick={onGoogleLogin} disabled={loading}>
+              <span>G</span> Continue with Google
+            </button>
+          )}
+          {error && <p className="form-error">{error}</p>}
+          <p className="hint">Dev: customer@ziza.dev / ziza2024</p>
+        </>
+      ) : (
+        <>
+          <form className="login-form" onSubmit={handleSignup}>
+            <input type="email" value={suEmail} onChange={(e) => setSuEmail(e.target.value)} placeholder="Email address" required />
+            <input type="password" value={suPassword} onChange={(e) => setSuPassword(e.target.value)} placeholder="Password (min. 6 characters)" required />
+            <input type="password" value={suConfirm} onChange={(e) => setSuConfirm(e.target.value)} placeholder="Confirm password" required />
+            <input type="text" value={suName} onChange={(e) => setSuName(e.target.value)} placeholder="Full name (optional)" />
+            <input type="tel" value={suPhone} onChange={(e) => setSuPhone(e.target.value)} placeholder="Phone number (optional)" />
+            <button type="submit" disabled={loading}>{loading ? "Creating account…" : "Create Account"}</button>
+          </form>
+          {(suError || error) && <p className="form-error">{suError || error}</p>}
+        </>
       )}
-      {error && <p className="form-error">{error}</p>}
-      <p className="hint">Dev: customer@ziza.dev / ziza2024</p>
     </div>
   );
 }
@@ -2072,12 +2110,22 @@ export default function App() {
     finally { setLoginLoading(false); }
   }
 
+  async function handleSignup(email, password, name, phone) {
+    setLoginLoading(true); setLoginError(null);
+    try {
+      const { access_token } = await signup(email, password, name || null, phone || null);
+      localStorage.setItem(TOKEN_KEY, access_token);
+      setToken(access_token);
+    } catch (e) { setLoginError(e.message); }
+    finally { setLoginLoading(false); }
+  }
+
   async function handleLogout() {
     await firebaseSignOut();
     localStorage.removeItem(TOKEN_KEY); setToken(null); setUser(null);
   }
 
-  if (!token) return <LoginForm onEmailLogin={handleEmailLogin} onGoogleLogin={handleGoogleLogin} error={loginError} loading={loginLoading} />;
+  if (!token) return <LoginForm onEmailLogin={handleEmailLogin} onGoogleLogin={handleGoogleLogin} onSignup={handleSignup} error={loginError} loading={loginLoading} />;
   if (!user)  return <div className="app"><div className="status loading">⏳ Loading…</div></div>;
   if (user.role !== REQUIRED_ROLE) return <AccessDenied role={user.role} onLogout={handleLogout} />;
   return <Dashboard user={user} token={token} onLogout={handleLogout} />;

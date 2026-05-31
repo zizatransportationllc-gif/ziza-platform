@@ -26,6 +26,19 @@ export async function fetchMe(token) {
   return res.json();
 }
 
+export async function signup(email, password, name, phone) {
+  const res = await fetch(`${API_BASE}/v1/auth/signup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password, name: name || null, phone: phone || null, role: "customer" }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Signup failed (${res.status})`);
+  }
+  return res.json(); // { access_token, token_type, expires_in, refresh_token }
+}
+
 export async function registerUser(token) {
   const res = await fetch(`${API_BASE}/v1/auth/register`, {
     method: "POST",

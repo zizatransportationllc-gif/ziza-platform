@@ -255,13 +255,37 @@ async def issue_token(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
     from app.auth.dev_adapter import DevAdapter, SEEDED_USERS  # noqa: PLC0415
-    access_token = DevAdapter().issue(body.email, body.password)
+
+    # Sprint 49: seeded users use the shared dev password; locally-created
+    # accounts are verified against their bcrypt hash stored in the DB.
+    auth_user_id: str
+    if body.email in SEEDED_USERS:
+        access_token = DevAdapter().issue(body.email, body.password)
+        auth_user_id = SEEDED_USERS[body.email]["user_id"]
+    else:
+        # Local (signed-up) user — verify bcrypt hash from DB
+        if db is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid credentials",
+            )
+        import bcrypt as _bcrypt  # noqa: PLC0415
+        db_user = await crud.get_user_by_email(db, body.email)
+        if (
+            db_user is None
+            or not db_user.password_hash
+            or not _bcrypt.checkpw(body.password.encode(), db_user.password_hash.encode())
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid credentials",
+            )
+        access_token = DevAdapter().issue_raw(db_user.email, db_user.user_id, db_user.role)
+        auth_user_id = db_user.user_id
 
     # Issue a refresh token only when a DB session is available
     raw_refresh = None
     if db is not None:
-        user_data = SEEDED_USERS.get(body.email, {})
-        auth_user_id = user_data.get("user_id", body.email)
         raw_refresh, _expires = await crud.create_refresh_token(db, auth_user_id)
 
     return TokenResponse(
@@ -335,6 +359,94 @@ async def register(
         role=user.role,
         provider=user.provider,
         created=created,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Auth — POST /v1/auth/signup  (Sprint 49 — local account creation)
+# ---------------------------------------------------------------------------
+
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+    name: str | None = None
+    phone: str | None = None
+    role: str = "customer"        # customer | driver | professional | admin
+    admin_code: str | None = None  # required when role == "admin"
+
+
+@app.post("/v1/auth/signup", tags=["auth"], summary="Create a new account")
+async def signup_create(
+    body: SignupRequest,
+    db: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    """Register a new user account and return a JWT access token.
+
+    Available in DEV/staging only — returns 404 in production (Firebase handles
+    identity there).  Passwords are hashed with bcrypt and stored in the DB.
+
+    Allowed roles: customer, driver, professional, admin.
+    Creating an admin account requires passing the correct ``admin_code``
+    (configured via the ADMIN_SIGNUP_CODE env var, default ZIZA-ADMIN-2024).
+    """
+    if settings.environment == "prod":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    # --- validate role -------------------------------------------------------
+    _ALLOWED_ROLES = {"customer", "driver", "professional", "admin"}
+    if body.role not in _ALLOWED_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"role must be one of: {', '.join(sorted(_ALLOWED_ROLES))}",
+        )
+    if body.role == "admin" and body.admin_code != settings.admin_signup_code:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid admin registration code",
+        )
+
+    # --- password strength ---------------------------------------------------
+    if len(body.password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Password must be at least 6 characters",
+        )
+
+    # --- check for duplicate email -------------------------------------------
+    existing = await crud.get_user_by_email(db, body.email)
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email already exists",
+        )
+
+    # --- hash password -------------------------------------------------------
+    import bcrypt as _bcrypt  # noqa: PLC0415
+    hashed_pw = _bcrypt.hashpw(body.password.encode(), _bcrypt.gensalt()).decode()
+
+    # --- create user in DB ---------------------------------------------------
+    import uuid as _uuid  # noqa: PLC0415
+    new_user_id = f"usr_{_uuid.uuid4().hex[:12]}"
+    await crud.create_local_user(
+        db,
+        user_id=new_user_id,
+        email=body.email,
+        password_hash=hashed_pw,
+        role=body.role,
+        name=body.name,
+        phone=body.phone,
+    )
+
+    # --- issue token ---------------------------------------------------------
+    from app.auth.dev_adapter import DevAdapter  # noqa: PLC0415
+    access_token = DevAdapter().issue_raw(body.email, new_user_id, body.role)
+    raw_refresh, _ = await crud.create_refresh_token(db, new_user_id)
+
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=settings.jwt_access_ttl_min * 60,
+        refresh_token=raw_refresh,
     )
 
 
