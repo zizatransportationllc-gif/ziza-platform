@@ -18,7 +18,7 @@ import { useAuth } from "../context/AuthContext";
 
 export default function LoginScreen(): React.ReactElement {
   const { login } = useAuth();
-  const [email, setEmail] = useState("driver@ziza.dev");
+  const [email, setEmail] = useState("professional@ziza.dev");
   const [password, setPassword] = useState("ziza2024");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

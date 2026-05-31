@@ -1,11 +1,13 @@
-"""DEV auth adapter — Sprint 2 → Sprint 25.
+"""DEV auth adapter — Sprint 2 → Sprint 47.
 
 Signs/verifies JWTs with a local HMAC secret.
-Three users are seeded; all share the same password (AUTH_DEV_PASSWORD).
+Four users are seeded; all share the same password (AUTH_DEV_PASSWORD).
 
 Sprint 25 changes:
   - Access token TTL is now driven by ``jwt_access_ttl_min`` (default 15 min).
   - Added ``issue_for_user_id()`` for the refresh token rotation flow.
+Sprint 47 changes:
+  - Added professional@ziza.dev (role: professional) for Ziza Craft testing.
 
 Never use this adapter in production.
 """
@@ -21,9 +23,10 @@ from app.config import settings
 # Seeded users (dev only)
 # ---------------------------------------------------------------------------
 SEEDED_USERS: dict[str, dict[str, str]] = {
-    "customer@ziza.dev": {"user_id": "usr_001", "role": "customer"},
-    "driver@ziza.dev":   {"user_id": "usr_002", "role": "driver"},
-    "admin@ziza.dev":    {"user_id": "usr_003", "role": "admin"},
+    "customer@ziza.dev":     {"user_id": "usr_001", "role": "customer"},
+    "driver@ziza.dev":       {"user_id": "usr_002", "role": "driver"},
+    "admin@ziza.dev":        {"user_id": "usr_003", "role": "admin"},
+    "professional@ziza.dev": {"user_id": "usr_004", "role": "professional"},  # Sprint 47 — Ziza Craft
 }
 
 _ALGORITHM = "HS256"

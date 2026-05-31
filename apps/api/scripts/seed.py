@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Ziza — Sprint 21 demo seed (New Jersey deployment)
+Ziza — Sprint 47 demo seed (New Jersey deployment)
 ===================================================
-50 customers · 10 drivers · 1 city (Newark, NJ) · 14 days of trips
+50 customers · 10 drivers · 3 professionals · 1 city (Newark, NJ)
+14 days of trips · 7 craft requests · bids & selections
 
 Usage (local):
   cd apps/api
@@ -43,6 +44,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 import app.models  # noqa: F401 — registers all ORM models with Base.metadata
 from app.db import _normalise_url
 from app.models.city import City, ServiceZone
+from app.models.craft import CraftBid, CraftRequest, Professional
 from app.models.driver import Driver
 from app.models.driver_location import DriverLocation
 from app.models.payment import PaymentIntent
@@ -134,10 +136,94 @@ DRIVER_PROFILES = [
 
 # Demo users — must match SEEDED_USERS in app/auth/dev_adapter.py
 DEMO_USERS = [
-    ("customer@ziza.dev", "usr_001", "customer", "Demo Customer", "+1 (201) 555-0001"),
-    ("driver@ziza.dev",   "usr_002", "driver",   "Demo Driver",   "+1 (201) 555-0002"),
-    ("admin@ziza.dev",    "usr_003", "admin",    "Demo Admin",    "+1 (201) 555-0003"),
+    ("customer@ziza.dev",      "usr_001", "customer",     "Demo Customer",     "+1 (201) 555-0001"),
+    ("driver@ziza.dev",        "usr_002", "driver",       "Demo Driver",       "+1 (201) 555-0002"),
+    ("admin@ziza.dev",         "usr_003", "admin",        "Demo Admin",        "+1 (201) 555-0003"),
+    ("professional@ziza.dev",  "usr_004", "professional", "Demo Professional", "+1 (201) 555-0004"),
 ]
+
+# ---------------------------------------------------------------------------
+# Craft — Sprint 47
+# ---------------------------------------------------------------------------
+
+# 3 seed professionals: (email, user_id, full_name, phone, specialties, bio)
+PROFESSIONAL_SEED_USERS = [
+    (
+        "pr01@seed.ziza.dev", "seed_pro_01", "Alice Thompson",
+        "+1 (973) 555-0101",
+        "plumbing,electrical",
+        "Licensed plumber and electrician with 12 years experience in NJ residential.",
+    ),
+    (
+        "pr02@seed.ziza.dev", "seed_pro_02", "Carlos Rivera",
+        "+1 (732) 555-0202",
+        "locksmith,carpentry,hvac",
+        "Emergency locksmith, certified HVAC tech. Fast response anywhere in Essex County.",
+    ),
+    (
+        "pr03@seed.ziza.dev", "seed_pro_03", "Diana Chen",
+        "+1 (201) 555-0303",
+        "electrical,cleaning,painting",
+        "General contractor — electrical, painting, deep cleaning. 5-star rated.",
+    ),
+]
+
+# 7 craft request scenarios: (category, description, address, lat, lng)
+CRAFT_REQUEST_SCENARIOS = [
+    (
+        "plumbing",
+        "Leaking pipe under kitchen sink — water dripping fast, need urgent repair.",
+        "148 Market St, Newark NJ 07102",
+        40.7351, -74.1727,
+    ),
+    (
+        "electrical",
+        "Flickering lights in living room and one dead outlet. Suspect wiring issue.",
+        "55 Journal Square, Jersey City NJ 07306",
+        40.7323, -74.0641,
+    ),
+    (
+        "locksmith",
+        "Locked out of apartment. Lost keys. Need access ASAP, any time works.",
+        "321 Hudson St, Hoboken NJ 07030",
+        40.7440, -74.0320,
+    ),
+    (
+        "hvac",
+        "Central AC making loud rattling noise and not cooling below 78F.",
+        "400 Commerce Dr, Woodbridge NJ 07095",
+        40.5576, -74.2843,
+    ),
+    (
+        "carpentry",
+        "Front door frame broken — hinge bolts pulled from wall, door won't close.",
+        "78 Broad St, Elizabeth NJ 07201",
+        40.6637, -74.2107,
+    ),
+    (
+        "cleaning",
+        "Post-construction deep clean needed. 3-bed apartment, heavy dust and debris.",
+        "220 Newark Ave, Jersey City NJ 07302",
+        40.7178, -74.0431,
+    ),
+    (
+        "mechanic",
+        "Car won't start in parking lot — clicking noise, think it's the battery.",
+        "1 Airline Dr, Newark NJ 07114",
+        40.6895, -74.1745,
+    ),
+]
+
+# Bid note templates per category
+BID_NOTES = {
+    "plumbing":   ["Will bring compression fittings and pipe tape. Fix in under 1h.", "Have all parts in van. Same-day fix guaranteed.", None],
+    "electrical": ["Licensed NJ electrician. Will diagnose and fix on the spot.", "Full inspection + repair. Bring panel tester.", None],
+    "locksmith":  ["Non-destructive entry, replace lock if needed. Always available.", "Can pick any residential lock. Bring new deadbolt just in case.", None],
+    "hvac":       ["Certified HVAC tech. Bring refrigerant and cleaning kit.", "Full diagnostic + repair. Most parts in stock.", None],
+    "carpentry":  ["Bring hardwood screws + new hinge set. 30min job.", "Can reinforce frame with metal plate for lasting fix.", None],
+    "cleaning":   ["Team of 2, industrial vacuum + HEPA filter mop.", "Post-construction specialist. Will bring all supplies.", None],
+    "mechanic":   ["Jump-start kit + multimeter. Can replace battery on-site.", "Will test alternator and starter. Have battery in truck.", None],
+}
 
 # Fare config per category: base (USD cents) + per_km (cents) + per_min (cents), minimum
 FARE_CFG = {
@@ -202,7 +288,14 @@ def _past(days: float) -> datetime:
 # ---------------------------------------------------------------------------
 
 async def _reset(session: AsyncSession) -> None:
-    """Delete all seed data (@seed.ziza.dev users) and the Newark city."""
+    """Delete all seed data (@seed.ziza.dev users) and the Newark city.
+
+    Cascade order:
+      craft_bids   (FK → professionals + craft_requests)
+      craft_requests (FK → users, cascade)
+      professionals  (FK → users, cascade)
+      seed users     (root — deletes everything above via CASCADE)
+    """
     print("[RESET] Deleting seed data...")
 
     # Collect seed user UUIDs
@@ -291,7 +384,7 @@ async def _seed_city(session: AsyncSession) -> City:
 # ---------------------------------------------------------------------------
 
 async def _seed_demo_users(session: AsyncSession) -> list[User]:
-    """Ensure the 3 dev demo users exist in the database."""
+    """Ensure the 4 dev demo users exist in the database."""
     result: list[User] = []
     for email, user_id, role, name, phone in DEMO_USERS:
         existing = (await session.execute(
@@ -761,6 +854,235 @@ async def _ensure_demo_wallet(session: AsyncSession, demo_customer: User) -> Non
 
 
 # ---------------------------------------------------------------------------
+# Sprint 47 — Ziza Craft seed
+# ---------------------------------------------------------------------------
+
+async def _seed_craft(
+    session: AsyncSession,
+    customers: list[User],
+    demo_customer: User | None,
+    demo_professional: User | None,
+) -> None:
+    """Seed professionals, craft requests, and bids.
+
+    Status distribution across 7 requests:
+      2 × open         (bidding window active — visible on mobile-craft HomeScreen)
+      1 × bidding_closed (deadline passed, customer hasn't selected yet)
+      2 × assigned      (bid selected — professional dispatched)
+      1 × completed     (job done)
+      1 × cancelled
+    """
+    print("[CRAFT] Creating professionals, craft requests, and bids...")
+
+    # ── 1. Seed professional users ────────────────────────────────────────────
+    pro_users: list[User] = []
+    for email, user_id, full_name, phone, _, _ in PROFESSIONAL_SEED_USERS:
+        existing = (await session.execute(
+            select(User).where(User.email == email)
+        )).scalar_one_or_none()
+        if existing is None:
+            existing = User(
+                id=uuid.uuid4(),
+                user_id=user_id,
+                email=email,
+                role="professional",
+                provider="dev",
+                name=full_name,
+                phone=phone,
+                created_at=_past(20),
+                updated_at=_past(20),
+            )
+            session.add(existing)
+        pro_users.append(existing)
+    await session.flush()
+
+    # ── 2. Create Professional profiles ──────────────────────────────────────
+    professionals: list[Professional] = []
+    for user, (_, _, _, _, specialties, bio) in zip(pro_users, PROFESSIONAL_SEED_USERS):
+        existing_prof = (await session.execute(
+            select(Professional).where(Professional.user_id == user.id)
+        )).scalar_one_or_none()
+        if existing_prof is None:
+            lat, lng = _jitter(40.7357, -74.1724, radius_km=10.0)
+            existing_prof = Professional(
+                id=uuid.uuid4(),
+                user_id=user.id,
+                specialties=specialties,
+                bio=bio,
+                status="active",
+                is_online=RNG.random() < 0.7,
+                current_lat=lat,
+                current_lng=lng,
+                created_at=_past(20),
+            )
+            session.add(existing_prof)
+        professionals.append(existing_prof)
+    await session.flush()
+
+    # ── 3. Register demo professional (professional@ziza.dev) ─────────────────
+    if demo_professional:
+        existing_prof = (await session.execute(
+            select(Professional).where(Professional.user_id == demo_professional.id)
+        )).scalar_one_or_none()
+        if existing_prof is None:
+            lat, lng = _jitter(40.7357, -74.1724, radius_km=5.0)
+            session.add(Professional(
+                id=uuid.uuid4(),
+                user_id=demo_professional.id,
+                specialties="plumbing,electrical,locksmith,mechanic,carpentry,painting,cleaning,hvac,other",
+                bio="Demo professional account — can bid on all categories.",
+                status="active",
+                is_online=True,
+                current_lat=lat,
+                current_lng=lng,
+                created_at=_past(25),
+            ))
+        await session.flush()
+
+    # ── 4. Craft requests ─────────────────────────────────────────────────────
+    # Mix of seed customers + demo customer for variety
+    customer_pool = customers[:15] + ([demo_customer] if demo_customer else [])
+
+    # Status scenario: (status, days_ago, bid_deadline_hours_from_creation)
+    #   open            → bid_deadline in the future (2h from now)
+    #   bidding_closed  → deadline in the past
+    #   assigned        → bid selected
+    #   completed       → job done
+    #   cancelled       → cancelled
+    scenarios = [
+        ("open",          0,   2),    # request[0]: open, bids received, deadline 2h ahead
+        ("open",          0,   2),    # request[1]: open, no bids yet
+        ("bidding_closed", 1,  -2),   # request[2]: deadline passed, no selection
+        ("assigned",      3,   -48),  # request[3]: assigned (bid selected)
+        ("assigned",      5,   -72),  # request[4]: assigned
+        ("completed",     10,  -240), # request[5]: completed
+        ("cancelled",     2,   -36),  # request[6]: cancelled
+    ]
+
+    craft_requests: list[CraftRequest] = []
+    for i, ((category, description, address, lat, lng), (req_status, days_ago, deadline_h)) in \
+            enumerate(zip(CRAFT_REQUEST_SCENARIOS, scenarios)):
+
+        customer = RNG.choice(customer_pool)
+        created_at = _past(days_ago) if days_ago > 0 else (_now() - timedelta(hours=1))
+        deadline = created_at + timedelta(hours=deadline_h)
+        updated_at = created_at if req_status == "open" else created_at + timedelta(hours=abs(deadline_h) + 1)
+
+        req = CraftRequest(
+            id=uuid.uuid4(),
+            customer_id=customer.id,
+            category=category,
+            description=description,
+            lat=lat,
+            lng=lng,
+            address=address,
+            status=req_status,
+            bid_deadline=deadline,
+            selected_bid_id=None,
+            created_at=created_at,
+            updated_at=updated_at,
+        )
+        session.add(req)
+        craft_requests.append(req)
+
+    await session.flush()
+
+    # ── 5. Bids ───────────────────────────────────────────────────────────────
+    # Build a mapping of which professionals can bid on which categories
+    def _matching_pros(category: str) -> list[Professional]:
+        matches = [p for p in professionals if category in p.specialties]
+        return matches if matches else professionals  # fallback: anyone
+
+    for i, (req, (req_status, days_ago, deadline_h)) in enumerate(zip(craft_requests, scenarios)):
+        if req_status == "cancelled":
+            continue  # no bids on cancelled requests
+
+        category = req.category
+        matching = _matching_pros(category)
+        n_bids = RNG.randint(2, min(3, len(matching) + 1)) if req_status != "open" or i == 0 else 0
+        # request[1] is open with no bids yet — represents a freshly posted request
+
+        bid_created = req.created_at + timedelta(minutes=RNG.randint(5, 60))
+        selected_bid: CraftBid | None = None
+
+        for j, pro in enumerate(RNG.sample(matching + professionals, min(n_bids, len(professionals)))):
+            # Price: $45–$150 range depending on category
+            base_prices = {
+                "plumbing": (7500, 14000), "electrical": (8000, 15000),
+                "locksmith": (4500, 9500), "hvac": (10000, 20000),
+                "carpentry": (6000, 12000), "cleaning": (5000, 11000),
+                "mechanic": (5500, 9500), "other": (5000, 15000),
+            }
+            lo, hi = base_prices.get(category, (5000, 15000))
+            price_cents = RNG.randrange(lo, hi, 500)
+            eta_min = RNG.randint(15, 60)
+            pro_lat, pro_lng = _jitter(req.lat, req.lng, radius_km=8.0)
+
+            bid_status = "pending"
+            if req_status in ("assigned", "completed"):
+                bid_status = "accepted" if j == 0 else "rejected"
+
+            note_options = BID_NOTES.get(category, [None])
+            bid = CraftBid(
+                id=uuid.uuid4(),
+                request_id=req.id,
+                professional_id=pro.id,
+                price_cents=price_cents,
+                eta_min=eta_min,
+                note=RNG.choice(note_options),
+                professional_lat=pro_lat,
+                professional_lng=pro_lng,
+                status=bid_status,
+                created_at=bid_created + timedelta(minutes=j * RNG.randint(3, 15)),
+            )
+            session.add(bid)
+
+            if bid_status == "accepted":
+                selected_bid = bid
+
+        # Link selected bid to request for assigned/completed
+        if selected_bid and req_status in ("assigned", "completed"):
+            req.selected_bid_id = selected_bid.id
+
+        # Add demo professional bid on the first open request so they can test selection
+        if i == 0 and demo_professional:
+            demo_prof_row = (await session.execute(
+                select(Professional).where(Professional.user_id == demo_professional.id)
+            )).scalar_one_or_none()
+            if demo_prof_row:
+                existing_bid = (await session.execute(
+                    select(CraftBid).where(
+                        CraftBid.request_id == req.id,
+                        CraftBid.professional_id == demo_prof_row.id,
+                    )
+                )).scalar_one_or_none()
+                if existing_bid is None:
+                    demo_lat, demo_lng = _jitter(req.lat, req.lng, radius_km=3.0)
+                    session.add(CraftBid(
+                        id=uuid.uuid4(),
+                        request_id=req.id,
+                        professional_id=demo_prof_row.id,
+                        price_cents=9500,
+                        eta_min=20,
+                        note="Demo professional bid — test account.",
+                        professional_lat=demo_lat,
+                        professional_lng=demo_lng,
+                        status="pending",
+                        created_at=bid_created + timedelta(minutes=2),
+                    ))
+
+    await session.flush()
+
+    # Count for summary
+    n_reqs = len(craft_requests)
+    n_pros = len(professionals) + (1 if demo_professional else 0)
+    bid_count = await session.scalar(
+        select(func.count()).select_from(CraftBid)
+    )
+    print(f"   {n_pros} professionals, {n_reqs} craft requests, {bid_count} bids.")
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -793,7 +1115,7 @@ async def seed(reset: bool = False) -> None:
                 return
 
             # ── Seed ───────────────────────────────────────────────────────
-            print("\n[SEED] Ziza seed (Sprint 21 — New Jersey) starting...\n")
+            print("\n[SEED] Ziza seed (Sprint 47 — New Jersey + Craft) starting...\n")
 
             # City: upsert (API may have already created Newark via _ensure_city_defaults)
             existing_city = (await session.execute(
@@ -807,12 +1129,15 @@ async def seed(reset: bool = False) -> None:
             driver_rows = await _seed_drivers(session)
             customers = await _seed_customers(session)
 
-            demo_customer = next((u for u in demo_users if u.role == "customer"), None)
+            demo_customer      = next((u for u in demo_users if u.role == "customer"),      None)
+            demo_professional  = next((u for u in demo_users if u.role == "professional"),  None)
+
             if demo_customer:
                 await _ensure_demo_wallet(session, demo_customer)
 
             await _seed_trips(session, customers, driver_rows, demo_customer)
             await _seed_payouts(session, driver_rows)
+            await _seed_craft(session, customers, demo_customer, demo_professional)
 
     await engine.dispose()
 
@@ -820,23 +1145,42 @@ async def seed(reset: bool = False) -> None:
 [OK] Seed complete!
 
 Login accounts (password: ziza2024)
-  customer@ziza.dev   -> web-customer
-  driver@ziza.dev     -> web-driver
-  admin@ziza.dev      -> web-admin
+  customer@ziza.dev      -> mobile-customer / web-customer
+  driver@ziza.dev        -> mobile-driver
+  admin@ziza.dev         -> web-admin
+  professional@ziza.dev  -> mobile-craft  (Sprint 47)
+
+Seed professionals (mobile-craft login)
+  pr01@seed.ziza.dev  Alice Thompson   — plumbing, electrical
+  pr02@seed.ziza.dev  Carlos Rivera    — locksmith, carpentry, hvac
+  pr03@seed.ziza.dev  Diana Chen       — electrical, cleaning, painting
 
 Generated data
-  - 1 city      : Newark, NJ (3 service zones)
-  - 10 drivers  : d01@seed.ziza.dev ... d10@seed.ziza.dev
-  - 50 customers: c01@seed.ziza.dev ... c50@seed.ziza.dev
-  - ~180 trips  : last 14 days (completed, cancelled, in progress)
+  - 1 city         : Newark, NJ (3 service zones)
+  - 10 drivers     : d01@seed.ziza.dev ... d10@seed.ziza.dev
+  - 50 customers   : c01@seed.ziza.dev ... c50@seed.ziza.dev
+  - ~180 trips     : last 14 days (completed, cancelled, in progress)
   - Ratings, payments, payout requests included
+  - 4 professionals: 3 seed + professional@ziza.dev (Sprint 47)
+  - 7 craft requests: 2 open, 1 bidding_closed, 2 assigned, 1 completed, 1 cancelled
+  - Bids with price (USD cents), ETA, GPS coordinates
   - Currency: USD (amounts stored as integer cents)
+
+Ziza Craft test flows
+  As professional@ziza.dev in mobile-craft:
+    → HomeScreen shows 2 open requests nearby (use GPS near Newark NJ)
+    → Tap request[0] to see existing bids + submit your own bid
+    → Profile: all specialties pre-selected
+
+  As customer@ziza.dev in mobile-customer:
+    → HomeScreen → "My Requests" shows 1 assigned + past requests
+    → BidsScreen on open request → select a professional
 """)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Ziza Sprint-21 seed — generates 50 customers, 10 drivers, ~180 trips (New Jersey)."
+        description="Ziza Sprint-47 seed — 50 customers, 10 drivers, 4 professionals, ~180 trips, 7 craft requests (New Jersey)."
     )
     parser.add_argument(
         "--reset",
