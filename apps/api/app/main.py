@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 46.
+"""Ziza API — Sprint 47.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -102,6 +102,19 @@ Endpoints:
   PATCH /v1/admin/users/{user_id}/role            admin changes a user's role (Sprint 31)
   POST  /v1/admin/invite-codes                    create an invite code (Sprint 31)
   POST  /v1/invite-codes/use                      consume an invite code (Sprint 31)
+  POST  /v1/craft/professionals/register          register as a professional (Sprint 47)
+  GET   /v1/craft/professionals/me                get my professional profile (Sprint 47)
+  PATCH /v1/craft/professionals/me                update professional profile / go online (Sprint 47)
+  POST  /v1/craft/requests                        customer creates a craft request (Sprint 47)
+  GET   /v1/craft/requests                        professional lists nearby open requests (Sprint 47)
+  GET   /v1/craft/requests/mine                   customer lists their own requests (Sprint 47)
+  GET   /v1/craft/requests/{id}                   get craft request detail (Sprint 47)
+  POST  /v1/craft/requests/{id}/bids              professional submits a bid (Sprint 47)
+  GET   /v1/craft/requests/{id}/bids              list bids for a request (Sprint 47)
+  POST  /v1/craft/requests/{id}/select            customer selects a bid (Sprint 47)
+  POST  /v1/craft/requests/{id}/cancel            cancel a craft request (Sprint 47)
+  GET   /v1/admin/craft/requests                  admin lists all craft requests (Sprint 47)
+  GET   /v1/admin/craft/professionals             admin lists all professionals (Sprint 47)
 """
 from __future__ import annotations
 
@@ -3740,3 +3753,407 @@ async def admin_set_services(
     updates = body.model_dump(exclude_none=True)
     flags = await crud.set_service_flags(db, updates)
     return ServiceFlagsResponse(**flags)
+
+
+# ===========================================================================
+# Sprint 47 — Ziza Craft marketplace
+# ===========================================================================
+
+from app.models.craft import CRAFT_CATEGORIES  # noqa: E402
+
+# ---------------------------------------------------------------------------
+# Pydantic models — Craft
+# ---------------------------------------------------------------------------
+
+
+class ProfessionalResponse(BaseModel):
+    professional_id: str
+    user_id: str
+    specialties: str
+    bio: str | None
+    status: str
+    is_online: bool
+    current_lat: float | None
+    current_lng: float | None
+    created_at: str
+
+
+class RegisterProfessionalRequest(BaseModel):
+    specialties: str = ""
+    bio: str | None = None
+
+
+class UpdateProfessionalRequest(BaseModel):
+    specialties: str | None = None
+    bio: str | None = None
+    is_online: bool | None = None
+    current_lat: float | None = None
+    current_lng: float | None = None
+
+
+class CraftRequestResponse(BaseModel):
+    request_id: str
+    customer_id: str
+    category: str
+    description: str
+    lat: float
+    lng: float
+    address: str | None
+    status: str
+    bid_deadline: str | None
+    selected_bid_id: str | None
+    created_at: str
+    updated_at: str
+    distance_km: float | None = None
+
+
+class CreateCraftRequestBody(BaseModel):
+    category: str
+    description: str
+    lat: float
+    lng: float
+    address: str | None = None
+    bid_deadline_minutes: int = 30
+
+
+class CraftBidResponse(BaseModel):
+    bid_id: str
+    request_id: str
+    professional_id: str
+    price_cents: int
+    eta_min: int
+    note: str | None
+    professional_lat: float | None
+    professional_lng: float | None
+    status: str
+    created_at: str
+    distance_km: float | None = None
+
+
+class CreateBidBody(BaseModel):
+    price_cents: int
+    eta_min: int
+    note: str | None = None
+    professional_lat: float | None = None
+    professional_lng: float | None = None
+
+
+class SelectBidBody(BaseModel):
+    bid_id: str
+
+
+# ---------------------------------------------------------------------------
+# Professional endpoints
+# ---------------------------------------------------------------------------
+
+
+@app.post(
+    "/v1/craft/professionals/register",
+    response_model=ProfessionalResponse,
+    status_code=201,
+    summary="Register as a professional (Sprint 47)",
+)
+async def craft_register_professional(
+    body: RegisterProfessionalRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProfessionalResponse:
+    """Any authenticated user can register as a professional.
+    Idempotent — returns existing profile if already registered.
+    """
+    data = await crud.register_professional(
+        db,
+        user_id=uuid.UUID(claims.sub),
+        specialties=body.specialties,
+        bio=body.bio,
+    )
+    return ProfessionalResponse(**data)
+
+
+@app.get(
+    "/v1/craft/professionals/me",
+    response_model=ProfessionalResponse,
+    summary="Get my professional profile (Sprint 47)",
+)
+async def craft_get_my_professional(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProfessionalResponse:
+    prof = await crud.get_professional_by_user(db, uuid.UUID(claims.sub))
+    if prof is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Professional profile not found.")
+    from app.crud import _professional_to_dict
+    return ProfessionalResponse(**_professional_to_dict(prof))
+
+
+@app.patch(
+    "/v1/craft/professionals/me",
+    response_model=ProfessionalResponse,
+    summary="Update professional profile / toggle online status (Sprint 47)",
+)
+async def craft_update_professional(
+    body: UpdateProfessionalRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProfessionalResponse:
+    data = await crud.update_professional(
+        db,
+        user_id=uuid.UUID(claims.sub),
+        specialties=body.specialties,
+        bio=body.bio,
+        is_online=body.is_online,
+        current_lat=body.current_lat,
+        current_lng=body.current_lng,
+    )
+    return ProfessionalResponse(**data)
+
+
+# ---------------------------------------------------------------------------
+# Craft request endpoints
+# ---------------------------------------------------------------------------
+
+
+@app.post(
+    "/v1/craft/requests",
+    response_model=CraftRequestResponse,
+    status_code=201,
+    summary="Customer creates a craft request (Sprint 47)",
+)
+async def craft_create_request(
+    body: CreateCraftRequestBody,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CraftRequestResponse:
+    """Authenticated customer posts a request. Bidding window opens immediately."""
+    data = await crud.create_craft_request(
+        db,
+        customer_id=uuid.UUID(claims.sub),
+        category=body.category,
+        description=body.description,
+        lat=body.lat,
+        lng=body.lng,
+        address=body.address,
+        bid_deadline_minutes=body.bid_deadline_minutes,
+    )
+    return CraftRequestResponse(**data)
+
+
+@app.get(
+    "/v1/craft/requests",
+    response_model=list[CraftRequestResponse],
+    summary="Professional: list nearby open craft requests (Sprint 47)",
+)
+async def craft_list_open_requests(
+    lat: float,
+    lng: float,
+    limit: int = 20,
+    offset: int = 0,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[CraftRequestResponse]:
+    """Returns open requests sorted by distance from the professional's location."""
+    items = await crud.list_open_craft_requests(db, lat=lat, lng=lng, limit=limit, offset=offset)
+    return [CraftRequestResponse(**d) for d in items]
+
+
+@app.get(
+    "/v1/craft/requests/mine",
+    response_model=list[CraftRequestResponse],
+    summary="Customer: list my craft requests (Sprint 47)",
+)
+async def craft_list_my_requests(
+    limit: int = 20,
+    offset: int = 0,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[CraftRequestResponse]:
+    items = await crud.list_customer_craft_requests(
+        db, customer_id=uuid.UUID(claims.sub), limit=limit, offset=offset
+    )
+    return [CraftRequestResponse(**d) for d in items]
+
+
+@app.get(
+    "/v1/craft/requests/{request_id}",
+    response_model=CraftRequestResponse,
+    summary="Get craft request detail (Sprint 47)",
+)
+async def craft_get_request(
+    request_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CraftRequestResponse:
+    try:
+        rid = uuid.UUID(request_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid UUID")
+    req = await crud.get_craft_request(db, rid)
+    from app.crud import _craft_request_to_dict
+    return CraftRequestResponse(**_craft_request_to_dict(req))
+
+
+@app.post(
+    "/v1/craft/requests/{request_id}/cancel",
+    response_model=CraftRequestResponse,
+    summary="Cancel a craft request (Sprint 47)",
+)
+async def craft_cancel_request(
+    request_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CraftRequestResponse:
+    try:
+        rid = uuid.UUID(request_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid UUID")
+    is_admin = claims.role == "admin"
+    data = await crud.cancel_craft_request(db, rid, uuid.UUID(claims.sub), is_admin=is_admin)
+    return CraftRequestResponse(**data)
+
+
+# ---------------------------------------------------------------------------
+# Craft bid endpoints
+# ---------------------------------------------------------------------------
+
+
+@app.post(
+    "/v1/craft/requests/{request_id}/bids",
+    response_model=CraftBidResponse,
+    status_code=201,
+    summary="Professional submits a bid (Sprint 47)",
+)
+async def craft_create_bid(
+    request_id: str,
+    body: CreateBidBody,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CraftBidResponse:
+    """Professional must have a registered professional profile."""
+    try:
+        rid = uuid.UUID(request_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid UUID")
+    prof = await crud.get_professional_by_user(db, uuid.UUID(claims.sub))
+    if prof is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You must register as a professional before bidding.",
+        )
+    data = await crud.create_craft_bid(
+        db,
+        request_id=rid,
+        professional_id=prof.id,
+        price_cents=body.price_cents,
+        eta_min=body.eta_min,
+        note=body.note,
+        professional_lat=body.professional_lat,
+        professional_lng=body.professional_lng,
+    )
+    return CraftBidResponse(**data)
+
+
+@app.get(
+    "/v1/craft/requests/{request_id}/bids",
+    response_model=list[CraftBidResponse],
+    summary="List bids for a craft request (Sprint 47)",
+)
+async def craft_list_bids(
+    request_id: str,
+    customer_lat: float | None = None,
+    customer_lng: float | None = None,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[CraftBidResponse]:
+    """Customer passes their lat/lng to get distance_km for each professional."""
+    try:
+        rid = uuid.UUID(request_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid UUID")
+    items = await crud.list_bids_for_request(
+        db, rid, customer_lat=customer_lat, customer_lng=customer_lng
+    )
+    return [CraftBidResponse(**d) for d in items]
+
+
+@app.post(
+    "/v1/craft/requests/{request_id}/select",
+    response_model=CraftRequestResponse,
+    summary="Customer selects a winning bid (Sprint 47)",
+)
+async def craft_select_bid(
+    request_id: str,
+    body: SelectBidBody,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CraftRequestResponse:
+    try:
+        rid = uuid.UUID(request_id)
+        bid_id = uuid.UUID(body.bid_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid UUID")
+    data = await crud.select_craft_bid(
+        db, request_id=rid, bid_id=bid_id, customer_id=uuid.UUID(claims.sub)
+    )
+    return CraftRequestResponse(**data)
+
+
+# ---------------------------------------------------------------------------
+# Professional bids history
+# ---------------------------------------------------------------------------
+
+
+@app.get(
+    "/v1/craft/bids/mine",
+    response_model=list[CraftBidResponse],
+    summary="Professional: list my submitted bids (Sprint 47)",
+)
+async def craft_list_my_bids(
+    limit: int = 20,
+    offset: int = 0,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[CraftBidResponse]:
+    prof = await crud.get_professional_by_user(db, uuid.UUID(claims.sub))
+    if prof is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Professional profile not found.")
+    items = await crud.list_professional_bids(db, prof.id, limit=limit, offset=offset)
+    return [CraftBidResponse(**d) for d in items]
+
+
+# ---------------------------------------------------------------------------
+# Admin Craft endpoints
+# ---------------------------------------------------------------------------
+
+
+@app.get(
+    "/v1/admin/craft/requests",
+    response_model=list[CraftRequestResponse],
+    summary="Admin: list all craft requests (Sprint 47)",
+)
+async def admin_list_craft_requests(
+    limit: int = 50,
+    offset: int = 0,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[CraftRequestResponse]:
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    items = await crud.admin_list_craft_requests(db, limit=limit, offset=offset)
+    return [CraftRequestResponse(**d) for d in items]
+
+
+@app.get(
+    "/v1/admin/craft/professionals",
+    response_model=list[ProfessionalResponse],
+    summary="Admin: list all professionals (Sprint 47)",
+)
+async def admin_list_professionals(
+    limit: int = 50,
+    offset: int = 0,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[ProfessionalResponse]:
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    items = await crud.admin_list_professionals(db, limit=limit, offset=offset)
+    return [ProfessionalResponse(**d) for d in items]

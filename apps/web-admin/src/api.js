@@ -654,3 +654,34 @@ export async function adminSetService(token, updates) {
   });
   return _json(res);
 }
+
+// ---------------------------------------------------------------------------
+// Sprint 47 — Ziza Craft admin
+// ---------------------------------------------------------------------------
+
+/** List all craft requests (admin view). */
+export async function adminListCraftRequests(token, limit = 50, offset = 0) {
+  const res = await fetch(
+    `${API_BASE}/v1/admin/craft/requests?limit=${limit}&offset=${offset}`,
+    { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } }
+  );
+  return _json(res);
+}
+
+/** List all professionals (admin view). */
+export async function adminListProfessionals(token, limit = 50, offset = 0) {
+  const res = await fetch(
+    `${API_BASE}/v1/admin/craft/professionals?limit=${limit}&offset=${offset}`,
+    { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } }
+  );
+  return _json(res);
+}
+
+/** List bids for a specific craft request (admin view). */
+export async function adminListBidsForRequest(token, requestId) {
+  const res = await fetch(
+    `${API_BASE}/v1/craft/requests/${requestId}/bids`,
+    { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } }
+  );
+  return _json(res);
+}

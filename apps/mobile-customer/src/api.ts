@@ -497,3 +497,130 @@ export async function deregisterDeviceToken(
     { method: "DELETE", headers: _auth(token) }
   );
 }
+
+// ---------------------------------------------------------------------------
+// Sprint 47 — Ziza Craft (customer side)
+// ---------------------------------------------------------------------------
+
+export interface CraftRequest {
+  request_id: string;
+  customer_id: string;
+  category: string;
+  description: string;
+  lat: number;
+  lng: number;
+  address: string | null;
+  status: string;
+  bid_deadline: string | null;
+  selected_bid_id: string | null;
+  created_at: string;
+  updated_at: string;
+  distance_km: number | null;
+}
+
+export interface CraftBid {
+  bid_id: string;
+  request_id: string;
+  professional_id: string;
+  price_cents: number;
+  eta_min: number;
+  note: string | null;
+  professional_lat: number | null;
+  professional_lng: number | null;
+  status: string;
+  created_at: string;
+  distance_km: number | null;
+}
+
+export const CRAFT_CATEGORIES = [
+  "plumbing",
+  "electrical",
+  "locksmith",
+  "mechanic",
+  "carpentry",
+  "painting",
+  "cleaning",
+  "hvac",
+  "other",
+] as const;
+
+export type CraftCategory = typeof CRAFT_CATEGORIES[number];
+
+export async function createCraftRequest(
+  token: string,
+  body: {
+    category: string;
+    description: string;
+    lat: number;
+    lng: number;
+    address?: string | null;
+    bid_deadline_minutes?: number;
+  }
+): Promise<CraftRequest> {
+  const res = await fetch(`${API_BASE}/v1/craft/requests`, {
+    method: "POST",
+    headers: { ..._auth(token), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return _json<CraftRequest>(res);
+}
+
+export async function getMyCraftRequests(
+  token: string,
+  limit = 20,
+  offset = 0
+): Promise<CraftRequest[]> {
+  const res = await fetch(
+    `${API_BASE}/v1/craft/requests/mine?limit=${limit}&offset=${offset}`,
+    { headers: _auth(token) }
+  );
+  return _json<CraftRequest[]>(res);
+}
+
+export async function getCraftRequest(
+  token: string,
+  requestId: string
+): Promise<CraftRequest> {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}`, {
+    headers: _auth(token),
+  });
+  return _json<CraftRequest>(res);
+}
+
+export async function getBidsForRequest(
+  token: string,
+  requestId: string,
+  customerLat?: number,
+  customerLng?: number
+): Promise<CraftBid[]> {
+  let url = `${API_BASE}/v1/craft/requests/${requestId}/bids`;
+  if (customerLat != null && customerLng != null) {
+    url += `?customer_lat=${customerLat}&customer_lng=${customerLng}`;
+  }
+  const res = await fetch(url, { headers: _auth(token) });
+  return _json<CraftBid[]>(res);
+}
+
+export async function selectCraftBid(
+  token: string,
+  requestId: string,
+  bidId: string
+): Promise<CraftRequest> {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/select`, {
+    method: "POST",
+    headers: { ..._auth(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ bid_id: bidId }),
+  });
+  return _json<CraftRequest>(res);
+}
+
+export async function cancelCraftRequest(
+  token: string,
+  requestId: string
+): Promise<CraftRequest> {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/cancel`, {
+    method: "POST",
+    headers: _auth(token),
+  });
+  return _json<CraftRequest>(res);
+}

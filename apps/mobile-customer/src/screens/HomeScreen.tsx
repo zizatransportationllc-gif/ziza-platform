@@ -181,6 +181,29 @@ export default function HomeScreen(): React.ReactElement {
       <Text style={styles.heading}>Book a Ride</Text>
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
+      {/* Sprint 47 — Ziza Craft entry point */}
+      <View style={styles.craftCard}>
+        <Text style={styles.craftTitle}>🔧 Ziza Craft</Text>
+        <Text style={styles.craftSubtitle}>
+          Need a plumber, electrician, locksmith or other professional?
+          Post a request and receive competing bids.
+        </Text>
+        <View style={styles.craftButtons}>
+          <TouchableOpacity
+            style={styles.craftBtn}
+            onPress={() => navigation.navigate("CraftRequest")}
+          >
+            <Text style={styles.craftBtnText}>+ Post a Request</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.craftBtn, styles.craftBtnOutline]}
+            onPress={() => navigation.navigate("MyCraftRequests")}
+          >
+            <Text style={[styles.craftBtnText, styles.craftBtnTextOutline]}>My Requests</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* ── Pickup location ───────────────────────────────── */}
       <View style={styles.locationCard}>
         <Text style={styles.locationLabel}>📍 Pickup</Text>
@@ -375,4 +398,27 @@ const styles = StyleSheet.create({
   },
   price: { fontSize: 28, fontWeight: "bold", color: "#F97316", textAlign: "center" },
   detail: { textAlign: "center", color: "#6B7280", marginBottom: 12 },
+
+  // Sprint 47 — Ziza Craft
+  craftCard: {
+    backgroundColor: "#ECFDF5",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  craftTitle: { fontSize: 16, fontWeight: "700", color: "#059669", marginBottom: 4 },
+  craftSubtitle: { fontSize: 13, color: "#374151", marginBottom: 12 },
+  craftButtons: { flexDirection: "row", gap: 8 },
+  craftBtn: {
+    flex: 1,
+    backgroundColor: "#059669",
+    borderRadius: 8,
+    padding: 10,
+    alignItems: "center",
+  },
+  craftBtnOutline: { backgroundColor: "transparent", borderWidth: 1, borderColor: "#059669" },
+  craftBtnText: { color: "#fff", fontWeight: "600", fontSize: 13 },
+  craftBtnTextOutline: { color: "#059669" },
 });

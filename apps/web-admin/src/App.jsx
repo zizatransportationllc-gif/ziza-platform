@@ -16,6 +16,7 @@ import {
   adminGetKPIs, adminGetRevenue, adminGetDriverPerformance, // Sprint 34
   adminGetCategoryBreakdown, adminGetHourlyDemand, adminGetTopCustomers, // Sprint 34
   adminGetServices, adminSetService, // Sprint 36
+  adminListCraftRequests, adminListProfessionals, adminListBidsForRequest, // Sprint 47
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 import LiveMap from "./LiveMap";
@@ -57,7 +58,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 46 — US/NJ Zones</p>
+      <p className="subtitle">Sprint 47 — Ziza Craft</p>
       <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
@@ -2338,6 +2339,204 @@ function ServicesPanel({ token }) {
 }
 
 // ---------------------------------------------------------------------------
+// Sprint 47 — CraftPanel
+// ---------------------------------------------------------------------------
+
+function CraftPanel({ token }) {
+  const [tab, setTab] = useState("requests");
+
+  // ── Craft Requests ────────────────────────────────────────────────────────
+  const [requests, setRequests] = useState([]);
+  const [reqLoading, setReqLoading] = useState(false);
+  const [reqError, setReqError] = useState(null);
+
+  // ── Professionals ─────────────────────────────────────────────────────────
+  const [professionals, setProfessionals] = useState([]);
+  const [proLoading, setProLoading] = useState(false);
+  const [proError, setProError] = useState(null);
+
+  // ── Bids for expanded request ─────────────────────────────────────────────
+  const [expandedRequestId, setExpandedRequestId] = useState(null);
+  const [bids, setBids] = useState([]);
+  const [bidsLoading, setBidsLoading] = useState(false);
+
+  useEffect(() => {
+    if (tab === "requests") {
+      setReqLoading(true);
+      adminListCraftRequests(token)
+        .then(setRequests)
+        .catch((e) => setReqError(e.message))
+        .finally(() => setReqLoading(false));
+    } else if (tab === "professionals") {
+      setProLoading(true);
+      adminListProfessionals(token)
+        .then(setProfessionals)
+        .catch((e) => setProError(e.message))
+        .finally(() => setProLoading(false));
+    }
+  }, [tab, token]);
+
+  const loadBids = async (requestId) => {
+    if (expandedRequestId === requestId) {
+      setExpandedRequestId(null);
+      return;
+    }
+    setExpandedRequestId(requestId);
+    setBidsLoading(true);
+    try {
+      const data = await adminListBidsForRequest(token, requestId);
+      setBids(data);
+    } catch {
+      setBids([]);
+    } finally {
+      setBidsLoading(false);
+    }
+  };
+
+  const STATUS_COLORS = {
+    open: "#059669", bidding_closed: "#D97706", assigned: "#2563EB",
+    in_progress: "#7C3AED", completed: "#6B7280", cancelled: "#EF4444",
+  };
+
+  return (
+    <section>
+      <h2>🛠️ Ziza Craft — Sprint 47</h2>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        {["requests", "professionals"].map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            style={{
+              padding: "6px 16px",
+              borderRadius: 6,
+              border: "1px solid #ccc",
+              background: tab === t ? "#059669" : "#fff",
+              color: tab === t ? "#fff" : "#333",
+              cursor: "pointer",
+              fontWeight: tab === t ? 700 : 400,
+            }}
+          >
+            {t === "requests" ? "📋 Requests" : "👷 Professionals"}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Craft Requests Tab ─────────────────────────────────────────────── */}
+      {tab === "requests" && (
+        <>
+          {reqLoading && <p>Loading…</p>}
+          {reqError && <p style={{ color: "red" }}>{reqError}</p>}
+          {!reqLoading && requests.length === 0 && <p style={{ color: "#888" }}>No craft requests yet.</p>}
+          {requests.map((r) => (
+            <div key={r.request_id} style={{
+              border: "1px solid #E5E7EB", borderRadius: 10, padding: 14,
+              marginBottom: 12, background: "#fff"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{
+                  background: "#ECFDF5", color: "#059669",
+                  fontWeight: 700, fontSize: 12,
+                  borderRadius: 6, padding: "2px 8px"
+                }}>{r.category.toUpperCase()}</span>
+                <span style={{ color: STATUS_COLORS[r.status] ?? "#6B7280", fontWeight: 600, fontSize: 12 }}>
+                  {r.status.replace("_", " ")}
+                </span>
+              </div>
+              <p style={{ margin: "0 0 4px", fontSize: 14 }}>{r.description}</p>
+              {r.address && <p style={{ margin: "0 0 4px", fontSize: 12, color: "#6B7280" }}>📍 {r.address}</p>}
+              <p style={{ margin: "0 0 4px", fontSize: 12, color: "#9CA3AF" }}>
+                ID: {r.request_id.slice(0, 8)}… · Posted: {new Date(r.created_at).toLocaleDateString()}
+              </p>
+              {r.bid_deadline && (
+                <p style={{ margin: "0 0 6px", fontSize: 12, color: "#D97706" }}>
+                  ⏱ Deadline: {new Date(r.bid_deadline).toLocaleString()}
+                </p>
+              )}
+              <button
+                onClick={() => loadBids(r.request_id)}
+                style={{
+                  background: "#F0FDF4", color: "#059669",
+                  border: "1px solid #A7F3D0", borderRadius: 6,
+                  padding: "4px 12px", fontSize: 12, cursor: "pointer",
+                }}
+              >
+                {expandedRequestId === r.request_id ? "▲ Hide bids" : "▼ View bids"}
+              </button>
+
+              {expandedRequestId === r.request_id && (
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #E5E7EB" }}>
+                  {bidsLoading ? (
+                    <p>Loading bids…</p>
+                  ) : bids.length === 0 ? (
+                    <p style={{ color: "#9CA3AF", fontSize: 13 }}>No bids yet.</p>
+                  ) : (
+                    bids.map((b) => (
+                      <div key={b.bid_id} style={{
+                        background: "#F9FAFB", borderRadius: 8,
+                        padding: 10, marginBottom: 8,
+                        border: b.status === "accepted" ? "2px solid #059669" : "1px solid #E5E7EB"
+                      }}>
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <strong>{formatUSD(b.price_cents)}</strong>
+                          <span style={{ fontSize: 12, color: b.status === "accepted" ? "#059669" : b.status === "rejected" ? "#9CA3AF" : "#D97706" }}>
+                            {b.status}
+                          </span>
+                        </div>
+                        <p style={{ margin: "4px 0 0", fontSize: 12, color: "#6B7280" }}>
+                          ⏱ ETA: {b.eta_min} min
+                          {b.distance_km != null ? ` · 📏 ${b.distance_km.toFixed(1)} km` : ""}
+                        </p>
+                        {b.note && <p style={{ margin: "4px 0 0", fontSize: 12, fontStyle: "italic" }}>{b.note}</p>}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* ── Professionals Tab ─────────────────────────────────────────────── */}
+      {tab === "professionals" && (
+        <>
+          {proLoading && <p>Loading…</p>}
+          {proError && <p style={{ color: "red" }}>{proError}</p>}
+          {!proLoading && professionals.length === 0 && <p style={{ color: "#888" }}>No professionals registered yet.</p>}
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: "#F9FAFB" }}>
+                {["ID", "Specialties", "Status", "Online", "Joined"].map((h) => (
+                  <th key={h} style={{ padding: "6px 8px", textAlign: "left", borderBottom: "1px solid #E5E7EB" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {professionals.map((p) => (
+                <tr key={p.professional_id} style={{ borderBottom: "1px solid #F3F4F6" }}>
+                  <td style={{ padding: "6px 8px", fontFamily: "monospace", fontSize: 11 }}>{p.professional_id.slice(0, 8)}…</td>
+                  <td style={{ padding: "6px 8px" }}>{p.specialties || "—"}</td>
+                  <td style={{ padding: "6px 8px" }}>
+                    <span style={{
+                      background: p.status === "active" ? "#D1FAE5" : "#FEE2E2",
+                      color: p.status === "active" ? "#059669" : "#EF4444",
+                      borderRadius: 4, padding: "2px 6px", fontSize: 11, fontWeight: 600,
+                    }}>{p.status}</span>
+                  </td>
+                  <td style={{ padding: "6px 8px" }}>{p.is_online ? "🟢" : "⚫"}</td>
+                  <td style={{ padding: "6px 8px", color: "#9CA3AF" }}>{new Date(p.created_at).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard — tabbed navigation
 // ---------------------------------------------------------------------------
 
@@ -2359,6 +2558,7 @@ const TABS = [
   { id: "services",     label: "🔧 Services" },
   { id: "settings",     label: "⚙️ Settings" },
   { id: "users",        label: "👥 Users" },
+  { id: "craft",        label: "🛠️ Craft" },
 ];
 
 function Dashboard({ user, token, onLogout }) {
@@ -2413,8 +2613,9 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "services"     && <ServicesPanel       token={token} />}
       {activeTab === "settings"     && <SurgePanel          token={token} />}
       {activeTab === "users"        && <UsersPanel          token={token} />}
+      {activeTab === "craft"        && <CraftPanel          token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 46</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 47</p>
     </div>
   );
 }

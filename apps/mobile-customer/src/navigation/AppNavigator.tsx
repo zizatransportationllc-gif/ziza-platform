@@ -1,6 +1,6 @@
 /**
  * AppNavigator — React Navigation stack for mobile-customer.
- * Sprint 35
+ * Sprint 47 — added Craft screens.
  */
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
@@ -15,6 +15,9 @@ import AssistanceScreen from "../screens/AssistanceScreen";
 import PlacesScreen from "../screens/PlacesScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
+import CraftRequestScreen from "../screens/CraftRequestScreen";
+import MyCraftRequestsScreen from "../screens/MyCraftRequestsScreen";
+import BidsScreen from "../screens/BidsScreen";
 
 export type RootStackParamList = {
   Login: undefined;
@@ -26,6 +29,9 @@ export type RootStackParamList = {
   Places: { onSelect: (place: { lat: number; lng: number; name: string }) => void };
   Profile: undefined;
   Notifications: undefined;
+  CraftRequest: undefined;
+  MyCraftRequests: undefined;
+  Bids: { requestId: string; customerLat?: number; customerLng?: number };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -52,6 +58,21 @@ export default function AppNavigator({
             <Stack.Screen name="Places" component={PlacesScreen} options={{ title: "Search Location" }} />
             <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: "Profile" }} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: "Notifications" }} />
+            <Stack.Screen
+              name="CraftRequest"
+              component={CraftRequestScreen}
+              options={{ title: "Request a Professional" }}
+            />
+            <Stack.Screen
+              name="MyCraftRequests"
+              component={MyCraftRequestsScreen}
+              options={{ title: "My Craft Requests" }}
+            />
+            <Stack.Screen
+              name="Bids"
+              component={BidsScreen}
+              options={{ title: "Received Bids" }}
+            />
           </>
         ) : (
           <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />

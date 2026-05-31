@@ -26,6 +26,7 @@ from app.models.application import DriverApplication  # noqa: F401  — Sprint 3
 from app.models.flag import FeatureFlag, InviteCode  # noqa: F401  — Sprint 31
 from app.models.city import City, ServiceZone  # noqa: F401  — Sprint 32
 from app.models.wallet import Wallet, WalletTransaction  # noqa: F401  — Sprint 33
+from app.models.craft import Professional, CraftRequest, CraftBid  # noqa: F401  — Sprint 47
 
 __all__ = [
     "Base", "User", "Driver", "Vehicle", "Trip", "TripEvent", "Estimate",
@@ -34,4 +35,5 @@ __all__ = [
     "SavedPlace", "DriverLocation", "PaymentIntent", "RefreshToken",
     "DeviceToken", "DriverApplication", "FeatureFlag", "InviteCode",
     "City", "ServiceZone", "Wallet", "WalletTransaction",
+    "Professional", "CraftRequest", "CraftBid",
 ]

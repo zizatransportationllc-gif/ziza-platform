@@ -4367,3 +4367,413 @@ async def set_service_flags(db: AsyncSession, updates: dict[str, bool]) -> dict[
     if updates:
         await db.commit()
     return await get_service_flags(db)
+
+
+# ===========================================================================
+# Sprint 47 — Ziza Craft marketplace
+# ===========================================================================
+
+from app.models.craft import CraftBid, CraftRequest, Professional  # noqa: E402
+
+
+def _professional_to_dict(p: Professional) -> dict:
+    return {
+        "professional_id": str(p.id),
+        "user_id": str(p.user_id),
+        "specialties": p.specialties,
+        "bio": p.bio,
+        "status": p.status,
+        "is_online": p.is_online,
+        "current_lat": p.current_lat,
+        "current_lng": p.current_lng,
+        "created_at": p.created_at.isoformat(),
+    }
+
+
+def _craft_request_to_dict(r: CraftRequest, distance_km: float | None = None) -> dict:
+    return {
+        "request_id": str(r.id),
+        "customer_id": str(r.customer_id),
+        "category": r.category,
+        "description": r.description,
+        "lat": r.lat,
+        "lng": r.lng,
+        "address": r.address,
+        "status": r.status,
+        "bid_deadline": r.bid_deadline.isoformat() if r.bid_deadline else None,
+        "selected_bid_id": str(r.selected_bid_id) if r.selected_bid_id else None,
+        "created_at": r.created_at.isoformat(),
+        "updated_at": r.updated_at.isoformat(),
+        "distance_km": round(distance_km, 2) if distance_km is not None else None,
+    }
+
+
+def _craft_bid_to_dict(b: CraftBid, distance_km: float | None = None) -> dict:
+    return {
+        "bid_id": str(b.id),
+        "request_id": str(b.request_id),
+        "professional_id": str(b.professional_id),
+        "price_cents": b.price_cents,
+        "eta_min": b.eta_min,
+        "note": b.note,
+        "professional_lat": b.professional_lat,
+        "professional_lng": b.professional_lng,
+        "status": b.status,
+        "created_at": b.created_at.isoformat(),
+        "distance_km": round(distance_km, 2) if distance_km is not None else None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Professional CRUD
+# ---------------------------------------------------------------------------
+
+async def register_professional(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    specialties: str = "",
+    bio: str | None = None,
+) -> dict:
+    """Create or return existing professional profile."""
+    existing = await db.scalar(
+        select(Professional).where(Professional.user_id == user_id)
+    )
+    if existing:
+        return _professional_to_dict(existing)
+    prof = Professional(
+        user_id=user_id,
+        specialties=specialties,
+        bio=bio,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(prof)
+    await db.commit()
+    await db.refresh(prof)
+    return _professional_to_dict(prof)
+
+
+async def get_professional_by_user(
+    db: AsyncSession, user_id: uuid.UUID
+) -> Professional | None:
+    return await db.scalar(
+        select(Professional).where(Professional.user_id == user_id)
+    )
+
+
+async def update_professional(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    specialties: str | None = None,
+    bio: str | None = None,
+    is_online: bool | None = None,
+    current_lat: float | None = None,
+    current_lng: float | None = None,
+) -> dict:
+    prof = await db.scalar(
+        select(Professional).where(Professional.user_id == user_id)
+    )
+    if prof is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Professional profile not found.")
+    if specialties is not None:
+        prof.specialties = specialties
+    if bio is not None:
+        prof.bio = bio
+    if is_online is not None:
+        prof.is_online = is_online
+    if current_lat is not None:
+        prof.current_lat = current_lat
+    if current_lng is not None:
+        prof.current_lng = current_lng
+    await db.commit()
+    await db.refresh(prof)
+    return _professional_to_dict(prof)
+
+
+# ---------------------------------------------------------------------------
+# CraftRequest CRUD
+# ---------------------------------------------------------------------------
+
+async def create_craft_request(
+    db: AsyncSession,
+    customer_id: uuid.UUID,
+    category: str,
+    description: str,
+    lat: float,
+    lng: float,
+    address: str | None = None,
+    bid_deadline_minutes: int = 30,
+) -> dict:
+    from app.models.craft import CRAFT_CATEGORIES
+    if category not in CRAFT_CATEGORIES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid category. Must be one of: {', '.join(CRAFT_CATEGORIES)}",
+        )
+    now = datetime.now(timezone.utc)
+    deadline = now + timedelta(minutes=bid_deadline_minutes)
+    req = CraftRequest(
+        customer_id=customer_id,
+        category=category,
+        description=description,
+        lat=lat,
+        lng=lng,
+        address=address,
+        status="open",
+        bid_deadline=deadline,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(req)
+    await db.commit()
+    await db.refresh(req)
+    return _craft_request_to_dict(req)
+
+
+async def get_craft_request(
+    db: AsyncSession, request_id: uuid.UUID
+) -> CraftRequest:
+    req = await db.scalar(
+        select(CraftRequest).where(CraftRequest.id == request_id)
+    )
+    if req is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Craft request not found.")
+    return req
+
+
+async def list_open_craft_requests(
+    db: AsyncSession,
+    lat: float,
+    lng: float,
+    limit: int = 20,
+    offset: int = 0,
+) -> list[dict]:
+    """List open craft requests sorted by proximity to the professional."""
+    result = await db.execute(
+        select(CraftRequest)
+        .where(CraftRequest.status == "open")
+        .order_by(CraftRequest.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    requests = list(result.scalars())
+    out = []
+    for r in requests:
+        dist = _haversine_km(lat, lng, r.lat, r.lng)
+        out.append(_craft_request_to_dict(r, dist))
+    out.sort(key=lambda x: x["distance_km"] or 9999)
+    return out
+
+
+async def list_customer_craft_requests(
+    db: AsyncSession,
+    customer_id: uuid.UUID,
+    limit: int = 20,
+    offset: int = 0,
+) -> list[dict]:
+    result = await db.execute(
+        select(CraftRequest)
+        .where(CraftRequest.customer_id == customer_id)
+        .order_by(CraftRequest.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return [_craft_request_to_dict(r) for r in result.scalars()]
+
+
+async def cancel_craft_request(
+    db: AsyncSession,
+    request_id: uuid.UUID,
+    user_id: uuid.UUID,
+    is_admin: bool = False,
+) -> dict:
+    req = await get_craft_request(db, request_id)
+    if not is_admin and req.customer_id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your request.")
+    if req.status in ("completed", "cancelled"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Cannot cancel a request with status '{req.status}'.",
+        )
+    req.status = "cancelled"
+    req.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(req)
+    return _craft_request_to_dict(req)
+
+
+# ---------------------------------------------------------------------------
+# CraftBid CRUD
+# ---------------------------------------------------------------------------
+
+async def create_craft_bid(
+    db: AsyncSession,
+    request_id: uuid.UUID,
+    professional_id: uuid.UUID,
+    price_cents: int,
+    eta_min: int,
+    note: str | None = None,
+    professional_lat: float | None = None,
+    professional_lng: float | None = None,
+) -> dict:
+    req = await get_craft_request(db, request_id)
+    if req.status != "open":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Cannot bid on a request with status '{req.status}'.",
+        )
+    # Check if this professional already bid on this request
+    existing = await db.scalar(
+        select(CraftBid).where(
+            CraftBid.request_id == request_id,
+            CraftBid.professional_id == professional_id,
+        )
+    )
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You have already submitted a bid for this request.",
+        )
+    if price_cents <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Price must be greater than zero.",
+        )
+    if eta_min <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="ETA must be greater than zero minutes.",
+        )
+    bid = CraftBid(
+        request_id=request_id,
+        professional_id=professional_id,
+        price_cents=price_cents,
+        eta_min=eta_min,
+        note=note,
+        professional_lat=professional_lat,
+        professional_lng=professional_lng,
+        status="pending",
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(bid)
+    await db.commit()
+    await db.refresh(bid)
+    # Compute distance from professional to customer
+    dist = None
+    if professional_lat is not None and professional_lng is not None:
+        dist = _haversine_km(professional_lat, professional_lng, req.lat, req.lng)
+    return _craft_bid_to_dict(bid, dist)
+
+
+async def list_bids_for_request(
+    db: AsyncSession,
+    request_id: uuid.UUID,
+    customer_lat: float | None = None,
+    customer_lng: float | None = None,
+) -> list[dict]:
+    result = await db.execute(
+        select(CraftBid)
+        .where(CraftBid.request_id == request_id)
+        .order_by(CraftBid.created_at.asc())
+    )
+    bids = list(result.scalars())
+    out = []
+    for b in bids:
+        dist = None
+        if (
+            customer_lat is not None
+            and customer_lng is not None
+            and b.professional_lat is not None
+            and b.professional_lng is not None
+        ):
+            dist = _haversine_km(
+                customer_lat, customer_lng, b.professional_lat, b.professional_lng
+            )
+        out.append(_craft_bid_to_dict(b, dist))
+    return out
+
+
+async def list_professional_bids(
+    db: AsyncSession,
+    professional_id: uuid.UUID,
+    limit: int = 20,
+    offset: int = 0,
+) -> list[dict]:
+    result = await db.execute(
+        select(CraftBid)
+        .where(CraftBid.professional_id == professional_id)
+        .order_by(CraftBid.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return [_craft_bid_to_dict(b) for b in result.scalars()]
+
+
+async def select_craft_bid(
+    db: AsyncSession,
+    request_id: uuid.UUID,
+    bid_id: uuid.UUID,
+    customer_id: uuid.UUID,
+) -> dict:
+    """Customer selects a bid — closes bidding, assigns the professional."""
+    req = await get_craft_request(db, request_id)
+    if req.customer_id != customer_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your request.")
+    if req.status not in ("open", "bidding_closed"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Cannot select a bid when request status is '{req.status}'.",
+        )
+    # Verify bid belongs to this request
+    bid = await db.scalar(
+        select(CraftBid).where(
+            CraftBid.id == bid_id,
+            CraftBid.request_id == request_id,
+        )
+    )
+    if bid is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bid not found for this request.")
+    # Mark selected bid as accepted, others as rejected
+    all_bids_result = await db.execute(
+        select(CraftBid).where(CraftBid.request_id == request_id)
+    )
+    for b in all_bids_result.scalars():
+        b.status = "accepted" if b.id == bid_id else "rejected"
+    # Update request
+    req.selected_bid_id = bid_id
+    req.status = "assigned"
+    req.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(req)
+    return _craft_request_to_dict(req)
+
+
+# ---------------------------------------------------------------------------
+# Admin Craft helpers
+# ---------------------------------------------------------------------------
+
+async def admin_list_craft_requests(
+    db: AsyncSession,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[dict]:
+    result = await db.execute(
+        select(CraftRequest)
+        .order_by(CraftRequest.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return [_craft_request_to_dict(r) for r in result.scalars()]
+
+
+async def admin_list_professionals(
+    db: AsyncSession,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[dict]:
+    result = await db.execute(
+        select(Professional)
+        .order_by(Professional.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return [_professional_to_dict(p) for p in result.scalars()]

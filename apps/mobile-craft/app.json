@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "Ziza Craft",
+    "slug": "ziza-craft",
+    "owner": "zizatransportationllc",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "splash": {
+      "backgroundColor": "#059669"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.zizatransportation.craft",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Ziza Craft uses your location to find nearby service requests."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#059669"
+      },
+      "package": "com.zizatransportation.craft",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
+    },
+    "plugins": [
+      "expo-notifications",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Ziza Craft uses your location to find nearby service requests."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ziza-craft-placeholder"
+      }
+    }
+  }
+}
