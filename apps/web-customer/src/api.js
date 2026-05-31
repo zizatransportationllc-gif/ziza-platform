@@ -586,3 +586,74 @@ export async function checkPointInService(lat, lng) {
   if (!res.ok) return { in_service: true }; // fail-open: don't block on API error
   return res.json();
 }
+
+// ---------------------------------------------------------------------------
+// Sprint 48 — Ziza Craft (customer side)
+// ---------------------------------------------------------------------------
+
+/**
+ * Post a new craft / maintenance request.
+ * { category, description, lat, lng, address?, bid_deadline_minutes? }
+ */
+export async function createCraftRequest(token, { category, description, lat, lng, address = null, bid_deadline_minutes = 30 }) {
+  const res = await fetch(`${API_BASE}/v1/craft/requests`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ category, description, lat, lng, address, bid_deadline_minutes }),
+  });
+  return _json(res);
+}
+
+/** List the customer's own craft requests. */
+export async function getMyCraftRequests(token, limit = 20, offset = 0) {
+  const res = await fetch(
+    `${API_BASE}/v1/craft/requests/mine?limit=${limit}&offset=${offset}`,
+    { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+  );
+  return _json(res);
+}
+
+/** Get a single craft request. */
+export async function getCraftRequest(token, requestId) {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
+/** List bids on a request (optionally sorted by proximity). */
+export async function getCraftRequestBids(token, requestId, lat = null, lng = null) {
+  let url = `${API_BASE}/v1/craft/requests/${requestId}/bids`;
+  if (lat != null && lng != null) url += `?lat=${lat}&lng=${lng}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
+/** Customer selects (accepts) a bid. */
+export async function selectCraftBid(token, requestId, bidId) {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/select`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ bid_id: bidId }),
+  });
+  return _json(res);
+}
+
+/** Cancel a craft request. */
+export async function cancelCraftRequest(token, requestId) {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/cancel`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}

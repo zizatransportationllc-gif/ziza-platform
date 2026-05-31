@@ -12,6 +12,7 @@ import {
   getWallet, topupWallet, getWalletTransactions, // Sprint 33
   searchPlaces, // Sprint 43
   checkPointInService, // Sprint 45
+  createCraftRequest, getMyCraftRequests, getCraftRequestBids, selectCraftBid, cancelCraftRequest, // Sprint 48
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 import { EstimateMap, TripMap } from "./TripMap";
@@ -1706,13 +1707,383 @@ function WalletSection({ token }) {
 }
 
 // ---------------------------------------------------------------------------
+// Craft / Maintenance section — Sprint 48
+// ---------------------------------------------------------------------------
+
+const CRAFT_CATEGORIES = [
+  "breakdown", "flat_tyre", "tow", "fuel", "lockout", "battery", "accident", "diagnostics", "other",
+];
+const CRAFT_CAT_LABELS = {
+  breakdown:   "🔧 Breakdown",
+  flat_tyre:   "🔴 Flat Tire",
+  tow:         "🚛 Towing",
+  fuel:        "⛽ Out of Fuel",
+  lockout:     "🔑 Lockout",
+  battery:     "🔋 Dead Battery",
+  accident:    "🚨 Post-Accident",
+  diagnostics: "🔍 Diagnostics",
+  other:       "🛠️ Other",
+};
+const CRAFT_STATUS_LABELS = {
+  open:           "🟢 Open — accepting bids",
+  bidding_closed: "⏰ Bidding closed",
+  assigned:       "✅ Professional assigned",
+  in_progress:    "🔧 In progress",
+  completed:      "✅ Completed",
+  cancelled:      "✗ Cancelled",
+};
+
+// Bids view for a single craft request
+function CraftBidsView({ token, request, onBack }) {
+  const [bids, setBids] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selecting, setSelecting] = useState(null);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+
+  useEffect(() => {
+    setLoading(true);
+    getCraftRequestBids(token, request.request_id)
+      .then(setBids)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [token, request.request_id]);
+
+  async function handleSelect(bidId) {
+    setSelecting(bidId); setError(null);
+    try {
+      await selectCraftBid(token, request.request_id, bidId);
+      setSuccess("✅ Professional accepted! They will contact you shortly.");
+    } catch (e) { setError(e.message); }
+    finally { setSelecting(null); }
+  }
+
+  const canSelect = ["open", "bidding_closed"].includes(request.status);
+
+  return (
+    <div className="craft-detail">
+      <button className="craft-back-btn" onClick={onBack}>← Back to my requests</button>
+      <div className="craft-request-info">
+        <span className="craft-cat-chip">{CRAFT_CAT_LABELS[request.category] ?? request.category}</span>
+        <span className="craft-status-label">{CRAFT_STATUS_LABELS[request.status] ?? request.status}</span>
+      </div>
+      <p className="craft-description">{request.description}</p>
+      {request.address && <p className="craft-meta">📍 {request.address}</p>}
+
+      <h3 className="craft-bids-title">
+        {bids.length > 0 ? `${bids.length} bid${bids.length > 1 ? "s" : ""}` : "No bids yet"}
+      </h3>
+
+      {success && <p className="craft-success">{success}</p>}
+      {error   && <p className="form-error">{error}</p>}
+      {loading && <p className="craft-loading">⏳ Loading bids…</p>}
+
+      <div className="craft-bids-list">
+        {bids.map((b) => (
+          <div key={b.bid_id} className={`craft-bid-card ${b.status === "accepted" ? "craft-bid-accepted" : ""}`}>
+            <div className="craft-bid-header">
+              <span className="craft-bid-price">{formatUSD(b.price_cents)}</span>
+              <span className="craft-bid-eta">⏱ {b.eta_min} min</span>
+            </div>
+            {b.note && <p className="craft-bid-note">💬 {b.note}</p>}
+            {b.distance_km != null && (
+              <p className="craft-bid-dist">📍 {b.distance_km.toFixed(1)} km away</p>
+            )}
+            {canSelect && b.status === "pending" && !success && (
+              <button
+                className="craft-bid-select-btn"
+                onClick={() => handleSelect(b.bid_id)}
+                disabled={selecting === b.bid_id}
+              >
+                {selecting === b.bid_id ? "Accepting…" : "✓ Accept this bid"}
+              </button>
+            )}
+            {b.status === "accepted" && (
+              <span className="craft-bid-accepted-label">✅ You accepted this bid</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// New craft request form
+function CraftNewRequestForm({ token, onCreated, onCancel }) {
+  const [category, setCategory] = useState("");
+  const [description, setDescription] = useState("");
+  const [lat, setLat] = useState("");
+  const [lng, setLng] = useState("");
+  const [address, setAddress] = useState("");
+  const [bidMinutes, setBidMinutes] = useState("30");
+  const [locating, setLocating] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function handleGPS() {
+    if (!navigator.geolocation) { setError("Geolocation not available in this browser."); return; }
+    setLocating(true); setError(null);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setLat(coords.latitude.toFixed(5));
+        setLng(coords.longitude.toFixed(5));
+        setLocating(false);
+      },
+      () => { setError("Unable to get GPS position."); setLocating(false); },
+      { timeout: 10000 },
+    );
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!category) { setError("Please select a category."); return; }
+    setSubmitting(true); setError(null);
+    try {
+      const req = await createCraftRequest(token, {
+        category,
+        description: description.trim(),
+        lat: parseFloat(lat) || 40.7357,
+        lng: parseFloat(lng) || -74.1724,
+        address: address.trim() || null,
+        bid_deadline_minutes: parseInt(bidMinutes, 10) || 30,
+      });
+      onCreated(req);
+    } catch (err) { setError(err.message); }
+    finally { setSubmitting(false); }
+  }
+
+  return (
+    <div className="craft-form-wrap">
+      <div className="craft-form-header">
+        <h2 className="craft-form-title">🔧 Request Roadside Help</h2>
+        <button className="craft-back-btn" onClick={onCancel}>✕ Cancel</button>
+      </div>
+
+      <form className="craft-form" onSubmit={handleSubmit}>
+        {/* Category */}
+        <div className="craft-field">
+          <span className="craft-label">Type of problem</span>
+          <div className="craft-cat-grid">
+            {CRAFT_CATEGORIES.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                className={`craft-cat-btn ${category === cat ? "craft-cat-selected" : ""}`}
+                onClick={() => setCategory(cat)}
+              >
+                {CRAFT_CAT_LABELS[cat]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Description */}
+        <div className="craft-field">
+          <span className="craft-label">Describe the problem</span>
+          <textarea
+            className="craft-textarea"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="e.g. Car won't start, clicking noise when turning key…"
+            rows={3}
+            maxLength={1000}
+            required
+          />
+        </div>
+
+        {/* Location */}
+        <div className="craft-field">
+          <span className="craft-label">Your location</span>
+          <button type="button" className="craft-gps-btn" onClick={handleGPS} disabled={locating}>
+            {locating ? "⏳ Getting location…" : "📍 Use my GPS location"}
+          </button>
+          <div className="craft-coord-row">
+            <input
+              className="craft-coord-input"
+              type="number"
+              step="0.00001"
+              placeholder="Latitude (e.g. 40.7357)"
+              value={lat}
+              onChange={(e) => setLat(e.target.value)}
+            />
+            <input
+              className="craft-coord-input"
+              type="number"
+              step="0.00001"
+              placeholder="Longitude (e.g. -74.1724)"
+              value={lng}
+              onChange={(e) => setLng(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Address */}
+        <div className="craft-field">
+          <span className="craft-label">Address (optional)</span>
+          <input
+            className="craft-input"
+            type="text"
+            placeholder="e.g. 123 Main St, Newark NJ"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            maxLength={500}
+          />
+        </div>
+
+        {/* Bidding window */}
+        <div className="craft-field">
+          <span className="craft-label">Bidding window (minutes)</span>
+          <input
+            className="craft-input"
+            type="number"
+            min="5"
+            max="120"
+            value={bidMinutes}
+            onChange={(e) => setBidMinutes(e.target.value)}
+          />
+        </div>
+
+        {error && <p className="form-error">{error}</p>}
+        <button type="submit" className="craft-submit-btn" disabled={submitting || !category}>
+          {submitting ? "Posting…" : "📤 Post Request"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+// Main craft section — list + new request + bids view
+function CraftSection({ token }) {
+  const [view, setView] = useState("list"); // "list" | "new" | "bids"
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [cancelling, setCancelling] = useState(null);
+  const [error, setError] = useState(null);
+
+  const loadRequests = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const data = await getMyCraftRequests(token);
+      setRequests(data);
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { loadRequests(); }, [loadRequests]);
+
+  async function handleCancel(requestId) {
+    setCancelling(requestId);
+    try {
+      await cancelCraftRequest(token, requestId);
+      loadRequests();
+    } catch (_) {}
+    finally { setCancelling(null); }
+  }
+
+  if (view === "new") {
+    return (
+      <CraftNewRequestForm
+        token={token}
+        onCreated={() => { setView("list"); loadRequests(); }}
+        onCancel={() => setView("list")}
+      />
+    );
+  }
+
+  if (view === "bids" && selectedRequest) {
+    return (
+      <CraftBidsView
+        token={token}
+        request={selectedRequest}
+        onBack={() => { setView("list"); loadRequests(); }}
+      />
+    );
+  }
+
+  // List view
+  return (
+    <div className="craft-section">
+      <div className="craft-list-header">
+        <h2 className="estimate-title">🔧 Maintenance</h2>
+        <button className="craft-new-btn" onClick={() => setView("new")}>
+          + New Request
+        </button>
+      </div>
+
+      {error && <p className="form-error">{error}</p>}
+      {loading && <p className="craft-loading">⏳ Loading…</p>}
+
+      {!loading && requests.length === 0 && (
+        <div className="craft-empty">
+          <p>No maintenance requests yet.</p>
+          <button className="craft-submit-btn" onClick={() => setView("new")}>
+            Post Your First Request
+          </button>
+        </div>
+      )}
+
+      <div className="craft-list">
+        {requests.map((req) => {
+          const deadline = req.bid_deadline ? new Date(req.bid_deadline) : null;
+          const isExpired = deadline && deadline < new Date();
+          const canViewBids = ["open", "bidding_closed", "assigned"].includes(req.status);
+          const canCancel = req.status === "open";
+
+          return (
+            <div key={req.request_id} className="craft-request-card">
+              <div className="craft-request-header">
+                <span className="craft-cat-chip">{CRAFT_CAT_LABELS[req.category] ?? req.category}</span>
+                <span className="craft-status-badge">{CRAFT_STATUS_LABELS[req.status] ?? req.status}</span>
+              </div>
+              <p className="craft-request-desc">{req.description}</p>
+              {req.address && <p className="craft-meta">📍 {req.address}</p>}
+              {deadline && !isExpired && req.status === "open" && (
+                <p className="craft-deadline">
+                  ⏱ Bidding until: {deadline.toLocaleTimeString("en-US")}
+                </p>
+              )}
+              {isExpired && req.status === "open" && (
+                <p className="craft-expired">⏰ Bidding window closed</p>
+              )}
+              <p className="craft-date">
+                Posted: {new Date(req.created_at).toLocaleDateString("en-US", { dateStyle: "medium" })}
+              </p>
+              <div className="craft-request-actions">
+                {canViewBids && (
+                  <button
+                    className="craft-view-bids-btn"
+                    onClick={() => { setSelectedRequest(req); setView("bids"); }}
+                  >
+                    View Bids →
+                  </button>
+                )}
+                {canCancel && (
+                  <button
+                    className="craft-cancel-btn"
+                    onClick={() => handleCancel(req.request_id)}
+                    disabled={cancelling === req.request_id}
+                  >
+                    {cancelling === req.request_id ? "Cancelling…" : "✕ Cancel"}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
 function Dashboard({ user, token, onLogout }) {
   const [activeTrip, setActiveTrip] = useState(null);
   const [activeAssistance, setActiveAssistance] = useState(null);
-  const [mode, setMode] = useState("ride"); // "ride" | "assistance" | "trips" | "history" | "notifications" | "profile" | "places" | "apply" | "wallet"
+  const [mode, setMode] = useState("ride"); // "ride" | "assistance" | "craft" | "trips" | "history" | "notifications" | "profile" | "places" | "apply" | "wallet"
   const [unreadCount, setUnreadCount] = useState(0);
 
   const refreshUnread = useCallback(() => {
@@ -1779,6 +2150,12 @@ function Dashboard({ user, token, onLogout }) {
               🆘 Assistance
             </button>
             <button
+              className={`mode-tab ${mode === "craft" ? "active" : ""}`}
+              onClick={() => setMode("craft")}
+            >
+              🔧 Maintenance
+            </button>
+            <button
               className={`mode-tab ${mode === "trips" ? "active" : ""}`}
               onClick={() => setMode("trips")}
             >
@@ -1827,6 +2204,7 @@ function Dashboard({ user, token, onLogout }) {
           {mode === "assistance" && (
             <AssistanceSection token={token} onRequestCreated={setActiveAssistance} />
           )}
+          {mode === "craft" && <CraftSection token={token} />}
           {mode === "trips" && (
             <div className="history-section">
               <h2 className="estimate-title">My Trips</h2>
@@ -1849,7 +2227,7 @@ function Dashboard({ user, token, onLogout }) {
         </>
       )}
 
-      <p className="footer">App: <strong>web-customer</strong> · Sprint 45</p>
+      <p className="footer">App: <strong>web-customer</strong> · Sprint 48</p>
     </div>
   );
 }

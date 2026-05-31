@@ -469,3 +469,74 @@ html, body {
 .trip-map-wrap { border-radius: var(--radius-lg); overflow: hidden; margin: var(--space-3) 0; box-shadow: 0 2px 12px rgba(0,0,0,.18); }
 .trip-map-wrap .mapboxgl-ctrl-bottom-left,
 .trip-map-wrap .mapboxgl-ctrl-bottom-right { display: none; }
+
+/* ── Sprint 48: Craft / Maintenance section ─────────────────────────────── */
+.craft-section { text-align: left; }
+.craft-list-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4); }
+.craft-new-btn { background: var(--color-accent-strong, #f97316); color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-2) var(--space-4); font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+.craft-new-btn:hover { opacity: 0.9; }
+.craft-loading { color: var(--color-muted); font-size: 0.88rem; }
+.craft-empty { text-align: center; padding: var(--space-8) 0; color: var(--color-muted); }
+.craft-empty p { margin-bottom: var(--space-4); }
+.craft-list { display: flex; flex-direction: column; gap: var(--space-3); }
+
+/* Request card */
+.craft-request-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); }
+.craft-request-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-2); flex-wrap: wrap; gap: var(--space-1); }
+.craft-cat-chip { display: inline-block; background: color-mix(in srgb, #f97316 12%, transparent); color: #f97316; font-size: 0.72rem; font-weight: 700; padding: 2px var(--space-2); border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em; }
+.craft-status-badge { font-size: 0.78rem; color: var(--color-muted); font-weight: 600; }
+.craft-request-desc { font-size: 0.9rem; color: var(--color-fg); margin-bottom: var(--space-2); line-height: 1.4; }
+.craft-meta { font-size: 0.8rem; color: var(--color-muted); margin-bottom: var(--space-1); }
+.craft-deadline { font-size: 0.78rem; color: #f59e0b; margin-bottom: var(--space-1); }
+.craft-expired  { font-size: 0.78rem; color: var(--color-muted); margin-bottom: var(--space-1); }
+.craft-date { font-size: 0.72rem; color: var(--color-muted); margin-bottom: var(--space-3); }
+.craft-request-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.craft-view-bids-btn { background: color-mix(in srgb, #f97316 10%, transparent); border: 1px solid #f97316; color: #f97316; border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+.craft-view-bids-btn:hover { background: color-mix(in srgb, #f97316 20%, transparent); }
+.craft-cancel-btn { background: transparent; border: 1px solid var(--color-border); color: var(--color-muted); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.82rem; cursor: pointer; }
+.craft-cancel-btn:hover { border-color: var(--color-error); color: var(--color-error); }
+.craft-cancel-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* New request form */
+.craft-form-wrap { text-align: left; }
+.craft-form-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4); }
+.craft-form-title { font-size: 1.1rem; font-weight: 700; color: var(--color-fg); margin: 0; }
+.craft-back-btn { background: transparent; border: 1px solid var(--color-border); color: var(--color-muted); border-radius: var(--radius-sm); padding: var(--space-1) var(--space-3); font-size: 0.82rem; cursor: pointer; }
+.craft-back-btn:hover { border-color: var(--color-accent); color: var(--color-fg); }
+.craft-form { display: flex; flex-direction: column; gap: var(--space-4); }
+.craft-field { display: flex; flex-direction: column; gap: var(--space-2); }
+.craft-label { font-size: 0.82rem; font-weight: 600; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.craft-cat-grid { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.craft-cat-btn { background: var(--color-surface); border: 1px solid var(--color-border); color: var(--color-muted); border-radius: 999px; padding: var(--space-1) var(--space-3); font-size: 0.82rem; cursor: pointer; }
+.craft-cat-btn:hover { border-color: #f97316; color: #f97316; }
+.craft-cat-selected { background: color-mix(in srgb, #f97316 12%, transparent); border-color: #f97316; color: #f97316; font-weight: 700; }
+.craft-textarea { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3); color: var(--color-fg); font-size: 0.9rem; resize: vertical; font-family: inherit; outline: none; }
+.craft-textarea:focus { border-color: #f97316; }
+.craft-gps-btn { background: color-mix(in srgb, #f97316 8%, transparent); border: 1px solid color-mix(in srgb, #f97316 40%, transparent); color: #f97316; border-radius: var(--radius-md); padding: var(--space-2) var(--space-4); font-size: 0.88rem; font-weight: 600; cursor: pointer; align-self: flex-start; }
+.craft-gps-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.craft-coord-row { display: flex; gap: var(--space-2); }
+.craft-coord-input { flex: 1; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--color-fg); font-size: 0.88rem; outline: none; }
+.craft-coord-input:focus { border-color: #f97316; }
+.craft-input { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--color-fg); font-size: 0.9rem; outline: none; }
+.craft-input:focus { border-color: #f97316; }
+.craft-submit-btn { background: #f97316; color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); font-size: 1rem; font-weight: 700; cursor: pointer; }
+.craft-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Bids detail view */
+.craft-detail { text-align: left; }
+.craft-request-info { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2); flex-wrap: wrap; }
+.craft-status-label { font-size: 0.82rem; color: var(--color-muted); font-weight: 500; }
+.craft-description { font-size: 0.95rem; color: var(--color-fg); margin-bottom: var(--space-2); line-height: 1.5; }
+.craft-bids-title { font-size: 1rem; font-weight: 700; margin: var(--space-4) 0 var(--space-3); color: var(--color-fg); }
+.craft-success { color: var(--color-success, #16a34a); font-size: 0.9rem; font-weight: 600; margin-bottom: var(--space-3); }
+.craft-bids-list { display: flex; flex-direction: column; gap: var(--space-3); }
+.craft-bid-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); }
+.craft-bid-accepted { border-color: var(--color-success, #16a34a); }
+.craft-bid-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-2); }
+.craft-bid-price { font-size: 1.4rem; font-weight: 700; color: #f97316; }
+.craft-bid-eta { font-size: 0.85rem; color: var(--color-muted); }
+.craft-bid-note { font-size: 0.82rem; color: var(--color-muted); font-style: italic; margin-bottom: var(--space-1); }
+.craft-bid-dist { font-size: 0.8rem; color: var(--color-muted); margin-bottom: var(--space-3); }
+.craft-bid-select-btn { display: block; width: 100%; background: #f97316; color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.9rem; font-weight: 700; cursor: pointer; margin-top: var(--space-2); }
+.craft-bid-select-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.craft-bid-accepted-label { display: block; text-align: center; color: var(--color-success, #16a34a); font-size: 0.85rem; font-weight: 600; margin-top: var(--space-2); }
