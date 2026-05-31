@@ -66,17 +66,20 @@ def test_haversine_abidjan_to_cocody():
 
 
 def test_city_detail_endpoint():
-    """GET /v1/cities/{id} returns city details."""
+    """GET /v1/cities/{id} returns city details.
+
+    Sprint 46: US/NJ localization — uses Newark instead of Abidjan.
+    """
     a_tok = _admin()
     cities = client.get("/v1/admin/cities", headers=_h(a_tok)).json()
-    abidjan = next(c for c in cities if c["name"] == "Abidjan")
-    city_id = abidjan["city_id"]
+    newark = next(c for c in cities if c["name"] == "Newark")
+    city_id = newark["city_id"]
 
     r = client.get(f"/v1/cities/{city_id}")
     assert r.status_code == 200, r.text
     data = r.json()
-    assert data["name"] == "Abidjan"
-    assert data["center_lat"] == pytest.approx(5.3364, abs=0.01)
+    assert data["name"] == "Newark"
+    assert data["center_lat"] == pytest.approx(40.7357, abs=0.01)
 
 
 def test_nonexistent_city_returns_404():
@@ -87,15 +90,18 @@ def test_nonexistent_city_returns_404():
 
 
 def test_service_zones_filtered_by_city():
-    """GET /v1/service-zones?city_id=... returns zones for that city only."""
+    """GET /v1/service-zones?city_id=... returns zones for that city only.
+
+    Sprint 46: US/NJ localization — uses Newark instead of Abidjan.
+    """
     a_tok = _admin()
     cities = client.get("/v1/admin/cities", headers=_h(a_tok)).json()
-    abidjan = next(c for c in cities if c["name"] == "Abidjan")
-    city_id = abidjan["city_id"]
+    newark = next(c for c in cities if c["name"] == "Newark")
+    city_id = newark["city_id"]
 
-    # Create a zone for Abidjan
+    # Create a zone for Newark
     client.post("/v1/admin/service-zones", headers=_h(a_tok),
-                json={"city_id": city_id, "name": "Plateau", "active": True})
+                json={"city_id": city_id, "name": "Downtown Newark", "active": True})
 
     r = client.get(f"/v1/service-zones?city_id={city_id}")
     assert r.status_code == 200, r.text

@@ -1,4 +1,4 @@
-"""Test configuration — Sprint 4.
+"""Test configuration — Sprint 4 / Sprint 46 hotfix.
 
 Sets up an in-memory SQLite database for every test run.
 Every test gets the ``get_db`` dependency overridden with an async session
@@ -7,10 +7,15 @@ unaffected (the override is always present but may never be invoked).
 
 Sprint 34 hotfix: also patches ``app.db._SessionLocal`` directly so that
 ``/health`` (which no longer uses Depends(get_db)) can reach the test DB.
+
+Sprint 46 hotfix: truncate all tables before each test to prevent cross-test
+data pollution (e.g. an active city created by test_cities.py causing zone
+enforcement to block estimate tests that use Abidjan coordinates).
 """
 import asyncio
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -46,6 +51,20 @@ async def _create_tables():
 _run(_create_tables())
 
 
+async def _truncate_all():
+    """Delete every row from every table.
+
+    SQLite does not support TRUNCATE — we use DELETE instead.
+    FK enforcement is disabled for the duration so the order of deletions
+    does not matter.
+    """
+    async with _engine.begin() as conn:
+        await conn.execute(text("PRAGMA foreign_keys = OFF"))
+        for table in reversed(Base.metadata.sorted_tables):
+            await conn.execute(table.delete())
+        await conn.execute(text("PRAGMA foreign_keys = ON"))
+
+
 # ---------------------------------------------------------------------------
 # Per-test DB session + dependency override
 # ---------------------------------------------------------------------------
@@ -54,9 +73,16 @@ _run(_create_tables())
 def _override_db():
     """Override ``get_db`` for every test with an async SQLite session.
 
+    Truncates all tables *before* each test so that data written by one test
+    cannot affect another test (e.g. an active city created in test_cities.py
+    must not cause zone-enforcement 422s in test_estimate.py).
+
     Also patches ``app.db._SessionLocal`` so the /health endpoint (which
     accesses _SessionLocal directly) can reach the in-memory test database.
     """
+    # ── Clean slate before every test ──────────────────────────────────────
+    _run(_truncate_all())
+
     _Session = async_sessionmaker(_engine, expire_on_commit=False)
 
     async def _mock_get_db():

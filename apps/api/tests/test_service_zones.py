@@ -10,7 +10,7 @@ Scenarios:
   - Admin creates service zone for a city
   - Public list returns active zones only
   - Admin list includes inactive zones
-  - Point within Abidjan returns in_service=True
+  - Point within Newark NJ returns in_service=True  (Sprint 46: US/NJ localization)
   - Point outside all cities returns in_service=False
 """
 import uuid
@@ -48,13 +48,13 @@ def _customer() -> str:
     return tok
 
 
-def _get_abidjan_city_id(a_tok: str) -> str:
-    """Seed cities and return Abidjan's city_id."""
+def _get_newark_city_id(a_tok: str) -> str:
+    """Seed cities and return Newark's city_id."""
     cities = client.get("/v1/admin/cities", headers=_h(a_tok)).json()
     for c in cities:
-        if c["name"] == "Abidjan":
+        if c["name"] == "Newark":
             return c["city_id"]
-    raise AssertionError("Abidjan not found in cities")
+    raise AssertionError("Newark not found in cities")
 
 
 # ---------------------------------------------------------------------------
@@ -64,7 +64,7 @@ def _get_abidjan_city_id(a_tok: str) -> str:
 def test_admin_create_service_zone():
     """POST /v1/admin/service-zones creates a zone linked to a city."""
     a_tok = _admin()
-    city_id = _get_abidjan_city_id(a_tok)
+    city_id = _get_newark_city_id(a_tok)
 
     r = client.post(
         "/v1/admin/service-zones",
@@ -85,7 +85,7 @@ def test_admin_create_service_zone():
 def test_public_service_zones_active_only():
     """GET /v1/service-zones returns only active zones."""
     a_tok = _admin()
-    city_id = _get_abidjan_city_id(a_tok)
+    city_id = _get_newark_city_id(a_tok)
 
     # Create active zone
     client.post("/v1/admin/service-zones", headers=_h(a_tok),
@@ -103,7 +103,7 @@ def test_public_service_zones_active_only():
 def test_admin_service_zones_includes_inactive():
     """GET /v1/admin/service-zones includes inactive zones."""
     a_tok = _admin()
-    city_id = _get_abidjan_city_id(a_tok)
+    city_id = _get_newark_city_id(a_tok)
 
     client.post("/v1/admin/service-zones", headers=_h(a_tok),
                 json={"city_id": city_id, "name": "Inactive Zone 2", "active": False})
@@ -114,27 +114,44 @@ def test_admin_service_zones_includes_inactive():
     assert any(z["active"] is False for z in data)
 
 
-def test_point_within_abidjan_is_in_service():
-    """GET /v1/geo/point-in-service returns in_service=True for Plateau."""
-    a_tok = _admin()
-    # Ensure cities are seeded
-    client.get("/v1/admin/cities", headers=_h(a_tok))
+def test_point_within_newark_is_in_service():
+    """GET /v1/geo/point-in-service returns in_service=True for Newark NJ.
 
-    # Plateau Abidjan — within 40km of Abidjan center
-    r = client.get("/v1/geo/point-in-service", params={"lat": 5.3207, "lng": -4.0175})
+    Sprint 46: US/NJ localization — replaced Abidjan with Newark.
+    Newark center: (40.7357, -74.1724), radius 15 km.
+    """
+    a_tok = _admin()
+    # Seed and explicitly activate Newark (default is inactive)
+    cities = client.get("/v1/admin/cities", headers=_h(a_tok)).json()
+    newark = next(c for c in cities if c["name"] == "Newark")
+    client.patch(
+        f"/v1/admin/cities/{newark['city_id']}",
+        headers=_h(a_tok),
+        json={"active": True},
+    )
+
+    # Downtown Newark — within 15 km of city center
+    r = client.get("/v1/geo/point-in-service", params={"lat": 40.74, "lng": -74.18})
     assert r.status_code == 200, r.text
     data = r.json()
     assert data["in_service"] is True
-    assert data["city_name"] == "Abidjan"
+    assert data["city_name"] == "Newark"
 
 
 def test_point_outside_all_cities_is_not_in_service():
     """GET /v1/geo/point-in-service returns in_service=False for remote location."""
     a_tok = _admin()
-    client.get("/v1/admin/cities", headers=_h(a_tok))
+    # Seed cities (all inactive by default) and activate Newark
+    cities = client.get("/v1/admin/cities", headers=_h(a_tok)).json()
+    newark = next(c for c in cities if c["name"] == "Newark")
+    client.patch(
+        f"/v1/admin/cities/{newark['city_id']}",
+        headers=_h(a_tok),
+        json={"active": True},
+    )
 
-    # Dakar, Senegal — far from any Ivorian city
-    r = client.get("/v1/geo/point-in-service", params={"lat": 14.71, "lng": -17.47})
+    # Los Angeles — far from any NJ city
+    r = client.get("/v1/geo/point-in-service", params={"lat": 34.05, "lng": -118.24})
     assert r.status_code == 200, r.text
     data = r.json()
     assert data["in_service"] is False
