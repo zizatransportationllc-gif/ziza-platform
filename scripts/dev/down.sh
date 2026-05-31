@@ -3,7 +3,7 @@
 #
 # Services arrêtés :
 #   db, migrate, api,
-#   web-landing, web-customer, web-driver, web-admin
+#   web-landing, web-customer, web-driver, web-admin, web-craft
 #
 # Usage :
 #   ./scripts/dev/down.sh          # supprime les conteneurs et le volume DB

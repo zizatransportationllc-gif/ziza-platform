@@ -9,6 +9,7 @@
 #   web-customer → Application client         → http://localhost:3001
 #   web-driver   → Application chauffeur      → http://localhost:3002
 #   web-admin    → Tableau de bord admin      → http://localhost:3003
+#   web-craft    → Portail professionnels      → http://localhost:3004
 #
 # Usage :
 #   ./scripts/dev/up.sh            # mode attaché (logs en direct)
