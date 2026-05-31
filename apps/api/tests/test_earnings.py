@@ -103,6 +103,7 @@ def test_driver_earnings_after_completed_trip():
     """Completing a trip increases trip count and XOF total."""
     tc = _get_token("customer@ziza.dev")
     td = _get_token("driver@ziza.dev")
+    _ensure_driver(td)  # register driver before fetching baseline earnings
 
     # Get baseline
     r0 = client.get("/v1/drivers/me/earnings", headers=_headers(td))
@@ -213,6 +214,9 @@ def test_admin_stats_requires_admin_role():
 def test_admin_trips_list():
     """Admin receives a list of trips with required fields."""
     ta = _get_token("admin@ziza.dev")
+    tc = _get_token("customer@ziza.dev")
+    td = _get_token("driver@ziza.dev")
+    _complete_a_trip(tc, td)  # ensure at least one trip exists
 
     r = client.get("/v1/admin/trips", headers=_headers(ta))
     assert r.status_code == 200

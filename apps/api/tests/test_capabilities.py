@@ -219,6 +219,8 @@ def test_eta_set_on_accept():
 def test_admin_list_drivers():
     """Admin can list all drivers; each has a capabilities field."""
     ta = _get_token("admin@ziza.dev")
+    td = _get_token("driver@ziza.dev")
+    _ensure_driver(td)  # ensure at least one driver exists
 
     r = client.get("/v1/admin/drivers", headers=_headers(ta))
     assert r.status_code == 200

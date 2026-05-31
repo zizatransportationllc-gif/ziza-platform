@@ -217,10 +217,8 @@ def test_update_place_invalid_label_returns_422():
 
 def test_delete_place_success():
     tok = _customer()
-    # Reuse an existing place (shared DB may be at the 10-place limit)
-    existing = client.get("/v1/places", headers=_h(tok)).json()
-    assert len(existing) >= 1, "No places to delete — run create tests first"
-    pid = existing[0]["place_id"]
+    place = _create_place(tok)
+    pid = place["place_id"]
 
     r = client.delete(f"/v1/places/{pid}", headers=_h(tok))
     assert r.status_code == 204, r.text
@@ -244,10 +242,8 @@ def test_delete_place_wrong_user_returns_404():
     tok_b = _tok("admin@ziza.dev")
     _register(tok_b)
 
-    # Reuse an existing place from customer (shared DB may be at limit)
-    existing = client.get("/v1/places", headers=_h(tok_a)).json()
-    assert len(existing) >= 1, "No places available — run create tests first"
-    pid = existing[0]["place_id"]
+    place = _create_place(tok_a)
+    pid = place["place_id"]
 
     r = client.delete(f"/v1/places/{pid}", headers=_h(tok_b))
     assert r.status_code == 404, r.text

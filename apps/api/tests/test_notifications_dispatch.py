@@ -128,7 +128,7 @@ def test_accept_trip_dispatches_to_mock_channel():
 
     assert len(MockChannel.sent) >= 1
     titles = [s["title"] for s in MockChannel.sent]
-    assert any("Chauffeur" in t or "route" in t for t in titles)
+    assert any("Driver" in t or "way" in t for t in titles)
 
 
 # ---------------------------------------------------------------------------
@@ -162,7 +162,7 @@ def test_complete_trip_dispatches_to_mock_channel():
 
     assert len(MockChannel.sent) >= 1
     titles = [s["title"] for s in MockChannel.sent]
-    assert any("terminé" in t.lower() or "Trajet" in t for t in titles)
+    assert any("completed" in t.lower() or "Trip" in t for t in titles)
 
 
 def test_complete_trip_mock_channel_receives_email_recipient():
