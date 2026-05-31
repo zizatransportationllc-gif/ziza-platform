@@ -149,80 +149,82 @@ DEMO_USERS = [
 # 3 seed professionals: (email, user_id, full_name, phone, specialties, bio)
 PROFESSIONAL_SEED_USERS = [
     (
-        "pr01@seed.ziza.dev", "seed_pro_01", "Alice Thompson",
+        "pr01@seed.ziza.dev", "seed_pro_01", "Marcus Williams",
         "+1 (973) 555-0101",
-        "plumbing,electrical",
-        "Licensed plumber and electrician with 12 years experience in NJ residential.",
+        "breakdown,battery,diagnostics",
+        "ASE-certified mechanic, 15 years roadside experience in NJ. On-site diagnostics + repair.",
     ),
     (
         "pr02@seed.ziza.dev", "seed_pro_02", "Carlos Rivera",
         "+1 (732) 555-0202",
-        "locksmith,carpentry,hvac",
-        "Emergency locksmith, certified HVAC tech. Fast response anywhere in Essex County.",
+        "tow,accident,flat_tyre",
+        "Licensed tow operator. Light and heavy-duty towing across Essex & Union County. 24/7.",
     ),
     (
         "pr03@seed.ziza.dev", "seed_pro_03", "Diana Chen",
         "+1 (201) 555-0303",
-        "electrical,cleaning,painting",
-        "General contractor — electrical, painting, deep cleaning. 5-star rated.",
+        "fuel,lockout,flat_tyre,battery",
+        "Fast roadside response — fuel delivery, lockout, tire change, jump-start. Always stocked.",
     ),
 ]
 
 # 7 craft request scenarios: (category, description, address, lat, lng)
 CRAFT_REQUEST_SCENARIOS = [
     (
-        "plumbing",
-        "Leaking pipe under kitchen sink — water dripping fast, need urgent repair.",
-        "148 Market St, Newark NJ 07102",
-        40.7351, -74.1727,
+        "breakdown",
+        "Car completely dead on I-95 North near Exit 13A. Engine cranks but won't fire. Need mechanic ASAP.",
+        "I-95 N, Exit 13A, Elizabeth NJ 07201",
+        40.6640, -74.2107,
     ),
     (
-        "electrical",
-        "Flickering lights in living room and one dead outlet. Suspect wiring issue.",
-        "55 Journal Square, Jersey City NJ 07306",
-        40.7323, -74.0641,
-    ),
-    (
-        "locksmith",
-        "Locked out of apartment. Lost keys. Need access ASAP, any time works.",
-        "321 Hudson St, Hoboken NJ 07030",
-        40.7440, -74.0320,
-    ),
-    (
-        "hvac",
-        "Central AC making loud rattling noise and not cooling below 78F.",
-        "400 Commerce Dr, Woodbridge NJ 07095",
+        "flat_tyre",
+        "Flat tire on NJ Turnpike southbound near mile marker 110. Have no spare. Need help urgently.",
+        "NJ Turnpike SB, MM 110, Woodbridge NJ",
         40.5576, -74.2843,
     ),
     (
-        "carpentry",
-        "Front door frame broken — hinge bolts pulled from wall, door won't close.",
-        "78 Broad St, Elizabeth NJ 07201",
-        40.6637, -74.2107,
+        "battery",
+        "Car won't start in parking garage — clicking noise when turning key. Need jump-start or new battery.",
+        "Penn Station Parking, Newark NJ 07102",
+        40.7351, -74.1727,
     ),
     (
-        "cleaning",
-        "Post-construction deep clean needed. 3-bed apartment, heavy dust and debris.",
-        "220 Newark Ave, Jersey City NJ 07302",
-        40.7178, -74.0431,
+        "tow",
+        "Transmission failure, car stuck on Route 1 near Edison. Need tow to nearest garage.",
+        "Route 1 South, Edison NJ 08817",
+        40.5187, -74.4121,
     ),
     (
-        "mechanic",
-        "Car won't start in parking lot — clicking noise, think it's the battery.",
-        "1 Airline Dr, Newark NJ 07114",
-        40.6895, -74.1745,
+        "lockout",
+        "Locked keys inside car at Target parking lot. Baby seat visible inside — urgent!",
+        "Target, Journal Square, Jersey City NJ 07306",
+        40.7323, -74.0641,
+    ),
+    (
+        "fuel",
+        "Ran out of gas on Garden State Parkway southbound near Exit 127. Need fuel delivery.",
+        "GSP SB, Exit 127, Woodbridge NJ",
+        40.5700, -74.2900,
+    ),
+    (
+        "accident",
+        "Minor fender-bender on Route 9 — car still driveable but need help managing scene and filing report.",
+        "Route 9, Woodbridge NJ 07095",
+        40.5580, -74.2870,
     ),
 ]
 
 # Bid note templates per category
 BID_NOTES = {
-    "plumbing":   ["Will bring compression fittings and pipe tape. Fix in under 1h.", "Have all parts in van. Same-day fix guaranteed.", None],
-    "electrical": ["Licensed NJ electrician. Will diagnose and fix on the spot.", "Full inspection + repair. Bring panel tester.", None],
-    "locksmith":  ["Non-destructive entry, replace lock if needed. Always available.", "Can pick any residential lock. Bring new deadbolt just in case.", None],
-    "hvac":       ["Certified HVAC tech. Bring refrigerant and cleaning kit.", "Full diagnostic + repair. Most parts in stock.", None],
-    "carpentry":  ["Bring hardwood screws + new hinge set. 30min job.", "Can reinforce frame with metal plate for lasting fix.", None],
-    "cleaning":   ["Team of 2, industrial vacuum + HEPA filter mop.", "Post-construction specialist. Will bring all supplies.", None],
-    "mechanic":   ["Jump-start kit + multimeter. Can replace battery on-site.", "Will test alternator and starter. Have battery in truck.", None],
+    "breakdown":    ["Will bring full diagnostic kit + common spares. ETA as stated.", "Carry OBD scanner + spark plugs, belts, fuses. Most breakdowns fixed on-site.", None],
+    "flat_tyre":    ["Mobile tire service — carry multiple sizes. Swap in 20 min.", "Have patch kit + portable compressor + spare tires. Fast fix.", None],
+    "battery":      ["Carry AGM and lead-acid batteries for most makes. Jump-start or replace on-site.", "Bring 1000A booster + replacement batteries. Quick diagnosis too.", None],
+    "tow":          ["Flatbed truck available. Can tow any vehicle up to 8,000 lbs.", "Covered flatbed, no damage to your vehicle. Know all local garages.", None],
+    "lockout":      ["Slim jim + pick set for any door. Non-destructive entry in under 5 min.", "Certified locksmith. All vehicles, no damage. Available 24/7.", None],
+    "fuel":         ["Carry 5 gal of 87, 89, and 93 octane + diesel. Drop-off included.", "Emergency fuel truck. Always 10 gallons on board, any grade.", None],
+    "accident":     ["Will help document scene, call tow if needed, and assist with paperwork.", "Roadside incident management — scene safety, documentation, tow coordination.", None],
+    "diagnostics":  ["OBD-II scanner + smoke test + multimeter. Full report provided.", "ASE certified. Can diagnose check engine, ABS, airbag codes on-site.", None],
+    "other":        ["Experienced roadside tech — describe your issue and I'll tell you if I can help.", None],
 }
 
 # Fare config per category: base (USD cents) + per_km (cents) + per_min (cents), minimum
@@ -1006,12 +1008,17 @@ async def _seed_craft(
         selected_bid: CraftBid | None = None
 
         for j, pro in enumerate(RNG.sample(matching + professionals, min(n_bids, len(professionals)))):
-            # Price: $45–$150 range depending on category
+            # Price ranges in USD cents for automotive roadside interventions
             base_prices = {
-                "plumbing": (7500, 14000), "electrical": (8000, 15000),
-                "locksmith": (4500, 9500), "hvac": (10000, 20000),
-                "carpentry": (6000, 12000), "cleaning": (5000, 11000),
-                "mechanic": (5500, 9500), "other": (5000, 15000),
+                "breakdown":   (8000,  20000),   # $80–$200 on-site repair
+                "flat_tyre":   (4500,  9500),    # $45–$95 tire change/patch
+                "tow":         (9500,  25000),   # $95–$250 towing
+                "fuel":        (3500,  7000),    # $35–$70 fuel delivery
+                "lockout":     (4500,  9000),    # $45–$90 lockout service
+                "battery":     (5500,  14000),   # $55–$140 jump-start or replacement
+                "accident":    (12000, 30000),   # $120–$300 scene management + tow
+                "diagnostics": (7000,  15000),   # $70–$150 on-site diagnostics
+                "other":       (5000,  15000),   # $50–$150 misc
             }
             lo, hi = base_prices.get(category, (5000, 15000))
             price_cents = RNG.randrange(lo, hi, 500)
@@ -1151,9 +1158,9 @@ Login accounts (password: ziza2024)
   professional@ziza.dev  -> mobile-craft  (Sprint 47)
 
 Seed professionals (mobile-craft login)
-  pr01@seed.ziza.dev  Alice Thompson   — plumbing, electrical
-  pr02@seed.ziza.dev  Carlos Rivera    — locksmith, carpentry, hvac
-  pr03@seed.ziza.dev  Diana Chen       — electrical, cleaning, painting
+  pr01@seed.ziza.dev  Marcus Williams  — breakdown, battery, diagnostics
+  pr02@seed.ziza.dev  Carlos Rivera    — tow, accident, flat_tyre
+  pr03@seed.ziza.dev  Diana Chen       — fuel, lockout, flat_tyre, battery
 
 Generated data
   - 1 city         : Newark, NJ (3 service zones)

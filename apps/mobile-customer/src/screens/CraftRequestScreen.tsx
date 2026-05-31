@@ -25,6 +25,18 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { createCraftRequest, CRAFT_CATEGORIES } from "../api";
+
+const CAT_LABELS: Record<string, string> = {
+  breakdown:   "🔧 Breakdown",
+  flat_tyre:   "🔴 Flat Tire",
+  tow:         "🚛 Towing",
+  fuel:        "⛽ Out of Fuel",
+  lockout:     "🔑 Lockout",
+  battery:     "🔋 Dead Battery",
+  accident:    "🚨 Post-Accident",
+  diagnostics: "🔍 Diagnostics",
+  other:       "🛠️ Other",
+};
 import { useAuth } from "../context/AuthContext";
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "CraftRequest">;
@@ -99,11 +111,11 @@ export default function CraftRequestScreen(): React.ReactElement {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Request a Professional</Text>
-      <Text style={styles.subtitle}>Sprint 47 — Ziza Craft</Text>
+      <Text style={styles.title}>Request Roadside Help</Text>
+      <Text style={styles.subtitle}>Sprint 47 — Ziza Craft · Automotive assistance</Text>
 
       {/* Category picker */}
-      <Text style={styles.label}>Service Category</Text>
+      <Text style={styles.label}>Type of Assistance</Text>
       <View style={styles.categories}>
         {CRAFT_CATEGORIES.map((cat) => (
           <TouchableOpacity
@@ -112,7 +124,7 @@ export default function CraftRequestScreen(): React.ReactElement {
             onPress={() => setCategory(cat)}
           >
             <Text style={[styles.catChipText, category === cat && styles.catChipTextSelected]}>
-              {cat}
+              {CAT_LABELS[cat] ?? cat}
             </Text>
           </TouchableOpacity>
         ))}
@@ -124,7 +136,7 @@ export default function CraftRequestScreen(): React.ReactElement {
         style={[styles.input, styles.multiline]}
         value={description}
         onChangeText={setDescription}
-        placeholder="e.g. Leaking faucet in kitchen, need urgent repair..."
+        placeholder="e.g. Car won't start, clicking noise when turning key..."
         multiline
         numberOfLines={4}
       />

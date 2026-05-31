@@ -23,15 +23,15 @@ from app.db import Base
 
 
 CRAFT_CATEGORIES = [
-    "plumbing",
-    "electrical",
-    "locksmith",
-    "mechanic",
-    "carpentry",
-    "painting",
-    "cleaning",
-    "hvac",
-    "other",
+    "breakdown",    # General breakdown / car won't start
+    "flat_tyre",    # Flat or punctured tire
+    "tow",          # Towing to garage or safe location
+    "fuel",         # Out of fuel — emergency delivery
+    "lockout",      # Keys locked inside the vehicle
+    "battery",      # Dead battery — jump-start or replacement
+    "accident",     # Post-accident assistance / scene management
+    "diagnostics",  # On-site electronic/OBD diagnostics
+    "other",        # Any other vehicle intervention
 ]
 
 

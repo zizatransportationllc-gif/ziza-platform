@@ -13,7 +13,19 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { registerProfessional, updateProfessionalProfile, CRAFT_CATEGORIES, formatUSD } from "../api";
+import { registerProfessional, updateProfessionalProfile, CRAFT_CATEGORIES } from "../api";
+
+const CAT_LABELS: Record<string, string> = {
+  breakdown:   "🔧 Breakdown",
+  flat_tyre:   "🔴 Flat Tire",
+  tow:         "🚛 Towing",
+  fuel:        "⛽ Out of Fuel",
+  lockout:     "🔑 Lockout",
+  battery:     "🔋 Dead Battery",
+  accident:    "🚨 Post-Accident",
+  diagnostics: "🔍 Diagnostics",
+  other:       "🛠️ Other",
+};
 import { useAuth } from "../context/AuthContext";
 
 export default function ProfileScreen(): React.ReactElement {
@@ -96,7 +108,7 @@ export default function ProfileScreen(): React.ReactElement {
         </View>
       )}
 
-      <Text style={styles.sectionTitle}>Specialties</Text>
+      <Text style={styles.sectionTitle}>My Specialties</Text>
       <View style={styles.categories}>
         {CRAFT_CATEGORIES.map((cat) => (
           <TouchableOpacity
@@ -105,7 +117,7 @@ export default function ProfileScreen(): React.ReactElement {
             onPress={() => toggleSpecialty(cat)}
           >
             <Text style={[styles.catChipText, specialties.has(cat) && styles.catChipTextSelected]}>
-              {cat}
+              {CAT_LABELS[cat] ?? cat}
             </Text>
           </TouchableOpacity>
         ))}

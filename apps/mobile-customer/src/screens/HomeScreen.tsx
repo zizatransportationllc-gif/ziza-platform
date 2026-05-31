@@ -183,10 +183,10 @@ export default function HomeScreen(): React.ReactElement {
 
       {/* Sprint 47 — Ziza Craft entry point */}
       <View style={styles.craftCard}>
-        <Text style={styles.craftTitle}>🔧 Ziza Craft</Text>
+        <Text style={styles.craftTitle}>🚗 Ziza Craft — Roadside Help</Text>
         <Text style={styles.craftSubtitle}>
-          Need a plumber, electrician, locksmith or other professional?
-          Post a request and receive competing bids.
+          Breakdown, flat tire, towing, lockout, battery…
+          Post your situation and professionals bid to assist you.
         </Text>
         <View style={styles.craftButtons}>
           <TouchableOpacity
