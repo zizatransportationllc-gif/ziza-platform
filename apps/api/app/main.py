@@ -3535,9 +3535,10 @@ async def craft_register_professional(
     """Any authenticated user can register as a professional.
     Idempotent — returns existing profile if already registered.
     """
+    user_db_id = await crud.get_user_db_id(db, claims.user_id)
     data = await crud.register_professional(
         db,
-        user_id=uuid.UUID(claims.sub),
+        user_id=user_db_id,
         specialties=body.specialties,
         bio=body.bio,
     )
@@ -3553,7 +3554,8 @@ async def craft_get_my_professional(
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ProfessionalResponse:
-    prof = await crud.get_professional_by_user(db, uuid.UUID(claims.sub))
+    user_db_id = await crud.get_user_db_id(db, claims.user_id)
+    prof = await crud.get_professional_by_user(db, user_db_id)
     if prof is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Professional profile not found.")
     from app.crud import _professional_to_dict
@@ -3570,9 +3572,10 @@ async def craft_update_professional(
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ProfessionalResponse:
+    user_db_id = await crud.get_user_db_id(db, claims.user_id)
     data = await crud.update_professional(
         db,
-        user_id=uuid.UUID(claims.sub),
+        user_id=user_db_id,
         specialties=body.specialties,
         bio=body.bio,
         is_online=body.is_online,
@@ -3599,9 +3602,10 @@ async def craft_create_request(
     db: AsyncSession = Depends(get_db),
 ) -> CraftRequestResponse:
     """Authenticated customer posts a request. Bidding window opens immediately."""
+    customer_db_id = await crud.get_user_db_id(db, claims.user_id)
     data = await crud.create_craft_request(
         db,
-        customer_id=uuid.UUID(claims.sub),
+        customer_id=customer_db_id,
         category=body.category,
         description=body.description,
         lat=body.lat,
@@ -3641,8 +3645,9 @@ async def craft_list_my_requests(
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[CraftRequestResponse]:
+    customer_db_id = await crud.get_user_db_id(db, claims.user_id)
     items = await crud.list_customer_craft_requests(
-        db, customer_id=uuid.UUID(claims.sub), limit=limit, offset=offset
+        db, customer_id=customer_db_id, limit=limit, offset=offset
     )
     return [CraftRequestResponse(**d) for d in items]
 
@@ -3681,7 +3686,8 @@ async def craft_cancel_request(
     except ValueError:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid UUID")
     is_admin = claims.role == "admin"
-    data = await crud.cancel_craft_request(db, rid, uuid.UUID(claims.sub), is_admin=is_admin)
+    user_db_id = await crud.get_user_db_id(db, claims.user_id)
+    data = await crud.cancel_craft_request(db, rid, user_db_id, is_admin=is_admin)
     return CraftRequestResponse(**data)
 
 
@@ -3707,7 +3713,8 @@ async def craft_create_bid(
         rid = uuid.UUID(request_id)
     except ValueError:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid UUID")
-    prof = await crud.get_professional_by_user(db, uuid.UUID(claims.sub))
+    user_db_id = await crud.get_user_db_id(db, claims.user_id)
+    prof = await crud.get_professional_by_user(db, user_db_id)
     if prof is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -3765,8 +3772,9 @@ async def craft_select_bid(
         bid_id = uuid.UUID(body.bid_id)
     except ValueError:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid UUID")
+    customer_db_id = await crud.get_user_db_id(db, claims.user_id)
     data = await crud.select_craft_bid(
-        db, request_id=rid, bid_id=bid_id, customer_id=uuid.UUID(claims.sub)
+        db, request_id=rid, bid_id=bid_id, customer_id=customer_db_id
     )
     return CraftRequestResponse(**data)
 
@@ -3787,7 +3795,8 @@ async def craft_list_my_bids(
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[CraftBidResponse]:
-    prof = await crud.get_professional_by_user(db, uuid.UUID(claims.sub))
+    user_db_id = await crud.get_user_db_id(db, claims.user_id)
+    prof = await crud.get_professional_by_user(db, user_db_id)
     if prof is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Professional profile not found.")
     items = await crud.list_professional_bids(db, prof.id, limit=limit, offset=offset)

@@ -3952,6 +3952,21 @@ async def set_service_flags(db: AsyncSession, updates: dict[str, bool]) -> dict[
 from app.models.craft import CraftBid, CraftRequest, Professional  # noqa: E402
 
 
+async def get_user_db_id(db: AsyncSession, auth_user_id: str) -> uuid.UUID:
+    """Resolve an auth_user_id string to the user's DB primary-key UUID.
+
+    Raises HTTP 404 if the user has not yet called POST /v1/auth/register.
+    Use this instead of uuid.UUID(claims.sub) — Claims has no ``sub`` field.
+    """
+    user = await _get_user_by_auth_id(db, auth_user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found — call POST /v1/auth/register first",
+        )
+    return user.id
+
+
 def _professional_to_dict(p: Professional) -> dict:
     return {
         "professional_id": str(p.id),

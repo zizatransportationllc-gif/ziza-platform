@@ -1627,21 +1627,38 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");
   const [address, setAddress] = useState("");
-  const [bidMinutes, setBidMinutes] = useState("30");
   const [locating, setLocating] = useState(false);
+  const [gpsLabel, setGpsLabel] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  async function handleGPS() {
-    if (!navigator.geolocation) { setError("Geolocation not available in this browser."); return; }
-    setLocating(true); setError(null);
+  // Auto-detect GPS silently when the form mounts
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    setLocating(true);
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         setLat(coords.latitude.toFixed(5));
         setLng(coords.longitude.toFixed(5));
+        setGpsLabel("✓ GPS position detected");
         setLocating(false);
       },
-      () => { setError("Unable to get GPS position."); setLocating(false); },
+      () => { setLocating(false); }, // silent failure — defaults used
+      { timeout: 8000 },
+    );
+  }, []);
+
+  function handleGPS() {
+    if (!navigator.geolocation) { setError("Geolocation not available in this browser."); return; }
+    setLocating(true); setError(null); setGpsLabel("");
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setLat(coords.latitude.toFixed(5));
+        setLng(coords.longitude.toFixed(5));
+        setGpsLabel("✓ GPS position updated");
+        setLocating(false);
+      },
+      () => { setError("Unable to get GPS position. You can still submit — a default location will be used."); setLocating(false); },
       { timeout: 10000 },
     );
   }
@@ -1657,7 +1674,7 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
         lat: parseFloat(lat) || 40.7357,
         lng: parseFloat(lng) || -74.1724,
         address: address.trim() || null,
-        bid_deadline_minutes: parseInt(bidMinutes, 10) || 30,
+        bid_deadline_minutes: 30,
       });
       onCreated(req);
     } catch (err) { setError(err.message); }
@@ -1703,35 +1720,9 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
           />
         </div>
 
-        {/* Location */}
-        <div className="craft-field">
-          <span className="craft-label">Your location</span>
-          <button type="button" className="craft-gps-btn" onClick={handleGPS} disabled={locating}>
-            {locating ? "⏳ Getting location…" : "📍 Use my GPS location"}
-          </button>
-          <div className="craft-coord-row">
-            <input
-              className="craft-coord-input"
-              type="number"
-              step="0.00001"
-              placeholder="Latitude (e.g. 40.7357)"
-              value={lat}
-              onChange={(e) => setLat(e.target.value)}
-            />
-            <input
-              className="craft-coord-input"
-              type="number"
-              step="0.00001"
-              placeholder="Longitude (e.g. -74.1724)"
-              value={lng}
-              onChange={(e) => setLng(e.target.value)}
-            />
-          </div>
-        </div>
-
         {/* Address */}
         <div className="craft-field">
-          <span className="craft-label">Address (optional)</span>
+          <span className="craft-label">Your address</span>
           <input
             className="craft-input"
             type="text"
@@ -1742,17 +1733,13 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
           />
         </div>
 
-        {/* Bidding window */}
+        {/* GPS location (button only — no manual lat/lng inputs) */}
         <div className="craft-field">
-          <span className="craft-label">Bidding window (minutes)</span>
-          <input
-            className="craft-input"
-            type="number"
-            min="5"
-            max="120"
-            value={bidMinutes}
-            onChange={(e) => setBidMinutes(e.target.value)}
-          />
+          <span className="craft-label">GPS location (optional)</span>
+          <button type="button" className="craft-gps-btn" onClick={handleGPS} disabled={locating}>
+            {locating ? "⏳ Detecting…" : "📍 Refresh GPS"}
+          </button>
+          {gpsLabel && <p className="craft-gps-ok">{gpsLabel}</p>}
         </div>
 
         {error && <p className="form-error">{error}</p>}

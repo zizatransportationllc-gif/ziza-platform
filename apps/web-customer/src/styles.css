@@ -514,6 +514,7 @@ html, body {
 .craft-textarea:focus { border-color: #f97316; }
 .craft-gps-btn { background: color-mix(in srgb, #f97316 8%, transparent); border: 1px solid color-mix(in srgb, #f97316 40%, transparent); color: #f97316; border-radius: var(--radius-md); padding: var(--space-2) var(--space-4); font-size: 0.88rem; font-weight: 600; cursor: pointer; align-self: flex-start; }
 .craft-gps-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.craft-gps-ok { font-size: 0.82rem; color: var(--color-success); margin-top: var(--space-1); }
 .craft-coord-row { display: flex; gap: var(--space-2); }
 .craft-coord-input { flex: 1; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--color-fg); font-size: 0.88rem; outline: none; }
 .craft-coord-input:focus { border-color: #f97316; }
