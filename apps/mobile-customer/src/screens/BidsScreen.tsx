@@ -21,8 +21,8 @@ import {
   Alert,
   RefreshControl,
 } from "react-native";
-import { useRoute, useNavigation } from "@react-navigation/native";
-import { NativeStackRouteProp, NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import {
   getBidsForRequest,
@@ -33,7 +33,7 @@ import {
 } from "../api";
 import { useAuth } from "../context/AuthContext";
 
-type RouteProps = NativeStackRouteProp<RootStackParamList, "Bids">;
+type RouteProps = RouteProp<RootStackParamList, "Bids">;
 type NavProp = NativeStackNavigationProp<RootStackParamList, "Bids">;
 
 function formatUSD(cents: number): string {

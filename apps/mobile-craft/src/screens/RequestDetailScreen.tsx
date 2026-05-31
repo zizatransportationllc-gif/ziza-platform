@@ -19,8 +19,8 @@ import {
   Alert,
 } from "react-native";
 import * as Location from "expo-location";
-import { useRoute, useNavigation } from "@react-navigation/native";
-import { NativeStackNavigationProp, NativeStackRouteProp } from "@react-navigation/native-stack";
+import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import {
   getCraftRequest,
@@ -30,7 +30,7 @@ import {
 } from "../api";
 import { useAuth } from "../context/AuthContext";
 
-type RouteProps = NativeStackRouteProp<RootStackParamList, "RequestDetail">;
+type RouteProps = RouteProp<RootStackParamList, "RequestDetail">;
 type NavProp = NativeStackNavigationProp<RootStackParamList, "RequestDetail">;
 
 export default function RequestDetailScreen(): React.ReactElement {
