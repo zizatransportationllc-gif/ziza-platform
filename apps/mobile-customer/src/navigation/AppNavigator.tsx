@@ -11,7 +11,6 @@ import HomeScreen from "../screens/HomeScreen";
 import TrackingScreen from "../screens/TrackingScreen";
 import PaymentScreen from "../screens/PaymentScreen";
 import HistoryScreen from "../screens/HistoryScreen";
-import AssistanceScreen from "../screens/AssistanceScreen";
 import PlacesScreen from "../screens/PlacesScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
@@ -25,7 +24,6 @@ export type RootStackParamList = {
   Tracking: { tripId: string };
   Payment: { tripId: string; checkoutUrl: string };
   History: undefined;
-  Assistance: undefined;
   Places: { onSelect: (place: { lat: number; lng: number; name: string }) => void };
   Profile: undefined;
   Notifications: undefined;
@@ -54,7 +52,6 @@ export default function AppNavigator({
             <Stack.Screen name="Tracking" component={TrackingScreen} options={{ title: "Live Tracking" }} />
             <Stack.Screen name="Payment" component={PaymentScreen} options={{ title: "Payment" }} />
             <Stack.Screen name="History" component={HistoryScreen} options={{ title: "My Trips" }} />
-            <Stack.Screen name="Assistance" component={AssistanceScreen} options={{ title: "Assistance" }} />
             <Stack.Screen name="Places" component={PlacesScreen} options={{ title: "Search Location" }} />
             <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: "Profile" }} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: "Notifications" }} />

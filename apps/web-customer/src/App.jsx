@@ -13,6 +13,7 @@ import {
   searchPlaces, // Sprint 43
   checkPointInService, // Sprint 45
   createCraftRequest, getMyCraftRequests, getCraftRequestBids, selectCraftBid, cancelCraftRequest, // Sprint 48
+  // Note: createAssistanceRequest / getAssistanceRequest / cancelAssistanceRequest kept in api.js but not used (Assistance tab removed Sprint 48)
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 import { EstimateMap, TripMap } from "./TripMap";
@@ -2082,8 +2083,7 @@ function CraftSection({ token }) {
 
 function Dashboard({ user, token, onLogout }) {
   const [activeTrip, setActiveTrip] = useState(null);
-  const [activeAssistance, setActiveAssistance] = useState(null);
-  const [mode, setMode] = useState("ride"); // "ride" | "assistance" | "craft" | "trips" | "history" | "notifications" | "profile" | "places" | "apply" | "wallet"
+  const [mode, setMode] = useState("ride"); // "ride" | "craft" | "trips" | "profile" | "notifications" | "places" | "apply" | "wallet"
   const [unreadCount, setUnreadCount] = useState(0);
 
   const refreshUnread = useCallback(() => {
@@ -2094,9 +2094,8 @@ function Dashboard({ user, token, onLogout }) {
   useEffect(() => { refreshUnread(); }, [mode, refreshUnread]);
 
   // Derive which main section to show
-  const showBooking    = activeTrip && !TERMINAL_STATUSES.has(activeTrip.status);
-  const showAssistCard = !showBooking && activeAssistance && !ASSISTANCE_TERMINAL.has(activeAssistance.status);
-  const showTabs       = !showBooking && !showAssistCard;
+  const showBooking = activeTrip && !TERMINAL_STATUSES.has(activeTrip.status);
+  const showTabs    = !showBooking;
 
   return (
     <div className="app">
@@ -2125,15 +2124,6 @@ function Dashboard({ user, token, onLogout }) {
         />
       )}
 
-      {showAssistCard && (
-        <AssistanceStatusCard
-          token={token}
-          request={activeAssistance}
-          onRequestUpdate={setActiveAssistance}
-          onNewRequest={() => setActiveAssistance(null)}
-        />
-      )}
-
       {showTabs && (
         <>
           <div className="mode-tabs">
@@ -2142,12 +2132,6 @@ function Dashboard({ user, token, onLogout }) {
               onClick={() => setMode("ride")}
             >
               🚕 Ride
-            </button>
-            <button
-              className={`mode-tab ${mode === "assistance" ? "active" : ""}`}
-              onClick={() => setMode("assistance")}
-            >
-              🆘 Assistance
             </button>
             <button
               className={`mode-tab ${mode === "craft" ? "active" : ""}`}
@@ -2160,12 +2144,6 @@ function Dashboard({ user, token, onLogout }) {
               onClick={() => setMode("trips")}
             >
               📜 My Trips
-            </button>
-            <button
-              className={`mode-tab ${mode === "history" ? "active" : ""}`}
-              onClick={() => setMode("history")}
-            >
-              📋 History
             </button>
             <button
               className={`mode-tab ${mode === "profile" ? "active" : ""}`}
@@ -2201,20 +2179,11 @@ function Dashboard({ user, token, onLogout }) {
           {mode === "ride" && (
             <EstimateSection token={token} onTripCreated={setActiveTrip} />
           )}
-          {mode === "assistance" && (
-            <AssistanceSection token={token} onRequestCreated={setActiveAssistance} />
-          )}
           {mode === "craft" && <CraftSection token={token} />}
           {mode === "trips" && (
             <div className="history-section">
               <h2 className="estimate-title">My Trips</h2>
               <TripHistory token={token} />
-            </div>
-          )}
-          {mode === "history" && (
-            <div className="history-section">
-              <h2 className="estimate-title">My Assistance Requests</h2>
-              <AssistanceHistory token={token} />
             </div>
           )}
           {mode === "profile" && <ProfileSection token={token} />}
