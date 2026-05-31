@@ -24,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [api, web-customer, web-driver, web-admin, web-landing]
+        app: [api, web-customer, web-driver, web-admin, web-landing, web-craft]
     outputs:
       image_tag: ${{ steps.tag.outputs.tag }}
     steps:
@@ -53,6 +53,8 @@ jobs:
 
           if [ "${{ matrix.app }}" = "web-customer" ] || [ "${{ matrix.app }}" = "web-driver" ] || [ "${{ matrix.app }}" = "web-admin" ]; then
             BUILD_ARGS="--build-arg VITE_API_URL=${{ vars.ZIZA_API_URL }} --build-arg VITE_MAPBOX_TOKEN=${{ vars.VITE_MAPBOX_TOKEN }}"
+          elif [ "${{ matrix.app }}" = "web-craft" ]; then
+            BUILD_ARGS="--build-arg VITE_API_URL=${{ vars.ZIZA_API_URL }}"
           else
             BUILD_ARGS=""
           fi
@@ -126,7 +128,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [api, web-customer, web-driver, web-admin, web-landing]
+        app: [api, web-customer, web-driver, web-admin, web-landing, web-craft]
     steps:
       - uses: actions/checkout@v4
 
