@@ -151,10 +151,20 @@ if settings.africas_talking_api_key:
     ))
 
 # Middleware order: CORSMiddleware first (outermost), then rate limiter, then logging
+# In dev/staging, allow all origins so every newly-deployed frontend (e.g.
+# ziza-web-craft) works without having to update the CORS whitelist.
+# In production, only the explicitly listed origins are allowed.
+if settings.environment == "prod":
+    _cors_origins: list[str] = settings.cors_origins
+    _cors_credentials: bool = True
+else:
+    _cors_origins = ["*"]
+    _cors_credentials = False  # required by CORS spec when allow_origins="*"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=_cors_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
