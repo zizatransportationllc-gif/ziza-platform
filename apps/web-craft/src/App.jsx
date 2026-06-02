@@ -26,6 +26,20 @@ const CATEGORY_LABELS = {
   other:       "🛠️ Other",
 };
 
+// Skills available to professionals — identical to customer problem categories
+// so a customer's request always finds a professional with the right skill.
+const ALL_SKILLS = [
+  { key: "breakdown",   label: "🔧 Breakdown",    desc: "Car won't start / general breakdown" },
+  { key: "flat_tyre",   label: "🔴 Flat Tire",     desc: "Punctured or flat tire replacement" },
+  { key: "tow",         label: "🚛 Tow Truck",     desc: "Towing to a garage or safe location" },
+  { key: "fuel",        label: "⛽ Out of Fuel",   desc: "Emergency fuel delivery" },
+  { key: "lockout",     label: "🔑 Lockout",       desc: "Keys locked inside the vehicle" },
+  { key: "battery",     label: "🔋 Battery",       desc: "Jump-start or battery replacement" },
+  { key: "accident",    label: "🚨 Accident",      desc: "Post-accident assistance & scene management" },
+  { key: "diagnostics", label: "🔍 Diagnostics",   desc: "Electronic / OBD on-site diagnostics" },
+  { key: "other",       label: "🛠️ Other",        desc: "Any other vehicle intervention" },
+];
+
 const BID_STATUS_LABELS = {
   pending:  "⏳ Pending",
   accepted: "✅ Accepted",
@@ -389,20 +403,20 @@ function MyBidsSection({ token }) {
 // ---------------------------------------------------------------------------
 
 function ProfileSection({ token, profile, onProfileUpdated }) {
-  const [specialties, setSpecialties] = useState(profile?.specialties ?? "");
   const [bio, setBio] = useState(profile?.bio ?? "");
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState(null);
 
+  // Show current skills as a read-only summary
+  const currentSkills = (profile?.specialties ?? "")
+    .split(",").map(s => s.trim()).filter(Boolean);
+
   async function handleSave(e) {
     e.preventDefault();
     setSaving(true); setError(null); setSuccess(false);
     try {
-      const updated = await updateMyProfile(token, {
-        specialties: specialties.trim(),
-        bio: bio.trim() || null,
-      });
+      const updated = await updateMyProfile(token, { bio: bio.trim() || null });
       onProfileUpdated(updated);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
@@ -414,14 +428,15 @@ function ProfileSection({ token, profile, onProfileUpdated }) {
     <div>
       <div className="profile-card">
         <h3>👤 My Profile</h3>
+        {currentSkills.length > 0 && (
+          <div className="profile-skills-summary">
+            <span className="profile-skills-label">Skills:</span>
+            {currentSkills.map(k => (
+              <span key={k} className="skill-badge">{CATEGORY_LABELS[k] ?? k}</span>
+            ))}
+          </div>
+        )}
         <form className="profile-form" onSubmit={handleSave}>
-          <label>Specialties</label>
-          <input
-            type="text"
-            placeholder="e.g. breakdown, flat_tyre, battery"
-            value={specialties}
-            onChange={(e) => setSpecialties(e.target.value)}
-          />
           <label>Bio (optional)</label>
           <textarea
             placeholder="Short description of your experience…"
@@ -431,11 +446,94 @@ function ProfileSection({ token, profile, onProfileUpdated }) {
           />
           {error && <p className="form-error">{error}</p>}
           <button className="profile-save-btn" type="submit" disabled={saving}>
-            {saving ? "Saving…" : "✓ Save Profile"}
+            {saving ? "Saving…" : "✓ Save Bio"}
           </button>
           {success && <p className="profile-success">✓ Profile updated!</p>}
         </form>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Skills section — Sprint 50
+// ---------------------------------------------------------------------------
+
+function parseSkills(specialties) {
+  return new Set((specialties ?? "").split(",").map(s => s.trim()).filter(Boolean));
+}
+
+function SkillsSection({ token, profile, onProfileUpdated }) {
+  const [selected, setSelected] = useState(() => parseSkills(profile?.specialties));
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Sync when the parent profile changes (e.g. after save)
+  useEffect(() => {
+    setSelected(parseSkills(profile?.specialties));
+  }, [profile?.specialties]);
+
+  function toggleSkill(key) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  async function handleSave(e) {
+    e.preventDefault();
+    setSaving(true); setError(null); setSuccess(false);
+    try {
+      const specialties = [...selected].join(",");
+      const updated = await updateMyProfile(token, { specialties });
+      onProfileUpdated(updated);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err) { setError(err.message); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <div className="skills-section">
+      <h3>🎯 My Skills</h3>
+      <p className="skills-hint">
+        Check every type of problem you can handle. These categories match exactly
+        what customers select when they request help — so only matching professionals
+        receive the request.
+      </p>
+      <form onSubmit={handleSave}>
+        <div className="skills-grid">
+          {ALL_SKILLS.map(({ key, label, desc }) => (
+            <label key={key} className={`skill-item${selected.has(key) ? " selected" : ""}`}>
+              <input
+                type="checkbox"
+                className="skill-checkbox"
+                checked={selected.has(key)}
+                onChange={() => toggleSkill(key)}
+              />
+              <span className="skill-label">{label}</span>
+              <span className="skill-desc">{desc}</span>
+            </label>
+          ))}
+        </div>
+        {error && <p className="form-error">{error}</p>}
+        {selected.size === 0 && (
+          <p className="skills-warning">Select at least one skill before saving.</p>
+        )}
+        <button
+          className="skills-save-btn"
+          type="submit"
+          disabled={saving || selected.size === 0}
+        >
+          {saving
+            ? "Saving…"
+            : `✓ Save Skills${selected.size > 0 ? ` (${selected.size} selected)` : ""}`}
+        </button>
+        {success && <p className="profile-success">✓ Skills updated!</p>}
+      </form>
     </div>
   );
 }
@@ -707,6 +805,12 @@ function Dashboard({ user, token, onLogout }) {
           👤 Profile
         </button>
         <button
+          className={`craft-tab ${tab === "skills" ? "active" : ""}`}
+          onClick={() => setTab("skills")}
+        >
+          🎯 Skills
+        </button>
+        <button
           className={`craft-tab ${tab === "documents" ? "active" : ""}`}
           onClick={() => setTab("documents")}
         >
@@ -723,10 +827,11 @@ function Dashboard({ user, token, onLogout }) {
       {tab === "requests"      && <OpenRequestsSection token={token} isOnline={isOnline} />}
       {tab === "bids"          && <MyBidsSection token={token} />}
       {tab === "profile"       && <ProfileSection token={token} profile={profile} onProfileUpdated={(p) => { setProfile(p); setIsOnline(p.is_online); }} />}
+      {tab === "skills"        && <SkillsSection token={token} profile={profile} onProfileUpdated={(p) => { setProfile(p); }} />}
       {tab === "documents"     && <DocumentsSection token={token} />}
       {tab === "notifications" && <NotificationsSection token={token} onRead={refreshUnread} />}
 
-      <p className="footer">App: <strong>web-craft</strong> · Sprint 48</p>
+      <p className="footer">App: <strong>web-craft</strong> · Sprint 50</p>
     </div>
   );
 }
