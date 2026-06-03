@@ -6,8 +6,8 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --primary:   #dc2626;
-  --primary-d: #b91c1c;
+  --primary:   #E61010;
+  --primary-d: #c20d0d;
   --dark:      #0f172a;
   --mid:       #334155;
   --light:     #f8fafc;
@@ -50,7 +50,7 @@ a { text-decoration: none; color: inherit; }
   border: none;
 }
 .btn-primary  { background: var(--primary); color: #fff; }
-.btn-primary:hover { background: var(--primary-d); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(220,38,38,.35); }
+.btn-primary:hover { background: var(--primary-d); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(230,16,16,.35); }
 .btn-outline  { background: transparent; color: var(--primary); border: 2px solid var(--primary); }
 .btn-outline:hover { background: var(--primary); color: #fff; }
 .btn-lg { padding: 14px 28px; font-size: 1rem; }
@@ -285,7 +285,7 @@ a { text-decoration: none; color: inherit; }
 }
 .admin-modal-box input:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(220,38,38,.15);
+  box-shadow: 0 0 0 3px rgba(230,16,16,.15);
 }
 .admin-error {
   background: #fef2f2;
