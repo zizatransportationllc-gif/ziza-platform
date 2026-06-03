@@ -1,6 +1,6 @@
 /**
  * LoginScreen — email/password authentication.
- * Sprint 40 — passes refresh token to AuthContext for persistent sessions.
+ * Sprint 52 — Ziza Customer logo.
  */
 import React, { useState } from "react";
 import {
@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { login as apiLogin } from "../api";
 import { useAuth } from "../context/AuthContext";
+import ZizaCustomerLogo from "../components/ZizaCustomerLogo";
 
 export default function LoginScreen(): React.ReactElement {
   const { login } = useAuth();
@@ -41,8 +42,10 @@ export default function LoginScreen(): React.ReactElement {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <Text style={styles.title}>Ziza Customer</Text>
-      <Text style={styles.subtitle}>Sprint 40 — Mobile App</Text>
+      <View style={styles.logoWrapper}>
+        <ZizaCustomerLogo size={96} />
+      </View>
+      <Text style={styles.subtitle}>Sprint 52 — Logo</Text>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <TextInput
         style={styles.input}
@@ -81,7 +84,7 @@ const styles = StyleSheet.create({
     padding: 24,
     backgroundColor: "#fff",
   },
-  title: { fontSize: 28, fontWeight: "bold", textAlign: "center", marginBottom: 4 },
+  logoWrapper: { alignItems: "center", marginBottom: 12 },
   subtitle: { fontSize: 14, color: "#888", textAlign: "center", marginBottom: 24 },
   input: {
     borderWidth: 1,

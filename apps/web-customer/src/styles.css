@@ -23,6 +23,14 @@ html, body {
   text-align: center;
 }
 
+.app-logo {
+  width: 96px;
+  height: 96px;
+  border-radius: 20px;
+  margin: 0 auto var(--space-4);
+  display: block;
+}
+
 .app h1 {
   color: var(--color-accent);
   font-size: clamp(1.75rem, 4vw, 2.5rem);

@@ -70,8 +70,8 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
 
   return (
     <div className="app">
-      <h1>Ziza Customer</h1>
-      <p className="subtitle">Sprint 49 — Account Creation</p>
+      <img src="/logo-customer.svg" alt="Ziza Customer" className="app-logo" />
+      <p className="subtitle">Sprint 52 — Logo</p>
       <div className="auth-tabs">
         <button className={`auth-tab${tab === "signin" ? " active" : ""}`} onClick={() => setTab("signin")}>Sign In</button>
         <button className={`auth-tab${tab === "signup" ? " active" : ""}`} onClick={() => setTab("signup")}>Create Account</button>
