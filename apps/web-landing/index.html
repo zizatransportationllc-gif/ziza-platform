@@ -26,8 +26,8 @@
   <section class="hero">
     <div class="container hero-inner">
       <div class="hero-text">
-        <h1 class="hero-title">Urban mobility<br /><span class="highlight">reimagined for New Jersey</span></h1>
-        <p class="hero-sub">Ziza connects thousands of riders and drivers across Newark, Jersey City, Hoboken, and all of New Jersey. Fast, reliable, and safe.</p>
+        <h1 class="hero-title" data-editable="hero-title">Urban mobility<br /><span class="highlight">reimagined for New Jersey</span></h1>
+        <p class="hero-sub" data-editable="hero-sub">Ziza connects thousands of riders and drivers across Newark, Jersey City, Hoboken, and all of New Jersey. Fast, reliable, and safe.</p>
         <div class="hero-cta">
           <a href="#" class="btn btn-primary btn-lg" id="hero-take-ride">🚕 Take a Ride</a>
           <a href="#" class="btn btn-outline btn-lg" id="hero-become-driver">🚗 Become a Driver</a>
@@ -72,33 +72,33 @@
       <div class="features-grid">
         <div class="feature-card">
           <div class="feature-icon">⚡</div>
-          <h3>Fast &amp; reliable</h3>
-          <p>Find a driver in under 3 minutes, anywhere in New Jersey.</p>
+          <h3 data-editable="feat-0-title">Fast &amp; reliable</h3>
+          <p data-editable="feat-0-desc">Find a driver in under 3 minutes, anywhere in New Jersey.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">🔒</div>
-          <h3>Safe &amp; verified</h3>
-          <p>All drivers are background-checked. Share your trip with loved ones.</p>
+          <h3 data-editable="feat-1-title">Safe &amp; verified</h3>
+          <p data-editable="feat-1-desc">All drivers are background-checked. Share your trip with loved ones.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">💳</div>
-          <h3>Easy payments</h3>
-          <p>Pay with Apple Pay, Google Pay, or credit / debit card. No friction.</p>
+          <h3 data-editable="feat-2-title">Easy payments</h3>
+          <p data-editable="feat-2-desc">Pay with Apple Pay, Google Pay, or credit / debit card. No friction.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">🗺️</div>
-          <h3>Live tracking</h3>
-          <p>Follow your ride minute by minute on the interactive map.</p>
+          <h3 data-editable="feat-3-title">Live tracking</h3>
+          <p data-editable="feat-3-desc">Follow your ride minute by minute on the interactive map.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">⭐</div>
-          <h3>Rated drivers</h3>
-          <p>Rate your experience after every trip. Quality guaranteed.</p>
+          <h3 data-editable="feat-4-title">Rated drivers</h3>
+          <p data-editable="feat-4-desc">Rate your experience after every trip. Quality guaranteed.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">🆘</div>
-          <h3>24/7 Assistance</h3>
-          <p>Breakdown, flat tire, or lockout? Our team is available around the clock.</p>
+          <h3 data-editable="feat-5-title">24/7 Assistance</h3>
+          <p data-editable="feat-5-desc">Breakdown, flat tire, or lockout? Our team is available around the clock.</p>
         </div>
       </div>
     </div>
@@ -142,8 +142,8 @@
   <section id="driver" class="driver-cta">
     <div class="container driver-cta-inner">
       <div class="driver-text">
-        <h2>Become a partner driver</h2>
-        <p>Join our driver network and earn on your own schedule. No fixed hours, no constraints.</p>
+        <h2 data-editable="driver-title">Become a partner driver</h2>
+        <p data-editable="driver-sub">Join our driver network and earn on your own schedule. No fixed hours, no constraints.</p>
         <ul class="driver-benefits">
           <li>✅ Free to sign up</li>
           <li>✅ Paid every week</li>
@@ -168,8 +168,8 @@
   <!-- ===== DOWNLOAD ===== -->
   <section id="download" class="download">
     <div class="container download-inner">
-      <h2>Download the Ziza app</h2>
-      <p>Available on iOS &amp; Android. Free.</p>
+      <h2 data-editable="download-title">Download the Ziza app</h2>
+      <p data-editable="download-sub">Available on iOS &amp; Android. Free.</p>
       <div class="store-buttons">
         <a href="#" class="store-btn">
           <span class="store-icon">🍎</span>
@@ -214,10 +214,42 @@
         <h4>Contact</h4>
         <a href="mailto:support@ziza.dev">support@ziza.dev</a>
         <a href="tel:+12015550100">+1 (201) 555-0100</a>
-        <p class="footer-note">Sprint 50 — Skills &amp; Links</p>
+        <p class="footer-note">Sprint 51 — WYSIWYG Editor</p>
+        <a href="#" id="admin-trigger" class="footer-note admin-trigger-link">⚙ Admin</a>
       </div>
     </div>
   </footer>
+
+  <!-- ===== ADMIN LOGIN MODAL ===== -->
+  <div id="admin-login-modal" class="admin-modal" hidden>
+    <div class="admin-modal-backdrop"></div>
+    <div class="admin-modal-box">
+      <h3>⚙ Admin Login</h3>
+      <p>Sign in with your admin account to edit the page content.</p>
+      <div id="admin-login-error" class="admin-error" hidden></div>
+      <input id="admin-email" type="email" placeholder="admin@ziza.dev" autocomplete="email" />
+      <input id="admin-password" type="password" placeholder="Password" autocomplete="current-password" />
+      <div class="admin-modal-actions">
+        <button id="admin-login-submit" class="btn btn-primary">Sign in</button>
+        <button id="admin-login-cancel" class="btn btn-outline">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ADMIN TOOLBAR ===== -->
+  <div id="admin-toolbar" class="admin-toolbar" hidden>
+    <span class="admin-toolbar-label">⚙ Admin</span>
+    <div class="admin-toolbar-sep"></div>
+    <button id="admin-edit-toggle" class="admin-tb-btn">✏ Edit</button>
+    <div id="admin-format-btns" class="admin-format-btns" hidden>
+      <button class="admin-tb-btn" data-cmd="bold" title="Bold"><b>B</b></button>
+      <button class="admin-tb-btn" data-cmd="italic" title="Italic"><i>I</i></button>
+      <button class="admin-tb-btn" data-cmd="underline" title="Underline"><u>U</u></button>
+      <button class="admin-tb-btn" data-cmd="removeFormat" title="Clear formatting">Tx</button>
+    </div>
+    <button id="admin-save-btn" class="admin-tb-btn admin-tb-save" hidden>💾 Save</button>
+    <button id="admin-logout-btn" class="admin-tb-btn admin-tb-logout" title="Log out">✕</button>
+  </div>
 
   <!-- env-config.js is generated at container startup from env-config.js.template -->
   <script src="/env-config.js"></script>

@@ -1,4 +1,4 @@
-"""CRUD helpers — Sprint 4 → Sprint 32.
+"""CRUD helpers — Sprint 4 → Sprint 51.
 
 All functions are async and receive an ``AsyncSession`` from the FastAPI
 ``get_db`` dependency.
@@ -4403,3 +4403,41 @@ async def admin_list_professionals(
         .offset(offset)
     )
     return [_professional_to_dict(p) for p in result.scalars()]
+
+
+# ---------------------------------------------------------------------------
+# Landing content — Sprint 51
+# Reuses PlatformSetting (key-value table) with a "landing." key prefix so
+# no new migration is needed.
+# ---------------------------------------------------------------------------
+
+_LANDING_PREFIX = "landing."
+
+
+async def get_landing_content(db: AsyncSession) -> dict[str, str]:
+    """Return all landing page content blocks as ``{key: html}``."""
+    result = await db.execute(
+        select(PlatformSetting).where(
+            PlatformSetting.key.like(f"{_LANDING_PREFIX}%")
+        )
+    )
+    return {
+        row.key[len(_LANDING_PREFIX):]: row.value
+        for row in result.scalars()
+    }
+
+
+async def set_landing_content(
+    db: AsyncSession,
+    content: dict[str, str],
+) -> dict[str, str]:
+    """Upsert landing page content blocks; returns the full saved dict."""
+    for key, value in content.items():
+        full_key = f"{_LANDING_PREFIX}{key}"
+        existing = await db.get(PlatformSetting, full_key)
+        if existing is None:
+            db.add(PlatformSetting(key=full_key, value=value))
+        else:
+            existing.value = value
+    await db.commit()
+    return await get_landing_content(db)

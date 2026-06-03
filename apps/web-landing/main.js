@@ -1,12 +1,13 @@
 /**
  * Ziza Landing Page — main.js
- * Sprint 50 — Skills & Links
+ * Sprint 51 — WYSIWYG Editor
  *
  * Features:
  *  - Animated stat counters on scroll
  *  - Environment-aware links (driver app + customer app)
- *  - Live driver count from API (graceful fallback)
+ *  - Live stats from API (graceful fallback)
  *  - Earnings bar animation
+ *  - Admin WYSIWYG inline editor (admin login required)
  *
  * App URLs come from env-config.js (generated at container startup):
  *   window.ZIZA_DRIVER_URL   — web-driver app  (e.g. http://localhost:3002)
@@ -42,7 +43,7 @@ function animateCounter(el, target, duration = 1500) {
 }
 
 // ---------------------------------------------------------------------------
-// Stats — try to load from API, fall back to zeros
+// Stats — try to load from public /v1/stats, fall back to zeros
 // ---------------------------------------------------------------------------
 
 const FALLBACK_STATS = { trips: 0, drivers: 0, cities: 1 };
@@ -156,12 +157,246 @@ function initHeader() {
 }
 
 // ---------------------------------------------------------------------------
+// Admin WYSIWYG editor — Sprint 51
+// ---------------------------------------------------------------------------
+
+const ADMIN_TOKEN_KEY = "ziza_landing_admin_token";
+
+/** Decode the JWT payload (base64url → JSON) — no signature check, UI only. */
+function decodeJwtPayload(token) {
+  try {
+    const b64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(b64));
+  } catch { return null; }
+}
+
+/** Returns true when the token is present, admin-role, and not expired. */
+function isAdminToken(token) {
+  if (!token) return false;
+  const p = decodeJwtPayload(token);
+  if (!p) return false;
+  if (p.exp && p.exp * 1000 < Date.now()) return false;
+  return p.role === "admin";
+}
+
+// ---------------------------------------------------------------------------
+// Content loading — apply stored HTML from API to [data-editable] elements
+// ---------------------------------------------------------------------------
+
+async function loadContent() {
+  try {
+    const res = await fetch(`${API_BASE}/v1/landing/content`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) return;
+    const { content } = await res.json();
+    Object.entries(content).forEach(([key, html]) => {
+      const el = document.querySelector(`[data-editable="${key}"]`);
+      if (el) el.innerHTML = html;
+    });
+  } catch { /* page keeps default HTML on error */ }
+}
+
+// ---------------------------------------------------------------------------
+// Admin login modal
+// ---------------------------------------------------------------------------
+
+function showAdminModal() {
+  const modal = document.getElementById("admin-login-modal");
+  if (!modal) return;
+  modal.hidden = false;
+  // Clear previous state
+  const errEl = document.getElementById("admin-login-error");
+  if (errEl) errEl.hidden = true;
+  document.getElementById("admin-email")?.focus();
+}
+
+function hideAdminModal() {
+  const modal = document.getElementById("admin-login-modal");
+  if (modal) modal.hidden = true;
+}
+
+async function handleAdminLogin() {
+  const email    = document.getElementById("admin-email")?.value.trim();
+  const password = document.getElementById("admin-password")?.value;
+  const errEl    = document.getElementById("admin-login-error");
+  const btn      = document.getElementById("admin-login-submit");
+
+  if (!email || !password) {
+    if (errEl) { errEl.textContent = "Please enter your email and password."; errEl.hidden = false; }
+    return;
+  }
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API_BASE}/v1/token`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ email, password }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Invalid credentials");
+    }
+    const { access_token } = await res.json();
+    if (!isAdminToken(access_token)) {
+      throw new Error("This account does not have admin access.");
+    }
+    localStorage.setItem(ADMIN_TOKEN_KEY, access_token);
+    hideAdminModal();
+    activateAdminBar();
+  } catch (err) {
+    if (errEl) { errEl.textContent = err.message; errEl.hidden = false; }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Admin toolbar
+// ---------------------------------------------------------------------------
+
+let _editMode = false;
+
+function activateAdminBar() {
+  const bar = document.getElementById("admin-toolbar");
+  if (bar) bar.hidden = false;
+}
+
+function enterEditMode() {
+  _editMode = true;
+  document.querySelectorAll("[data-editable]").forEach((el) => {
+    el.contentEditable = "true";
+    el.classList.add("editable-active");
+  });
+  const formatBtns = document.getElementById("admin-format-btns");
+  const saveBtn    = document.getElementById("admin-save-btn");
+  const toggleBtn  = document.getElementById("admin-edit-toggle");
+  if (formatBtns) formatBtns.hidden = false;
+  if (saveBtn)    saveBtn.hidden    = false;
+  if (toggleBtn)  { toggleBtn.textContent = "✏ Editing…"; toggleBtn.classList.add("active"); }
+  document.body.classList.add("edit-mode");
+}
+
+function exitEditMode() {
+  _editMode = false;
+  document.querySelectorAll("[data-editable]").forEach((el) => {
+    el.contentEditable = "false";
+    el.classList.remove("editable-active");
+  });
+  const formatBtns = document.getElementById("admin-format-btns");
+  const saveBtn    = document.getElementById("admin-save-btn");
+  const toggleBtn  = document.getElementById("admin-edit-toggle");
+  if (formatBtns) formatBtns.hidden = true;
+  if (saveBtn)    saveBtn.hidden    = true;
+  if (toggleBtn)  { toggleBtn.textContent = "✏ Edit"; toggleBtn.classList.remove("active"); }
+  document.body.classList.remove("edit-mode");
+}
+
+async function saveContent() {
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  if (!token) return;
+
+  const content = {};
+  document.querySelectorAll("[data-editable]").forEach((el) => {
+    content[el.dataset.editable] = el.innerHTML;
+  });
+
+  const btn = document.getElementById("admin-save-btn");
+  if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+
+  try {
+    const res = await fetch(`${API_BASE}/v1/landing/content`, {
+      method:  "PATCH",
+      headers: {
+        "Content-Type":  "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify({ content }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Save failed");
+    }
+    if (btn) {
+      btn.textContent = "✓ Saved!";
+      setTimeout(() => { btn.textContent = "💾 Save"; btn.disabled = false; }, 2000);
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-alert
+    alert("Could not save: " + err.message);
+    if (btn) { btn.textContent = "💾 Save"; btn.disabled = false; }
+  }
+}
+
+function logoutAdmin() {
+  localStorage.removeItem(ADMIN_TOKEN_KEY);
+  if (_editMode) exitEditMode();
+  const bar = document.getElementById("admin-toolbar");
+  if (bar) bar.hidden = true;
+}
+
+// ---------------------------------------------------------------------------
+// Init admin mode
+// ---------------------------------------------------------------------------
+
+function initAdminMode() {
+  // Trigger link in footer
+  document.getElementById("admin-trigger")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+    if (token && isAdminToken(token)) {
+      activateAdminBar();
+    } else {
+      showAdminModal();
+    }
+  });
+
+  // Modal buttons
+  document.getElementById("admin-login-submit")?.addEventListener("click", handleAdminLogin);
+  document.getElementById("admin-login-cancel")?.addEventListener("click", hideAdminModal);
+
+  // Keyboard shortcuts inside modal
+  document.getElementById("admin-login-modal")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter")  handleAdminLogin();
+    if (e.key === "Escape") hideAdminModal();
+  });
+
+  // Click on backdrop closes modal
+  document.querySelector(".admin-modal-backdrop")?.addEventListener("click", hideAdminModal);
+
+  // Toolbar buttons
+  document.getElementById("admin-edit-toggle")?.addEventListener("click", () => {
+    if (_editMode) exitEditMode(); else enterEditMode();
+  });
+  document.getElementById("admin-save-btn")?.addEventListener("click",   saveContent);
+  document.getElementById("admin-logout-btn")?.addEventListener("click", logoutAdmin);
+
+  // Format buttons (Bold, Italic, Underline, removeFormat)
+  document.querySelectorAll("[data-cmd]").forEach((btn) => {
+    btn.addEventListener("mousedown", (e) => {
+      // Prevent the focused editable element from losing focus
+      e.preventDefault();
+      document.execCommand(btn.dataset.cmd, false, null);
+    });
+  });
+
+  // Auto-activate toolbar if a valid admin token is already stored
+  const stored = localStorage.getItem(ADMIN_TOKEN_KEY);
+  if (stored && isAdminToken(stored)) {
+    activateAdminBar();
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
 
 document.addEventListener("DOMContentLoaded", () => {
+  loadContent();
   initStats();
   initEarningsBar();
   initAppLinks();
   initHeader();
+  initAdminMode();
 });

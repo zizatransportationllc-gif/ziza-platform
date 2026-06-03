@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 48.
+"""Ziza API — Sprint 51.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -102,6 +102,9 @@ Endpoints:
   POST  /v1/craft/requests/{id}/cancel            cancel a craft request (Sprint 47)
   GET   /v1/admin/craft/requests                  admin lists all craft requests (Sprint 47)
   GET   /v1/admin/craft/professionals             admin lists all professionals (Sprint 47)
+  GET   /v1/stats                                 public: trips + driver counts for landing page (Sprint 51)
+  GET   /v1/landing/content                       public: landing page editable content blocks (Sprint 51)
+  PATCH /v1/landing/content                       admin: upsert landing page content blocks (Sprint 51)
 """
 from __future__ import annotations
 
@@ -3962,3 +3965,83 @@ async def admin_list_professionals(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     items = await crud.admin_list_professionals(db, limit=limit, offset=offset)
     return [ProfessionalResponse(**d) for d in items]
+
+
+# ---------------------------------------------------------------------------
+# Public stats — Sprint 51
+# Lightweight public endpoint used by the landing page counter animation.
+# ---------------------------------------------------------------------------
+
+class PublicStatsResponse(BaseModel):
+    total_trips: int
+    total_drivers: int
+
+
+@app.get("/v1/stats", tags=["public"], summary="Public platform statistics (Sprint 51)")
+async def public_stats(
+    db: AsyncSession | None = Depends(get_db_optional),
+) -> PublicStatsResponse:
+    """Return aggregated counts for the landing page.  No auth required."""
+    if db is None:
+        return PublicStatsResponse(total_trips=0, total_drivers=0)
+    stats = await crud.admin_get_stats(db)
+    return PublicStatsResponse(
+        total_trips=stats.get("total_trips", 0),
+        total_drivers=stats.get("total_drivers", 0),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Landing content — Sprint 51
+# ---------------------------------------------------------------------------
+
+class LandingContentResponse(BaseModel):
+    content: dict[str, str]
+
+
+class LandingContentPatch(BaseModel):
+    content: dict[str, str]
+
+
+@app.get(
+    "/v1/landing/content",
+    tags=["landing"],
+    summary="Public: landing page editable content (Sprint 51)",
+)
+async def get_landing_content(
+    db: AsyncSession | None = Depends(get_db_optional),
+) -> LandingContentResponse:
+    """Return all persisted landing page content blocks.  No auth required.
+
+    Returns an empty dict when the DB is unavailable so the page falls back
+    to its built-in default HTML.
+    """
+    if db is None:
+        return LandingContentResponse(content={})
+    data = await crud.get_landing_content(db)
+    return LandingContentResponse(content=data)
+
+
+@app.patch(
+    "/v1/landing/content",
+    tags=["landing"],
+    summary="Admin: upsert landing page content blocks (Sprint 51)",
+)
+async def patch_landing_content(
+    body: LandingContentPatch,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> LandingContentResponse:
+    """Admin only: save one or more landing page content blocks.
+
+    The ``content`` dict maps each ``data-editable`` key (e.g. ``"hero-title"``)
+    to its raw innerHTML value.  Existing keys are updated; new keys are
+    created.  Keys absent from the request are left unchanged.
+    """
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    data = await crud.set_landing_content(db, body.content)
+    return LandingContentResponse(content=data)

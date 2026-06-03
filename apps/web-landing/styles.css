@@ -216,6 +216,180 @@ a { text-decoration: none; color: inherit; }
 .footer-links a:hover { color: var(--primary); }
 .footer-note { font-size: .75rem; color: #475569; margin-top: 8px; }
 
+/* ============================================================
+   Admin WYSIWYG — Sprint 51
+   ============================================================ */
+
+/* ── Footer admin trigger link ── */
+.admin-trigger-link {
+  display: inline-block;
+  cursor: pointer;
+  opacity: .35;
+  font-size: .75rem;
+  color: #475569;
+  transition: opacity var(--trans), color var(--trans);
+  text-decoration: none;
+}
+.admin-trigger-link:hover { opacity: 1; color: var(--primary); }
+
+/* ── Admin login modal ── */
+.admin-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.admin-modal[hidden] { display: none; }
+
+.admin-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15,23,42,.65);
+  backdrop-filter: blur(4px);
+}
+
+.admin-modal-box {
+  position: relative;
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  box-shadow: 0 24px 64px rgba(15,23,42,.3);
+  padding: 32px;
+  width: min(380px, 90vw);
+  z-index: 1;
+}
+.admin-modal-box h3 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: var(--dark);
+}
+.admin-modal-box > p {
+  color: var(--muted);
+  font-size: .85rem;
+  margin-bottom: 20px;
+}
+.admin-modal-box input {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: .95rem;
+  font-family: inherit;
+  margin-bottom: 12px;
+  outline: none;
+  transition: border-color var(--trans), box-shadow var(--trans);
+  background: var(--light);
+}
+.admin-modal-box input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(249,115,22,.15);
+}
+.admin-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: .85rem;
+  color: #dc2626;
+  margin-bottom: 12px;
+}
+.admin-error[hidden] { display: none; }
+.admin-modal-actions { display: flex; gap: 10px; margin-top: 4px; }
+
+/* ── Admin toolbar (fixed bottom-right) ── */
+.admin-toolbar {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 500;
+  background: var(--dark);
+  border-radius: 12px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 8px 32px rgba(15,23,42,.45);
+  flex-wrap: wrap;
+  max-width: calc(100vw - 40px);
+}
+.admin-toolbar[hidden] { display: none; }
+
+.admin-toolbar-label {
+  color: var(--primary);
+  font-weight: 700;
+  font-size: .82rem;
+  white-space: nowrap;
+  margin-right: 2px;
+}
+.admin-toolbar-sep {
+  width: 1px;
+  height: 20px;
+  background: #334155;
+  flex-shrink: 0;
+}
+.admin-tb-btn {
+  background: transparent;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #e2e8f0;
+  padding: 5px 11px;
+  font-size: .8rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--trans), border-color var(--trans), color var(--trans);
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.admin-tb-btn:hover  { background: #1e293b; border-color: #475569; }
+.admin-tb-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.admin-tb-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.admin-format-btns { display: flex; gap: 4px; }
+.admin-format-btns[hidden] { display: none; }
+
+.admin-tb-save        { background: #065f46; border-color: #065f46; color: #d1fae5; }
+.admin-tb-save:hover  { background: #047857; border-color: #047857; }
+.admin-tb-save:disabled { opacity: .6; }
+
+.admin-tb-logout       { color: #f87171; border-color: #7f1d1d; }
+.admin-tb-logout:hover { background: #7f1d1d; color: #fca5a5; }
+
+/* ── Edit mode — contenteditable elements ── */
+.editable-active {
+  outline: 2px dashed rgba(249,115,22,.6);
+  outline-offset: 4px;
+  border-radius: 4px;
+  cursor: text;
+  min-height: 1em;
+  transition: outline-color var(--trans), background var(--trans);
+}
+.editable-active:focus {
+  outline: 2px solid var(--primary);
+  background: rgba(249,115,22,.04);
+}
+
+/* Top banner in edit mode */
+body.edit-mode::before {
+  content: "✏ Edit Mode — click any highlighted text to edit  ·  use toolbar to format  ·  💾 Save when done";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: var(--primary);
+  color: #fff;
+  text-align: center;
+  padding: 7px 16px;
+  font-size: .78rem;
+  font-weight: 600;
+  z-index: 200;
+  letter-spacing: .02em;
+}
+body.edit-mode .header { top: 36px; }
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .hero-inner, .driver-cta-inner { flex-direction: column; }
