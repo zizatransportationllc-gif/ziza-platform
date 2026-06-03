@@ -182,6 +182,13 @@ jobs:
             if [ -n "${{ vars.CLOUD_SQL_INSTANCE }}" ]; then
               FLAGS+=("--add-cloudsql-instances=${{ vars.CLOUD_SQL_INSTANCE }}")
             fi
+
+          elif [ "${{ matrix.app }}" = "web-landing" ]; then
+            # Inject app URLs so the landing page links to the correct env.
+            # Set ZIZA_DRIVER_URL and ZIZA_CUSTOMER_URL as GitHub repo variables.
+            FLAGS+=(
+              "--set-env-vars=^|^ZIZA_DRIVER_URL=${{ vars.ZIZA_DRIVER_URL }}|ZIZA_CUSTOMER_URL=${{ vars.ZIZA_CUSTOMER_URL }}|ZIZA_API_URL=${{ vars.ZIZA_API_URL }}"
+            )
           fi
 
           gcloud run deploy "$SERVICE" "${FLAGS[@]}"

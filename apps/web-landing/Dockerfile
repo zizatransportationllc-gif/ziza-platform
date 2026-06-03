@@ -1,17 +1,22 @@
 # ---- Landing page — static Nginx ----
 # Sprint 31: pure HTML/CSS/JS served by Nginx (no build step needed)
+# Sprint 50: env-config.js generated at startup via envsubst so app URLs
+#            work correctly in every environment without rebuilding the image.
 
 FROM nginx:1.27-alpine
 
-# Copy static files
-COPY index.html  /usr/share/nginx/html/index.html
-COPY styles.css  /usr/share/nginx/html/styles.css
-COPY main.js     /usr/share/nginx/html/main.js
+# Default app URLs (overridden by docker-compose env or Cloud Run env vars)
+ENV ZIZA_DRIVER_URL=http://localhost:3002 \
+    ZIZA_CUSTOMER_URL=http://localhost:3001 \
+    ZIZA_API_URL=http://localhost:8000
 
-# Override default Nginx config to:
-#  - serve on port 8080 (Cloud Run convention)
-#  - add security headers
-#  - enable gzip
+# Copy static files
+COPY index.html            /usr/share/nginx/html/index.html
+COPY styles.css            /usr/share/nginx/html/styles.css
+COPY main.js               /usr/share/nginx/html/main.js
+COPY env-config.js.template /etc/nginx/env-config.js.template
+
+# Override default Nginx config
 RUN printf 'server {\n\
     listen 8080;\n\
     root /usr/share/nginx/html;\n\
@@ -34,3 +39,11 @@ EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD wget -qO- http://localhost:8080/health || exit 1
+
+# Generate env-config.js from template (substituting the three URL vars),
+# then hand off to nginx.  Using exec so nginx gets PID 1.
+CMD ["/bin/sh", "-c", \
+  "envsubst '$ZIZA_DRIVER_URL $ZIZA_CUSTOMER_URL $ZIZA_API_URL' \
+   < /etc/nginx/env-config.js.template \
+   > /usr/share/nginx/html/env-config.js \
+   && exec nginx -g 'daemon off;'"]

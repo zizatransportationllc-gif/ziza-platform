@@ -58,7 +58,11 @@ function formatUSD(n) {
 // ---------------------------------------------------------------------------
 
 function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
-  const [tab, setTab] = useState("signin");
+  // Open the sign-up tab directly when the landing page links with ?signup=1
+  const initTab = new URLSearchParams(window.location.search).get("signup") === "1"
+    ? "signup"
+    : "signin";
+  const [tab, setTab] = useState(initTab);
   // Sign-in fields
   const [email, setEmail] = useState("driver@ziza.dev");
   const [password, setPassword] = useState("ziza2024");

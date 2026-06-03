@@ -70,6 +70,9 @@ services:
     container_name: ziza-web-landing
     environment:
       PORT: "8080"
+      ZIZA_DRIVER_URL: "http://localhost:3002"
+      ZIZA_CUSTOMER_URL: "http://localhost:3001"
+      ZIZA_API_URL: "http://localhost:8000"
     ports:
       - "3000:8080"
 
