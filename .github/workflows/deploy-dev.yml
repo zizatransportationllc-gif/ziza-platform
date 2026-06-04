@@ -184,10 +184,11 @@ jobs:
             fi
 
           elif [ "${{ matrix.app }}" = "web-landing" ]; then
-            # Inject app URLs so the landing page links to the correct env.
-            # Set ZIZA_DRIVER_URL and ZIZA_CUSTOMER_URL as GitHub repo variables.
+            # Deploy with placeholder URLs; the wire-landing-urls job (Step 4)
+            # will overwrite them with the real Cloud Run service URLs once all
+            # other services have been deployed.
             FLAGS+=(
-              "--set-env-vars=^|^ZIZA_DRIVER_URL=${{ vars.ZIZA_DRIVER_URL }}|ZIZA_CUSTOMER_URL=${{ vars.ZIZA_CUSTOMER_URL }}|ZIZA_API_URL=${{ vars.ZIZA_API_URL }}"
+              "--set-env-vars=^|^ZIZA_DRIVER_URL=pending|ZIZA_CUSTOMER_URL=pending|ZIZA_API_URL=pending"
             )
           fi
 
@@ -195,3 +196,59 @@ jobs:
 
           URL=$(gcloud run services describe "$SERVICE" --region="${{ env.GCP_REGION }}" --format="value(status.url)")
           echo "::notice title=Deployed::$SERVICE → $URL"
+
+  # ------------------------------------------------------------------
+  # Step 4: wire the landing page to the live service URLs
+  # Runs after all services are deployed; discovers the real Cloud Run
+  # URLs (which contain an unpredictable hash) and injects them as env
+  # vars on ziza-web-landing — no manual GitHub variables required.
+  # ------------------------------------------------------------------
+  wire-landing-urls:
+    name: Wire landing page → live service URLs
+    needs: [deploy]
+    if: always() && needs.deploy.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Auth GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Discover service URLs and update ziza-web-landing
+        run: |
+          REGION="${{ env.GCP_REGION }}"
+
+          CUSTOMER_URL=$(gcloud run services describe ziza-web-customer \
+            --region="$REGION" --format="value(status.url)" 2>/dev/null || true)
+          DRIVER_URL=$(gcloud run services describe ziza-web-driver \
+            --region="$REGION" --format="value(status.url)" 2>/dev/null || true)
+          API_URL=$(gcloud run services describe ziza-api \
+            --region="$REGION" --format="value(status.url)" 2>/dev/null || true)
+
+          if [ -z "$CUSTOMER_URL" ] || [ -z "$DRIVER_URL" ] || [ -z "$API_URL" ]; then
+            echo "::warning::Could not resolve one or more service URLs — skipping landing URL update"
+            exit 0
+          fi
+
+          echo "Customer : $CUSTOMER_URL"
+          echo "Driver   : $DRIVER_URL"
+          echo "API      : $API_URL"
+
+          # Update env vars on the already-deployed landing service.
+          # This triggers a new revision (same image, new env) so Nginx
+          # regenerates env-config.js via envsubst at container startup.
+          gcloud run services update ziza-web-landing \
+            --region="$REGION" \
+            --update-env-vars="^|^ZIZA_CUSTOMER_URL=${CUSTOMER_URL}|ZIZA_DRIVER_URL=${DRIVER_URL}|ZIZA_API_URL=${API_URL}" \
+            --quiet
+
+          LANDING_URL=$(gcloud run services describe ziza-web-landing \
+            --region="$REGION" --format="value(status.url)")
+          echo "::notice title=Landing wired::Customer→${CUSTOMER_URL} Driver→${DRIVER_URL} Landing→${LANDING_URL}"
