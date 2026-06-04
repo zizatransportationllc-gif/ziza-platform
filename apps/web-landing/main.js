@@ -157,6 +157,37 @@ function initHeader() {
 }
 
 // ---------------------------------------------------------------------------
+// Coming soon toast — store buttons
+// ---------------------------------------------------------------------------
+
+let _toastTimer = null;
+
+function showComingSoon() {
+  const toast = document.getElementById("coming-soon-toast");
+  if (!toast) return;
+
+  // Cancel any running timer and reset state
+  if (_toastTimer) clearTimeout(_toastTimer);
+  toast.classList.remove("fade-out");
+  toast.hidden = false;
+
+  // After 2 s start the fade-out (0.4 s transition), then hide
+  _toastTimer = setTimeout(() => {
+    toast.classList.add("fade-out");
+    setTimeout(() => { toast.hidden = true; }, 400);
+  }, 2000);
+}
+
+function initStoreButtons() {
+  document.querySelectorAll(".store-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      showComingSoon();
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Admin WYSIWYG editor — Sprint 51
 // ---------------------------------------------------------------------------
 
@@ -398,5 +429,6 @@ document.addEventListener("DOMContentLoaded", () => {
   initEarningsBar();
   initAppLinks();
   initHeader();
+  initStoreButtons();
   initAdminMode();
 });

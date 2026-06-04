@@ -216,6 +216,28 @@ a { text-decoration: none; color: inherit; }
 .footer-links a:hover { color: var(--primary); }
 .footer-note { font-size: .75rem; color: #475569; margin-top: 8px; }
 
+/* ── Coming soon toast ── */
+.coming-soon-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15,23,42,.88);
+  color: #fff;
+  padding: 12px 32px;
+  border-radius: 99px;
+  font-size: .95rem;
+  font-weight: 600;
+  letter-spacing: .03em;
+  z-index: 600;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity .4s ease;
+  white-space: nowrap;
+}
+.coming-soon-toast[hidden] { display: none; }
+.coming-soon-toast.fade-out { opacity: 0; }
+
 /* ============================================================
    Admin WYSIWYG — Sprint 51
    ============================================================ */
