@@ -13,6 +13,7 @@ import {
   searchPlaces, // Sprint 43
   checkPointInService, // Sprint 45
   createCraftRequest, getMyCraftRequests, getCraftRequestBids, selectCraftBid, cancelCraftRequest, // Sprint 48
+  submitDocument, listMyDocuments, // Sprint 53
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 import { EstimateMap, TripMap } from "./TripMap";
@@ -71,7 +72,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
   return (
     <div className="app">
       <img src="/logo-customer.svg" alt="Ziza Customer" className="app-logo" />
-      <p className="subtitle">Sprint 52 — Logo</p>
+      <p className="subtitle">Sprint 53 — Documents</p>
       <div className="auth-tabs">
         <button className={`auth-tab${tab === "signin" ? " active" : ""}`} onClick={() => setTab("signin")}>Sign In</button>
         <button className={`auth-tab${tab === "signup" ? " active" : ""}`} onClick={() => setTab("signup")}>Create Account</button>
@@ -1914,12 +1915,141 @@ function CraftSection({ token }) {
 }
 
 // ---------------------------------------------------------------------------
+// Documents section — Sprint 53
+// ---------------------------------------------------------------------------
+
+const DOCUMENT_TYPES = ["license", "insurance", "registration", "id_card"];
+const DOCUMENT_TYPE_LABELS = {
+  license:      "🪪 Driver's License",
+  insurance:    "🛡️ Vehicle Insurance",
+  registration: "📋 Vehicle Registration",
+  id_card:      "🪪 Government ID",
+};
+const DOCUMENT_STATUS_LABELS = {
+  pending:  "⏳ Pending",
+  approved: "✅ Approved",
+  rejected: "✗ Rejected",
+};
+
+function DocumentsSection({ token }) {
+  const [docs, setDocs]           = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [docType, setDocType]     = useState("id_card");
+  const [preview, setPreview]     = useState(null);
+  const [fileName, setFileName]   = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess]     = useState(null);
+  const [error, setError]         = useState(null);
+
+  const loadDocs = useCallback(() => {
+    setLoading(true);
+    listMyDocuments(token)
+      .then(setDocs)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => { loadDocs(); }, [loadDocs]);
+
+  function handleFileChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    setError(null);
+    const reader = new FileReader();
+    reader.onload = (ev) => setPreview(ev.target.result);
+    reader.readAsDataURL(file);
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!preview) return;
+    setSubmitting(true); setSuccess(null); setError(null);
+    try {
+      await submitDocument(token, docType, preview);
+      setSuccess("✅ Document submitted!");
+      setPreview(null);
+      setFileName("");
+      loadDocs();
+    } catch (err) { setError(err.message); }
+    finally { setSubmitting(false); }
+  }
+
+  return (
+    <div className="documents-section">
+      <h2 className="estimate-title">📄 My Documents</h2>
+
+      <form className="doc-form" onSubmit={handleSubmit}>
+        <select
+          className="doc-type-select"
+          value={docType}
+          onChange={(e) => setDocType(e.target.value)}
+        >
+          {DOCUMENT_TYPES.map((t) => (
+            <option key={t} value={t}>{DOCUMENT_TYPE_LABELS[t]}</option>
+          ))}
+        </select>
+
+        <div className="doc-capture-row">
+          <label className="doc-capture-btn">
+            📷 Camera
+            <input type="file" accept="image/*" capture="environment" hidden onChange={handleFileChange} />
+          </label>
+          <label className="doc-capture-btn doc-file-btn">
+            📁 File
+            <input type="file" accept="image/*,application/pdf" hidden onChange={handleFileChange} />
+          </label>
+        </div>
+
+        {preview && (
+          <div className="doc-preview-wrap">
+            <img src={preview} className="doc-preview-img" alt="Document preview" />
+            <span className="doc-file-name">{fileName}</span>
+          </div>
+        )}
+
+        {success && <p className="doc-success">{success}</p>}
+        {error   && <p className="form-error">{error}</p>}
+
+        <button
+          type="submit"
+          className="doc-submit-btn"
+          disabled={submitting || !preview}
+        >
+          {submitting ? "Uploading…" : "⬆️ Submit Document"}
+        </button>
+      </form>
+
+      <h3 className="doc-list-title">Submitted documents</h3>
+      {loading && <p className="history-empty">⏳ Loading…</p>}
+      {!loading && docs.length === 0 && (
+        <p className="history-empty">No documents submitted yet.</p>
+      )}
+      <div className="doc-list">
+        {docs.map((d, i) => (
+          <div key={d.document_id ?? i} className="doc-item">
+            <div className="doc-item-main">
+              <span className="doc-type">{DOCUMENT_TYPE_LABELS[d.type] ?? d.type}</span>
+              <span className={`doc-status doc-status-${d.status}`}>
+                {DOCUMENT_STATUS_LABELS[d.status] ?? d.status}
+              </span>
+            </div>
+            {d.admin_note && <p className="doc-note">💬 {d.admin_note}</p>}
+            <p className="doc-date">{new Date(d.created_at).toLocaleDateString("en-US")}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
 function Dashboard({ user, token, onLogout }) {
   const [activeTrip, setActiveTrip] = useState(null);
-  const [mode, setMode] = useState("ride"); // "ride" | "craft" | "trips" | "profile" | "notifications" | "places" | "apply" | "wallet"
+  const [mode, setMode] = useState("ride"); // "ride" | "craft" | "trips" | "profile" | "notifications" | "places" | "apply" | "wallet" | "docs"
   const [unreadCount, setUnreadCount] = useState(0);
 
   const refreshUnread = useCallback(() => {
@@ -2011,6 +2141,12 @@ function Dashboard({ user, token, onLogout }) {
             >
               💰 Wallet
             </button>
+            <button
+              className={`mode-tab ${mode === "docs" ? "active" : ""}`}
+              onClick={() => setMode("docs")}
+            >
+              📄 Docs
+            </button>
           </div>
           {mode === "ride" && (
             <EstimateSection token={token} onTripCreated={setActiveTrip} />
@@ -2029,10 +2165,11 @@ function Dashboard({ user, token, onLogout }) {
           {mode === "places" && <SavedPlacesSection token={token} />}
           {mode === "apply" && <ApplicationSection token={token} />}
           {mode === "wallet" && <WalletSection token={token} />}
+          {mode === "docs"   && <DocumentsSection token={token} />}
         </>
       )}
 
-      <p className="footer">App: <strong>web-customer</strong> · Sprint 48</p>
+      <p className="footer">App: <strong>web-customer</strong> · Sprint 53</p>
     </div>
   );
 }

@@ -546,7 +546,8 @@ function DocumentsSection({ token }) {
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [docType, setDocType] = useState("license");
-  const [url, setUrl] = useState("");
+  const [preview, setPreview] = useState(null);   // base64 data URL
+  const [fileName, setFileName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(null);
   const [error, setError] = useState(null);
@@ -561,13 +562,23 @@ function DocumentsSection({ token }) {
 
   useEffect(() => { loadDocs(); }, [loadDocs]);
 
+  function handleFileChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    setError(null);
+    const reader = new FileReader();
+    reader.onload = (ev) => setPreview(ev.target.result);
+    reader.readAsDataURL(file);
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!url.trim()) { setError("Document URL is required."); return; }
+    if (!preview) { setError("Please capture or select a document first."); return; }
     setSubmitting(true); setError(null); setSuccess(null);
     try {
-      await submitDocument(token, docType, url.trim());
-      setUrl("");
+      await submitDocument(token, docType, preview);
+      setPreview(null); setFileName("");
       setSuccess("✓ Document submitted for review.");
       loadDocs();
     } catch (err) { setError(err.message); }
@@ -590,17 +601,25 @@ function DocumentsSection({ token }) {
             <option key={t} value={t}>{DOCUMENT_TYPE_LABELS[t]}</option>
           ))}
         </select>
-        <input
-          className="doc-url-input"
-          type="url"
-          placeholder="Document URL (storage link)"
-          value={url}
-          onChange={(e) => { setUrl(e.target.value); setError(null); }}
-          maxLength={2048}
-        />
+        <div className="doc-capture-row">
+          <label className="doc-capture-btn">
+            📷 Camera
+            <input type="file" accept="image/*" capture="environment" hidden onChange={handleFileChange} />
+          </label>
+          <label className="doc-capture-btn doc-file-btn">
+            📁 File
+            <input type="file" accept="image/*,application/pdf" hidden onChange={handleFileChange} />
+          </label>
+        </div>
+        {preview && (
+          <div className="doc-preview-wrap">
+            <img src={preview} className="doc-preview-img" alt="Document preview" />
+            <span className="doc-file-name">{fileName}</span>
+          </div>
+        )}
         {success && <p className="doc-success">{success}</p>}
         {error   && <p className="doc-err">{error}</p>}
-        <button className="doc-submit-btn" type="submit" onClick={handleSubmit} disabled={submitting}>
+        <button className="doc-submit-btn" type="submit" onClick={handleSubmit} disabled={submitting || !preview}>
           {submitting ? "Sending…" : "📤 Submit Document"}
         </button>
       </div>
@@ -831,7 +850,7 @@ function Dashboard({ user, token, onLogout }) {
       {tab === "documents"     && <DocumentsSection token={token} />}
       {tab === "notifications" && <NotificationsSection token={token} onRead={refreshUnread} />}
 
-      <p className="footer">App: <strong>web-craft</strong> · Sprint 50</p>
+      <p className="footer">App: <strong>web-craft</strong> · Sprint 53</p>
     </div>
   );
 }

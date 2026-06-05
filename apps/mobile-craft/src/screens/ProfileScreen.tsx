@@ -1,6 +1,6 @@
 /**
  * ProfileScreen — professional manages their profile and specialties.
- * Sprint 47 — Ziza Craft.
+ * Sprint 53 — added Documents link.
  */
 import React, { useState, useEffect } from "react";
 import {
@@ -13,7 +13,10 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { registerProfessional, updateProfessionalProfile, CRAFT_CATEGORIES } from "../api";
+import { RootStackParamList } from "../navigation/AppNavigator";
 
 const CAT_LABELS: Record<string, string> = {
   breakdown:   "🔧 Breakdown",
@@ -28,8 +31,11 @@ const CAT_LABELS: Record<string, string> = {
 };
 import { useAuth } from "../context/AuthContext";
 
+type ProfileNav = NativeStackNavigationProp<RootStackParamList, "Profile">;
+
 export default function ProfileScreen(): React.ReactElement {
   const { token, profile, refreshProfile, logout } = useAuth();
+  const navigation = useNavigation<ProfileNav>();
   const [specialties, setSpecialties] = useState<Set<string>>(new Set());
   const [bio, setBio] = useState("");
   const [saving, setSaving] = useState(false);
@@ -150,6 +156,13 @@ export default function ProfileScreen(): React.ReactElement {
         )}
       </TouchableOpacity>
 
+      <TouchableOpacity
+        style={styles.docsBtn}
+        onPress={() => navigation.navigate("Documents")}
+      >
+        <Text style={styles.docsBtnText}>📄 My Documents</Text>
+      </TouchableOpacity>
+
       <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
         <Text style={styles.logoutBtnText}>Log Out</Text>
       </TouchableOpacity>
@@ -214,6 +227,14 @@ const styles = StyleSheet.create({
   },
   saveBtnDisabled: { opacity: 0.6 },
   saveBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  docsBtn: {
+    backgroundColor: "#059669",
+    borderRadius: 10,
+    padding: 14,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  docsBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   logoutBtn: {
     borderWidth: 1,
     borderColor: "#EF4444",

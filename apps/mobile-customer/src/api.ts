@@ -588,3 +588,40 @@ export async function cancelCraftRequest(
   });
   return _json<CraftRequest>(res);
 }
+
+// ---------------------------------------------------------------------------
+// Sprint 53 — Documents (KYC)
+// ---------------------------------------------------------------------------
+
+export interface DocumentResponse {
+  document_id: string;
+  user_id: string;
+  type: string;
+  url: string;
+  status: string;
+  admin_note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Submit a document (base64 data URL stored in url field). */
+export async function submitDocument(
+  token: string,
+  type: string,
+  url: string
+): Promise<DocumentResponse> {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/documents`, {
+    method: "POST",
+    headers: { ..._auth(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ type, url }),
+  });
+  return _json<DocumentResponse>(res);
+}
+
+/** List the current user's submitted documents. */
+export async function listMyDocuments(token: string): Promise<DocumentResponse[]> {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/documents`, {
+    headers: _auth(token),
+  });
+  return _json<DocumentResponse[]>(res);
+}

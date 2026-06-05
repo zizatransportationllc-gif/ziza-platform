@@ -1,6 +1,6 @@
 /**
  * AppNavigator — React Navigation stack for mobile-craft.
- * Sprint 47 — Ziza Craft marketplace.
+ * Sprint 53 — added Documents screen.
  */
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
@@ -11,6 +11,7 @@ import HomeScreen from "../screens/HomeScreen";
 import RequestDetailScreen from "../screens/RequestDetailScreen";
 import MyBidsScreen from "../screens/MyBidsScreen";
 import ProfileScreen from "../screens/ProfileScreen";
+import DocumentsScreen from "../screens/DocumentsScreen";
 
 export type RootStackParamList = {
   Login: undefined;
@@ -18,6 +19,7 @@ export type RootStackParamList = {
   RequestDetail: { requestId: string };
   MyBids: undefined;
   Profile: undefined;
+  Documents: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -58,6 +60,11 @@ export default function AppNavigator({
               name="Profile"
               component={ProfileScreen}
               options={{ title: "Professional Profile" }}
+            />
+            <Stack.Screen
+              name="Documents"
+              component={DocumentsScreen}
+              options={{ title: "My Documents" }}
             />
           </>
         ) : (

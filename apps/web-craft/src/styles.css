@@ -163,7 +163,14 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .doc-title { font-size: 1rem; font-weight: 700; color: var(--color-fg); margin-bottom: var(--space-4); }
 .doc-form { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
 .doc-type-select { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3); color: var(--color-fg); font-size: 0.9rem; outline: none; }
-.doc-url-input { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3); color: var(--color-fg); font-size: 0.9rem; outline: none; }
+.doc-capture-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.doc-capture-btn { display: inline-flex; align-items: center; gap: 5px; padding: 8px 14px; border-radius: var(--radius-md); border: 2px solid var(--color-accent); color: var(--color-accent); background: transparent; font-size: .875rem; font-weight: 600; cursor: pointer; transition: background .15s, color .15s; }
+.doc-capture-btn:hover { background: var(--color-accent); color: #fff; }
+.doc-capture-btn.doc-file-btn { border-color: var(--color-muted); color: var(--color-muted); }
+.doc-capture-btn.doc-file-btn:hover { background: var(--color-muted); color: #fff; }
+.doc-preview-wrap { display: flex; flex-direction: column; gap: 4px; }
+.doc-preview-img { max-width: 160px; max-height: 120px; border-radius: 8px; border: 2px solid var(--color-border); object-fit: cover; }
+.doc-file-name { font-size: .75rem; color: var(--color-muted); }
 .doc-submit-btn { background: var(--color-accent-strong); color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-2) var(--space-4); font-size: 0.9rem; font-weight: 600; cursor: pointer; }
 .doc-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .doc-success { color: var(--color-success); font-size: 0.85rem; }

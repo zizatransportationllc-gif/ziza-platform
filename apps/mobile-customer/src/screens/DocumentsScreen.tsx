@@ -12,18 +12,19 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  ScrollView,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "../context/AuthContext";
 import { listMyDocuments, submitDocument, DocumentResponse } from "../api";
 
-const DOC_TYPES = ["license", "insurance", "vehicle_registration", "id_card"];
+const DOC_TYPES = ["license", "insurance", "registration", "id_card"];
 
 const DOC_TYPE_LABELS: Record<string, string> = {
-  license:              "Driver's License",
-  insurance:            "Vehicle Insurance",
-  vehicle_registration: "Vehicle Registration",
-  id_card:              "Government ID",
+  license:      "🪪 Driver's License",
+  insurance:    "🛡️ Vehicle Insurance",
+  registration: "📋 Registration",
+  id_card:      "🪪 Government ID",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -101,15 +102,12 @@ export default function DocumentsScreen(): React.ReactElement {
     }
   };
 
-  if (loading) {
-    return <View style={styles.center}><ActivityIndicator color="#1D4ED8" /></View>;
-  }
-
   return (
-    <View style={styles.container}>
-      <Text style={styles.heading}>KYC Documents</Text>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <Text style={styles.heading}>📄 My Documents</Text>
 
       {/* Document type selector */}
+      <Text style={styles.sectionLabel}>Document type</Text>
       <View style={styles.typeRow}>
         {DOC_TYPES.map((t) => (
           <TouchableOpacity
@@ -141,7 +139,7 @@ export default function DocumentsScreen(): React.ReactElement {
         </View>
       )}
 
-      {/* Submit button */}
+      {/* Submit */}
       <TouchableOpacity
         style={[styles.submitBtn, (!base64Data || submitting) && styles.submitBtnDisabled]}
         onPress={handleSubmit}
@@ -154,43 +152,43 @@ export default function DocumentsScreen(): React.ReactElement {
 
       {/* Submitted documents list */}
       <Text style={styles.subHeading}>Submitted documents</Text>
-      <FlatList
-        data={documents}
-        keyExtractor={(item) => item.document_id}
-        renderItem={({ item }) => (
-          <View style={styles.docRow}>
-            <Text style={styles.docType}>{DOC_TYPE_LABELS[item.type] ?? item.type}</Text>
-            <Text style={[styles.docStatus, { color: STATUS_COLORS[item.status] ?? "#6B7280" }]}>
-              {item.status}
-            </Text>
-          </View>
-        )}
-        ListEmptyComponent={<Text style={styles.empty}>No documents submitted yet.</Text>}
-      />
-    </View>
+      {loading && <ActivityIndicator color="#F97316" style={{ marginTop: 12 }} />}
+      {!loading && documents.length === 0 && (
+        <Text style={styles.empty}>No documents submitted yet.</Text>
+      )}
+      {documents.map((item) => (
+        <View key={item.document_id} style={styles.docRow}>
+          <Text style={styles.docType}>{DOC_TYPE_LABELS[item.type] ?? item.type}</Text>
+          <Text style={[styles.docStatus, { color: STATUS_COLORS[item.status] ?? "#6B7280" }]}>
+            {item.status}
+          </Text>
+        </View>
+      ))}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: "#F9FAFB" },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  heading: { fontSize: 22, fontWeight: "bold", marginBottom: 12, color: "#1D4ED8" },
-  subHeading: { fontSize: 16, fontWeight: "600", marginTop: 20, marginBottom: 8, color: "#374151" },
-  typeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 14 },
+  container: { flex: 1, backgroundColor: "#F9FAFB" },
+  content: { padding: 20, paddingBottom: 40 },
+  heading: { fontSize: 22, fontWeight: "bold", marginBottom: 16, color: "#F97316" },
+  sectionLabel: { fontSize: 13, fontWeight: "600", color: "#6B7280", marginBottom: 8 },
+  subHeading: { fontSize: 16, fontWeight: "600", marginTop: 24, marginBottom: 10, color: "#374151" },
+  typeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 16 },
   typeChip: {
     borderWidth: 1,
-    borderColor: "#1D4ED8",
+    borderColor: "#F97316",
     borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-  typeChipSelected: { backgroundColor: "#1D4ED8" },
-  typeText: { color: "#1D4ED8", fontSize: 12 },
+  typeChipSelected: { backgroundColor: "#F97316" },
+  typeText: { color: "#F97316", fontSize: 12 },
   typeTextSelected: { color: "#fff" },
-  captureRow: { flexDirection: "row", gap: 10, marginBottom: 12 },
+  captureRow: { flexDirection: "row", gap: 10, marginBottom: 14 },
   captureBtn: {
     flex: 1,
-    backgroundColor: "#1D4ED8",
+    backgroundColor: "#F97316",
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: "center",
@@ -198,10 +196,10 @@ const styles = StyleSheet.create({
   captureBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   galleryBtn: { backgroundColor: "#E5E7EB" },
   galleryBtnText: { color: "#374151" },
-  previewWrap: { marginBottom: 12, alignItems: "center" },
-  previewImg: { width: 180, height: 130, borderRadius: 8, borderWidth: 2, borderColor: "#1D4ED8" },
+  previewWrap: { marginBottom: 14, alignItems: "center" },
+  previewImg: { width: 200, height: 150, borderRadius: 8, borderWidth: 2, borderColor: "#F97316" },
   submitBtn: {
-    backgroundColor: "#1D4ED8",
+    backgroundColor: "#F97316",
     borderRadius: 8,
     padding: 14,
     alignItems: "center",
@@ -209,7 +207,13 @@ const styles = StyleSheet.create({
   },
   submitBtnDisabled: { opacity: 0.5 },
   submitBtnText: { color: "#fff", fontWeight: "bold", fontSize: 15 },
-  docRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  docRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
   docType: { fontSize: 14, color: "#374151", flex: 1 },
   docStatus: { fontWeight: "600", fontSize: 14 },
   empty: { color: "#9CA3AF", textAlign: "center", marginVertical: 12 },

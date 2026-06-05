@@ -609,3 +609,29 @@ export async function cancelCraftRequest(token, requestId) {
   });
   return _json(res);
 }
+
+// ---------------------------------------------------------------------------
+// Sprint 53 — Documents (KYC) — customer document submission
+// ---------------------------------------------------------------------------
+
+/** Submit a document (base64 data URL stored in url field). */
+export async function submitDocument(token, type, url) {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/documents`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ type, url }),
+  });
+  return _json(res);
+}
+
+/** List the current user's submitted documents. */
+export async function listMyDocuments(token) {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/documents`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}

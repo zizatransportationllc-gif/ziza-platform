@@ -1,6 +1,6 @@
 /**
  * AppNavigator — React Navigation stack for mobile-customer.
- * Sprint 47 — added Craft screens.
+ * Sprint 53 — added Documents screen.
  */
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
@@ -17,6 +17,7 @@ import NotificationsScreen from "../screens/NotificationsScreen";
 import CraftRequestScreen from "../screens/CraftRequestScreen";
 import MyCraftRequestsScreen from "../screens/MyCraftRequestsScreen";
 import BidsScreen from "../screens/BidsScreen";
+import DocumentsScreen from "../screens/DocumentsScreen";
 
 export type RootStackParamList = {
   Login: undefined;
@@ -30,6 +31,7 @@ export type RootStackParamList = {
   CraftRequest: undefined;
   MyCraftRequests: undefined;
   Bids: { requestId: string; customerLat?: number; customerLng?: number };
+  Documents: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -69,6 +71,11 @@ export default function AppNavigator({
               name="Bids"
               component={BidsScreen}
               options={{ title: "Received Bids" }}
+            />
+            <Stack.Screen
+              name="Documents"
+              component={DocumentsScreen}
+              options={{ title: "My Documents" }}
             />
           </>
         ) : (
