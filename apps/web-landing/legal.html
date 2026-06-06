@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Ziza LLC — Legal Notice" />
+  <title>Legal Notice — Ziza</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .legal-hero {
+      background: linear-gradient(135deg, #fff1f2 0%, #fff 100%);
+      padding: 60px 0 40px;
+      border-bottom: 1px solid var(--border);
+    }
+    .legal-hero h1 {
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 800;
+      color: var(--dark);
+      margin-bottom: 8px;
+    }
+    .legal-hero .legal-meta { color: var(--muted); font-size: .9rem; }
+    .legal-hero .legal-meta span { color: var(--primary); font-weight: 600; }
+
+    .legal-body { padding: 60px 0 80px; }
+    .legal-content { max-width: 800px; }
+    .legal-content h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--dark);
+      margin: 40px 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid var(--border);
+    }
+    .legal-content h2:first-child { margin-top: 0; }
+    .legal-content p { color: var(--mid); margin-bottom: 14px; line-height: 1.75; }
+    .legal-content ul { color: var(--mid); margin: 0 0 14px 24px; line-height: 1.75; }
+    .legal-content li { margin-bottom: 6px; }
+    .legal-content a { color: var(--primary); text-decoration: underline; }
+    .legal-content strong { color: var(--dark); }
+    .legal-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--primary);
+      font-weight: 600;
+      font-size: .9rem;
+      margin-bottom: 32px;
+      transition: opacity .2s;
+    }
+    .legal-back:hover { opacity: .75; }
+
+    /* Identity card */
+    .identity-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      margin-bottom: 40px;
+      box-shadow: var(--shadow);
+    }
+    .identity-card h2 {
+      border: none;
+      margin-top: 0;
+      padding-bottom: 0;
+      font-size: 1.1rem;
+      color: var(--primary);
+      margin-bottom: 16px;
+    }
+    .identity-row {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 8px 16px;
+      align-items: start;
+    }
+    .identity-label {
+      font-size: .85rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      padding-top: 2px;
+    }
+    .identity-value {
+      font-size: .95rem;
+      color: var(--dark);
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .identity-row > :last-child,
+    .identity-row > :nth-last-child(2) { border-bottom: none; padding-bottom: 0; }
+
+    @media (max-width: 540px) {
+      .identity-row { grid-template-columns: 1fr; }
+      .identity-label { padding-bottom: 0; }
+      .identity-value { padding-bottom: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header class="header">
+    <div class="container header-inner">
+      <a href="index.html" class="logo">🚗 Ziza</a>
+      <nav class="nav">
+        <a href="index.html#features" class="nav-link">Features</a>
+        <a href="index.html#download" class="nav-link">Download</a>
+        <a href="index.html#contact" class="nav-link">Contact</a>
+      </nav>
+      <a href="index.html#download" class="btn btn-primary">Download the App</a>
+    </div>
+  </header>
+
+  <!-- ===== HERO ===== -->
+  <section class="legal-hero">
+    <div class="container">
+      <h1>Legal Notice</h1>
+      <p class="legal-meta">Last updated: <span>June 1, 2026</span></p>
+    </div>
+  </section>
+
+  <!-- ===== CONTENT ===== -->
+  <section class="legal-body">
+    <div class="container">
+      <div class="legal-content">
+
+        <a href="index.html" class="legal-back">← Back to Ziza</a>
+
+        <!-- Company identity card -->
+        <div class="identity-card">
+          <h2>🏢 Company Identification</h2>
+          <div class="identity-row">
+            <span class="identity-label">Legal entity</span>
+            <span class="identity-value">Ziza LLC</span>
+
+            <span class="identity-label">Type</span>
+            <span class="identity-value">Limited Liability Company (LLC)</span>
+
+            <span class="identity-label">State of incorporation</span>
+            <span class="identity-value">New Jersey, United States of America</span>
+
+            <span class="identity-label">Registered office</span>
+            <span class="identity-value">Newark, NJ, United States</span>
+
+            <span class="identity-label">Activity</span>
+            <span class="identity-value">Urban mobility technology platform — ride-hailing and roadside assistance</span>
+
+            <span class="identity-label">Email</span>
+            <span class="identity-value"><a href="mailto:legal@ziza.dev">legal@ziza.dev</a></span>
+
+            <span class="identity-label">Phone</span>
+            <span class="identity-value"><a href="tel:+12015550100">+1 (201) 555-0100</a></span>
+
+            <span class="identity-label">Website</span>
+            <span class="identity-value"><a href="https://ziza.dev">https://ziza.dev</a></span>
+          </div>
+        </div>
+
+        <h2>1. Publication Director</h2>
+        <p>The Ziza website and applications are published by <strong>Ziza LLC</strong>. The publication director is the designated officer of Ziza LLC.</p>
+
+        <h2>2. Hosting</h2>
+        <p>The Ziza platform is hosted on infrastructure operated by:</p>
+        <ul>
+          <li><strong>Google Cloud Platform (GCP)</strong> — Google LLC, 1600 Amphitheatre Parkway, Mountain View, CA 94043, USA. <a href="https://cloud.google.com" target="_blank" rel="noopener">cloud.google.com</a></li>
+          <li>Services used include: Cloud Run (containerized applications), Cloud SQL (PostgreSQL database), Cloud Storage (file storage), and Cloud Pub/Sub (messaging).</li>
+        </ul>
+
+        <h2>3. Intellectual Property</h2>
+        <p>All elements of the Ziza website and applications — including but not limited to texts, graphics, logos, icons, images, audio clips, source code, and software — are the exclusive intellectual property of Ziza LLC or its licensors and are protected by applicable copyright, trademark, and other intellectual property laws.</p>
+        <p>Any reproduction, distribution, modification, or use of any part of the Ziza platform without the express written authorization of Ziza LLC is strictly prohibited and may result in civil and/or criminal prosecution.</p>
+        <p>The name "Ziza," the Ziza logo, and associated marks are trademarks of Ziza LLC. Unauthorized use of any Ziza trademark is prohibited.</p>
+
+        <h2>4. Nature of Services</h2>
+        <p>Ziza LLC operates a <strong>technology intermediary platform</strong> that connects:</p>
+        <ul>
+          <li>Riders seeking on-demand transportation services;</li>
+          <li>Driver Partners who provide transportation as independent contractors;</li>
+          <li>Professionals offering roadside assistance and vehicle maintenance services ("Ziza Craft").</li>
+        </ul>
+        <p><strong>Ziza LLC does not directly provide transportation, towing, or roadside assistance services.</strong> Driver Partners and Professionals operating on the platform are independent contractors and are solely responsible for the services they render. Ziza LLC assumes no liability for their acts, omissions, or the quality of services provided.</p>
+
+        <h2>5. Regulatory Compliance</h2>
+        <p>Ziza LLC operates in compliance with applicable U.S. federal and New Jersey state regulations, including:</p>
+        <ul>
+          <li>Transportation Network Company (TNC) regulations of the State of New Jersey;</li>
+          <li>New Jersey Data Privacy Act (NJDPA);</li>
+          <li>The Americans with Disabilities Act (ADA) — we are committed to accessible services;</li>
+          <li>Fair Credit Reporting Act (FCRA) — governing background checks on Driver Partners;</li>
+          <li>PCI DSS — for the security of payment card transactions.</li>
+        </ul>
+
+        <h2>6. Limitation of Liability</h2>
+        <p>The information published on the Ziza website is provided for general informational purposes only. While we make reasonable efforts to keep it accurate and up to date, Ziza LLC makes no warranties, express or implied, as to the completeness, accuracy, or fitness for a particular purpose of the information.</p>
+        <p>Ziza LLC shall not be liable for any direct, indirect, incidental, or consequential damages arising from:</p>
+        <ul>
+          <li>Temporary unavailability of the website or applications;</li>
+          <li>Errors or omissions in the content of the website;</li>
+          <li>Use of external links or third-party websites referenced on the platform.</li>
+        </ul>
+
+        <h2>7. External Links</h2>
+        <p>The Ziza website may contain links to third-party websites. These links are provided for convenience only. Ziza LLC does not control and is not responsible for the content, privacy practices, or terms of those external websites. Linking to a third-party site does not imply endorsement.</p>
+
+        <h2>8. Cookies</h2>
+        <p>The Ziza website and web applications may use cookies for session management, analytics (anonymous), and functionality. By continuing to use the website, you consent to our use of cookies in accordance with our <a href="privacy.html">Privacy Policy</a>. You may manage your cookie preferences through your browser settings.</p>
+
+        <h2>9. Applicable Law and Jurisdiction</h2>
+        <p>This Legal Notice is governed by the laws of the State of New Jersey, United States of America. Any dispute relating to the interpretation or application of this Legal Notice shall be subject to the exclusive jurisdiction of the courts of the State of New Jersey, unless the parties agree otherwise in writing.</p>
+
+        <h2>10. Contact</h2>
+        <p>For any legal inquiries regarding this Notice:</p>
+        <ul>
+          <li>Email: <a href="mailto:legal@ziza.dev">legal@ziza.dev</a></li>
+          <li>Support: <a href="mailto:support@ziza.dev">support@ziza.dev</a></li>
+          <li>Phone: <a href="tel:+12015550100">+1 (201) 555-0100</a></li>
+          <li>Address: Ziza LLC, Newark, NJ, United States</li>
+        </ul>
+
+        <h2>11. Related Documents</h2>
+        <ul>
+          <li><a href="terms.html">Terms of Service</a> — the full agreement governing use of the Ziza platform</li>
+          <li><a href="privacy.html">Privacy Policy</a> — how we collect, use, and protect your personal data</li>
+        </ul>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FOOTER ===== -->
+  <footer id="contact" class="footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <p class="logo">🚗 Ziza</p>
+        <p class="footer-tagline">Smart urban mobility</p>
+        <p class="footer-copy">&copy; 2026 Ziza LLC. All rights reserved.</p>
+      </div>
+      <div class="footer-links">
+        <h4>Product</h4>
+        <a href="index.html#features">Features</a>
+        <a href="index.html#download">Download</a>
+      </div>
+      <div class="footer-links">
+        <h4>Legal</h4>
+        <a href="terms.html">Terms of Service</a>
+        <a href="privacy.html">Privacy Policy</a>
+        <a href="legal.html">Legal Notice</a>
+      </div>
+      <div class="footer-links">
+        <h4>Contact</h4>
+        <a href="mailto:support@ziza.dev">support@ziza.dev</a>
+        <a href="tel:+12015550100">+1 (201) 555-0100</a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
