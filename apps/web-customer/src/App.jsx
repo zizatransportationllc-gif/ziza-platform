@@ -2169,7 +2169,7 @@ function Dashboard({ user, token, onLogout }) {
         </>
       )}
 
-      <p className="footer">App: <strong>web-customer</strong> · Sprint 53</p>
+      <p className="footer">App: <strong>web-customer</strong> · Sprint 54 — Doc Validation</p>
     </div>
   );
 }
