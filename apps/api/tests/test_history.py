@@ -1,11 +1,12 @@
-"""Sprint 13 — Trip history, driver online presence, admin assistance panel (15 tests).
+"""Sprint 13 — Trip history, driver online presence (11 tests).
 
 Scenarios covered:
   PUT  /v1/drivers/me/online        — set online/offline, role guard, auth guard
   GET  /v1/drivers/me/profile       — profile shape, is_online field
   GET  /v1/trips/driver/history     — empty, after complete, pagination, role guard
-  GET  /v1/admin/assistance         — shape, after request, pagination, role guard
   GET  /v1/trips                    — pagination params (limit/offset)
+
+Sprint 48 hotfix: removed admin/assistance panel tests (feature removed in Sprint 48).
 """
 import pytest
 from fastapi.testclient import TestClient
@@ -185,68 +186,6 @@ def test_driver_trip_history_requires_driver_role():
     tc = _get_token("customer@ziza.dev")
     _ensure_customer(tc)
     r = client.get("/v1/trips/driver/history", headers=_headers(tc))
-    assert r.status_code == 403
-
-
-# ---------------------------------------------------------------------------
-# Admin assistance list
-# ---------------------------------------------------------------------------
-
-def test_admin_list_assistance_shape():
-    """Admin can list assistance requests; shape check."""
-    ta = _get_token("admin@ziza.dev")
-    client.post("/v1/auth/register", headers=_headers(ta))
-
-    r = client.get("/v1/admin/assistance", headers=_headers(ta))
-    assert r.status_code == 200
-    data = r.json()
-    assert isinstance(data, list)
-
-
-def test_admin_list_assistance_after_request():
-    """After customer creates a request, admin sees it."""
-    tc = _get_token("customer@ziza.dev")
-    ta = _get_token("admin@ziza.dev")
-    _ensure_customer(tc)
-    client.post("/v1/auth/register", headers=_headers(ta))
-
-    client.post(
-        "/v1/assistance",
-        json={"type": "fuel", "lat": 5.3207, "lng": -4.0175},
-        headers=_headers(tc),
-    )
-
-    r = client.get("/v1/admin/assistance", headers=_headers(ta))
-    assert r.status_code == 200
-    data = r.json()
-    assert len(data) >= 1
-    first = data[0]
-    assert "request_id" in first
-    assert "type" in first
-    assert "status" in first
-    assert "customer_email" in first
-    assert "created_at" in first
-    assert "updated_at" in first
-
-
-def test_admin_list_assistance_pagination():
-    """limit/offset work for admin assistance list."""
-    ta = _get_token("admin@ziza.dev")
-    client.post("/v1/auth/register", headers=_headers(ta))
-
-    page0 = client.get("/v1/admin/assistance?limit=1&offset=0", headers=_headers(ta)).json()
-    page1 = client.get("/v1/admin/assistance?limit=1&offset=1", headers=_headers(ta)).json()
-    assert len(page0) <= 1
-    assert len(page1) <= 1
-    # If both have results, they must differ
-    if page0 and page1:
-        assert page0[0]["request_id"] != page1[0]["request_id"]
-
-
-def test_admin_list_assistance_requires_admin_role():
-    """Driver cannot access admin assistance list."""
-    td = _get_token("driver@ziza.dev")
-    r = client.get("/v1/admin/assistance", headers=_headers(td))
     assert r.status_code == 403
 
 

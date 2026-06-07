@@ -1,10 +1,11 @@
-"""Sprint 46 — Service zone enforcement tests (6 tests).
+"""Sprint 46 — Service zone enforcement tests (4 tests).
 
 Verifies that:
   - POST /v1/estimate rejects origins/destinations outside all active city radii.
-  - POST /v1/assistance rejects locations outside all active city radii.
   - Coordinates within an active city radius are accepted.
   - When no active cities exist the endpoints remain open (fail-open / backward compat).
+
+Sprint 48 hotfix: removed assistance zone enforcement tests (feature removed in Sprint 48).
 
 City seeding strategy
 ---------------------
@@ -160,46 +161,3 @@ def test_no_active_zones_enforcement_off():
     # Fail-open: no active cities → enforcement OFF → 200
     assert r.status_code == 200, r.text
 
-
-# ---------------------------------------------------------------------------
-# Assistance endpoint — zone enforcement
-# ---------------------------------------------------------------------------
-
-def test_assistance_origin_outside_zone_rejected():
-    """Assistance request with location in Los Angeles → 422."""
-    cities, a_tok = _seed()
-    newark = next((c for c in cities if c["name"] == "Newark"), None)
-    assert newark is not None, "Newark not seeded"
-
-    _set_city_active(newark["city_id"], True, a_tok)
-    try:
-        c_tok = _c_tok()
-        r = client.post(
-            "/v1/assistance",
-            headers=_h(c_tok),
-            json={"type": "breakdown", "lat": LOS_ANGELES["lat"], "lng": LOS_ANGELES["lng"]},
-        )
-        assert r.status_code == 422, r.text
-        assert "service area" in r.json()["detail"].lower()
-    finally:
-        _set_city_active(newark["city_id"], False, a_tok)
-
-
-def test_assistance_valid_coords_accepted():
-    """Assistance request with location in Newark → 201."""
-    cities, a_tok = _seed()
-    newark = next((c for c in cities if c["name"] == "Newark"), None)
-    assert newark is not None, "Newark not seeded"
-
-    _set_city_active(newark["city_id"], True, a_tok)
-    try:
-        c_tok = _c_tok()
-        r = client.post(
-            "/v1/assistance",
-            headers=_h(c_tok),
-            json={"type": "breakdown", "lat": 40.73, "lng": -74.17},
-        )
-        assert r.status_code == 201, r.text
-        assert r.json()["type"] == "breakdown"
-    finally:
-        _set_city_active(newark["city_id"], False, a_tok)

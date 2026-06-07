@@ -1,8 +1,9 @@
-"""Sprint 23 — Concurrency / double-action protection tests (2 tests).
+"""Sprint 23 — Concurrency / double-action protection tests (1 test).
 
-Verifies that accepting the same trip (or assistance request) twice results
-in a 409 on the second call, preventing data corruption when two drivers race
-to accept the same job.
+Verifies that accepting the same trip twice results in a 409 on the second
+call, preventing data corruption when two drivers race to accept the same job.
+
+Sprint 48 hotfix: removed assistance double-accept test (feature removed in Sprint 48).
 """
 import uuid
 
@@ -52,16 +53,6 @@ def _book_trip(customer_tok: str) -> str:
     return trip.json()["trip_id"]
 
 
-def _book_assistance(customer_tok: str) -> str:
-    r = client.post(
-        "/v1/assistance",
-        headers=_h(customer_tok),
-        json={"type": "breakdown", "lat": 5.32, "lng": -4.02},
-    )
-    assert r.status_code == 201, r.text
-    return r.json()["request_id"]
-
-
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
@@ -84,19 +75,3 @@ def test_accept_trip_twice_second_returns_409():
     assert r2.status_code == 409, r2.text
 
 
-def test_accept_assistance_twice_second_returns_409():
-    """Accepting the same assistance request twice → second call returns 409."""
-    tc = _tok("customer@ziza.dev")
-    td = _tok("driver@ziza.dev")
-    _setup_customer(tc)
-    _setup_driver(td)
-
-    req_id = _book_assistance(tc)
-
-    # First accept
-    r1 = client.patch(f"/v1/assistance/{req_id}/accept", headers=_h(td))
-    assert r1.status_code == 200, r1.text
-
-    # Second accept must be rejected
-    r2 = client.patch(f"/v1/assistance/{req_id}/accept", headers=_h(td))
-    assert r2.status_code == 409, r2.text

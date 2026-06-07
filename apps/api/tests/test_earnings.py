@@ -161,7 +161,7 @@ def test_driver_earnings_requires_auth():
 # ---------------------------------------------------------------------------
 
 def test_admin_stats_shape():
-    """Admin stats response contains trips, assistance, drivers sections."""
+    """Admin stats response contains trips, drivers sections (assistance removed Sprint 48)."""
     ta = _get_token("admin@ziza.dev")
 
     r = client.get("/v1/admin/stats", headers=_headers(ta))
@@ -169,7 +169,6 @@ def test_admin_stats_shape():
     body = r.json()
 
     assert "trips" in body
-    assert "assistance" in body
     assert "drivers" in body
 
     trips = body["trips"]
@@ -179,7 +178,6 @@ def test_admin_stats_shape():
     assert isinstance(trips["total"], int)
     assert isinstance(trips["total_revenue_xof"], int)
 
-    assert "total" in body["assistance"]
     assert "total" in body["drivers"]
 
 

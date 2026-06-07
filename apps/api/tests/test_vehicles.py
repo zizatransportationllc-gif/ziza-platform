@@ -1,11 +1,12 @@
-"""Sprint 12 — vehicle management, customer assistance history, admin users (12 tests).
+"""Sprint 12 — vehicle management, admin users (9 tests).
 
 Scenarios covered:
   POST /v1/drivers/me/vehicle      — create, update (idempotent), duplicate plate (409), 403
   GET  /v1/drivers/me/vehicle      — returns vehicle, 404 before registration, 403
   GET  /v1/trips/{id}              — vehicle field present once driver accepts
-  GET  /v1/assistance              — customer assistance history (all, empty, auth)
   GET  /v1/admin/users             — list, admin-only
+
+Sprint 48 hotfix: removed customer assistance history tests (feature removed in Sprint 48).
 """
 import time
 
@@ -196,46 +197,6 @@ def test_vehicle_appears_in_trip_detail_after_accept():
     assert vehicle is not None
     assert "plate" in vehicle
     assert vehicle["plate"] != ""
-
-
-# ---------------------------------------------------------------------------
-# Customer assistance history
-# ---------------------------------------------------------------------------
-
-def test_customer_assistance_history_empty():
-    """A fresh customer with no requests gets an empty list."""
-    tc = _get_token("customer@ziza.dev")
-    _ensure_customer(tc)
-
-    r = client.get("/v1/assistance", headers=_headers(tc))
-    assert r.status_code == 200
-    assert isinstance(r.json(), list)
-
-
-def test_customer_assistance_history_after_request():
-    """After creating an assistance request, it appears in the history."""
-    tc = _get_token("customer@ziza.dev")
-    _ensure_customer(tc)
-
-    client.post(
-        "/v1/assistance",
-        json={"type": "breakdown", "lat": 5.3207, "lng": -4.0175},
-        headers=_headers(tc),
-    )
-
-    r = client.get("/v1/assistance", headers=_headers(tc))
-    assert r.status_code == 200
-    history = r.json()
-    assert len(history) >= 1
-    assert history[0]["type"] == "breakdown"
-    assert "request_id" in history[0]
-    assert "status" in history[0]
-
-
-def test_customer_assistance_history_requires_auth():
-    """Unauthenticated request is rejected."""
-    r = client.get("/v1/assistance")
-    assert r.status_code in (401, 403)
 
 
 # ---------------------------------------------------------------------------
