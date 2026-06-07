@@ -85,7 +85,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
   return (
     <div className="app">
       <img src="/logo-driver.svg" alt="Ziza Driver" className="app-logo" />
-      <p className="subtitle">Sprint 53 — Documents</p>
+      <p className="subtitle">Sprint 54 — Doc Validation</p>
       <div className="auth-tabs">
         <button className={`auth-tab${tab === "signin" ? " active" : ""}`} onClick={() => setTab("signin")}>Sign In</button>
         <button className={`auth-tab${tab === "signup" ? " active" : ""}`} onClick={() => setTab("signup")}>Create Account</button>
@@ -946,6 +946,7 @@ function Dashboard({ user, token, onLogout }) {
   const [tab, setTab] = useState("dispatch"); // "dispatch" | "history" | "payouts" | "documents" | "notifications" | "location"
   const [unreadCount, setUnreadCount] = useState(0);
   const [balance, setBalance] = useState(null); // Sprint 29 — net balance
+  const [driverStatus, setDriverStatus] = useState("active"); // Sprint 54 — pending_docs gate
 
   const refreshUnread = useCallback(() => {
     getUnreadCount(token).then((d) => setUnreadCount(d.count)).catch(() => {});
@@ -962,7 +963,7 @@ function Dashboard({ user, token, onLogout }) {
       getMyEarnings(token).then(setEarnings).catch(() => {}),
       getDriverBalance(token).then(setBalance).catch(() => {}), // Sprint 29
       getMyVehicle(token).then(setVehicle).catch(() => setVehicle(null)),
-      getDriverProfile(token).then((p) => setIsOnline(p.is_online)).catch(() => {}),
+      getDriverProfile(token).then((p) => { setIsOnline(p.is_online); setDriverStatus(p.status || "active"); }).catch(() => {}),
     ]).finally(() => setInitialized(true));
   }, [token]);
 
@@ -1090,8 +1091,28 @@ function Dashboard({ user, token, onLogout }) {
             </button>
           </div>
 
+          {/* Sprint 54 — KYC pending gate */}
+          {driverStatus === "pending_docs" && (
+            <div className="kyc-pending-banner">
+              <div className="kyc-pending-icon">🔒</div>
+              <div>
+                <strong>Account pending verification</strong>
+                <p>Submit your documents below. Access to trips will be unlocked once an admin approves your documents.</p>
+              </div>
+              {tab !== "documents" && (
+                <button className="btn-kyc-docs" onClick={() => setTab("documents")}>📄 Submit Documents →</button>
+              )}
+            </div>
+          )}
+
           {tab === "dispatch" && (
-            isOnline ? (
+            driverStatus === "pending_docs" ? (
+              <div className="offline-notice">
+                <div className="offline-icon">📋</div>
+                <p>Document verification required.</p>
+                <p className="offline-sub">Please submit your documents in the Documents tab to unlock the dispatch marketplace.</p>
+              </div>
+            ) : isOnline ? (
               <AvailableTripsSection
                 token={token}
                 onTripAccepted={setActiveTrip}
@@ -1113,7 +1134,7 @@ function Dashboard({ user, token, onLogout }) {
         </>
       )}
 
-      <p className="footer">App: <strong>web-driver</strong> · Sprint 53</p>
+      <p className="footer">App: <strong>web-driver</strong> · Sprint 54</p>
     </div>
   );
 }

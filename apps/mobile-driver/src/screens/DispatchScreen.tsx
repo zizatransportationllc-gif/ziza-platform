@@ -22,9 +22,9 @@ import { TripResponse, acceptTrip } from "../api";
 type DispatchNavProp = NativeStackNavigationProp<RootStackParamList, "Dispatch">;
 
 export default function DispatchScreen(): React.ReactElement {
-  const { token, isOnline, setOnline } = useAuth();
+  const { token, isOnline, setOnline, driverStatus } = useAuth();
   const navigation = useNavigation<DispatchNavProp>();
-  const { trips, loading, error } = useDispatch(isOnline ? token : null);
+  const { trips, loading, error } = useDispatch(isOnline && driverStatus === "active" ? token : null);
   const [accepting, setAccepting] = useState(false);
 
   const handleAcceptTrip = async (trip: TripResponse) => {
@@ -39,6 +39,28 @@ export default function DispatchScreen(): React.ReactElement {
       setAccepting(false);
     }
   };
+
+  // Sprint 54 — KYC gate: block dispatch until docs are validated
+  if (driverStatus === "pending_docs") {
+    return (
+      <View style={styles.container}>
+        <View style={styles.kycBanner}>
+          <Text style={styles.kycIcon}>🔒</Text>
+          <Text style={styles.kycTitle}>Account Pending Verification</Text>
+          <Text style={styles.kycBody}>
+            Submit your KYC documents to unlock the trip marketplace.
+            An admin will review and activate your account.
+          </Text>
+          <Text
+            style={styles.kycLink}
+            onPress={() => navigation.navigate("Documents")}
+          >
+            📄 Go to Documents →
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -96,4 +118,10 @@ const styles = StyleSheet.create({
   offlineMsg: { textAlign: "center", color: "#6B7280", marginTop: 60, fontSize: 16 },
   empty: { textAlign: "center", color: "#9CA3AF", marginTop: 40 },
   errorText: { color: "#EF4444", textAlign: "center", marginTop: 8, fontSize: 13 },
+  // Sprint 54 — KYC pending
+  kycBanner: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32 },
+  kycIcon: { fontSize: 48, marginBottom: 16 },
+  kycTitle: { fontSize: 20, fontWeight: "700", color: "#1E3A5F", marginBottom: 12, textAlign: "center" },
+  kycBody: { fontSize: 14, color: "#6B7280", textAlign: "center", lineHeight: 22, marginBottom: 24 },
+  kycLink: { fontSize: 15, fontWeight: "700", color: "#1D4ED8", textDecorationLine: "underline" },
 });

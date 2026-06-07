@@ -1,4 +1,4 @@
-"""Ziza API — Sprint 51.
+"""Ziza API — Sprint 54.
 
 Endpoints:
   GET   /health                                    liveness probe
@@ -105,6 +105,9 @@ Endpoints:
   GET   /v1/stats                                 public: trips + driver counts for landing page (Sprint 51)
   GET   /v1/landing/content                       public: landing page editable content blocks (Sprint 51)
   PATCH /v1/landing/content                       admin: upsert landing page content blocks (Sprint 51)
+  POST  /v1/drivers/me/documents                  driver OR professional submits a KYC document (Sprint 54, no url max_length)
+  GET   /v1/drivers/me/documents                  driver OR professional lists their KYC documents (Sprint 54)
+  PATCH /v1/admin/professionals/{id}/status       admin sets professional status (Sprint 54)
 """
 from __future__ import annotations
 
@@ -1474,7 +1477,7 @@ async def validate_promo(
 # ---------------------------------------------------------------------------
 
 class DriverStatusRequest(BaseModel):
-    status: Literal["active", "inactive", "suspended"]
+    status: Literal["active", "inactive", "suspended", "pending_docs"]
 
 
 class DriverStatusResponse(BaseModel):
@@ -1489,7 +1492,7 @@ async def admin_set_driver_status(
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> DriverStatusResponse:
-    """Admin: set a driver's status (active | inactive | suspended)."""
+    """Admin: set a driver's status (active | inactive | suspended | pending_docs)."""
     if claims.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -1497,6 +1500,31 @@ async def admin_set_driver_status(
         )
     result = await crud.admin_set_driver_status(db, driver_id, body.status)
     return DriverStatusResponse(**result)
+
+
+class ProfessionalStatusRequest(BaseModel):
+    status: Literal["active", "inactive", "suspended", "pending_docs"]
+
+
+@app.patch(
+    "/v1/admin/professionals/{professional_id}/status",
+    tags=["admin"],
+    summary="Admin sets a professional's status (Sprint 54)",
+)
+async def admin_set_professional_status(
+    professional_id: str,
+    body: ProfessionalStatusRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProfessionalResponse:
+    """Admin: set a professional's status (active | inactive | suspended | pending_docs)."""
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    result = await crud.admin_update_professional_status(db, professional_id, body.status)
+    return ProfessionalResponse(**result)
 
 
 # ---------------------------------------------------------------------------
@@ -1711,7 +1739,8 @@ class DocumentSubmitRequest(BaseModel):
     type: DocumentType = Field(
         ..., description="license | insurance | registration | id_card"
     )
-    url: str = Field(..., min_length=1, max_length=2048, description="URL of the document scan")
+    # Sprint 54: no max_length — accepts base64 data URLs (can be several MB)
+    url: str = Field(..., min_length=1, description="URL or base64 data URL of the document scan")
 
 
 class DocumentResponse(BaseModel):
@@ -1727,12 +1756,13 @@ class DocumentResponse(BaseModel):
 
 class AdminDocumentRecord(BaseModel):
     document_id: str
-    driver_id: str
-    driver_email: str
+    driver_id: str            # driver_id for drivers, professional_id for professionals
+    driver_email: str         # email of the owner (driver or professional)
     type: str
     url: str
     status: str
     note_admin: str | None = None
+    owner_type: str = "driver"   # Sprint 54: "driver" | "professional"
     created_at: str
     updated_at: str
 
@@ -1766,18 +1796,31 @@ async def submit_document(
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> DocumentResponse:
-    """Driver submits a KYC document for admin review.
+    """Driver or professional submits a KYC document for admin review.
 
     Type must be one of: license, insurance, registration, id_card.
     Multiple submissions of the same type are allowed (e.g. resubmit after rejection).
+    Sprint 54: accepts base64 data URLs (no size limit); open to professional role too.
     """
-    if claims.role != "driver":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only drivers can submit documents",
+    if claims.role == "driver":
+        doc = await crud.submit_driver_document(db, claims.user_id, body.type, body.url)
+        return _document_response(doc)
+    elif claims.role == "professional":
+        doc = await crud.submit_professional_document(db, claims.user_id, body.type, body.url)
+        return DocumentResponse(
+            document_id=str(doc.id),
+            driver_id=str(doc.professional_id),
+            type=doc.type,
+            url=doc.url,
+            status=doc.status,
+            note_admin=doc.note_admin,
+            created_at=doc.created_at.isoformat(),
+            updated_at=doc.updated_at.isoformat(),
         )
-    doc = await crud.submit_driver_document(db, claims.user_id, body.type, body.url)
-    return _document_response(doc)
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Only drivers and professionals can submit documents",
+    )
 
 
 @app.get("/v1/drivers/me/documents", tags=["documents"])
@@ -1785,14 +1828,29 @@ async def list_my_documents(
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[DocumentResponse]:
-    """Driver: list all submitted KYC documents, newest first."""
-    if claims.role != "driver":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only drivers can view their documents",
-        )
-    docs = await crud.list_driver_documents(db, claims.user_id)
-    return [_document_response(d) for d in docs]
+    """Driver or professional: list all submitted KYC documents, newest first."""
+    if claims.role == "driver":
+        docs = await crud.list_driver_documents(db, claims.user_id)
+        return [_document_response(d) for d in docs]
+    elif claims.role == "professional":
+        docs = await crud.list_professional_documents(db, claims.user_id)
+        return [
+            DocumentResponse(
+                document_id=str(d.id),
+                driver_id=str(d.professional_id),
+                type=d.type,
+                url=d.url,
+                status=d.status,
+                note_admin=d.note_admin,
+                created_at=d.created_at.isoformat(),
+                updated_at=d.updated_at.isoformat(),
+            )
+            for d in docs
+        ]
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Only drivers and professionals can view their documents",
+    )
 
 
 @app.get("/v1/admin/documents", tags=["admin"])
@@ -1802,15 +1860,56 @@ async def admin_list_documents(
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[AdminDocumentRecord]:
-    """Admin: list all KYC documents (newest first, paginated)."""
+    """Admin: list all KYC documents from drivers and professionals (newest first, paginated).
+
+    Sprint 54: includes professional documents alongside driver documents.
+    """
     if claims.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",
         )
     limit = min(limit, 200)
-    rows = await crud.admin_list_documents(db, limit=limit, offset=offset)
-    return [AdminDocumentRecord(**r) for r in rows]
+    # Driver documents
+    driver_rows = await crud.admin_list_documents(db, limit=limit, offset=offset)
+    driver_records = [
+        AdminDocumentRecord(owner_type="driver", **r) for r in driver_rows
+    ]
+    # Professional documents (Sprint 54)
+    from app.models.professional_document import ProfessionalDocument as _PD
+    from app.models.craft import Professional as _Prof
+    from app.models.user import User as _User
+    from sqlalchemy import select as _select
+    prof_result = await db.execute(
+        _select(_PD, _Prof, _User)
+        .join(_Prof, _PD.professional_id == _Prof.id)
+        .join(_User, _Prof.user_id == _User.id)
+        .order_by(_PD.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    prof_records = [
+        AdminDocumentRecord(
+            document_id=str(doc.id),
+            driver_id=str(doc.professional_id),
+            driver_email=user.email,
+            type=doc.type,
+            url=doc.url,
+            status=doc.status,
+            note_admin=doc.note_admin,
+            owner_type="professional",
+            created_at=doc.created_at.isoformat(),
+            updated_at=doc.updated_at.isoformat(),
+        )
+        for doc, prof, user in prof_result.all()
+    ]
+    # Merge and re-sort by created_at descending, apply pagination
+    all_records = sorted(
+        driver_records + prof_records,
+        key=lambda r: r.created_at,
+        reverse=True,
+    )[:limit]
+    return all_records
 
 
 @app.patch("/v1/admin/documents/{document_id}/status", tags=["admin"])
@@ -1820,8 +1919,9 @@ async def admin_update_document_status(
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> DocumentResponse:
-    """Admin: approve or reject a driver KYC document.
+    """Admin: approve or reject a driver or professional KYC document.
 
+    Sprint 54: tries driver documents first, then professional documents.
     Optionally attach a note explaining the decision.
     """
     if claims.role != "admin":
@@ -1829,10 +1929,34 @@ async def admin_update_document_status(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",
         )
-    result = await crud.admin_update_document_status(
+    # Try driver document first
+    from app.models.driver_document import DriverDocument as _DD
+    import uuid as _uuid
+    try:
+        doc_uuid = _uuid.UUID(document_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid document_id")
+    from sqlalchemy import select as _select
+    driver_doc = await db.scalar(_select(_DD).where(_DD.id == doc_uuid))
+    if driver_doc is not None:
+        result = await crud.admin_update_document_status(
+            db, document_id, body.status, body.note_admin
+        )
+        return DocumentResponse(**result)
+    # Try professional document
+    result = await crud.admin_update_professional_document_status(
         db, document_id, body.status, body.note_admin
     )
-    return DocumentResponse(**result)
+    return DocumentResponse(
+        document_id=result["document_id"],
+        driver_id=result["driver_id"],
+        type=result["type"],
+        url=result["url"],
+        status=result["status"],
+        note_admin=result["note_admin"],
+        created_at=result["created_at"],
+        updated_at=result["updated_at"],
+    )
 
 
 @app.get("/v1/admin/pending-counts", tags=["admin"])

@@ -115,6 +115,29 @@ export default function HomeScreen(): React.ReactElement {
   );
 
   const isOnline = profile?.is_online ?? false;
+  const profStatus = profile?.status ?? "active"; // Sprint 54
+
+  // Sprint 54 — KYC gate: block requests until professional docs are validated
+  if (profStatus === "pending_docs") {
+    return (
+      <View style={styles.container}>
+        <View style={styles.kycBanner}>
+          <Text style={styles.kycIcon}>🔒</Text>
+          <Text style={styles.kycTitle}>Account Pending Verification</Text>
+          <Text style={styles.kycBody}>
+            Submit your professional documents to unlock client requests.
+            An admin will review and activate your account.
+          </Text>
+          <Text
+            style={styles.kycLink}
+            onPress={() => navigation.navigate("Profile")}
+          >
+            📄 Go to Profile → Documents →
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -251,4 +274,10 @@ const styles = StyleSheet.create({
   bidButtonText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   empty: { textAlign: "center", color: "#9CA3AF", marginTop: 60, fontSize: 16 },
   errorText: { color: "#EF4444", textAlign: "center", marginTop: 8, fontSize: 13, padding: 12 },
+  // Sprint 54 — KYC pending
+  kycBanner: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32 },
+  kycIcon: { fontSize: 48, marginBottom: 16 },
+  kycTitle: { fontSize: 20, fontWeight: "700", color: "#065f46", marginBottom: 12, textAlign: "center" },
+  kycBody: { fontSize: 14, color: "#6B7280", textAlign: "center", lineHeight: 22, marginBottom: 24 },
+  kycLink: { fontSize: 15, fontWeight: "700", color: "#059669", textDecorationLine: "underline" },
 });

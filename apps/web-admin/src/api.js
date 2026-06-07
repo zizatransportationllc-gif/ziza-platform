@@ -11,7 +11,11 @@ async function _json(res) {
       window.dispatchEvent(new CustomEvent("ziza:auth:expired"));
     }
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `HTTP ${res.status}`);
+    // Sprint 54: Pydantic 422 returns detail as array [{loc, msg, type}]
+    const detail = Array.isArray(err.detail)
+      ? err.detail.map(e => e.msg || String(e)).join(', ')
+      : err.detail;
+    throw new Error(detail || `HTTP ${res.status}`);
   }
   return res.json();
 }
@@ -279,6 +283,20 @@ export async function adminSetDriverStatus(token, driverId, newStatus) {
     body: JSON.stringify({ status: newStatus }),
   });
   return _json(res); // { driver_id, status }
+}
+
+// Sprint 54 — Professional status management
+export async function adminSetProfessionalStatus(token, professionalId, newStatus) {
+  const res = await fetch(`${API_BASE}/v1/admin/professionals/${professionalId}/status`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ status: newStatus }),
+  });
+  return _json(res); // ProfessionalResponse
 }
 
 // ---------------------------------------------------------------------------

@@ -31,6 +31,7 @@ interface AuthContextType {
   token: string | null;
   ready: boolean;
   isOnline: boolean;
+  driverStatus: string;  // Sprint 54: "active" | "pending_docs" | "inactive" | "suspended"
   login: (accessToken: string, refreshToken?: string | null) => Promise<void>;
   logout: () => Promise<void>;
   setOnline: (online: boolean) => Promise<void>;
@@ -89,6 +90,7 @@ export function AuthProvider({
   const [token, setToken] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
+  const [driverStatus, setDriverStatus] = useState<string>("active"); // Sprint 54
 
   useEffect(() => {
     (async () => {
@@ -98,10 +100,11 @@ export function AuthProvider({
 
         let activeToken = storedAccess;
 
-        // --- Validate token + load online status ---
+        // --- Validate token + load online status + driver status ---
         try {
           const profile = await getDriverProfile(storedAccess);
           setIsOnline(profile.is_online);
+          setDriverStatus(profile.status || "active"); // Sprint 54
         } catch (err) {
           if (err instanceof ApiError && err.status === 401) {
             // Access token expired — attempt silent refresh
@@ -115,6 +118,7 @@ export function AuthProvider({
               activeToken = newPair.access_token;
               const profile = await getDriverProfile(activeToken);
               setIsOnline(profile.is_online);
+              setDriverStatus(profile.status || "active"); // Sprint 54
             } catch {
               // Refresh token revoked or expired → force re-login
               await clearTokenPair();
@@ -141,6 +145,7 @@ export function AuthProvider({
     try {
       const profile = await getDriverProfile(accessToken);
       setIsOnline(profile.is_online);
+      setDriverStatus(profile.status || "active"); // Sprint 54
     } catch {
       setIsOnline(false);
     }
@@ -156,6 +161,7 @@ export function AuthProvider({
     }
     setToken(null);
     setIsOnline(false);
+    setDriverStatus("active");
   };
 
   const setOnline = async (online: boolean) => {
@@ -169,7 +175,7 @@ export function AuthProvider({
   };
 
   return (
-    <AuthContext.Provider value={{ token, ready, isOnline, login, logout, setOnline }}>
+    <AuthContext.Provider value={{ token, ready, isOnline, driverStatus, login, logout, setOnline }}>
       {children}
     </AuthContext.Provider>
   );

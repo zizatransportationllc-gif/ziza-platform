@@ -226,7 +226,11 @@ export async function updateProfile(token, name, phone) {
 async function _json(res) {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `HTTP ${res.status}`);
+    // Sprint 54: Pydantic 422 returns detail as array [{loc, msg, type}]
+    const detail = Array.isArray(err.detail)
+      ? err.detail.map(e => e.msg || String(e)).join(', ')
+      : err.detail;
+    throw new Error(detail || `HTTP ${res.status}`);
   }
   return res.json();
 }

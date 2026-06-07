@@ -87,7 +87,7 @@ function LoginForm({ onLogin, onSignup, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Craft</h1>
-      <p className="subtitle">Sprint 49 — Professional Dashboard</p>
+      <p className="subtitle">Sprint 54 — Doc Validation</p>
       <div className="auth-tabs">
         <button className={`auth-tab${tab === "signin" ? " active" : ""}`} onClick={() => setTab("signin")}>Sign In</button>
         <button className={`auth-tab${tab === "signup" ? " active" : ""}`} onClick={() => setTab("signup")}>Join as Pro</button>
@@ -738,6 +738,7 @@ function NotificationsSection({ token, onRead }) {
 
 function Dashboard({ user, token, onLogout }) {
   const [profile, setProfile] = useState(null);
+  const [profStatus, setProfStatus] = useState("active"); // Sprint 54 — pending_docs gate
   const [isOnline, setIsOnline] = useState(false);
   const [togglingOnline, setTogglingOnline] = useState(false);
   const [tab, setTab] = useState("requests");
@@ -750,7 +751,7 @@ function Dashboard({ user, token, onLogout }) {
 
   useEffect(() => {
     Promise.all([
-      getMyProfile(token).then((p) => { setProfile(p); setIsOnline(p.is_online); }).catch(() => {}),
+      getMyProfile(token).then((p) => { setProfile(p); setIsOnline(p.is_online); setProfStatus(p.status || "active"); }).catch(() => {}),
     ]).finally(() => setInitialized(true));
     refreshUnread();
   }, [token]);
@@ -843,14 +844,38 @@ function Dashboard({ user, token, onLogout }) {
         </button>
       </div>
 
-      {tab === "requests"      && <OpenRequestsSection token={token} isOnline={isOnline} />}
+      {/* Sprint 54 — KYC pending gate */}
+      {profStatus === "pending_docs" && (
+        <div className="kyc-pending-banner">
+          <div className="kyc-pending-icon">🔒</div>
+          <div>
+            <strong>Account pending verification</strong>
+            <p>Submit your professional documents below. Access to client requests will be unlocked once an admin approves your documents.</p>
+          </div>
+          {tab !== "documents" && (
+            <button className="btn-kyc-docs" onClick={() => setTab("documents")}>📄 Submit Documents →</button>
+          )}
+        </div>
+      )}
+
+      {tab === "requests"      && (
+        profStatus === "pending_docs" ? (
+          <div className="offline-notice">
+            <div className="offline-icon">📋</div>
+            <p>Document verification required.</p>
+            <p className="offline-sub">Please submit your professional documents to unlock client requests.</p>
+          </div>
+        ) : (
+          <OpenRequestsSection token={token} isOnline={isOnline} />
+        )
+      )}
       {tab === "bids"          && <MyBidsSection token={token} />}
       {tab === "profile"       && <ProfileSection token={token} profile={profile} onProfileUpdated={(p) => { setProfile(p); setIsOnline(p.is_online); }} />}
       {tab === "skills"        && <SkillsSection token={token} profile={profile} onProfileUpdated={(p) => { setProfile(p); }} />}
       {tab === "documents"     && <DocumentsSection token={token} />}
       {tab === "notifications" && <NotificationsSection token={token} onRead={refreshUnread} />}
 
-      <p className="footer">App: <strong>web-craft</strong> · Sprint 53</p>
+      <p className="footer">App: <strong>web-craft</strong> · Sprint 54</p>
     </div>
   );
 }

@@ -262,3 +262,11 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .driver-map-hint { font-size: 0.78rem; color: var(--color-muted); margin-bottom: var(--space-1); padding: 0 2px; }
 .driver-map-wrap .mapboxgl-ctrl-bottom-left,
 .driver-map-wrap .mapboxgl-ctrl-bottom-right { display: none; }
+
+
+/* ── Sprint 54 — KYC pending gate ── */
+.kyc-pending-banner { display: flex; align-items: flex-start; gap: var(--space-3); background: #fff7ed; border: 1px solid #f97316; border-radius: var(--radius-md); padding: var(--space-4); margin: var(--space-3) 0; text-align: left; }
+.kyc-pending-icon { font-size: 1.5rem; flex-shrink: 0; }
+.kyc-pending-banner strong { color: #c2410c; display: block; margin-bottom: 4px; }
+.kyc-pending-banner p { color: #7c3a10; font-size: 0.85rem; margin: 0; }
+.btn-kyc-docs { margin-left: auto; background: #f97316; color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.82rem; font-weight: 700; cursor: pointer; white-space: nowrap; flex-shrink: 0; }

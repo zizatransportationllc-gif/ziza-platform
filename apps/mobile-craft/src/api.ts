@@ -30,7 +30,12 @@ export class ApiError extends Error {
 async function _json<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, (err as any).detail || `HTTP ${res.status}`);
+    // Sprint 54: Pydantic 422 returns detail as array [{loc, msg, type}]
+    const rawDetail = (err as any).detail;
+    const detail = Array.isArray(rawDetail)
+      ? rawDetail.map((e: any) => e.msg || String(e)).join(', ')
+      : rawDetail;
+    throw new ApiError(res.status, detail || `HTTP ${res.status}`);
   }
   return res.json() as Promise<T>;
 }

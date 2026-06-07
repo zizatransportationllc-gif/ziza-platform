@@ -213,3 +213,10 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 
 /* ── Footer ─────────────────────────────────────────────────────────────── */
 .footer { margin-top: var(--space-8); color: var(--color-muted); font-size: 0.82rem; }
+
+/* ── Sprint 54 — KYC pending gate ── */
+.kyc-pending-banner { display: flex; align-items: flex-start; gap: var(--space-3); background: #f0fdf4; border: 1px solid #059669; border-radius: var(--radius-md); padding: var(--space-4); margin: var(--space-3) 0; text-align: left; }
+.kyc-pending-icon { font-size: 1.5rem; flex-shrink: 0; }
+.kyc-pending-banner strong { color: #065f46; display: block; margin-bottom: 4px; }
+.kyc-pending-banner p { color: #047857; font-size: 0.85rem; margin: 0; }
+.btn-kyc-docs { margin-left: auto; background: #059669; color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.82rem; font-weight: 700; cursor: pointer; white-space: nowrap; flex-shrink: 0; }

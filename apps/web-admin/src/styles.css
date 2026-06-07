@@ -92,9 +92,10 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .driver-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-3); gap: var(--space-2); }
 .driver-email { font-weight: 600; font-size: 0.95rem; margin-right: var(--space-2); }
 .driver-status-badge { display: inline-block; font-size: 0.72rem; font-weight: 700; padding: 2px var(--space-2); border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em; }
-.driver-status-badge.active     { background: color-mix(in srgb, var(--color-success) 12%, transparent); color: var(--color-success); }
-.driver-status-badge.inactive   { background: color-mix(in srgb, var(--color-muted) 12%, transparent); color: var(--color-muted); }
-.driver-status-badge.suspended  { background: color-mix(in srgb, var(--color-error) 12%, transparent); color: var(--color-error); }
+.driver-status-badge.active       { background: color-mix(in srgb, var(--color-success) 12%, transparent); color: var(--color-success); }
+.driver-status-badge.inactive     { background: color-mix(in srgb, var(--color-muted) 12%, transparent); color: var(--color-muted); }
+.driver-status-badge.suspended    { background: color-mix(in srgb, var(--color-error) 12%, transparent); color: var(--color-error); }
+.driver-status-badge.pending_docs { background: #fff7ed; color: #c2410c; } /* Sprint 54 */
 .edit-caps-btn { background: var(--color-accent-strong); color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.82rem; cursor: pointer; font-weight: 600; white-space: nowrap; transition: opacity 0.15s; }
 .edit-caps-btn:hover { opacity: 0.85; }
 
@@ -232,11 +233,15 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .doc-admin-row.doc-admin-pending  { border-left: 3px solid #f59e0b; }
 .doc-admin-row.doc-admin-approved { border-left: 3px solid var(--color-success); }
 .doc-admin-row.doc-admin-rejected { border-left: 3px solid var(--color-error); opacity: 0.75; }
-.doc-admin-main { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-1); flex-wrap: wrap; }
+.doc-admin-main { display: flex; align-items: center; justify-content: flex-start; gap: var(--space-3); margin-bottom: var(--space-1); flex-wrap: wrap; }
 .doc-admin-type { font-size: 0.9rem; font-weight: 600; }
 .doc-admin-status { font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
 .doc-admin-status-pending  { background: color-mix(in srgb, #f59e0b 15%, transparent); color: #92400e; }
 .doc-admin-status-approved { background: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success); }
+/* Sprint 54 — owner type badge */
+.doc-owner-badge { font-size: 0.72rem; font-weight: 700; padding: 2px 7px; border-radius: 999px; }
+.doc-owner-driver       { background: #dbeafe; color: #1d4ed8; }
+.doc-owner-professional { background: #d1fae5; color: #065f46; }
 .doc-admin-status-rejected { background: color-mix(in srgb, var(--color-error) 12%, transparent); color: var(--color-error); }
 .doc-admin-meta { font-size: 0.78rem; color: var(--color-muted); display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; margin-bottom: var(--space-2); }
 .doc-admin-url { color: var(--color-accent); text-decoration: none; font-weight: 600; }

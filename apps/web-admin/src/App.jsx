@@ -165,13 +165,19 @@ function DocumentsPanel({ token }) {
         <div key={d.document_id} className={`doc-admin-row doc-admin-${d.status}`}>
           <div className="doc-admin-main">
             <span className="doc-admin-type">{DOC_TYPE_LABELS[d.type] ?? d.type}</span>
+            {/* Sprint 54 — show owner type */}
+            <span className={`doc-owner-badge doc-owner-${d.owner_type ?? "driver"}`}>
+              {d.owner_type === "professional" ? "🔧 Pro" : "🚗 Driver"}
+            </span>
             <span className={`doc-admin-status doc-admin-status-${d.status}`}>
               {DOC_STATUS_LABELS[d.status] ?? d.status}
             </span>
           </div>
           <div className="doc-admin-meta">
-            <span>🧑‍✈️ {d.driver_email}</span>
-            <a className="doc-admin-url" href={d.url} target="_blank" rel="noreferrer">View document ↗</a>
+            <span>{d.owner_type === "professional" ? "🔧" : "🧑‍✈️"} {d.driver_email}</span>
+            <a className="doc-admin-url" href={d.url.startsWith("data:") ? "#" : d.url} target="_blank" rel="noreferrer">
+              {d.url.startsWith("data:") ? "Base64 image" : "View document ↗"}
+            </a>
             <span>{new Date(d.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" })}</span>
           </div>
           {d.note_admin && <p className="doc-admin-note">💬 {d.note_admin}</p>}
@@ -449,7 +455,18 @@ function DriverRow({ driver, onStatusChange }) {
           <span className={`driver-status-badge ${driver.status}`}>{driver.status}</span>
         </div>
         <div className="driver-card-actions">
-          {driver.status !== "suspended" ? (
+          {/* Sprint 54 — activate pending_docs drivers */}
+          {driver.status === "pending_docs" && (
+            <button
+              className="activate-btn"
+              onClick={() => handleStatus("active")}
+              disabled={changingStatus}
+              title="Activate driver (docs validated)"
+            >
+              ✅ Activate
+            </button>
+          )}
+          {driver.status !== "suspended" && driver.status !== "pending_docs" ? (
             <button
               className="suspend-btn"
               onClick={() => handleStatus("suspended")}
@@ -458,7 +475,7 @@ function DriverRow({ driver, onStatusChange }) {
             >
               🚫
             </button>
-          ) : (
+          ) : driver.status === "suspended" ? (
             <button
               className="activate-btn"
               onClick={() => handleStatus("active")}
@@ -467,7 +484,7 @@ function DriverRow({ driver, onStatusChange }) {
             >
               ✅
             </button>
-          )}
+          ) : null}
         </div>
       </div>
     </div>
@@ -2488,7 +2505,7 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "users"        && <UsersPanel          token={token} />}
       {activeTab === "craft"        && <CraftPanel          token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 48</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 54</p>
     </div>
   );
 }

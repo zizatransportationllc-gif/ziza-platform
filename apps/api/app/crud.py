@@ -1,4 +1,4 @@
-"""CRUD helpers — Sprint 4 → Sprint 51.
+"""CRUD helpers — Sprint 4 → Sprint 54.
 
 All functions are async and receive an ``AsyncSession`` from the FastAPI
 ``get_db`` dependency.
@@ -19,6 +19,7 @@ from app.models.device_token import DeviceToken
 from app.models.driver import Driver
 from app.models.driver_capability import DriverCapability
 from app.models.driver_document import DriverDocument, DOCUMENT_TYPES
+from app.models.professional_document import ProfessionalDocument  # Sprint 54
 from app.models.notification import Notification
 from app.models.driver_location import DriverLocation
 from app.models.payment import PaymentIntent
@@ -560,7 +561,7 @@ async def upsert_driver(db: AsyncSession, claims: Claims) -> tuple[Driver, bool]
     if driver is not None:
         return driver, False
 
-    driver = Driver(user_id=user.id, status="active")
+    driver = Driver(user_id=user.id, status="pending_docs")  # Sprint 54 — blocked until docs validated
     db.add(driver)
     await db.commit()
     await db.refresh(driver)
@@ -1803,7 +1804,7 @@ async def admin_update_document_status(
 async def admin_get_pending_counts(db: AsyncSession) -> dict:
     """Return counts of items awaiting admin action.
 
-    Currently tracks: pending payout requests and pending KYC documents.
+    Sprint 54: includes professional pending KYC documents.
     """
     r_payouts = await db.execute(
         select(func.count(PayoutRequestModel.id))
@@ -1817,13 +1818,19 @@ async def admin_get_pending_counts(db: AsyncSession) -> dict:
     )
     doc_count = r_docs.scalar() or 0
 
+    r_prof_docs = await db.execute(
+        select(func.count(ProfessionalDocument.id))
+        .where(ProfessionalDocument.status == "pending")
+    )
+    prof_doc_count = r_prof_docs.scalar() or 0
+
     return {
         "payout_requests": int(payout_count),
-        "documents": int(doc_count),
+        "documents": int(doc_count) + int(prof_doc_count),
     }
 
 
-_VALID_DRIVER_STATUSES = {"active", "inactive", "suspended"}
+_VALID_DRIVER_STATUSES = {"active", "inactive", "suspended", "pending_docs"}  # Sprint 54
 
 
 async def admin_set_driver_status(
@@ -4070,6 +4077,7 @@ async def register_professional(
         user_id=user_id,
         specialties=specialties,
         bio=bio,
+        status="pending_docs",  # Sprint 54 — blocked until docs validated
         created_at=datetime.now(timezone.utc),
     )
     db.add(prof)
@@ -4441,3 +4449,177 @@ async def set_landing_content(
             existing.value = value
     await db.commit()
     return await get_landing_content(db)
+
+
+# ---------------------------------------------------------------------------
+# Professional Documents (KYC) — Sprint 54
+# ---------------------------------------------------------------------------
+
+async def _get_professional_by_auth_id(
+    db: AsyncSession, auth_user_id: str
+) -> Professional | None:
+    """Return the Professional row for a given auth user_id string."""
+    user = await _get_user_by_auth_id(db, auth_user_id)
+    if user is None:
+        return None
+    from app.models.craft import Professional as _Prof  # local import to avoid circular
+    return await db.scalar(select(_Prof).where(_Prof.user_id == user.id))
+
+
+async def submit_professional_document(
+    db: AsyncSession,
+    auth_user_id: str,
+    doc_type: str,
+    url: str,
+) -> ProfessionalDocument:
+    """Professional submits a KYC document (base64 data URL or URL to a scan).
+
+    Multiple submissions of the same type are allowed (resubmit after rejection).
+    """
+    prof = await _get_professional_by_auth_id(db, auth_user_id)
+    if prof is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Professional profile not found — call POST /v1/craft/professionals/register first",
+        )
+    if doc_type not in DOCUMENT_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid document type '{doc_type}'. Valid: {sorted(DOCUMENT_TYPES)}",
+        )
+    doc = ProfessionalDocument(
+        professional_id=prof.id,
+        type=doc_type,
+        url=url,
+        status="pending",
+    )
+    db.add(doc)
+    await db.commit()
+    await db.refresh(doc)
+    return doc
+
+
+async def list_professional_documents(
+    db: AsyncSession,
+    auth_user_id: str,
+) -> list[ProfessionalDocument]:
+    """Return all KYC documents submitted by this professional, newest first."""
+    prof = await _get_professional_by_auth_id(db, auth_user_id)
+    if prof is None:
+        return []
+    result = await db.execute(
+        select(ProfessionalDocument)
+        .where(ProfessionalDocument.professional_id == prof.id)
+        .order_by(ProfessionalDocument.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def admin_update_professional_document_status(
+    db: AsyncSession,
+    document_id_str: str,
+    new_status: str,
+    note_admin: str | None = None,
+) -> dict:
+    """Admin approves or rejects a professional KYC document.
+
+    Returns a dict compatible with DocumentResponse / AdminDocumentRecord.
+    """
+    if new_status not in {"approved", "rejected"}:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid status '{new_status}'. Valid: approved, rejected",
+        )
+    try:
+        doc_uuid = uuid.UUID(document_id_str)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid document_id format",
+        )
+    result = await db.execute(
+        select(ProfessionalDocument).where(ProfessionalDocument.id == doc_uuid)
+    )
+    doc: ProfessionalDocument | None = result.scalar_one_or_none()
+    if doc is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Professional document not found",
+        )
+    doc.status = new_status
+    if note_admin is not None:
+        doc.note_admin = note_admin
+    doc.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(doc)
+
+    # Notify the professional
+    from app.models.craft import Professional as _Prof
+    prof_result = await db.execute(select(_Prof).where(_Prof.id == doc.professional_id))
+    reviewed_prof = prof_result.scalar_one_or_none()
+    if reviewed_prof is not None:
+        doc_type_label = {
+            "license": "Professional License",
+            "insurance": "Vehicle Insurance",
+            "registration": "Vehicle Registration",
+            "id_card": "Government ID",
+        }.get(doc.type, doc.type)
+        if new_status == "approved":
+            await _push_notification(
+                db, reviewed_prof.user_id,
+                "document_approved",
+                "✅ Document approved",
+                f"Your {doc_type_label} has been approved by the Ziza team.",
+            )
+        else:
+            note_suffix = f" — {note_admin}" if note_admin else ""
+            await _push_notification(
+                db, reviewed_prof.user_id,
+                "document_rejected",
+                "❌ Document rejected",
+                f"Your {doc_type_label} was rejected{note_suffix}. Please submit a new document.",
+            )
+
+    return {
+        "document_id": str(doc.id),
+        "driver_id": str(doc.professional_id),  # reuse driver_id field for admin response
+        "type": doc.type,
+        "url": doc.url,
+        "status": doc.status,
+        "note_admin": doc.note_admin,
+        "owner_type": "professional",
+        "created_at": _utc(doc.created_at).isoformat(),
+        "updated_at": _utc(doc.updated_at).isoformat(),
+    }
+
+
+async def admin_update_professional_status(
+    db: AsyncSession,
+    professional_id_str: str,
+    new_status: str,
+) -> dict:
+    """Admin sets a professional's status (active | inactive | suspended | pending_docs)."""
+    valid = {"active", "inactive", "suspended", "pending_docs"}
+    if new_status not in valid:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid status '{new_status}'. Valid: {sorted(valid)}",
+        )
+    try:
+        prof_uuid = uuid.UUID(professional_id_str)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid professional_id format",
+        )
+    from app.models.craft import Professional as _Prof
+    prof = await db.scalar(select(_Prof).where(_Prof.id == prof_uuid))
+    if prof is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Professional not found",
+        )
+    prof.status = new_status
+    await db.commit()
+    await db.refresh(prof)
+    return _professional_to_dict(prof)
