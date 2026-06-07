@@ -1502,31 +1502,6 @@ async def admin_set_driver_status(
     return DriverStatusResponse(**result)
 
 
-class ProfessionalStatusRequest(BaseModel):
-    status: Literal["active", "inactive", "suspended", "pending_docs"]
-
-
-@app.patch(
-    "/v1/admin/professionals/{professional_id}/status",
-    tags=["admin"],
-    summary="Admin sets a professional's status (Sprint 54)",
-)
-async def admin_set_professional_status(
-    professional_id: str,
-    body: ProfessionalStatusRequest,
-    claims: Claims = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> ProfessionalResponse:
-    """Admin: set a professional's status (active | inactive | suspended | pending_docs)."""
-    if claims.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required",
-        )
-    result = await crud.admin_update_professional_status(db, professional_id, body.status)
-    return ProfessionalResponse(**result)
-
-
 # ---------------------------------------------------------------------------
 # Driver Payout Requests — Sprint 15
 # ---------------------------------------------------------------------------
@@ -3699,6 +3674,36 @@ class ProfessionalResponse(BaseModel):
     current_lat: float | None
     current_lng: float | None
     created_at: str
+
+
+# ---------------------------------------------------------------------------
+# Admin: set professional status — Sprint 54
+# (placed here so ProfessionalResponse is already defined)
+# ---------------------------------------------------------------------------
+
+class ProfessionalStatusRequest(BaseModel):
+    status: Literal["active", "inactive", "suspended", "pending_docs"]
+
+
+@app.patch(
+    "/v1/admin/professionals/{professional_id}/status",
+    tags=["admin"],
+    summary="Admin sets a professional's status (Sprint 54)",
+)
+async def admin_set_professional_status(
+    professional_id: str,
+    body: ProfessionalStatusRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProfessionalResponse:
+    """Admin: set a professional's status (active | inactive | suspended | pending_docs)."""
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    result = await crud.admin_update_professional_status(db, professional_id, body.status)
+    return ProfessionalResponse(**result)
 
 
 class RegisterProfessionalRequest(BaseModel):
