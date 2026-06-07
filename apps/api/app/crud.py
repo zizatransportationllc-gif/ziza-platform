@@ -636,13 +636,18 @@ async def get_driver_active_trip(db: AsyncSession, auth_user_id: str) -> Trip | 
 
 
 def _require_driver(driver: Driver | None) -> Driver:
-    """Raise if driver is None or inactive."""
+    """Raise if driver is None or blocked (inactive / suspended).
+
+    Sprint 54: 'pending_docs' is allowed — drivers must be able to read their
+    profile and submit KYC documents while awaiting admin validation.
+    Only 'accept_trip' enforces the stricter 'active'-only check.
+    """
     if driver is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Driver profile not found — call POST /v1/drivers/register first",
         )
-    if driver.status != "active":
+    if driver.status in ("inactive", "suspended"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Driver account is not active",
@@ -671,6 +676,13 @@ async def _load_trip_for_driver(db: AsyncSession, trip_id: str, driver: Driver) 
 async def accept_trip(db: AsyncSession, trip_id: str, auth_user_id: str) -> Trip:
     """Driver accepts a pending trip → accepted.  Sets trip.driver_id."""
     driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
+
+    # Sprint 54: only fully verified drivers may accept trips
+    if driver.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Driver account must be verified (active) to accept trips",
+        )
 
     try:
         trip_uuid = uuid.UUID(trip_id)

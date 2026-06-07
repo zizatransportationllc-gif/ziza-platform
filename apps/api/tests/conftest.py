@@ -1,4 +1,4 @@
-"""Test configuration — Sprint 4 / Sprint 46 hotfix.
+"""Test configuration — Sprint 4 / Sprint 46 hotfix / Sprint 54 hotfix.
 
 Sets up an in-memory SQLite database for every test run.
 Every test gets the ``get_db`` dependency overridden with an async session
@@ -11,8 +11,14 @@ Sprint 34 hotfix: also patches ``app.db._SessionLocal`` directly so that
 Sprint 46 hotfix: truncate all tables before each test to prevent cross-test
 data pollution (e.g. an active city created by test_cities.py causing zone
 enforcement to block estimate tests that use Abidjan coordinates).
+
+Sprint 54 hotfix: patch ``crud.upsert_driver`` so that newly-created drivers
+in tests start with ``status="active"`` instead of ``"pending_docs"``.
+Production keeps ``pending_docs`` as the initial status; tests keep working
+with the legacy trip-flow assumptions.
 """
 import asyncio
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy import text
@@ -21,6 +27,8 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+
+import app.crud as _crud_module
 
 import app.db as _db_module
 import app.models  # noqa: F401 — registers all models with Base.metadata
@@ -102,3 +110,29 @@ def _override_db():
     app.dependency_overrides.pop(get_db, None)
     app.dependency_overrides.pop(get_db_optional, None)
     _db_module._SessionLocal = _original_session_local
+
+
+# ---------------------------------------------------------------------------
+# Sprint 54 — make test drivers start as "active"
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _driver_starts_active():
+    """Patch crud.upsert_driver so that newly-created drivers in tests get
+    status='active' instead of 'pending_docs'.
+
+    Production behaviour is preserved; tests that rely on the old assumption
+    that a freshly-registered driver is immediately usable continue to work.
+    """
+    _original_upsert = _crud_module.upsert_driver
+
+    async def _active_upsert(db, claims):
+        driver, created = await _original_upsert(db, claims)
+        if created and driver.status == "pending_docs":
+            driver.status = "active"
+            await db.commit()
+            await db.refresh(driver)
+        return driver, created
+
+    with patch.object(_crud_module, "upsert_driver", _active_upsert):
+        yield
