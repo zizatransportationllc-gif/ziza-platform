@@ -98,6 +98,7 @@ export interface DocumentResponse {
   type: string;
   url: string;
   status: string;
+  note_admin?: string | null;
   created_at: string;
 }
 

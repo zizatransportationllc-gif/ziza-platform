@@ -591,7 +591,7 @@ function PayoutSection({ token }) {
 }
 
 // ---------------------------------------------------------------------------
-// Documents section — Sprint 17
+// Documents section — Sprint 58
 // ---------------------------------------------------------------------------
 
 const DOCUMENT_TYPE_LABELS = {
@@ -602,22 +602,60 @@ const DOCUMENT_TYPE_LABELS = {
 };
 
 const DOCUMENT_STATUS_LABELS = {
-  pending:  "⏳ Pending",
-  approved: "✅ Approved",
-  rejected: "✗ Rejected",
+  pending:            "⏳ Pending",
+  approved:           "✅ Approved",
+  rejected:           "✗ Rejected",
+  needs_resubmission: "🔄 Resubmit Required",
 };
 
 const DOCUMENT_TYPES = ["license", "insurance", "registration", "id_card"];
 
-function DocumentsSection({ token }) {
-  const [docs, setDocs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [docType, setDocType] = useState("license");
-  const [preview, setPreview] = useState(null);   // base64 data URL
-  const [fileName, setFileName] = useState("");
+const ONBOARDING_STEPS = [
+  "Account Created",
+  "Documents Submitted",
+  "Under Review",
+  "Account Approved",
+];
+
+function OnboardingProgress({ docs, entityStatus }) {
+  const hasAnyDoc     = docs.length > 0;
+  const hasActionItem = docs.some((d) => d.status === "rejected" || d.status === "needs_resubmission");
+  let currentStep = 1;
+  if (hasAnyDoc)                   currentStep = 2;
+  if (hasAnyDoc && !hasActionItem) currentStep = 3;
+  if (entityStatus === "active")   currentStep = 4;
+
+  return (
+    <div className="onboarding-stepper">
+      {ONBOARDING_STEPS.map((label, i) => {
+        const n    = i + 1;
+        const done = n < currentStep;
+        const cur  = n === currentStep;
+        return (
+          <div key={n} className="stepper-step">
+            <div className={`stepper-circle ${done ? "circle-done" : cur ? "circle-active" : "circle-todo"}`}>
+              {done ? "✓" : n}
+            </div>
+            <span className={`stepper-label ${done || cur ? "label-active" : "label-todo"}`}>{label}</span>
+            {i < ONBOARDING_STEPS.length - 1 && (
+              <div className={`stepper-line ${done ? "line-done" : "line-todo"}`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function DocumentsSection({ token, driverStatus = "pending_docs" }) {
+  const [docs, setDocs]             = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [docType, setDocType]       = useState("license");
+  const [preview, setPreview]       = useState(null);   // base64 data URL
+  const [fileName, setFileName]     = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(null);
-  const [error, setError] = useState(null);
+  const [success, setSuccess]       = useState(null);
+  const [error, setError]           = useState(null);
 
   const loadDocs = useCallback(() => {
     setLoading(true);
@@ -628,6 +666,16 @@ function DocumentsSection({ token }) {
   }, [token]);
 
   useEffect(() => { loadDocs(); }, [loadDocs]);
+
+  const actionDocs = docs.filter((d) => d.status === "rejected" || d.status === "needs_resubmission");
+
+  function handleResubmit(type) {
+    setDocType(type);
+    setPreview(null);
+    setFileName("");
+    setSuccess(null);
+    setError(null);
+  }
 
   function handleFileChange(e) {
     const file = e.target.files?.[0];
@@ -655,6 +703,22 @@ function DocumentsSection({ token }) {
   return (
     <div className="documents-section">
       <h3 className="doc-title">📄 My KYC Documents</h3>
+
+      {!loading && <OnboardingProgress docs={docs} entityStatus={driverStatus} />}
+
+      {actionDocs.length > 0 && (
+        <div className="doc-action-banner">
+          <strong>⚠️ Action Required</strong>
+          <p>{actionDocs.length} document{actionDocs.length > 1 ? "s" : ""} need{actionDocs.length === 1 ? "s" : ""} your attention — please re-upload below.</p>
+        </div>
+      )}
+
+      {!loading && docs.length > 0 && actionDocs.length === 0 && driverStatus !== "active" && (
+        <div className="doc-review-banner">
+          ⏳ All documents submitted — your account is under admin review. You will be notified once approved.
+        </div>
+      )}
+
       <form className="doc-form" onSubmit={handleSubmit}>
         <select
           className="doc-type-select"
@@ -702,6 +766,15 @@ function DocumentsSection({ token }) {
               </span>
             </div>
             {d.note_admin && <p className="doc-note">💬 {d.note_admin}</p>}
+            {(d.status === "rejected" || d.status === "needs_resubmission") && (
+              <button
+                className="doc-resubmit-btn"
+                type="button"
+                onClick={() => handleResubmit(d.type)}
+              >
+                🔄 Re-upload {DOCUMENT_TYPE_LABELS[d.type] ?? d.type}
+              </button>
+            )}
             <p className="doc-date">
               {new Date(d.created_at).toLocaleDateString("en-US", {
                 day: "2-digit", month: "short", year: "numeric",
@@ -1128,13 +1201,13 @@ function Dashboard({ user, token, onLogout }) {
 
           {tab === "history"       && <DriverTripHistory token={token} />}
           {tab === "payouts"       && <PayoutSection token={token} />}
-          {tab === "documents"     && <DocumentsSection token={token} />}
+          {tab === "documents"     && <DocumentsSection token={token} driverStatus={driverStatus} />}
           {tab === "notifications" && <DriverNotificationsSection token={token} onRead={refreshUnread} />}
           {tab === "location"      && <LocationSection token={token} />}
         </>
       )}
 
-      <p className="footer">App: <strong>web-driver</strong> · Sprint 57 — Doc Review UI</p>
+      <p className="footer">App: <strong>web-driver</strong> · Sprint 58 — Onboarding Wizard UI</p>
     </div>
   );
 }

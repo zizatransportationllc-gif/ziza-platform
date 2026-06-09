@@ -54,9 +54,10 @@ const DOCUMENT_TYPE_LABELS = {
   id_card:      "🪪 Government ID",
 };
 const DOCUMENT_STATUS_LABELS = {
-  pending:  "⏳ Pending",
-  approved: "✅ Approved",
-  rejected: "✗ Rejected",
+  pending:            "⏳ Pending",
+  approved:           "✅ Approved",
+  rejected:           "✗ Rejected",
+  needs_resubmission: "🔄 Resubmit Required",
 };
 
 // ---------------------------------------------------------------------------
@@ -539,18 +540,55 @@ function SkillsSection({ token, profile, onProfileUpdated }) {
 }
 
 // ---------------------------------------------------------------------------
-// Documents section
+// Documents section — Sprint 58
 // ---------------------------------------------------------------------------
 
-function DocumentsSection({ token }) {
-  const [docs, setDocs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [docType, setDocType] = useState("license");
-  const [preview, setPreview] = useState(null);   // base64 data URL
-  const [fileName, setFileName] = useState("");
+const ONBOARDING_STEPS_CRAFT = [
+  "Account Created",
+  "Documents Submitted",
+  "Under Review",
+  "Account Approved",
+];
+
+function OnboardingProgressCraft({ docs, entityStatus }) {
+  const hasAnyDoc     = docs.length > 0;
+  const hasActionItem = docs.some((d) => d.status === "rejected" || d.status === "needs_resubmission");
+  let currentStep = 1;
+  if (hasAnyDoc)                   currentStep = 2;
+  if (hasAnyDoc && !hasActionItem) currentStep = 3;
+  if (entityStatus === "active")   currentStep = 4;
+
+  return (
+    <div className="onboarding-stepper">
+      {ONBOARDING_STEPS_CRAFT.map((label, i) => {
+        const n    = i + 1;
+        const done = n < currentStep;
+        const cur  = n === currentStep;
+        return (
+          <div key={n} className="stepper-step">
+            <div className={`stepper-circle ${done ? "circle-done" : cur ? "circle-active" : "circle-todo"}`}>
+              {done ? "✓" : n}
+            </div>
+            <span className={`stepper-label ${done || cur ? "label-active" : "label-todo"}`}>{label}</span>
+            {i < ONBOARDING_STEPS_CRAFT.length - 1 && (
+              <div className={`stepper-line ${done ? "line-done" : "line-todo"}`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function DocumentsSection({ token, profStatus = "pending_docs" }) {
+  const [docs, setDocs]             = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [docType, setDocType]       = useState("license");
+  const [preview, setPreview]       = useState(null);   // base64 data URL
+  const [fileName, setFileName]     = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(null);
-  const [error, setError] = useState(null);
+  const [success, setSuccess]       = useState(null);
+  const [error, setError]           = useState(null);
 
   const loadDocs = useCallback(() => {
     setLoading(true);
@@ -561,6 +599,16 @@ function DocumentsSection({ token }) {
   }, [token]);
 
   useEffect(() => { loadDocs(); }, [loadDocs]);
+
+  const actionDocs = docs.filter((d) => d.status === "rejected" || d.status === "needs_resubmission");
+
+  function handleResubmit(type) {
+    setDocType(type);
+    setPreview(null);
+    setFileName("");
+    setSuccess(null);
+    setError(null);
+  }
 
   function handleFileChange(e) {
     const file = e.target.files?.[0];
@@ -591,7 +639,22 @@ function DocumentsSection({ token }) {
         <h2 className="section-title">📄 KYC Documents</h2>
       </div>
 
-      <div className="doc-form">
+      {!loading && <OnboardingProgressCraft docs={docs} entityStatus={profStatus} />}
+
+      {actionDocs.length > 0 && (
+        <div className="doc-action-banner">
+          <strong>⚠️ Action Required</strong>
+          <p>{actionDocs.length} document{actionDocs.length > 1 ? "s" : ""} need{actionDocs.length === 1 ? "s" : ""} your attention — please re-upload below.</p>
+        </div>
+      )}
+
+      {!loading && docs.length > 0 && actionDocs.length === 0 && profStatus !== "active" && (
+        <div className="doc-review-banner">
+          ⏳ All documents submitted — your account is under admin review. You will be notified once approved.
+        </div>
+      )}
+
+      <form className="doc-form" onSubmit={handleSubmit}>
         <select
           className="doc-type-select"
           value={docType}
@@ -619,10 +682,10 @@ function DocumentsSection({ token }) {
         )}
         {success && <p className="doc-success">{success}</p>}
         {error   && <p className="doc-err">{error}</p>}
-        <button className="doc-submit-btn" type="submit" onClick={handleSubmit} disabled={submitting || !preview}>
+        <button className="doc-submit-btn" type="submit" disabled={submitting || !preview}>
           {submitting ? "Sending…" : "📤 Submit Document"}
         </button>
-      </div>
+      </form>
 
       <div className="doc-list">
         {loading && <p className="loading-msg">Loading…</p>}
@@ -638,6 +701,15 @@ function DocumentsSection({ token }) {
               </span>
             </div>
             {d.note_admin && <p className="doc-note">💬 {d.note_admin}</p>}
+            {(d.status === "rejected" || d.status === "needs_resubmission") && (
+              <button
+                className="doc-resubmit-btn"
+                type="button"
+                onClick={() => handleResubmit(d.type)}
+              >
+                🔄 Re-upload {DOCUMENT_TYPE_LABELS[d.type] ?? d.type}
+              </button>
+            )}
             <p className="doc-date">
               {new Date(d.created_at).toLocaleDateString("en-US", {
                 day: "2-digit", month: "short", year: "numeric",
@@ -872,10 +944,10 @@ function Dashboard({ user, token, onLogout }) {
       {tab === "bids"          && <MyBidsSection token={token} />}
       {tab === "profile"       && <ProfileSection token={token} profile={profile} onProfileUpdated={(p) => { setProfile(p); setIsOnline(p.is_online); }} />}
       {tab === "skills"        && <SkillsSection token={token} profile={profile} onProfileUpdated={(p) => { setProfile(p); }} />}
-      {tab === "documents"     && <DocumentsSection token={token} />}
+      {tab === "documents"     && <DocumentsSection token={token} profStatus={profStatus} />}
       {tab === "notifications" && <NotificationsSection token={token} onRead={refreshUnread} />}
 
-      <p className="footer">App: <strong>web-craft</strong> · Sprint 57 — Doc Review UI</p>
+      <p className="footer">App: <strong>web-craft</strong> · Sprint 58 — Onboarding Wizard UI</p>
     </div>
   );
 }

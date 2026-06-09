@@ -1,6 +1,6 @@
 /**
  * DocumentsScreen — KYC document submission and status.
- * Sprint 53 — camera & gallery capture via expo-image-picker.
+ * Sprint 58 — Onboarding wizard: progress stepper + resubmit prompts.
  */
 import React, { useEffect, useState } from "react";
 import {
@@ -8,10 +8,11 @@ import {
   Text,
   Image,
   TouchableOpacity,
+  FlatList,
+  ScrollView,
   StyleSheet,
   ActivityIndicator,
   Alert,
-  ScrollView,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "../context/AuthContext";
@@ -26,20 +27,81 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   id_card:      "🪪 Government ID",
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  pending:  "#F59E0B",
-  approved: "#16A34A",
-  rejected: "#EF4444",
+const STATUS_LABELS: Record<string, string> = {
+  pending:            "⏳ Pending",
+  approved:           "✅ Approved",
+  rejected:           "✗ Rejected",
+  needs_resubmission: "🔄 Resubmit Required",
 };
 
+const STATUS_COLORS: Record<string, string> = {
+  pending:            "#F59E0B",
+  approved:           "#16A34A",
+  rejected:           "#EF4444",
+  needs_resubmission: "#F59E0B",
+};
+
+const ONBOARDING_STEPS = [
+  "Account\nCreated",
+  "Docs\nSubmitted",
+  "Under\nReview",
+  "Account\nApproved",
+];
+
+function OnboardingProgressBar({
+  docs,
+  entityStatus,
+}: {
+  docs: DocumentResponse[];
+  entityStatus: string;
+}) {
+  const hasAnyDoc     = docs.length > 0;
+  const hasActionItem = docs.some(
+    (d) => d.status === "rejected" || d.status === "needs_resubmission",
+  );
+  let currentStep = 1;
+  if (hasAnyDoc)                   currentStep = 2;
+  if (hasAnyDoc && !hasActionItem) currentStep = 3;
+  if (entityStatus === "active")   currentStep = 4;
+
+  return (
+    <View style={styles.stepperRow}>
+      {ONBOARDING_STEPS.map((label, i) => {
+        const n    = i + 1;
+        const done = n < currentStep;
+        const cur  = n === currentStep;
+        return (
+          <React.Fragment key={n}>
+            <View style={styles.stepperStep}>
+              <View style={[styles.stepCircle, done ? styles.circleDone : cur ? styles.circleActive : styles.circleTodo]}>
+                <Text style={[styles.stepNum, done ? styles.numDone : cur ? styles.numActive : styles.numTodo]}>
+                  {done ? "✓" : n}
+                </Text>
+              </View>
+              <Text style={[styles.stepLabel, done || cur ? styles.labelActive : styles.labelTodo]}>
+                {label}
+              </Text>
+            </View>
+            {i < ONBOARDING_STEPS.length - 1 && (
+              <View style={[styles.stepLine, done ? styles.lineDone : styles.lineTodo]} />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function DocumentsScreen(): React.ReactElement {
-  const { token } = useAuth();
+  const { token, profile } = useAuth();
+  const profStatus: string = profile?.status ?? "pending_docs";
+
   const [documents, setDocuments] = useState<DocumentResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [docType, setDocType] = useState(DOC_TYPES[0]);
-  const [previewUri, setPreviewUri] = useState<string | null>(null);
-  const [base64Data, setBase64Data] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading]     = useState(true);
+  const [docType, setDocType]     = useState(DOC_TYPES[0]);
+  const [previewUri, setPreviewUri]   = useState<string | null>(null);
+  const [base64Data, setBase64Data]   = useState<string | null>(null);
+  const [submitting, setSubmitting]   = useState(false);
 
   const load = () => {
     if (!token) return;
@@ -51,10 +113,20 @@ export default function DocumentsScreen(): React.ReactElement {
 
   useEffect(() => { load(); }, [token]);
 
+  const actionDocs = documents.filter(
+    (d) => d.status === "rejected" || d.status === "needs_resubmission",
+  );
+
+  function handleResubmit(type: string) {
+    setDocType(type);
+    setPreviewUri(null);
+    setBase64Data(null);
+  }
+
   const pickFromCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission needed", "Camera permission is required to take a photo.");
+      Alert.alert("Permission needed", "Camera permission is required.");
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -71,7 +143,7 @@ export default function DocumentsScreen(): React.ReactElement {
   const pickFromGallery = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission needed", "Gallery permission is required to select a file.");
+      Alert.alert("Permission needed", "Gallery permission is required.");
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -101,9 +173,35 @@ export default function DocumentsScreen(): React.ReactElement {
     }
   };
 
+  if (loading) {
+    return <View style={styles.center}><ActivityIndicator color="#059669" /></View>;
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.heading}>📄 My Documents</Text>
+
+      {/* Onboarding progress stepper */}
+      <OnboardingProgressBar docs={documents} entityStatus={profStatus} />
+
+      {/* Action needed banner */}
+      {actionDocs.length > 0 && (
+        <View style={styles.actionBanner}>
+          <Text style={styles.actionBannerTitle}>⚠️ Action Required</Text>
+          <Text style={styles.actionBannerBody}>
+            {actionDocs.length} document{actionDocs.length > 1 ? "s" : ""} need{actionDocs.length === 1 ? "s" : ""} your attention — please re-upload below.
+          </Text>
+        </View>
+      )}
+
+      {/* All-clear banner */}
+      {documents.length > 0 && actionDocs.length === 0 && profStatus !== "active" && (
+        <View style={styles.reviewBanner}>
+          <Text style={styles.reviewBannerText}>
+            ⏳ All documents submitted — your account is under admin review. You will be notified once approved.
+          </Text>
+        </View>
+      )}
 
       {/* Document type selector */}
       <Text style={styles.sectionLabel}>Document type</Text>
@@ -151,18 +249,33 @@ export default function DocumentsScreen(): React.ReactElement {
 
       {/* Submitted documents list */}
       <Text style={styles.subHeading}>Submitted documents</Text>
-      {loading && <ActivityIndicator color="#059669" style={{ marginTop: 12 }} />}
-      {!loading && documents.length === 0 && (
-        <Text style={styles.empty}>No documents submitted yet.</Text>
-      )}
-      {documents.map((item) => (
-        <View key={item.document_id} style={styles.docRow}>
-          <Text style={styles.docType}>{DOC_TYPE_LABELS[item.type] ?? item.type}</Text>
-          <Text style={[styles.docStatus, { color: STATUS_COLORS[item.status] ?? "#6B7280" }]}>
-            {item.status}
-          </Text>
-        </View>
-      ))}
+      <FlatList
+        data={documents}
+        keyExtractor={(item) => item.document_id}
+        scrollEnabled={false}
+        renderItem={({ item }) => (
+          <View style={[styles.docRow, (item.status === "rejected" || item.status === "needs_resubmission") && styles.docRowAlert]}>
+            <View style={styles.docRowTop}>
+              <Text style={styles.docType}>{DOC_TYPE_LABELS[item.type] ?? item.type}</Text>
+              <Text style={[styles.docStatus, { color: STATUS_COLORS[item.status] ?? "#6B7280" }]}>
+                {STATUS_LABELS[item.status] ?? item.status}
+              </Text>
+            </View>
+            {item.note_admin ? (
+              <Text style={styles.docNote}>💬 {item.note_admin}</Text>
+            ) : null}
+            {(item.status === "rejected" || item.status === "needs_resubmission") && (
+              <TouchableOpacity
+                style={styles.resubmitBtn}
+                onPress={() => handleResubmit(item.type)}
+              >
+                <Text style={styles.resubmitBtnText}>🔄 Re-upload {DOC_TYPE_LABELS[item.type] ?? item.type}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+        ListEmptyComponent={<Text style={styles.empty}>No documents submitted yet.</Text>}
+      />
     </ScrollView>
   );
 }
@@ -170,50 +283,58 @@ export default function DocumentsScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0f1a14" },
   content: { padding: 20, paddingBottom: 40 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
   heading: { fontSize: 22, fontWeight: "bold", marginBottom: 16, color: "#34d399" },
+
+  // Onboarding stepper
+  stepperRow: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
+  stepperStep: { flex: 1, alignItems: "center" },
+  stepCircle: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  circleDone:   { backgroundColor: "#059669" },
+  circleActive: { backgroundColor: "#34d399" },
+  circleTodo:   { backgroundColor: "transparent", borderWidth: 2, borderColor: "#233328" },
+  stepNum: { fontSize: 12, fontWeight: "700" },
+  numDone:   { color: "#fff" },
+  numActive: { color: "#0f1a14" },
+  numTodo:   { color: "#6b9e7a" },
+  stepLabel: { fontSize: 9, textAlign: "center", marginTop: 3, lineHeight: 12 },
+  labelActive: { color: "#e8f5ec", fontWeight: "600" },
+  labelTodo:   { color: "#6b9e7a" },
+  stepLine: { flex: 0.8, height: 2, marginBottom: 16 },
+  lineDone: { backgroundColor: "#059669" },
+  lineTodo: { backgroundColor: "#233328" },
+
+  // Banners
+  actionBanner: { backgroundColor: "rgba(245,158,11,0.12)", borderWidth: 1, borderColor: "#f59e0b", borderRadius: 8, padding: 12, marginBottom: 12 },
+  actionBannerTitle: { color: "#fbbf24", fontWeight: "700", fontSize: 14, marginBottom: 4 },
+  actionBannerBody: { color: "#fcd34d", fontSize: 13 },
+  reviewBanner: { backgroundColor: "rgba(52,211,153,0.08)", borderWidth: 1, borderColor: "rgba(52,211,153,0.3)", borderRadius: 8, padding: 12, marginBottom: 12 },
+  reviewBannerText: { color: "#34d399", fontSize: 13 },
+
   sectionLabel: { fontSize: 13, fontWeight: "600", color: "#6b9e7a", marginBottom: 8 },
-  subHeading: { fontSize: 16, fontWeight: "600", marginTop: 24, marginBottom: 10, color: "#e8f5ec" },
   typeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 16 },
-  typeChip: {
-    borderWidth: 1,
-    borderColor: "#34d399",
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
+  typeChip: { borderWidth: 1, borderColor: "#34d399", borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5 },
   typeChipSelected: { backgroundColor: "#059669" },
   typeText: { color: "#34d399", fontSize: 12 },
   typeTextSelected: { color: "#fff" },
   captureRow: { flexDirection: "row", gap: 10, marginBottom: 14 },
-  captureBtn: {
-    flex: 1,
-    backgroundColor: "#059669",
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
+  captureBtn: { flex: 1, backgroundColor: "#059669", borderRadius: 8, paddingVertical: 12, alignItems: "center" },
   captureBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   galleryBtn: { backgroundColor: "#162117", borderWidth: 1, borderColor: "#34d399" },
   galleryBtnText: { color: "#34d399" },
   previewWrap: { marginBottom: 14, alignItems: "center" },
   previewImg: { width: 200, height: 150, borderRadius: 8, borderWidth: 2, borderColor: "#34d399" },
-  submitBtn: {
-    backgroundColor: "#059669",
-    borderRadius: 8,
-    padding: 14,
-    alignItems: "center",
-    marginBottom: 8,
-  },
+  submitBtn: { backgroundColor: "#059669", borderRadius: 8, padding: 14, alignItems: "center", marginBottom: 8 },
   submitBtnDisabled: { opacity: 0.5 },
   submitBtnText: { color: "#fff", fontWeight: "bold", fontSize: 15 },
-  docRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#233328",
-  },
+  subHeading: { fontSize: 16, fontWeight: "600", marginTop: 24, marginBottom: 10, color: "#e8f5ec" },
+  docRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#233328" },
+  docRowAlert: { borderLeftWidth: 3, borderLeftColor: "#f59e0b", paddingLeft: 8 },
+  docRowTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   docType: { fontSize: 14, color: "#e8f5ec", flex: 1 },
-  docStatus: { fontWeight: "600", fontSize: 14 },
+  docStatus: { fontWeight: "600", fontSize: 13 },
+  docNote: { fontSize: 12, color: "#6b9e7a", fontStyle: "italic", marginTop: 4 },
+  resubmitBtn: { marginTop: 8, backgroundColor: "rgba(245,158,11,0.15)", borderWidth: 1, borderColor: "#f59e0b", borderRadius: 6, paddingVertical: 6, paddingHorizontal: 10, alignSelf: "flex-start" },
+  resubmitBtnText: { color: "#fbbf24", fontWeight: "700", fontSize: 12 },
   empty: { color: "#6b9e7a", textAlign: "center", marginVertical: 12 },
 });

@@ -270,3 +270,26 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .kyc-pending-banner strong { color: #c2410c; display: block; margin-bottom: 4px; }
 .kyc-pending-banner p { color: #7c3a10; font-size: 0.85rem; margin: 0; }
 .btn-kyc-docs { margin-left: auto; background: #f97316; color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.82rem; font-weight: 700; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+
+
+/* ── Sprint 58 — Onboarding Wizard ── */
+.onboarding-stepper { display: flex; align-items: flex-start; margin: var(--space-4) 0 var(--space-3); }
+.stepper-step { flex: 1; display: flex; flex-direction: column; align-items: center; position: relative; }
+.stepper-circle { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 700; z-index: 1; flex-shrink: 0; }
+.circle-done   { background: var(--color-accent-strong, #22c55e); color: #fff; }
+.circle-active { background: var(--color-accent, #4ade80); color: #0f172a; }
+.circle-todo   { background: transparent; border: 2px solid var(--color-border, rgba(255,255,255,0.08)); color: var(--color-muted, #94a3b8); }
+.stepper-label { font-size: 0.68rem; text-align: center; margin-top: 5px; line-height: 1.3; max-width: 72px; }
+.label-active { color: var(--color-fg, #f8fafc); font-weight: 600; }
+.label-todo   { color: var(--color-muted, #94a3b8); }
+.stepper-line { position: absolute; top: 15px; left: 50%; width: 100%; height: 2px; z-index: 0; }
+.line-done { background: var(--color-accent-strong, #22c55e); }
+.line-todo { background: var(--color-border, rgba(255,255,255,0.08)); }
+.doc-action-banner { background: rgba(245,158,11,0.12); border: 1px solid #f59e0b; border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3); text-align: left; }
+.doc-action-banner strong { color: #fbbf24; display: block; margin-bottom: 4px; }
+.doc-action-banner p { color: #fcd34d; font-size: 0.85rem; margin: 0; }
+.doc-review-banner { background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.3); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3); color: #93c5fd; font-size: 0.85rem; }
+.doc-resubmit-btn { margin-top: var(--space-2); background: rgba(245,158,11,0.15); border: 1px solid #f59e0b; border-radius: var(--radius-md); color: #fbbf24; font-size: 0.8rem; font-weight: 700; padding: 4px 10px; cursor: pointer; }
+.doc-resubmit-btn:hover { background: rgba(245,158,11,0.25); }
+.doc-item.doc-needs_resubmission { border-left-color: #f59e0b; }
+.doc-status-needs_resubmission { color: #f59e0b; }

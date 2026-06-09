@@ -316,13 +316,13 @@ export async function deregisterDeviceToken(
 
 export interface DocumentResponse {
   document_id: string;
-  user_id: string;
+  user_id?: string;
   type: string;
   url: string;
   status: string;
-  admin_note: string | null;
+  note_admin?: string | null;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 /** Submit a document (base64 data URL stored in url field). */
