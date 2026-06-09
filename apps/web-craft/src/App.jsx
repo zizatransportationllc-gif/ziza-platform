@@ -87,7 +87,7 @@ function LoginForm({ onLogin, onSignup, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Craft</h1>
-      <p className="subtitle">Sprint 54 — Doc Validation</p>
+      <p className="subtitle">Sprint 56 — Onboarding Emails</p>
       <div className="auth-tabs">
         <button className={`auth-tab${tab === "signin" ? " active" : ""}`} onClick={() => setTab("signin")}>Sign In</button>
         <button className={`auth-tab${tab === "signup" ? " active" : ""}`} onClick={() => setTab("signup")}>Join as Pro</button>
@@ -875,7 +875,7 @@ function Dashboard({ user, token, onLogout }) {
       {tab === "documents"     && <DocumentsSection token={token} />}
       {tab === "notifications" && <NotificationsSection token={token} onRead={refreshUnread} />}
 
-      <p className="footer">App: <strong>web-craft</strong> · Sprint 54</p>
+      <p className="footer">App: <strong>web-craft</strong> · Sprint 56 — Onboarding Emails</p>
     </div>
   );
 }

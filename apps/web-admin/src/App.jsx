@@ -67,7 +67,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 49 — Account Creation</p>
+      <p className="subtitle">Sprint 56 — Onboarding Emails</p>
       <div className="auth-tabs">
         <button className={`auth-tab${tab === "signin" ? " active" : ""}`} onClick={() => setTab("signin")}>Sign In</button>
         <button className={`auth-tab${tab === "signup" ? " active" : ""}`} onClick={() => setTab("signup")}>Create Admin Account</button>
@@ -2505,7 +2505,7 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "users"        && <UsersPanel          token={token} />}
       {activeTab === "craft"        && <CraftPanel          token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 54</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 56 — Onboarding Emails</p>
     </div>
   );
 }

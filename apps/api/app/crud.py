@@ -84,6 +84,7 @@ async def _push_notification(
     notif_type: str,
     title: str,
     body: str,
+    data: dict | None = None,   # Sprint 56: extra context forwarded to email templates
 ) -> None:
     """Insert an in-app Notification row for the given users.id UUID.
 
@@ -108,7 +109,8 @@ async def _push_notification(
         await db.rollback()
 
     # Sprint 26 — external channels (fire-and-forget)
-    await _dispatch_external(db, user_uuid, notif_type, title, body)
+    # Sprint 56: forward extra data dict for rich email templates
+    await _dispatch_external(db, user_uuid, notif_type, title, body, data=data)
 
 
 async def _dispatch_external(
@@ -139,7 +141,9 @@ async def _dispatch_external(
         if user is None:
             return
 
-        payload = data or {"event_type": event_type}
+        # Sprint 56: always include event_type so HTML templates can look it up,
+        # even when extra context data is provided.
+        payload = {**(data or {}), "event_type": event_type}
 
         # 1. Email / SMS channels — recipient = user email
         await dispatch_external(
@@ -1663,7 +1667,7 @@ async def set_surge_multiplier(db: AsyncSession, value: float) -> float:
 # Sprint 17 — Driver documents (KYC) & admin pending counts
 # ---------------------------------------------------------------------------
 
-_VALID_DOCUMENT_STATUSES = {"approved", "rejected"}
+_VALID_DOCUMENT_STATUSES = {"approved", "rejected", "needs_resubmission"}  # Sprint 56
 
 
 async def submit_driver_document(
@@ -1692,6 +1696,26 @@ async def submit_driver_document(
     db.add(doc)
     await db.commit()
     await db.refresh(doc)
+
+    # Sprint 56 — notify driver on first document submission ("application under review")
+    existing_count = await db.scalar(
+        select(func.count(DriverDocument.id)).where(
+            DriverDocument.driver_id == driver.id,
+            DriverDocument.id != doc.id,
+        )
+    )
+    if (existing_count or 0) == 0:
+        _user_row = await db.execute(select(User).where(User.id == driver.user_id))
+        _user = _user_row.scalar_one_or_none()
+        user_name = getattr(_user, "full_name", None) or (getattr(_user, "email", "") or "").split("@")[0]
+        await _push_notification(
+            db, driver.user_id,
+            "application_submitted",
+            "📋 Application received",
+            "Your document has been submitted. We will review your application within 24-48 hours.",
+            data={"user_name": user_name},
+        )
+
     return doc
 
 
@@ -1775,7 +1799,7 @@ async def admin_update_document_status(
     await db.commit()
     await db.refresh(doc)
 
-    # Sprint 18: notify the driver whose document was reviewed
+    # Sprint 18 / Sprint 56: notify the driver whose document was reviewed
     driver_result = await db.execute(select(Driver).where(Driver.id == doc.driver_id))
     reviewed_driver = driver_result.scalar_one_or_none()
     if reviewed_driver is not None:
@@ -1785,12 +1809,32 @@ async def admin_update_document_status(
             "registration": "Vehicle Registration",
             "id_card": "Government ID",
         }.get(doc.type, doc.type)
+
+        # Resolve user name for email template
+        _user_row = await db.execute(select(User).where(User.id == reviewed_driver.user_id))
+        _user = _user_row.scalar_one_or_none()
+        user_name = getattr(_user, "full_name", None) or (getattr(_user, "email", "") or "").split("@")[0]
+
         if new_status == "approved":
             await _push_notification(
                 db, reviewed_driver.user_id,
                 "document_approved",
                 "✅ Document approved",
                 f"Your {doc_type_label} has been approved by the Ziza team.",
+            )
+        elif new_status == "needs_resubmission":
+            # Sprint 56: new status — ask driver to resubmit this specific document
+            await _push_notification(
+                db, reviewed_driver.user_id,
+                "document_needs_resubmission",
+                "🔄 Action required — document update",
+                f"Please resubmit your {doc_type_label}."
+                + (f" Note: {note_admin}" if note_admin else ""),
+                data={
+                    "user_name": user_name,
+                    "doc_type": doc.type,
+                    "note": note_admin or "",
+                },
             )
         else:
             note_suffix = f" — {note_admin}" if note_admin else ""
@@ -2972,6 +3016,20 @@ async def create_application(db: AsyncSession, auth_id: str, data: dict) -> dict
     db.add(app_obj)
     await db.commit()
     await db.refresh(app_obj)
+
+    # Sprint 56 — notify applicant that their application is under review
+    _user_row = await db.execute(select(User).where(User.id == auth_user_id))
+    _user = _user_row.scalar_one_or_none()
+    if _user is not None:
+        user_name = getattr(_user, "full_name", None) or data.get("full_name", "") or _user.email.split("@")[0]
+        await _push_notification(
+            db, auth_user_id,
+            "application_submitted",
+            "📋 Application received",
+            "Your driver application has been submitted. We will review it within 24-48 hours.",
+            data={"user_name": user_name},
+        )
+
     return _application_to_dict(app_obj)
 
 
@@ -3076,6 +3134,34 @@ async def admin_review_application(
 
     await db.commit()
     await db.refresh(app_obj)
+
+    # Sprint 56 — email notification on final decision
+    if new_status in ("approved", "rejected"):
+        _user_row = await db.execute(select(User).where(User.id == app_obj.user_id))
+        _user = _user_row.scalar_one_or_none()
+        if _user is not None:
+            user_name = getattr(_user, "full_name", None) or _user.email.split("@")[0]
+            if new_status == "approved":
+                await _push_notification(
+                    db, app_obj.user_id,
+                    "application_approved",
+                    "✅ Application approved — account activated",
+                    "Your application has been approved. Your Ziza account is now active!",
+                    data={"user_name": user_name},
+                )
+            else:
+                await _push_notification(
+                    db, app_obj.user_id,
+                    "application_rejected",
+                    "❌ Application not approved",
+                    "Your application was not approved."
+                    + (f" Reason: {notes_admin}" if notes_admin else ""),
+                    data={
+                        "user_name": user_name,
+                        "reason": notes_admin or "",
+                    },
+                )
+
     return _application_to_dict(app_obj)
 
 
@@ -4537,10 +4623,10 @@ async def admin_update_professional_document_status(
 
     Returns a dict compatible with DocumentResponse / AdminDocumentRecord.
     """
-    if new_status not in {"approved", "rejected"}:
+    if new_status not in {"approved", "rejected", "needs_resubmission"}:  # Sprint 56
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid status '{new_status}'. Valid: approved, rejected",
+            detail=f"Invalid status '{new_status}'. Valid: approved, rejected, needs_resubmission",
         )
     try:
         doc_uuid = uuid.UUID(document_id_str)
@@ -4565,7 +4651,7 @@ async def admin_update_professional_document_status(
     await db.commit()
     await db.refresh(doc)
 
-    # Notify the professional
+    # Sprint 56: notify the professional (mirrored from driver doc logic)
     from app.models.craft import Professional as _Prof
     prof_result = await db.execute(select(_Prof).where(_Prof.id == doc.professional_id))
     reviewed_prof = prof_result.scalar_one_or_none()
@@ -4576,12 +4662,30 @@ async def admin_update_professional_document_status(
             "registration": "Vehicle Registration",
             "id_card": "Government ID",
         }.get(doc.type, doc.type)
+
+        _user_row = await db.execute(select(User).where(User.id == reviewed_prof.user_id))
+        _user = _user_row.scalar_one_or_none()
+        user_name = getattr(_user, "full_name", None) or (getattr(_user, "email", "") or "").split("@")[0]
+
         if new_status == "approved":
             await _push_notification(
                 db, reviewed_prof.user_id,
                 "document_approved",
                 "✅ Document approved",
                 f"Your {doc_type_label} has been approved by the Ziza team.",
+            )
+        elif new_status == "needs_resubmission":
+            await _push_notification(
+                db, reviewed_prof.user_id,
+                "document_needs_resubmission",
+                "🔄 Action required — document update",
+                f"Please resubmit your {doc_type_label}."
+                + (f" Note: {note_admin}" if note_admin else ""),
+                data={
+                    "user_name": user_name,
+                    "doc_type": doc.type,
+                    "note": note_admin or "",
+                },
             )
         else:
             note_suffix = f" — {note_admin}" if note_admin else ""

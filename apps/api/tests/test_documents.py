@@ -195,8 +195,24 @@ def test_admin_reject_document_with_note():
     assert data["note_admin"] == "Document illisible"
 
 
+def test_admin_needs_resubmission_document():
+    """Admin sets a document to needs_resubmission with a note → status reflects it."""
+    d_tok = _setup_driver()
+    a_tok = _setup_admin()
+    doc_id = _submit_doc(d_tok, "license")
+    r = client.patch(
+        f"/v1/admin/documents/{doc_id}/status",
+        headers=_h(a_tok),
+        json={"status": "needs_resubmission", "note_admin": "Photo trop floue"},
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["status"] == "needs_resubmission"
+    assert data["note_admin"] == "Photo trop floue"
+
+
 def test_admin_document_invalid_status_returns_422():
-    """Invalid status value → 422."""
+    """Invalid status value → 422 (e.g. 'pending' is not admin-settable)."""
     d_tok = _setup_driver()
     a_tok = _setup_admin()
     doc_id = _submit_doc(d_tok)

@@ -28,8 +28,8 @@ class ProfessionalDocument(Base):
     type: Mapped[str] = mapped_column(String(32), nullable=False)
     url: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(
-        String(16), nullable=False, default="pending", server_default="pending"
-    )
+        String(32), nullable=False, default="pending", server_default="pending"
+    )  # pending | approved | rejected | needs_resubmission (Sprint 56)
     note_admin: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
