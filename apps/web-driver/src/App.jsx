@@ -1105,14 +1105,15 @@ function Dashboard({ user, token, onLogout }) {
       <div className="status ok">✓ Signed in — <strong>{user.email}</strong></div>
       <div className="role-badge">{user.role} · {user.provider}</div>
 
-      {/* Online/Offline toggle */}
+      {/* Online/Offline toggle — locked while pending_docs */}
       <button
-        className={`online-toggle ${isOnline ? "online" : "offline"}`}
+        className={`online-toggle ${driverStatus === "pending_docs" ? "online-locked" : isOnline ? "online" : "offline"}`}
         onClick={handleToggleOnline}
-        disabled={togglingOnline}
+        disabled={togglingOnline || driverStatus === "pending_docs"}
+        title={driverStatus === "pending_docs" ? "Account pending verification — submit your documents to unlock" : undefined}
       >
         <span className="online-dot" />
-        {togglingOnline ? "…" : isOnline ? "Online" : "Offline"}
+        {togglingOnline ? "…" : driverStatus === "pending_docs" ? "🔒 Locked" : isOnline ? "Online" : "Offline"}
       </button>
 
       <VehicleCard token={token} vehicle={vehicle} onSaved={setVehicle} />

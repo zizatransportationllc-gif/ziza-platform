@@ -166,6 +166,7 @@ export function AuthProvider({
 
   const setOnline = async (online: boolean) => {
     if (!token) return;
+    if (driverStatus === "pending_docs") return; // Sprint 58: locked until docs approved
     try {
       await setDriverOnline(token, online);
       setIsOnline(online);

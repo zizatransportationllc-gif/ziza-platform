@@ -122,6 +122,7 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .online-toggle:disabled { opacity: 0.6; cursor: not-allowed; }
 .online-toggle.online  { background: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success); border: 2px solid var(--color-success); }
 .online-toggle.offline { background: color-mix(in srgb, var(--color-muted) 15%, transparent); color: var(--color-muted); border: 2px solid var(--color-muted); }
+.online-toggle.online-locked { background: color-mix(in srgb, var(--color-error) 10%, transparent); color: var(--color-muted); border: 2px solid var(--color-border); opacity: 0.65; cursor: not-allowed; }
 .online-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .online-toggle.online  .online-dot { background: var(--color-success); box-shadow: 0 0 6px var(--color-success); }
 .online-toggle.offline .online-dot { background: var(--color-muted); }
