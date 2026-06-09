@@ -97,7 +97,7 @@ def test_first_document_submission_fires_application_submitted():
             json={"type": "license", "url": SAMPLE_URL},
         )
         assert r.status_code == 201, r.text
-        types = [n["type"] for n in MockChannel.sent]
+        types = [n["data"].get("event_type", "") for n in MockChannel.sent]
         assert "application_submitted" in types, f"Sent: {types}"
     finally:
         _teardown_channel()
@@ -115,7 +115,7 @@ def test_second_document_submission_does_not_refire_submitted():
         client.post("/v1/drivers/me/documents",
                     headers=_h(d_tok), json={"type": "insurance", "url": SAMPLE_URL})
 
-        types = [n["type"] for n in MockChannel.sent]
+        types = [n["data"].get("event_type", "") for n in MockChannel.sent]
         assert "application_submitted" not in types, "Should not re-fire on 2nd submission"
     finally:
         _teardown_channel()
@@ -140,7 +140,7 @@ def test_admin_approve_document_fires_document_approved():
         client.patch(f"/v1/admin/documents/{doc_id}/status",
                      headers=_h(a_tok), json={"status": "approved"})
 
-        types = [n["type"] for n in MockChannel.sent]
+        types = [n["data"].get("event_type", "") for n in MockChannel.sent]
         assert "document_approved" in types, f"Sent: {types}"
     finally:
         _teardown_channel()
@@ -163,7 +163,7 @@ def test_admin_needs_resubmission_fires_correct_notification():
             json={"status": "needs_resubmission", "note_admin": "Photo obscure"},
         )
 
-        types = [n["type"] for n in MockChannel.sent]
+        types = [n["data"].get("event_type", "") for n in MockChannel.sent]
         assert "document_needs_resubmission" in types, f"Sent: {types}"
     finally:
         _teardown_channel()
@@ -183,7 +183,7 @@ def test_admin_reject_document_fires_document_rejected():
         client.patch(f"/v1/admin/documents/{doc_id}/status",
                      headers=_h(a_tok), json={"status": "rejected", "note_admin": "Expiré"})
 
-        types = [n["type"] for n in MockChannel.sent]
+        types = [n["data"].get("event_type", "") for n in MockChannel.sent]
         assert "document_rejected" in types, f"Sent: {types}"
     finally:
         _teardown_channel()
@@ -202,7 +202,7 @@ def test_submit_application_form_fires_application_submitted():
         # 201 on first submit or 409 if already exists from another test
         assert r.status_code in (201, 409), r.text
         if r.status_code == 201:
-            types = [n["type"] for n in MockChannel.sent]
+            types = [n["data"].get("event_type", "") for n in MockChannel.sent]
             assert "application_submitted" in types, f"Sent: {types}"
     finally:
         _teardown_channel()
@@ -226,7 +226,7 @@ def test_admin_approve_application_fires_application_approved():
         client.patch(f"/v1/admin/applications/{app_id}/review",
                      headers=_h(a_tok), json={"status": "approved"})
 
-        types = [n["type"] for n in MockChannel.sent]
+        types = [n["data"].get("event_type", "") for n in MockChannel.sent]
         assert "application_approved" in types, f"Sent: {types}"
     finally:
         _teardown_channel()
@@ -252,7 +252,7 @@ def test_admin_reject_application_fires_application_rejected():
             json={"status": "rejected", "notes_admin": "Dossier incomplet"},
         )
 
-        types = [n["type"] for n in MockChannel.sent]
+        types = [n["data"].get("event_type", "") for n in MockChannel.sent]
         assert "application_rejected" in types, f"Sent: {types}"
     finally:
         _teardown_channel()

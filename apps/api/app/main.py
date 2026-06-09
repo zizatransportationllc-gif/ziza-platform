@@ -1743,7 +1743,7 @@ class AdminDocumentRecord(BaseModel):
 
 
 class AdminDocumentStatusRequest(BaseModel):
-    status: Literal["approved", "rejected"]
+    status: Literal["approved", "rejected", "needs_resubmission"]  # Sprint 56
     note_admin: str | None = None
 
 
