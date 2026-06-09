@@ -701,3 +701,24 @@ export async function adminListBidsForRequest(token, requestId) {
   );
   return _json(res);
 }
+
+// ---------------------------------------------------------------------------
+// Sprint 57 — Onboarding review
+// ---------------------------------------------------------------------------
+
+/** List all pending_docs drivers + professionals awaiting document review. */
+export async function adminListOnboarding(token) {
+  const res = await fetch(`${API_BASE}/v1/admin/onboarding`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // OnboardingRecord[]
+}
+
+/** Get full profile + documents for a pending_docs driver or professional. */
+export async function adminGetOnboardingDetail(token, entityId, entityType) {
+  const res = await fetch(
+    `${API_BASE}/v1/admin/onboarding/${entityId}?entity_type=${entityType}`,
+    { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } }
+  );
+  return _json(res); // OnboardingDetailResponse
+}

@@ -108,6 +108,8 @@ Endpoints:
   POST  /v1/drivers/me/documents                  driver OR professional submits a KYC document (Sprint 54, no url max_length)
   GET   /v1/drivers/me/documents                  driver OR professional lists their KYC documents (Sprint 54)
   PATCH /v1/admin/professionals/{id}/status       admin sets professional status (Sprint 54)
+  GET   /v1/admin/onboarding                      admin lists pending_docs drivers + professionals with doc counts (Sprint 57)
+  GET   /v1/admin/onboarding/{entity_id}          admin gets full profile + documents for a pending user (Sprint 57)
 """
 from __future__ import annotations
 
@@ -1750,6 +1752,7 @@ class AdminDocumentStatusRequest(BaseModel):
 class AdminPendingCounts(BaseModel):
     payout_requests: int
     documents: int
+    onboarding: int = 0  # Sprint 57 — pending_docs drivers + professionals
 
 
 def _document_response(doc) -> DocumentResponse:
@@ -1939,7 +1942,7 @@ async def admin_pending_counts(
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AdminPendingCounts:
-    """Admin: return counts of items awaiting action (payouts + KYC documents)."""
+    """Admin: return counts of items awaiting action (payouts + KYC documents + onboarding)."""
     if claims.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -1947,6 +1950,83 @@ async def admin_pending_counts(
         )
     counts = await crud.admin_get_pending_counts(db)
     return AdminPendingCounts(**counts)
+
+
+# ---------------------------------------------------------------------------
+# Onboarding review — Sprint 57
+# ---------------------------------------------------------------------------
+
+class OnboardingDocCounts(BaseModel):
+    pending: int = 0
+    approved: int = 0
+    rejected: int = 0
+    needs_resubmission: int = 0
+    total: int = 0
+
+
+class OnboardingRecord(BaseModel):
+    entity_type: str  # "driver" | "professional"
+    entity_id: str
+    user_id: str
+    email: str
+    name: str
+    status: str
+    doc_counts: OnboardingDocCounts
+    created_at: str
+
+
+class OnboardingDocRecord(BaseModel):
+    document_id: str
+    type: str
+    url: str
+    status: str
+    note_admin: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class OnboardingDetailResponse(BaseModel):
+    entity_type: str
+    entity_id: str
+    email: str
+    name: str
+    status: str
+    license_number: str | None = None
+    specialties: str | None = None
+    documents: list[OnboardingDocRecord]
+
+
+@app.get("/v1/admin/onboarding", tags=["admin"])
+async def admin_list_onboarding(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[OnboardingRecord]:
+    """Admin: list all drivers + professionals awaiting document review (status=pending_docs)."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    rows = await crud.admin_list_onboarding(db)
+    return [
+        OnboardingRecord(
+            **{k: v for k, v in row.items() if k != "doc_counts"},
+            doc_counts=OnboardingDocCounts(**row["doc_counts"]),
+        )
+        for row in rows
+    ]
+
+
+@app.get("/v1/admin/onboarding/{entity_id}", tags=["admin"])
+async def admin_get_onboarding_detail(
+    entity_id: str,
+    entity_type: str = "driver",
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> OnboardingDetailResponse:
+    """Admin: get full profile + documents for a pending_docs driver or professional."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    detail = await crud.admin_get_onboarding_detail(db, entity_id, entity_type)
+    docs = [OnboardingDocRecord(**d) for d in detail.pop("documents")]
+    return OnboardingDetailResponse(**detail, documents=docs)
 
 
 # ---------------------------------------------------------------------------

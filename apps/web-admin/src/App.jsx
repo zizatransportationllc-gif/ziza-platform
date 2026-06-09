@@ -17,6 +17,8 @@ import {
   adminGetCategoryBreakdown, adminGetHourlyDemand, adminGetTopCustomers, // Sprint 34
   adminGetServices, adminSetService, // Sprint 36
   adminListCraftRequests, adminListProfessionals, adminListBidsForRequest, // Sprint 47
+  adminListOnboarding, adminGetOnboardingDetail, // Sprint 57
+  adminSetProfessionalStatus, // Sprint 54 (used in Sprint 57 review panel)
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
 import LiveMap from "./LiveMap";
@@ -67,7 +69,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 56 — Onboarding Emails</p>
+      <p className="subtitle">Sprint 57 — Doc Review UI</p>
       <div className="auth-tabs">
         <button className={`auth-tab${tab === "signin" ? " active" : ""}`} onClick={() => setTab("signin")}>Sign In</button>
         <button className={`auth-tab${tab === "signup" ? " active" : ""}`} onClick={() => setTab("signup")}>Create Admin Account</button>
@@ -117,9 +119,10 @@ const DOC_TYPE_LABELS = {
 };
 
 const DOC_STATUS_LABELS = {
-  pending:  "⏳ Pending",
-  approved: "✅ Approved",
-  rejected: "✗ Rejected",
+  pending:              "⏳ Pending",
+  approved:             "✅ Approved",
+  rejected:             "✗ Rejected",
+  needs_resubmission:   "🔄 Redo",
 };
 
 const PAGE_SIZE_DOCS = 10;
@@ -2429,6 +2432,292 @@ function CraftPanel({ token }) {
 }
 
 // ---------------------------------------------------------------------------
+// Onboarding Review — Sprint 57
+// ---------------------------------------------------------------------------
+
+const DOC_STATUS_COLORS = {
+  pending:            { bg: "#FEF3C7", color: "#D97706" },
+  approved:           { bg: "#D1FAE5", color: "#059669" },
+  rejected:           { bg: "#FEE2E2", color: "#DC2626" },
+  needs_resubmission: { bg: "#FDE8D8", color: "#C05621" },
+};
+
+function UserReviewPanel({ token, entityId, entityType, onBack }) {
+  const [detail, setDetail] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [acting, setActing] = useState(null);
+  const [notes, setNotes] = useState({});
+
+  const load = useCallback(() => {
+    setLoading(true); setError(null);
+    adminGetOnboardingDetail(token, entityId, entityType)
+      .then(setDetail)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [token, entityId, entityType]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleDocAction(docId, newStatus) {
+    const note = notes[docId] || null;
+    setActing(docId);
+    try {
+      await adminUpdateDocumentStatus(token, docId, newStatus, note);
+      await load();
+    } catch (e) { setError(e.message); }
+    finally { setActing(null); }
+  }
+
+  async function handleGlobalDecision(newStatus) {
+    setActing("global");
+    try {
+      if (entityType === "driver") {
+        await adminSetDriverStatus(token, entityId, newStatus);
+      } else {
+        await adminSetProfessionalStatus(token, entityId, newStatus);
+      }
+      onBack();
+    } catch (e) { setError(e.message); setActing(null); }
+  }
+
+  if (loading && !detail) return <div className="status loading">⏳ Loading profile…</div>;
+
+  return (
+    <div>
+      <button
+        style={{ background: "none", border: "none", cursor: "pointer", color: "#1A56DB", fontWeight: 600, padding: "8px 0", fontSize: 14 }}
+        onClick={onBack}
+      >← Back to list</button>
+      {error && <p className="form-error">{error}</p>}
+      {detail && (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <h2 style={{ margin: 0, fontSize: 20 }}>{detail.name}</h2>
+            <span style={{ background: entityType === "driver" ? "#DBEAFE" : "#EDE9FE", color: entityType === "driver" ? "#1D4ED8" : "#7C3AED", borderRadius: 4, padding: "2px 8px", fontSize: 12, fontWeight: 600 }}>
+              {entityType === "driver" ? "🚗 Driver" : "🔧 Professional"}
+            </span>
+            <span style={{ color: "#6B7280", fontSize: 13 }}>{detail.email}</span>
+          </div>
+          {detail.license_number && (
+            <p style={{ color: "#6B7280", fontSize: 13, margin: "0 0 12px" }}>License: {detail.license_number}</p>
+          )}
+          {detail.specialties && (
+            <p style={{ color: "#6B7280", fontSize: 13, margin: "0 0 12px" }}>Specialties: {detail.specialties}</p>
+          )}
+
+          <h3 style={{ fontSize: 15, borderBottom: "1px solid #E5E7EB", paddingBottom: 6 }}>
+            Documents ({detail.documents.length})
+          </h3>
+
+          {detail.documents.length === 0 && (
+            <p className="muted-msg">No documents submitted yet.</p>
+          )}
+
+          {detail.documents.map((doc) => {
+            const statusStyle = DOC_STATUS_COLORS[doc.status] || { bg: "#F3F4F6", color: "#374151" };
+            return (
+              <div key={doc.document_id} style={{ border: "1px solid #E5E7EB", borderRadius: 8, padding: 14, marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <strong style={{ fontSize: 14 }}>{DOC_TYPE_LABELS[doc.type] ?? doc.type}</strong>
+                  <span style={{ ...statusStyle, borderRadius: 4, padding: "2px 8px", fontSize: 12, fontWeight: 600 }}>
+                    {DOC_STATUS_LABELS[doc.status] ?? doc.status}
+                  </span>
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <a href={doc.url.startsWith("data:") ? "#" : doc.url} target="_blank" rel="noreferrer"
+                    style={{ fontSize: 13, color: "#1A56DB" }}>
+                    {doc.url.startsWith("data:") ? "Base64 image" : "View document ↗"}
+                  </a>
+                  <span style={{ color: "#9CA3AF", fontSize: 12, marginLeft: 12 }}>
+                    {new Date(doc.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" })}
+                  </span>
+                </div>
+                {doc.note_admin && (
+                  <p style={{ background: "#FEF3C7", borderRadius: 4, padding: "6px 10px", fontSize: 13, margin: "0 0 8px" }}>
+                    💬 {doc.note_admin}
+                  </p>
+                )}
+                {doc.status !== "approved" && (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                    <input
+                      className="payout-note-input"
+                      type="text"
+                      placeholder="Admin note (optional)"
+                      style={{ flex: "1 1 180px", minWidth: 120, maxWidth: 280 }}
+                      value={notes[doc.document_id] ?? ""}
+                      onChange={(e) => setNotes((p) => ({ ...p, [doc.document_id]: e.target.value }))}
+                    />
+                    <button className="payout-approve-btn"
+                      disabled={acting === doc.document_id}
+                      onClick={() => handleDocAction(doc.document_id, "approved")}>
+                      ✅ Approve
+                    </button>
+                    <button style={{ background: "#FF8A4C", color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", cursor: "pointer", fontSize: 13 }}
+                      disabled={acting === doc.document_id}
+                      onClick={() => handleDocAction(doc.document_id, "needs_resubmission")}>
+                      🔄 Redo
+                    </button>
+                    <button className="payout-reject-btn"
+                      disabled={acting === doc.document_id}
+                      onClick={() => handleDocAction(doc.document_id, "rejected")}>
+                      ✗ Reject
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          <div style={{ borderTop: "2px solid #E5E7EB", paddingTop: 16, marginTop: 20 }}>
+            <h3 style={{ fontSize: 15, marginBottom: 12 }}>Global Decision</h3>
+            <p style={{ color: "#6B7280", fontSize: 13, marginBottom: 12 }}>
+              Activating the account allows the {entityType} to accept platform requests.
+              Suspending blocks access until further review.
+            </p>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                style={{ background: "#059669", color: "#fff", border: "none", borderRadius: 6, padding: "10px 20px", cursor: "pointer", fontWeight: 600, fontSize: 14 }}
+                disabled={acting === "global"}
+                onClick={() => handleGlobalDecision("active")}
+              >
+                ✅ Activate Account
+              </button>
+              <button
+                style={{ background: "#DC2626", color: "#fff", border: "none", borderRadius: 6, padding: "10px 20px", cursor: "pointer", fontWeight: 600, fontSize: 14 }}
+                disabled={acting === "global"}
+                onClick={() => handleGlobalDecision("suspended")}
+              >
+                ✗ Suspend Account
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+
+function OnboardingPanel({ token }) {
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selected, setSelected] = useState(null); // { entity_id, entity_type }
+  const [typeFilter, setTypeFilter] = useState("all"); // "all" | "driver" | "professional"
+
+  const load = useCallback(() => {
+    setLoading(true); setError(null);
+    adminListOnboarding(token)
+      .then(setList)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  function handleBack() {
+    setSelected(null);
+    load();
+  }
+
+  if (selected) {
+    return (
+      <div className="documents-panel-admin">
+        <UserReviewPanel
+          token={token}
+          entityId={selected.entity_id}
+          entityType={selected.entity_type}
+          onBack={handleBack}
+        />
+      </div>
+    );
+  }
+
+  const filtered = typeFilter === "all" ? list : list.filter((r) => r.entity_type === typeFilter);
+
+  return (
+    <div className="documents-panel-admin">
+      <div className="panel-header">
+        <h2 className="panel-title">🆔 Onboarding Review</h2>
+        <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        {[["all", "All"], ["driver", "🚗 Drivers"], ["professional", "🔧 Professionals"]].map(([val, label]) => (
+          <button key={val}
+            onClick={() => setTypeFilter(val)}
+            style={{
+              background: typeFilter === val ? "#1A56DB" : "#F3F4F6",
+              color: typeFilter === val ? "#fff" : "#374151",
+              border: "none", borderRadius: 6, padding: "6px 14px",
+              cursor: "pointer", fontWeight: 600, fontSize: 13,
+            }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {error && <p className="form-error">{error}</p>}
+      {loading && <div className="status loading">⏳ Loading…</div>}
+      {!loading && filtered.length === 0 && (
+        <p className="muted-msg">No pending onboarding requests{typeFilter !== "all" ? ` for ${typeFilter}s` : ""}.</p>
+      )}
+
+      {filtered.map((item) => {
+        const isDriver = item.entity_type === "driver";
+        const { doc_counts: dc } = item;
+        return (
+          <div key={item.entity_id} style={{
+            border: "1px solid #E5E7EB", borderRadius: 8, padding: "12px 16px",
+            marginBottom: 10, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+          }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <strong style={{ fontSize: 14 }}>{item.name}</strong>
+                <span style={{
+                  background: isDriver ? "#DBEAFE" : "#EDE9FE",
+                  color: isDriver ? "#1D4ED8" : "#7C3AED",
+                  borderRadius: 4, padding: "2px 6px", fontSize: 11, fontWeight: 600,
+                }}>
+                  {isDriver ? "🚗 Driver" : "🔧 Pro"}
+                </span>
+              </div>
+              <div style={{ color: "#6B7280", fontSize: 12 }}>
+                {item.email}
+                {" · "}
+                {dc.total === 0
+                  ? "No documents yet"
+                  : `${dc.total} doc${dc.total > 1 ? "s" : ""}`
+                    + (dc.pending > 0 ? ` · ⏳ ${dc.pending} pending` : "")
+                    + (dc.approved > 0 ? ` · ✅ ${dc.approved} ok` : "")
+                    + (dc.needs_resubmission > 0 ? ` · 🔄 ${dc.needs_resubmission} redo` : "")
+                    + (dc.rejected > 0 ? ` · ✗ ${dc.rejected} rejected` : "")
+                }
+              </div>
+            </div>
+            <div style={{ color: "#9CA3AF", fontSize: 12 }}>
+              {new Date(item.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" })}
+            </div>
+            <button
+              style={{
+                background: "#1A56DB", color: "#fff", border: "none",
+                borderRadius: 6, padding: "7px 16px", cursor: "pointer",
+                fontWeight: 600, fontSize: 13, whiteSpace: "nowrap",
+              }}
+              onClick={() => setSelected(item)}
+            >
+              Review →
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
 // Dashboard — tabbed navigation
 // ---------------------------------------------------------------------------
 
@@ -2443,6 +2732,7 @@ const TABS = [
   { id: "payouts",      label: "💸 Payouts",      pendingKey: "payout_requests" },
   { id: "ratings",      label: "⭐ Reviews" },
   { id: "documents",    label: "📄 Documents",    pendingKey: "documents" },
+  { id: "onboarding",   label: "🆔 Onboarding",   pendingKey: "onboarding" },
   { id: "commission",   label: "💰 Commission" },
   { id: "applications", label: "📝 Applications" },
   { id: "flags",        label: "🚩 Feature Flags" },
@@ -2454,7 +2744,7 @@ const TABS = [
 
 function Dashboard({ user, token, onLogout }) {
   const [activeTab, setActiveTab] = useState("stats");
-  const [pendingCounts, setPendingCounts] = useState({ payout_requests: 0, documents: 0 });
+  const [pendingCounts, setPendingCounts] = useState({ payout_requests: 0, documents: 0, onboarding: 0 });
 
   const loadPending = useCallback(() => {
     adminGetPendingCounts(token)
@@ -2494,6 +2784,7 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "payouts"    && <PayoutsPanel     token={token} />}
       {activeTab === "ratings"    && <RatingsPanel     token={token} />}
       {activeTab === "documents"  && <DocumentsPanel   token={token} />}
+      {activeTab === "onboarding"   && <OnboardingPanel     token={token} />}
       {activeTab === "commission"   && <CommissionPanel    token={token} />}
       {activeTab === "applications" && <ApplicationsPanel  token={token} />}
       {activeTab === "live"         && <LiveMapPanel        token={token} />}
@@ -2505,7 +2796,7 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "users"        && <UsersPanel          token={token} />}
       {activeTab === "craft"        && <CraftPanel          token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 56 — Onboarding Emails</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 57 — Doc Review UI</p>
     </div>
   );
 }

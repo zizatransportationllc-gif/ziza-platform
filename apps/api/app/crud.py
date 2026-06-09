@@ -1861,6 +1861,7 @@ async def admin_get_pending_counts(db: AsyncSession) -> dict:
     """Return counts of items awaiting admin action.
 
     Sprint 54: includes professional pending KYC documents.
+    Sprint 57: includes onboarding (pending_docs drivers + professionals).
     """
     r_payouts = await db.execute(
         select(func.count(PayoutRequestModel.id))
@@ -1880,9 +1881,21 @@ async def admin_get_pending_counts(db: AsyncSession) -> dict:
     )
     prof_doc_count = r_prof_docs.scalar() or 0
 
+    r_onb_drivers = await db.execute(
+        select(func.count(Driver.id)).where(Driver.status == "pending_docs")
+    )
+    onb_driver_count = r_onb_drivers.scalar() or 0
+
+    from app.models.craft import Professional as _Prof
+    r_onb_profs = await db.execute(
+        select(func.count(_Prof.id)).where(_Prof.status == "pending_docs")
+    )
+    onb_prof_count = r_onb_profs.scalar() or 0
+
     return {
         "payout_requests": int(payout_count),
         "documents": int(doc_count) + int(prof_doc_count),
+        "onboarding": int(onb_driver_count) + int(onb_prof_count),
     }
 
 
@@ -4509,6 +4522,167 @@ async def admin_list_professionals(
         .offset(offset)
     )
     return [_professional_to_dict(p) for p in result.scalars()]
+
+
+# ---------------------------------------------------------------------------
+# Onboarding review — Sprint 57
+# ---------------------------------------------------------------------------
+
+async def admin_list_onboarding(db: AsyncSession) -> list[dict]:
+    """Return all drivers + professionals with status='pending_docs', each with doc counts."""
+    out: list[dict] = []
+
+    # --- Drivers pending_docs ---
+    d_result = await db.execute(
+        select(Driver, User)
+        .join(User, Driver.user_id == User.id)
+        .where(Driver.status == "pending_docs")
+        .order_by(Driver.created_at.desc())
+    )
+    for driver, user in d_result.all():
+        r_counts = await db.execute(
+            select(DriverDocument.status, func.count(DriverDocument.id))
+            .where(DriverDocument.driver_id == driver.id)
+            .group_by(DriverDocument.status)
+        )
+        dc = {row[0]: row[1] for row in r_counts.all()}
+        out.append({
+            "entity_type": "driver",
+            "entity_id": str(driver.id),
+            "user_id": user.user_id,
+            "email": user.email,
+            "name": user.name or user.email.split("@")[0],
+            "status": driver.status,
+            "doc_counts": {
+                "pending": dc.get("pending", 0),
+                "approved": dc.get("approved", 0),
+                "rejected": dc.get("rejected", 0),
+                "needs_resubmission": dc.get("needs_resubmission", 0),
+                "total": sum(dc.values()),
+            },
+            "created_at": _utc(driver.created_at).isoformat(),
+        })
+
+    # --- Professionals pending_docs ---
+    from app.models.craft import Professional as _Prof
+    p_result = await db.execute(
+        select(_Prof, User)
+        .join(User, _Prof.user_id == User.id)
+        .where(_Prof.status == "pending_docs")
+        .order_by(_Prof.created_at.desc())
+    )
+    for prof, user in p_result.all():
+        r_counts = await db.execute(
+            select(ProfessionalDocument.status, func.count(ProfessionalDocument.id))
+            .where(ProfessionalDocument.professional_id == prof.id)
+            .group_by(ProfessionalDocument.status)
+        )
+        dc = {row[0]: row[1] for row in r_counts.all()}
+        out.append({
+            "entity_type": "professional",
+            "entity_id": str(prof.id),
+            "user_id": user.user_id,
+            "email": user.email,
+            "name": user.name or user.email.split("@")[0],
+            "status": prof.status,
+            "doc_counts": {
+                "pending": dc.get("pending", 0),
+                "approved": dc.get("approved", 0),
+                "rejected": dc.get("rejected", 0),
+                "needs_resubmission": dc.get("needs_resubmission", 0),
+                "total": sum(dc.values()),
+            },
+            "created_at": _utc(prof.created_at).isoformat(),
+        })
+
+    return out
+
+
+async def admin_get_onboarding_detail(
+    db: AsyncSession,
+    entity_id_str: str,
+    entity_type: str,
+) -> dict:
+    """Return an onboarding user's profile + all submitted KYC documents."""
+    if entity_type not in {"driver", "professional"}:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="entity_type must be 'driver' or 'professional'",
+        )
+    try:
+        entity_uuid = uuid.UUID(entity_id_str)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid entity_id format",
+        )
+
+    if entity_type == "driver":
+        driver = await db.scalar(select(Driver).where(Driver.id == entity_uuid))
+        if driver is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Driver not found")
+        user_row = await db.execute(select(User).where(User.id == driver.user_id))
+        user = user_row.scalar_one_or_none()
+        r_docs = await db.execute(
+            select(DriverDocument)
+            .where(DriverDocument.driver_id == driver.id)
+            .order_by(DriverDocument.created_at.desc())
+        )
+        docs = [
+            {
+                "document_id": str(d.id),
+                "type": d.type,
+                "url": d.url,
+                "status": d.status,
+                "note_admin": d.note_admin,
+                "created_at": _utc(d.created_at).isoformat(),
+                "updated_at": _utc(d.updated_at).isoformat(),
+            }
+            for d in r_docs.scalars().all()
+        ]
+        return {
+            "entity_type": "driver",
+            "entity_id": str(driver.id),
+            "email": user.email if user else "",
+            "name": (user.name or user.email.split("@")[0]) if user else "",
+            "status": driver.status,
+            "license_number": driver.license_number,
+            "documents": docs,
+        }
+
+    else:  # professional
+        from app.models.craft import Professional as _Prof
+        prof = await db.scalar(select(_Prof).where(_Prof.id == entity_uuid))
+        if prof is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Professional not found")
+        user_row = await db.execute(select(User).where(User.id == prof.user_id))
+        user = user_row.scalar_one_or_none()
+        r_docs = await db.execute(
+            select(ProfessionalDocument)
+            .where(ProfessionalDocument.professional_id == prof.id)
+            .order_by(ProfessionalDocument.created_at.desc())
+        )
+        docs = [
+            {
+                "document_id": str(d.id),
+                "type": d.type,
+                "url": d.url,
+                "status": d.status,
+                "note_admin": d.note_admin,
+                "created_at": _utc(d.created_at).isoformat(),
+                "updated_at": _utc(d.updated_at).isoformat(),
+            }
+            for d in r_docs.scalars().all()
+        ]
+        return {
+            "entity_type": "professional",
+            "entity_id": str(prof.id),
+            "email": user.email if user else "",
+            "name": (user.name or user.email.split("@")[0]) if user else "",
+            "status": prof.status,
+            "specialties": prof.specialties,
+            "documents": docs,
+        }
 
 
 # ---------------------------------------------------------------------------

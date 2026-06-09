@@ -85,7 +85,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
   return (
     <div className="app">
       <img src="/logo-driver.svg" alt="Ziza Driver" className="app-logo" />
-      <p className="subtitle">Sprint 56 — Onboarding Emails</p>
+      <p className="subtitle">Sprint 57 — Doc Review UI</p>
       <div className="auth-tabs">
         <button className={`auth-tab${tab === "signin" ? " active" : ""}`} onClick={() => setTab("signin")}>Sign In</button>
         <button className={`auth-tab${tab === "signup" ? " active" : ""}`} onClick={() => setTab("signup")}>Create Account</button>
@@ -1134,7 +1134,7 @@ function Dashboard({ user, token, onLogout }) {
         </>
       )}
 
-      <p className="footer">App: <strong>web-driver</strong> · Sprint 56 — Onboarding Emails</p>
+      <p className="footer">App: <strong>web-driver</strong> · Sprint 57 — Doc Review UI</p>
     </div>
   );
 }
