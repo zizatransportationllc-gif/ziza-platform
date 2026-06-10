@@ -69,7 +69,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 57 — Doc Review UI</p>
+      <p className="subtitle">Sprint 60 — Profile &amp; Docs View</p>
       <div className="auth-tabs">
         <button className={`auth-tab${tab === "signin" ? " active" : ""}`} onClick={() => setTab("signin")}>Sign In</button>
         <button className={`auth-tab${tab === "signup" ? " active" : ""}`} onClick={() => setTab("signup")}>Create Admin Account</button>
@@ -441,7 +441,7 @@ function TripsPanel({ token }) {
 // Driver row
 // ---------------------------------------------------------------------------
 
-function DriverRow({ driver, onStatusChange }) {
+function DriverRow({ driver, onStatusChange, onViewDocs }) {
   const [changingStatus, setChangingStatus] = useState(false);
 
   async function handleStatus(newStatus) {
@@ -458,6 +458,13 @@ function DriverRow({ driver, onStatusChange }) {
           <span className={`driver-status-badge ${driver.status}`}>{driver.status}</span>
         </div>
         <div className="driver-card-actions">
+          <button
+            className="view-docs-btn"
+            onClick={onViewDocs}
+            title="View full profile and documents"
+          >
+            👁 View Docs
+          </button>
           {/* Sprint 54 — activate pending_docs drivers */}
           {driver.status === "pending_docs" && (
             <button
@@ -502,6 +509,7 @@ function DriversPanel({ token }) {
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -521,6 +529,18 @@ function DriversPanel({ token }) {
     } catch (e) { setError(e.message); }
   }
 
+  // Sprint 60 — show full profile + docs for selected driver
+  if (selectedId) {
+    return (
+      <UserReviewPanel
+        token={token}
+        entityId={selectedId}
+        entityType="driver"
+        onBack={() => { setSelectedId(null); load(); }}
+      />
+    );
+  }
+
   return (
     <div className="drivers-panel">
       <div className="panel-header">
@@ -531,7 +551,12 @@ function DriversPanel({ token }) {
       {!loading && drivers.length === 0 && <div className="empty-state">No drivers registered.</div>}
       <div className="driver-list">
         {drivers.map((d) => (
-          <DriverRow key={d.driver_id} driver={d} onStatusChange={handleStatusChange} />
+          <DriverRow
+            key={d.driver_id}
+            driver={d}
+            onStatusChange={handleStatusChange}
+            onViewDocs={() => setSelectedId(d.driver_id)}
+          />
         ))}
       </div>
     </div>
@@ -2249,6 +2274,7 @@ function CraftPanel({ token }) {
   const [professionals, setProfessionals] = useState([]);
   const [proLoading, setProLoading] = useState(false);
   const [proError, setProError] = useState(null);
+  const [selectedProId, setSelectedProId] = useState(null); // Sprint 60
 
   // ── Bids for expanded request ─────────────────────────────────────────────
   const [expandedRequestId, setExpandedRequestId] = useState(null);
@@ -2396,35 +2422,56 @@ function CraftPanel({ token }) {
       {/* ── Professionals Tab ─────────────────────────────────────────────── */}
       {tab === "professionals" && (
         <>
-          {proLoading && <p>Loading…</p>}
-          {proError && <p style={{ color: "red" }}>{proError}</p>}
-          {!proLoading && professionals.length === 0 && <p style={{ color: "#888" }}>No professionals registered yet.</p>}
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: "#F9FAFB" }}>
-                {["ID", "Specialties", "Status", "Online", "Joined"].map((h) => (
-                  <th key={h} style={{ padding: "6px 8px", textAlign: "left", borderBottom: "1px solid #E5E7EB" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {professionals.map((p) => (
-                <tr key={p.professional_id} style={{ borderBottom: "1px solid #F3F4F6" }}>
-                  <td style={{ padding: "6px 8px", fontFamily: "monospace", fontSize: 11 }}>{p.professional_id.slice(0, 8)}…</td>
-                  <td style={{ padding: "6px 8px" }}>{p.specialties || "—"}</td>
-                  <td style={{ padding: "6px 8px" }}>
-                    <span style={{
-                      background: p.status === "active" ? "#D1FAE5" : "#FEE2E2",
-                      color: p.status === "active" ? "#059669" : "#EF4444",
-                      borderRadius: 4, padding: "2px 6px", fontSize: 11, fontWeight: 600,
-                    }}>{p.status}</span>
-                  </td>
-                  <td style={{ padding: "6px 8px" }}>{p.is_online ? "🟢" : "⚫"}</td>
-                  <td style={{ padding: "6px 8px", color: "#9CA3AF" }}>{new Date(p.created_at).toLocaleDateString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {/* Sprint 60 — full profile + docs view for selected professional */}
+          {selectedProId ? (
+            <UserReviewPanel
+              token={token}
+              entityId={selectedProId}
+              entityType="professional"
+              onBack={() => { setSelectedProId(null); }}
+            />
+          ) : (
+            <>
+              {proLoading && <p>Loading…</p>}
+              {proError && <p style={{ color: "red" }}>{proError}</p>}
+              {!proLoading && professionals.length === 0 && <p style={{ color: "#888" }}>No professionals registered yet.</p>}
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: "#F9FAFB" }}>
+                    {["ID", "Specialties", "Status", "Online", "Joined", "Actions"].map((h) => (
+                      <th key={h} style={{ padding: "6px 8px", textAlign: "left", borderBottom: "1px solid #E5E7EB" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {professionals.map((p) => (
+                    <tr key={p.professional_id} style={{ borderBottom: "1px solid #F3F4F6" }}>
+                      <td style={{ padding: "6px 8px", fontFamily: "monospace", fontSize: 11 }}>{p.professional_id.slice(0, 8)}…</td>
+                      <td style={{ padding: "6px 8px" }}>{p.specialties || "—"}</td>
+                      <td style={{ padding: "6px 8px" }}>
+                        <span style={{
+                          background: p.status === "active" ? "#D1FAE5" : "#FEE2E2",
+                          color: p.status === "active" ? "#059669" : "#EF4444",
+                          borderRadius: 4, padding: "2px 6px", fontSize: 11, fontWeight: 600,
+                        }}>{p.status}</span>
+                      </td>
+                      <td style={{ padding: "6px 8px" }}>{p.is_online ? "🟢" : "⚫"}</td>
+                      <td style={{ padding: "6px 8px", color: "#9CA3AF" }}>{new Date(p.created_at).toLocaleDateString()}</td>
+                      <td style={{ padding: "6px 8px" }}>
+                        <button
+                          className="view-docs-btn"
+                          onClick={() => setSelectedProId(p.professional_id)}
+                          title="View full profile and documents"
+                        >
+                          👁 View Docs
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
         </>
       )}
     </section>
@@ -2796,7 +2843,7 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "users"        && <UsersPanel          token={token} />}
       {activeTab === "craft"        && <CraftPanel          token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 57 — Doc Review UI</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 60 — Profile &amp; Docs View</p>
     </div>
   );
 }

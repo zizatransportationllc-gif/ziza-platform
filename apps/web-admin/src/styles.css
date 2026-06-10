@@ -154,6 +154,9 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .suspend-btn  { background: transparent; border: 1px solid var(--color-error); border-radius: var(--radius-md); padding: var(--space-1) var(--space-2); cursor: pointer; font-size: 0.85rem; }
 .activate-btn { background: transparent; border: 1px solid var(--color-success); border-radius: var(--radius-md); padding: var(--space-1) var(--space-2); cursor: pointer; font-size: 0.85rem; }
 .suspend-btn:disabled, .activate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Sprint 60 — View Docs button */
+.view-docs-btn { background: transparent; border: 1px solid var(--color-primary, #2563EB); color: var(--color-primary, #2563EB); border-radius: var(--radius-md); padding: var(--space-1) var(--space-2); cursor: pointer; font-size: 0.8rem; font-weight: 600; }
+.view-docs-btn:hover { background: rgba(37,99,235,0.08); }
 
 /* ── Sprint 14: Promo panel ─────────────────────────────────────────────── */
 .promo-panel { width: 100%; }
