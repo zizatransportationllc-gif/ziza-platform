@@ -1,6 +1,6 @@
 /**
  * DocumentsScreen — KYC document submission and status.
- * Sprint 58 — Onboarding wizard: progress stepper + resubmit prompts.
+ * Sprint 59 — Document replace: upsert backend + replace button for all statuses.
  */
 import React, { useEffect, useState } from "react";
 import {
@@ -264,12 +264,19 @@ export default function DocumentsScreen(): React.ReactElement {
             {item.note_admin ? (
               <Text style={styles.docNote}>💬 {item.note_admin}</Text>
             ) : null}
-            {(item.status === "rejected" || item.status === "needs_resubmission") && (
+            {(item.status === "rejected" || item.status === "needs_resubmission") ? (
               <TouchableOpacity
                 style={styles.resubmitBtn}
                 onPress={() => handleResubmit(item.type)}
               >
                 <Text style={styles.resubmitBtnText}>🔄 Re-upload {DOC_TYPE_LABELS[item.type] ?? item.type}</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.replaceBtn}
+                onPress={() => handleResubmit(item.type)}
+              >
+                <Text style={styles.replaceBtnText}>↩ Replace</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -336,5 +343,7 @@ const styles = StyleSheet.create({
   docNote: { fontSize: 12, color: "#6b9e7a", fontStyle: "italic", marginTop: 4 },
   resubmitBtn: { marginTop: 8, backgroundColor: "rgba(245,158,11,0.15)", borderWidth: 1, borderColor: "#f59e0b", borderRadius: 6, paddingVertical: 6, paddingHorizontal: 10, alignSelf: "flex-start" },
   resubmitBtnText: { color: "#fbbf24", fontWeight: "700", fontSize: 12 },
+  replaceBtn: { marginTop: 6, backgroundColor: "transparent", borderWidth: 1, borderColor: "#233328", borderRadius: 6, paddingVertical: 4, paddingHorizontal: 8, alignSelf: "flex-start" },
+  replaceBtnText: { color: "#6b9e7a", fontWeight: "600", fontSize: 11 },
   empty: { color: "#6b9e7a", textAlign: "center", marginVertical: 12 },
 });

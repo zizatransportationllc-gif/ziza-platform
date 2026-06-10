@@ -766,13 +766,21 @@ function DocumentsSection({ token, driverStatus = "pending_docs" }) {
               </span>
             </div>
             {d.note_admin && <p className="doc-note">💬 {d.note_admin}</p>}
-            {(d.status === "rejected" || d.status === "needs_resubmission") && (
+            {(d.status === "rejected" || d.status === "needs_resubmission") ? (
               <button
                 className="doc-resubmit-btn"
                 type="button"
                 onClick={() => handleResubmit(d.type)}
               >
                 🔄 Re-upload {DOCUMENT_TYPE_LABELS[d.type] ?? d.type}
+              </button>
+            ) : (
+              <button
+                className="doc-replace-btn"
+                type="button"
+                onClick={() => handleResubmit(d.type)}
+              >
+                ↩ Replace
               </button>
             )}
             <p className="doc-date">
@@ -1208,7 +1216,7 @@ function Dashboard({ user, token, onLogout }) {
         </>
       )}
 
-      <p className="footer">App: <strong>web-driver</strong> · Sprint 58 — Onboarding Wizard UI</p>
+      <p className="footer">App: <strong>web-driver</strong> · Sprint 59 — Document Replace</p>
     </div>
   );
 }

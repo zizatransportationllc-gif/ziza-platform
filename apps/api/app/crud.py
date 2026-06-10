@@ -1676,10 +1676,12 @@ async def submit_driver_document(
     doc_type: str,
     url: str,
 ) -> DriverDocument:
-    """Driver submits a KYC document (URL to a scan).
+    """Driver submits or replaces a KYC document.
 
+    Sprint 59: upsert by (driver_id, type) — re-uploading the same type
+    updates the existing record in place (resets status → pending, clears
+    note_admin) rather than accumulating duplicate rows.
     Raises 422 if doc_type is not one of the allowed values.
-    Multiple submissions of the same type are allowed (resubmit after rejection).
     """
     driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
     if doc_type not in DOCUMENT_TYPES:
@@ -1687,34 +1689,52 @@ async def submit_driver_document(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Invalid document type '{doc_type}'. Valid: {sorted(DOCUMENT_TYPES)}",
         )
-    doc = DriverDocument(
-        driver_id=driver.id,
-        type=doc_type,
-        url=url,
-        status="pending",
-    )
-    db.add(doc)
-    await db.commit()
-    await db.refresh(doc)
 
-    # Sprint 56 — notify driver on first document submission ("application under review")
-    existing_count = await db.scalar(
-        select(func.count(DriverDocument.id)).where(
+    existing = await db.scalar(
+        select(DriverDocument).where(
             DriverDocument.driver_id == driver.id,
-            DriverDocument.id != doc.id,
+            DriverDocument.type == doc_type,
         )
     )
-    if (existing_count or 0) == 0:
-        _user_row = await db.execute(select(User).where(User.id == driver.user_id))
-        _user = _user_row.scalar_one_or_none()
-        user_name = getattr(_user, "full_name", None) or (getattr(_user, "email", "") or "").split("@")[0]
-        await _push_notification(
-            db, driver.user_id,
-            "application_submitted",
-            "📋 Application received",
-            "Your document has been submitted. We will review your application within 24-48 hours.",
-            data={"user_name": user_name},
+    is_replacement = existing is not None
+
+    if is_replacement:
+        existing.url = url
+        existing.status = "pending"
+        existing.note_admin = None
+        await db.commit()
+        await db.refresh(existing)
+        doc = existing
+    else:
+        doc = DriverDocument(
+            driver_id=driver.id,
+            type=doc_type,
+            url=url,
+            status="pending",
         )
+        db.add(doc)
+        await db.commit()
+        await db.refresh(doc)
+
+    # Sprint 56 — notify driver on very first document submission
+    if not is_replacement:
+        other_count = await db.scalar(
+            select(func.count(DriverDocument.id)).where(
+                DriverDocument.driver_id == driver.id,
+                DriverDocument.id != doc.id,
+            )
+        )
+        if (other_count or 0) == 0:
+            _user_row = await db.execute(select(User).where(User.id == driver.user_id))
+            _user = _user_row.scalar_one_or_none()
+            user_name = getattr(_user, "full_name", None) or (getattr(_user, "email", "") or "").split("@")[0]
+            await _push_notification(
+                db, driver.user_id,
+                "application_submitted",
+                "📋 Application received",
+                "Your document has been submitted. We will review your application within 24-48 hours.",
+                data={"user_name": user_name},
+            )
 
     return doc
 
@@ -4744,9 +4764,11 @@ async def submit_professional_document(
     doc_type: str,
     url: str,
 ) -> ProfessionalDocument:
-    """Professional submits a KYC document (base64 data URL or URL to a scan).
+    """Professional submits or replaces a KYC document.
 
-    Multiple submissions of the same type are allowed (resubmit after rejection).
+    Sprint 59: upsert by (professional_id, type) — re-uploading the same type
+    updates the existing record in place (resets status → pending, clears
+    note_admin) rather than accumulating duplicate rows.
     """
     prof = await _get_professional_by_auth_id(db, auth_user_id)
     if prof is None:
@@ -4759,6 +4781,22 @@ async def submit_professional_document(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Invalid document type '{doc_type}'. Valid: {sorted(DOCUMENT_TYPES)}",
         )
+
+    existing = await db.scalar(
+        select(ProfessionalDocument).where(
+            ProfessionalDocument.professional_id == prof.id,
+            ProfessionalDocument.type == doc_type,
+        )
+    )
+
+    if existing is not None:
+        existing.url = url
+        existing.status = "pending"
+        existing.note_admin = None
+        await db.commit()
+        await db.refresh(existing)
+        return existing
+
     doc = ProfessionalDocument(
         professional_id=prof.id,
         type=doc_type,

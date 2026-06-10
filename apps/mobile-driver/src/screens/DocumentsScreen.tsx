@@ -1,6 +1,6 @@
 /**
  * DocumentsScreen — KYC document submission and status.
- * Sprint 58 — Onboarding wizard: progress stepper + resubmit prompts.
+ * Sprint 59 — Document replace: upsert backend + replace button for all statuses.
  */
 import React, { useEffect, useState } from "react";
 import {
@@ -263,12 +263,19 @@ export default function DocumentsScreen(): React.ReactElement {
             {item.note_admin ? (
               <Text style={styles.docNote}>💬 {item.note_admin}</Text>
             ) : null}
-            {(item.status === "rejected" || item.status === "needs_resubmission") && (
+            {(item.status === "rejected" || item.status === "needs_resubmission") ? (
               <TouchableOpacity
                 style={styles.resubmitBtn}
                 onPress={() => handleResubmit(item.type)}
               >
                 <Text style={styles.resubmitBtnText}>🔄 Re-upload {DOC_TYPE_LABELS[item.type] ?? item.type}</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.replaceBtn}
+                onPress={() => handleResubmit(item.type)}
+              >
+                <Text style={styles.replaceBtnText}>↩ Replace</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -335,5 +342,7 @@ const styles = StyleSheet.create({
   docNote: { fontSize: 12, color: "#6B7280", fontStyle: "italic", marginTop: 4 },
   resubmitBtn: { marginTop: 8, backgroundColor: "#FEF9C3", borderWidth: 1, borderColor: "#EAB308", borderRadius: 6, paddingVertical: 6, paddingHorizontal: 10, alignSelf: "flex-start" },
   resubmitBtnText: { color: "#713F12", fontWeight: "700", fontSize: 12 },
+  replaceBtn: { marginTop: 6, backgroundColor: "transparent", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 6, paddingVertical: 4, paddingHorizontal: 8, alignSelf: "flex-start" },
+  replaceBtnText: { color: "#9CA3AF", fontWeight: "600", fontSize: 11 },
   empty: { color: "#9CA3AF", textAlign: "center", marginVertical: 12 },
 });
