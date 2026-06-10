@@ -2482,6 +2482,40 @@ function CraftPanel({ token }) {
 // Onboarding Review — Sprint 57
 // ---------------------------------------------------------------------------
 
+// ── Sub-components defined at module level so React never remounts them ──────
+
+const REVIEW_STATUS_BADGE = {
+  active:       { bg: "#D1FAE5", color: "#065F46" },
+  pending_docs: { bg: "#FEF3C7", color: "#92400E" },
+  suspended:    { bg: "#FEE2E2", color: "#991B1B" },
+  inactive:     { bg: "#F3F4F6", color: "#374151" },
+};
+
+const VEHICLE_CATEGORY_LABELS = {
+  economy: "🚗 Economy",
+  comfort: "🛋️ Comfort",
+  xl:      "🚐 XL",
+  electric:"⚡ Electric",
+};
+
+function ProfileField({ label, value }) {
+  if (value === null || value === undefined || value === "") return null;
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <span style={{ fontSize: 11, fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>
+      <div style={{ fontSize: 14, color: "#111827", marginTop: 2 }}>{value}</div>
+    </div>
+  );
+}
+
+function SectionTitle({ children }) {
+  return (
+    <h3 style={{ fontSize: 13, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.08em", borderBottom: "1px solid #E5E7EB", paddingBottom: 6, marginTop: 24, marginBottom: 14 }}>
+      {children}
+    </h3>
+  );
+}
+
 const DOC_STATUS_COLORS = {
   pending:            { bg: "#FEF3C7", color: "#D97706" },
   approved:           { bg: "#D1FAE5", color: "#059669" },
@@ -2530,38 +2564,6 @@ function UserReviewPanel({ token, entityId, entityType, onBack }) {
   }
 
   if (loading && !detail) return <div className="status loading">⏳ Loading profile…</div>;
-
-  const STATUS_BADGE = {
-    active:       { bg: "#D1FAE5", color: "#065F46" },
-    pending_docs: { bg: "#FEF3C7", color: "#92400E" },
-    suspended:    { bg: "#FEE2E2", color: "#991B1B" },
-    inactive:     { bg: "#F3F4F6", color: "#374151" },
-  };
-
-  const VEHICLE_CATEGORY_LABELS = {
-    economy: "🚗 Economy",
-    comfort: "🛋️ Comfort",
-    xl:      "🚐 XL",
-    electric:"⚡ Electric",
-  };
-
-  function ProfileField({ label, value }) {
-    if (!value && value !== 0) return null;
-    return (
-      <div style={{ marginBottom: 8 }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>
-        <div style={{ fontSize: 14, color: "#111827", marginTop: 2 }}>{value}</div>
-      </div>
-    );
-  }
-
-  function SectionTitle({ children }) {
-    return (
-      <h3 style={{ fontSize: 13, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.08em", borderBottom: "1px solid #E5E7EB", paddingBottom: 6, marginTop: 24, marginBottom: 14 }}>
-        {children}
-      </h3>
-    );
-  }
 
   return (
     <>
@@ -2630,7 +2632,7 @@ function UserReviewPanel({ token, entityId, entityType, onBack }) {
                   {entityType === "driver" ? "🚗 Driver" : "🔧 Professional"}
                 </span>
                 {detail.status && (() => {
-                  const s = STATUS_BADGE[detail.status] || STATUS_BADGE.inactive;
+                  const s = REVIEW_STATUS_BADGE[detail.status] || REVIEW_STATUS_BADGE.inactive;
                   return (
                     <span style={{ background: s.bg, color: s.color, borderRadius: 4, padding: "2px 8px", fontSize: 12, fontWeight: 700 }}>
                       {detail.status.replace("_", " ")}
@@ -2668,8 +2670,8 @@ function UserReviewPanel({ token, entityId, entityType, onBack }) {
           {/* ── Identity ────────────────────────────────────────────────── */}
           <SectionTitle>Identity</SectionTitle>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "8px 24px" }}>
-            <ProfileField label="Full name"    value={detail.name} />
-            <ProfileField label="Email"        value={detail.email} />
+            <ProfileField label="Full name"    value={detail.name  || "—"} />
+            <ProfileField label="Email"        value={detail.email || "—"} />
             <ProfileField label="Phone"        value={detail.phone || "—"} />
             {entityType === "driver" && (
               <ProfileField label="License No." value={detail.license_number || "—"} />
