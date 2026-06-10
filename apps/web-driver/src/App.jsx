@@ -680,6 +680,10 @@ function DocumentsSection({ token, driverStatus = "pending_docs" }) {
   function handleFileChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setError("Only PDF files are accepted.");
+      return;
+    }
     setFileName(file.name);
     setError(null);
     const reader = new FileReader();
@@ -689,7 +693,7 @@ function DocumentsSection({ token, driverStatus = "pending_docs" }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!preview) { setError("Please capture or select a document first."); return; }
+    if (!preview) { setError("Please select a PDF file first."); return; }
     setSubmitting(true); setError(null); setSuccess(null);
     try {
       await submitDocument(token, docType, preview);
@@ -730,18 +734,14 @@ function DocumentsSection({ token, driverStatus = "pending_docs" }) {
           ))}
         </select>
         <div className="doc-capture-row">
-          <label className="doc-capture-btn">
-            📷 Camera
-            <input type="file" accept="image/*" capture="environment" hidden onChange={handleFileChange} />
-          </label>
           <label className="doc-capture-btn doc-file-btn">
-            📁 File
-            <input type="file" accept="image/*,application/pdf" hidden onChange={handleFileChange} />
+            📎 Select PDF
+            <input type="file" accept=".pdf,application/pdf" hidden onChange={handleFileChange} />
           </label>
         </div>
         {preview && (
-          <div className="doc-preview-wrap">
-            <img src={preview} className="doc-preview-img" alt="Document preview" />
+          <div className="doc-pdf-selected">
+            <span className="doc-pdf-icon">📄</span>
             <span className="doc-file-name">{fileName}</span>
           </div>
         )}
@@ -1216,7 +1216,7 @@ function Dashboard({ user, token, onLogout }) {
         </>
       )}
 
-      <p className="footer">App: <strong>web-driver</strong> · Sprint 59 — Document Replace</p>
+      <p className="footer">App: <strong>web-driver</strong> · Sprint 61 — PDF Document Upload</p>
     </div>
   );
 }

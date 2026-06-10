@@ -178,11 +178,11 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .doc-capture-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .doc-capture-btn { display: inline-flex; align-items: center; gap: 5px; padding: 8px 14px; border-radius: var(--radius-md); border: 2px solid var(--color-accent); color: var(--color-accent); background: transparent; font-size: .875rem; font-weight: 600; cursor: pointer; transition: background .15s, color .15s; }
 .doc-capture-btn:hover { background: var(--color-accent); color: #fff; }
-.doc-capture-btn.doc-file-btn { border-color: var(--color-muted); color: var(--color-muted); }
-.doc-capture-btn.doc-file-btn:hover { background: var(--color-muted); color: #fff; }
-.doc-preview-wrap { display: flex; flex-direction: column; gap: 4px; }
-.doc-preview-img { max-width: 160px; max-height: 120px; border-radius: 8px; border: 2px solid var(--color-border, #334155); object-fit: cover; }
-.doc-file-name { font-size: .75rem; color: var(--color-muted); }
+.doc-capture-btn.doc-file-btn { border-color: var(--color-accent); color: var(--color-accent); }
+.doc-capture-btn.doc-file-btn:hover { background: var(--color-accent); color: #0f172a; }
+.doc-pdf-selected { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.doc-pdf-icon { font-size: 1.25rem; }
+.doc-file-name { font-size: .8rem; color: var(--color-fg); word-break: break-all; }
 .doc-submit-btn { padding: 0.65rem 1rem; border-radius: var(--radius-md); background: var(--color-accent); color: #fff; font-weight: 700; border: none; cursor: pointer; }
 .doc-submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .doc-success { color: #4ade80; font-size: 0.85rem; margin: 0; }
