@@ -69,7 +69,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 63 — Full Driver Profile</p>
+      <p className="subtitle">Sprint 65 — Identity Fields</p>
       <div className="auth-tabs">
         <button className={`auth-tab${tab === "signin" ? " active" : ""}`} onClick={() => setTab("signin")}>Sign In</button>
         <button className={`auth-tab${tab === "signup" ? " active" : ""}`} onClick={() => setTab("signup")}>Create Admin Account</button>
@@ -2670,15 +2670,8 @@ function UserReviewPanel({ token, entityId, entityType, onBack }) {
           {/* ── Identity ────────────────────────────────────────────────── */}
           <SectionTitle>Identity</SectionTitle>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "8px 24px" }}>
-            {/* Structured fields (Sprint 64 accounts). Fall back to full name for older accounts. */}
-            {(detail.first_name || detail.last_name) ? (
-              <>
-                <ProfileField label="First name"    value={detail.first_name || "—"} />
-                <ProfileField label="Last name"     value={detail.last_name  || "—"} />
-              </>
-            ) : (
-              <ProfileField label="Full name" value={detail.name || "—"} />
-            )}
+            <ProfileField label="First name"    value={detail.first_name || "—"} />
+            <ProfileField label="Last name"     value={detail.last_name  || "—"} />
             <ProfileField label="Date of birth" value={detail.date_of_birth || "—"} />
             <ProfileField label="Email"         value={detail.email || "—"} />
             <ProfileField label="Phone"         value={detail.phone || "—"} />
@@ -3033,7 +3026,7 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "users"        && <UsersPanel          token={token} />}
       {activeTab === "craft"        && <CraftPanel          token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 64 — Profile Fields</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 65 — Identity Fields</p>
     </div>
   );
 }
