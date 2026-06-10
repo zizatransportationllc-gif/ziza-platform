@@ -389,6 +389,9 @@ class SignupRequest(BaseModel):
     password: str
     name: str | None = None
     phone: str | None = None
+    first_name: str | None = None   # Sprint 64
+    last_name: str | None = None    # Sprint 64
+    date_of_birth: str | None = None  # Sprint 64 — ISO date string YYYY-MM-DD
     role: str = "customer"        # customer | driver | professional | admin
     admin_code: str | None = None  # required when role == "admin"
 
@@ -453,6 +456,9 @@ async def signup_create(
         role=body.role,
         name=body.name,
         phone=body.phone,
+        first_name=body.first_name,
+        last_name=body.last_name,
+        date_of_birth=body.date_of_birth,
     )
 
     # --- issue token ---------------------------------------------------------
@@ -478,6 +484,9 @@ class UserProfileResponse(BaseModel):
     role: str
     name: str | None = None
     phone: str | None = None
+    first_name: str | None = None   # Sprint 64
+    last_name: str | None = None    # Sprint 64
+    date_of_birth: str | None = None  # Sprint 64
     created_at: str
 
 

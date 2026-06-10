@@ -181,6 +181,35 @@ export async function login(
   return data;
 }
 
+/** Sprint 64 — create a new customer account. */
+export async function signup(
+  email: string,
+  password: string,
+  firstName: string,
+  lastName: string,
+  birthDate: string,
+  phone: string | null = null
+): Promise<TokenResponse> {
+  const fullName = [firstName, lastName].filter(Boolean).join(" ") || null;
+  const res = await fetch(`${API_BASE}/v1/auth/signup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email,
+      password,
+      name: fullName,
+      phone: phone || null,
+      first_name: firstName || null,
+      last_name: lastName || null,
+      date_of_birth: birthDate || null,
+      role: "customer",
+    }),
+  });
+  const data = await _json<TokenResponse>(res);
+  await storeTokenPair(data.access_token, data.refresh_token);
+  return data;
+}
+
 export async function logout(token: string): Promise<void> {
   // Send the stored refresh token so the server can revoke it
   const refreshToken = await getStoredRefreshToken();

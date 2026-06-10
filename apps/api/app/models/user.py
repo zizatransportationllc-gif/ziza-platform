@@ -41,6 +41,10 @@ class User(Base):
     # Sprint 16: optional display name and phone number
     name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # Sprint 64: structured identity fields
+    first_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    date_of_birth: Mapped[str | None] = mapped_column(String(10), nullable=True)
     # Sprint 49: bcrypt hash for locally-created accounts (provider="local")
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

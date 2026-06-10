@@ -57,22 +57,27 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
   const [suEmail, setSuEmail] = useState("");
   const [suPassword, setSuPassword] = useState("");
   const [suConfirm, setSuConfirm] = useState("");
-  const [suName, setSuName] = useState("");
+  const [suFirstName, setSuFirstName] = useState("");
+  const [suLastName, setSuLastName] = useState("");
+  const [suBirthDate, setSuBirthDate] = useState("");
   const [suPhone, setSuPhone] = useState("");
   const [suError, setSuError] = useState(null);
 
   function handleSignup(e) {
     e.preventDefault();
     setSuError(null);
+    if (!suFirstName.trim()) { setSuError("First name is required"); return; }
+    if (!suLastName.trim()) { setSuError("Last name is required"); return; }
+    if (!suBirthDate) { setSuError("Date of birth is required"); return; }
     if (suPassword !== suConfirm) { setSuError("Passwords do not match"); return; }
     if (suPassword.length < 6) { setSuError("Password must be at least 6 characters"); return; }
-    onSignup(suEmail, suPassword, suName, suPhone);
+    onSignup(suEmail, suPassword, suFirstName.trim(), suLastName.trim(), suBirthDate, suPhone);
   }
 
   return (
     <div className="app">
       <img src="/logo-customer.svg" alt="Ziza Customer" className="app-logo" />
-      <p className="subtitle">Sprint 57 — Doc Review UI</p>
+      <p className="subtitle">Sprint 64 — Profile Fields</p>
       <div className="auth-tabs">
         <button className={`auth-tab${tab === "signin" ? " active" : ""}`} onClick={() => setTab("signin")}>Sign In</button>
         <button className={`auth-tab${tab === "signup" ? " active" : ""}`} onClick={() => setTab("signup")}>Create Account</button>
@@ -95,10 +100,12 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
       ) : (
         <>
           <form className="login-form" onSubmit={handleSignup}>
+            <input type="text" value={suFirstName} onChange={(e) => setSuFirstName(e.target.value)} placeholder="First name" required />
+            <input type="text" value={suLastName} onChange={(e) => setSuLastName(e.target.value)} placeholder="Last name" required />
+            <input type="date" value={suBirthDate} onChange={(e) => setSuBirthDate(e.target.value)} placeholder="Date of birth" required />
             <input type="email" value={suEmail} onChange={(e) => setSuEmail(e.target.value)} placeholder="Email address" required />
             <input type="password" value={suPassword} onChange={(e) => setSuPassword(e.target.value)} placeholder="Password (min. 6 characters)" required />
             <input type="password" value={suConfirm} onChange={(e) => setSuConfirm(e.target.value)} placeholder="Confirm password" required />
-            <input type="text" value={suName} onChange={(e) => setSuName(e.target.value)} placeholder="Full name (optional)" />
             <input type="tel" value={suPhone} onChange={(e) => setSuPhone(e.target.value)} placeholder="Phone number (optional)" />
             <button type="submit" disabled={loading}>{loading ? "Creating account…" : "Create Account"}</button>
           </form>
@@ -2169,7 +2176,7 @@ function Dashboard({ user, token, onLogout }) {
         </>
       )}
 
-      <p className="footer">App: <strong>web-customer</strong> · Sprint 57 — Doc Review UI</p>
+      <p className="footer">App: <strong>web-customer</strong> · Sprint 64 — Profile Fields</p>
     </div>
   );
 }
@@ -2247,10 +2254,10 @@ export default function App() {
     finally { setLoginLoading(false); }
   }
 
-  async function handleSignup(email, password, name, phone) {
+  async function handleSignup(email, password, firstName, lastName, birthDate, phone) {
     setLoginLoading(true); setLoginError(null);
     try {
-      const { access_token } = await signup(email, password, name || null, phone || null);
+      const { access_token } = await signup(email, password, firstName, lastName, birthDate, phone || null);
       localStorage.setItem(TOKEN_KEY, access_token);
       setToken(access_token);
     } catch (e) { setLoginError(e.message); }

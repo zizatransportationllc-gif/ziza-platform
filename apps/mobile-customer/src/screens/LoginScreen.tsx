@@ -1,6 +1,6 @@
 /**
- * LoginScreen — email/password authentication.
- * Sprint 52 — Ziza Customer logo.
+ * LoginScreen — email/password authentication + sign-up.
+ * Sprint 64 — Profile Fields (first name, last name, date of birth).
  */
 import React, { useState } from "react";
 import {
@@ -12,15 +12,31 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from "react-native";
-import { login as apiLogin } from "../api";
+import { login as apiLogin, signup as apiSignup } from "../api";
 import { useAuth } from "../context/AuthContext";
 import ZizaCustomerLogo from "../components/ZizaCustomerLogo";
 
 export default function LoginScreen(): React.ReactElement {
   const { login } = useAuth();
+
+  // tab: "signin" | "signup"
+  const [tab, setTab] = useState<"signin" | "signup">("signin");
+
+  // Sign-in state
   const [email, setEmail] = useState("customer@ziza.dev");
   const [password, setPassword] = useState("ziza2024");
+
+  // Sign-up state
+  const [suFirstName, setSuFirstName] = useState("");
+  const [suLastName, setSuLastName] = useState("");
+  const [suBirthDate, setSuBirthDate] = useState("");
+  const [suEmail, setSuEmail] = useState("");
+  const [suPassword, setSuPassword] = useState("");
+  const [suConfirm, setSuConfirm] = useState("");
+  const [suPhone, setSuPhone] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,55 +53,92 @@ export default function LoginScreen(): React.ReactElement {
     }
   };
 
+  const handleSignup = async () => {
+    setError(null);
+    if (!suFirstName.trim()) { setError("First name is required"); return; }
+    if (!suLastName.trim()) { setError("Last name is required"); return; }
+    if (!suBirthDate.trim()) { setError("Date of birth is required (YYYY-MM-DD)"); return; }
+    if (!suEmail.trim()) { setError("Email is required"); return; }
+    if (suPassword.length < 6) { setError("Password must be at least 6 characters"); return; }
+    if (suPassword !== suConfirm) { setError("Passwords do not match"); return; }
+    setLoading(true);
+    try {
+      const data = await apiSignup(suEmail.trim(), suPassword, suFirstName.trim(), suLastName.trim(), suBirthDate.trim(), suPhone || null);
+      await login(data.access_token, data.refresh_token ?? null);
+    } catch (e: any) {
+      setError(e.message || "Sign-up failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={styles.logoWrapper}>
-        <ZizaCustomerLogo size={96} />
-      </View>
-      <Text style={styles.subtitle}>Sprint 52 — Logo</Text>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <TextInput
-        style={styles.input}
-        value={email}
-        onChangeText={setEmail}
-        placeholder="Email"
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-      <TextInput
-        style={styles.input}
-        value={password}
-        onChangeText={setPassword}
-        placeholder="Password"
-        secureTextEntry
-      />
-      <TouchableOpacity
-        style={styles.button}
-        onPress={handleLogin}
-        disabled={loading}
-      >
-        {loading ? (
-          <ActivityIndicator color="#fff" />
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <View style={styles.logoWrapper}>
+          <ZizaCustomerLogo size={80} />
+        </View>
+        <Text style={styles.subtitle}>Sprint 64 — Profile Fields</Text>
+
+        {/* Tab bar */}
+        <View style={styles.tabBar}>
+          <TouchableOpacity
+            style={[styles.tab, tab === "signin" && styles.tabActive]}
+            onPress={() => { setTab("signin"); setError(null); }}
+          >
+            <Text style={[styles.tabText, tab === "signin" && styles.tabTextActive]}>Sign In</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, tab === "signup" && styles.tabActive]}
+            onPress={() => { setTab("signup"); setError(null); }}
+          >
+            <Text style={[styles.tabText, tab === "signup" && styles.tabTextActive]}>Create Account</Text>
+          </TouchableOpacity>
+        </View>
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        {tab === "signin" ? (
+          <>
+            <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder="Email" keyboardType="email-address" autoCapitalize="none" />
+            <TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry />
+            <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
+              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign In</Text>}
+            </TouchableOpacity>
+            <Text style={styles.hint}>Dev: customer@ziza.dev / ziza2024</Text>
+          </>
         ) : (
-          <Text style={styles.buttonText}>Sign In</Text>
+          <>
+            <TextInput style={styles.input} value={suFirstName} onChangeText={setSuFirstName} placeholder="First name" autoCapitalize="words" />
+            <TextInput style={styles.input} value={suLastName} onChangeText={setSuLastName} placeholder="Last name" autoCapitalize="words" />
+            <TextInput style={styles.input} value={suBirthDate} onChangeText={setSuBirthDate} placeholder="Date of birth (YYYY-MM-DD)" keyboardType="numbers-and-punctuation" />
+            <TextInput style={styles.input} value={suEmail} onChangeText={setSuEmail} placeholder="Email address" keyboardType="email-address" autoCapitalize="none" />
+            <TextInput style={styles.input} value={suPassword} onChangeText={setSuPassword} placeholder="Password (min. 6 characters)" secureTextEntry />
+            <TextInput style={styles.input} value={suConfirm} onChangeText={setSuConfirm} placeholder="Confirm password" secureTextEntry />
+            <TextInput style={styles.input} value={suPhone} onChangeText={setSuPhone} placeholder="Phone number (optional)" keyboardType="phone-pad" />
+            <TouchableOpacity style={styles.button} onPress={handleSignup} disabled={loading}>
+              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Create Account</Text>}
+            </TouchableOpacity>
+          </>
         )}
-      </TouchableOpacity>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    padding: 24,
-    backgroundColor: "#fff",
-  },
+  container: { flex: 1, backgroundColor: "#fff" },
+  scroll: { flexGrow: 1, justifyContent: "center", padding: 24 },
   logoWrapper: { alignItems: "center", marginBottom: 12 },
-  subtitle: { fontSize: 14, color: "#888", textAlign: "center", marginBottom: 24 },
+  subtitle: { fontSize: 14, color: "#888", textAlign: "center", marginBottom: 20 },
+  tabBar: { flexDirection: "row", borderRadius: 8, backgroundColor: "#F3F4F6", marginBottom: 20, overflow: "hidden" },
+  tab: { flex: 1, paddingVertical: 10, alignItems: "center" },
+  tabActive: { backgroundColor: "#F97316" },
+  tabText: { fontSize: 14, fontWeight: "600", color: "#6B7280" },
+  tabTextActive: { color: "#fff" },
   input: {
     borderWidth: 1,
     borderColor: "#ddd",
@@ -99,8 +152,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 14,
     alignItems: "center",
-    marginTop: 8,
+    marginTop: 4,
   },
   buttonText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
-  error: { color: "red", textAlign: "center", marginBottom: 12 },
+  error: { color: "red", textAlign: "center", marginBottom: 12, fontSize: 14 },
+  hint: { fontSize: 12, color: "#aaa", textAlign: "center", marginTop: 12 },
 });

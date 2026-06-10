@@ -304,10 +304,14 @@ async def create_local_user(
     role: str,
     name: str | None = None,
     phone: str | None = None,
+    first_name: str | None = None,
+    last_name: str | None = None,
+    date_of_birth: str | None = None,
 ) -> User:
     """Create a new user with a bcrypt-hashed password (Sprint 49 — local auth).
 
     Sets provider='local' to distinguish these accounts from Firebase/dev-seeded ones.
+    Sprint 64: adds first_name, last_name, date_of_birth.
     """
     user = User(
         user_id=user_id,
@@ -317,6 +321,9 @@ async def create_local_user(
         name=name,
         phone=phone,
         password_hash=password_hash,
+        first_name=first_name,
+        last_name=last_name,
+        date_of_birth=date_of_birth,
     )
     db.add(user)
     await db.commit()
@@ -1568,7 +1575,7 @@ async def admin_list_ratings(
 # ---------------------------------------------------------------------------
 
 async def get_user_profile(db: AsyncSession, auth_user_id: str) -> dict:
-    """Return the authenticated user's profile including name and phone."""
+    """Return the authenticated user's profile including name, phone, and identity fields."""
     user = await _get_user_by_auth_id(db, auth_user_id)
     if user is None:
         raise HTTPException(
@@ -1581,6 +1588,9 @@ async def get_user_profile(db: AsyncSession, auth_user_id: str) -> dict:
         "role": user.role,
         "name": user.name,
         "phone": user.phone,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "date_of_birth": user.date_of_birth,
         "created_at": _utc(user.created_at).isoformat(),
     }
 
@@ -1615,6 +1625,9 @@ async def update_user_profile(
         "role": user.role,
         "name": user.name,
         "phone": user.phone,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "date_of_birth": user.date_of_birth,
         "created_at": _utc(user.created_at).isoformat(),
     }
 
