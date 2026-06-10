@@ -584,11 +584,12 @@ function DocumentsSection({ token, profStatus = "pending_docs" }) {
   const [docs, setDocs]             = useState([]);
   const [loading, setLoading]       = useState(true);
   const [docType, setDocType]       = useState("license");
-  const [preview, setPreview]       = useState(null);   // base64 data URL
+  const [preview, setPreview]       = useState(null);   // base64 data URL (upload form)
   const [fileName, setFileName]     = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess]       = useState(null);
   const [error, setError]           = useState(null);
+  const [docPreviewModal, setDocPreviewModal] = useState(null); // { url, isPdf, label }
 
   const loadDocs = useCallback(() => {
     setLoading(true);
@@ -634,6 +635,47 @@ function DocumentsSection({ token, profStatus = "pending_docs" }) {
   }
 
   return (
+    <>
+    {/* ── Document preview modal ─────────────────────────────────────────── */}
+    {docPreviewModal && (
+      <div
+        style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+        onClick={() => setDocPreviewModal(null)}
+      >
+        <div
+          style={{ background: "#fff", borderRadius: 12, overflow: "hidden", width: "min(92vw, 920px)", maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.4)" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", borderBottom: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+            <div>
+              <strong style={{ fontSize: 14, color: "#111827" }}>{docPreviewModal.label}</strong>
+              <span style={{ fontSize: 12, color: "#9CA3AF", marginLeft: 10 }}>{docPreviewModal.isPdf ? "PDF" : "Image"}</span>
+            </div>
+            <button
+              onClick={() => setDocPreviewModal(null)}
+              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#6B7280", lineHeight: 1, padding: "2px 6px" }}
+              title="Close"
+            >✕</button>
+          </div>
+          <div style={{ flex: 1, overflow: "auto", background: "#1F2937", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 360 }}>
+            {docPreviewModal.isPdf ? (
+              <iframe
+                src={docPreviewModal.url}
+                style={{ width: "100%", height: "72vh", border: "none" }}
+                title={docPreviewModal.label}
+              />
+            ) : (
+              <img
+                src={docPreviewModal.url}
+                alt={docPreviewModal.label}
+                style={{ maxWidth: "100%", maxHeight: "72vh", objectFit: "contain", display: "block" }}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+
     <div className="documents-section">
       <div className="section-header">
         <h2 className="section-title">📄 KYC Documents</h2>
@@ -700,41 +742,55 @@ function DocumentsSection({ token, profStatus = "pending_docs" }) {
         {!loading && docs.length === 0 && (
           <p className="doc-empty">No documents submitted yet.</p>
         )}
-        {docs.map((d) => (
-          <div key={d.document_id} className={`doc-item doc-${d.status}`}>
-            <div className="doc-item-main">
-              <span className="doc-type">{DOCUMENT_TYPE_LABELS[d.type] ?? d.type}</span>
-              <span className={`doc-status doc-status-${d.status}`}>
-                {DOCUMENT_STATUS_LABELS[d.status] ?? d.status}
-              </span>
+        {docs.map((d) => {
+          const isPdf = d.url?.startsWith("data:application/pdf") || d.url?.toLowerCase().endsWith(".pdf");
+          return (
+            <div key={d.document_id} className={`doc-item doc-${d.status}`}>
+              <div className="doc-item-main">
+                <span className="doc-type">{DOCUMENT_TYPE_LABELS[d.type] ?? d.type}</span>
+                <span className={`doc-status doc-status-${d.status}`}>
+                  {DOCUMENT_STATUS_LABELS[d.status] ?? d.status}
+                </span>
+                {/* Preview button */}
+                {d.url && (
+                  <button
+                    className="doc-preview-btn"
+                    type="button"
+                    onClick={() => setDocPreviewModal({ url: d.url, isPdf, label: DOCUMENT_TYPE_LABELS[d.type] ?? d.type })}
+                  >
+                    👁 Preview
+                  </button>
+                )}
+              </div>
+              {d.note_admin && <p className="doc-note">💬 {d.note_admin}</p>}
+              {(d.status === "rejected" || d.status === "needs_resubmission") ? (
+                <button
+                  className="doc-resubmit-btn"
+                  type="button"
+                  onClick={() => handleResubmit(d.type)}
+                >
+                  🔄 Re-upload {DOCUMENT_TYPE_LABELS[d.type] ?? d.type}
+                </button>
+              ) : (
+                <button
+                  className="doc-replace-btn"
+                  type="button"
+                  onClick={() => handleResubmit(d.type)}
+                >
+                  ↩ Replace
+                </button>
+              )}
+              <p className="doc-date">
+                {new Date(d.created_at).toLocaleDateString("en-US", {
+                  day: "2-digit", month: "short", year: "numeric",
+                })}
+              </p>
             </div>
-            {d.note_admin && <p className="doc-note">💬 {d.note_admin}</p>}
-            {(d.status === "rejected" || d.status === "needs_resubmission") ? (
-              <button
-                className="doc-resubmit-btn"
-                type="button"
-                onClick={() => handleResubmit(d.type)}
-              >
-                🔄 Re-upload {DOCUMENT_TYPE_LABELS[d.type] ?? d.type}
-              </button>
-            ) : (
-              <button
-                className="doc-replace-btn"
-                type="button"
-                onClick={() => handleResubmit(d.type)}
-              >
-                ↩ Replace
-              </button>
-            )}
-            <p className="doc-date">
-              {new Date(d.created_at).toLocaleDateString("en-US", {
-                day: "2-digit", month: "short", year: "numeric",
-              })}
-            </p>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
+    </>
   );
 }
 
@@ -964,7 +1020,7 @@ function Dashboard({ user, token, onLogout }) {
       {tab === "documents"     && <DocumentsSection token={token} profStatus={profStatus} />}
       {tab === "notifications" && <NotificationsSection token={token} onRead={refreshUnread} />}
 
-      <p className="footer">App: <strong>web-craft</strong> · Sprint 61 — PDF Document Upload</p>
+      <p className="footer">App: <strong>web-craft</strong> · Sprint 63 — Document Preview</p>
     </div>
   );
 }
