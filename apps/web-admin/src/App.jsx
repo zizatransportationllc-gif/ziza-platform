@@ -2670,8 +2670,15 @@ function UserReviewPanel({ token, entityId, entityType, onBack }) {
           {/* ── Identity ────────────────────────────────────────────────── */}
           <SectionTitle>Identity</SectionTitle>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "8px 24px" }}>
-            <ProfileField label="First name"    value={detail.first_name || "—"} />
-            <ProfileField label="Last name"     value={detail.last_name  || "—"} />
+            {/* Structured fields (Sprint 64 accounts). Fall back to full name for older accounts. */}
+            {(detail.first_name || detail.last_name) ? (
+              <>
+                <ProfileField label="First name"    value={detail.first_name || "—"} />
+                <ProfileField label="Last name"     value={detail.last_name  || "—"} />
+              </>
+            ) : (
+              <ProfileField label="Full name" value={detail.name || "—"} />
+            )}
             <ProfileField label="Date of birth" value={detail.date_of_birth || "—"} />
             <ProfileField label="Email"         value={detail.email || "—"} />
             <ProfileField label="Phone"         value={detail.phone || "—"} />
