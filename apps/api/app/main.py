@@ -1985,13 +1985,31 @@ class OnboardingDocRecord(BaseModel):
     updated_at: str
 
 
+class VehicleDetail(BaseModel):
+    plate: str
+    make: str | None = None
+    model: str | None = None
+    year: int | None = None
+    color: str | None = None
+    category: str = "economy"
+
+
 class OnboardingDetailResponse(BaseModel):
     entity_type: str
     entity_id: str
     email: str
     name: str
     status: str
+    # Driver-specific (Sprint 63)
+    phone: str | None = None
+    is_online: bool = False
     license_number: str | None = None
+    created_at: str | None = None
+    vehicle: VehicleDetail | None = None
+    avg_rating: float | None = None
+    total_ratings: int = 0
+    total_trips: int = 0
+    # Professional-specific
     specialties: str | None = None
     documents: list[OnboardingDocRecord]
 

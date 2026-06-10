@@ -4672,6 +4672,8 @@ async def admin_get_onboarding_detail(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Driver not found")
         user_row = await db.execute(select(User).where(User.id == driver.user_id))
         user = user_row.scalar_one_or_none()
+
+        # Documents
         r_docs = await db.execute(
             select(DriverDocument)
             .where(DriverDocument.driver_id == driver.id)
@@ -4689,13 +4691,47 @@ async def admin_get_onboarding_detail(
             }
             for d in r_docs.scalars().all()
         ]
+
+        # Sprint 63 — Vehicle
+        vehicle_row = await db.scalar(select(Vehicle).where(Vehicle.driver_id == driver.id))
+        vehicle_data = None
+        if vehicle_row:
+            vehicle_data = {
+                "plate": vehicle_row.plate,
+                "make": vehicle_row.make,
+                "model": vehicle_row.model,
+                "year": vehicle_row.year,
+                "color": vehicle_row.color,
+                "category": vehicle_row.category,
+            }
+
+        # Sprint 63 — Rating stats
+        r_rating = await db.execute(
+            select(func.avg(Rating.stars), func.count(Rating.id))
+            .where(Rating.driver_id == driver.id)
+        )
+        avg_stars, total_ratings = r_rating.one()
+
+        # Sprint 63 — Completed trip count
+        total_trips = await db.scalar(
+            select(func.count(Trip.id))
+            .where(Trip.driver_id == driver.id, Trip.status == "completed")
+        ) or 0
+
         return {
             "entity_type": "driver",
             "entity_id": str(driver.id),
             "email": user.email if user else "",
             "name": (user.name or user.email.split("@")[0]) if user else "",
+            "phone": user.phone if user else None,
             "status": driver.status,
+            "is_online": driver.is_online,
             "license_number": driver.license_number,
+            "created_at": _utc(driver.created_at).isoformat(),
+            "vehicle": vehicle_data,
+            "avg_rating": round(float(avg_stars), 2) if avg_stars is not None else None,
+            "total_ratings": int(total_ratings) if total_ratings else 0,
+            "total_trips": int(total_trips),
             "documents": docs,
         }
 
