@@ -2495,6 +2495,7 @@ function UserReviewPanel({ token, entityId, entityType, onBack }) {
   const [error, setError] = useState(null);
   const [acting, setActing] = useState(null);
   const [notes, setNotes] = useState({});
+  const [previewDoc, setPreviewDoc] = useState(null); // { url, isPdf, label }
 
   const load = useCallback(() => {
     setLoading(true); setError(null);
@@ -2563,6 +2564,49 @@ function UserReviewPanel({ token, entityId, entityType, onBack }) {
   }
 
   return (
+    <>
+    {/* ── Document preview modal ─────────────────────────────────────────── */}
+    {previewDoc && (
+      <div
+        style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+        onClick={() => setPreviewDoc(null)}
+      >
+        <div
+          style={{ background: "#fff", borderRadius: 12, overflow: "hidden", width: "min(92vw, 920px)", maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.4)" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Modal header */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", borderBottom: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+            <div>
+              <strong style={{ fontSize: 14, color: "#111827" }}>{previewDoc.label}</strong>
+              <span style={{ fontSize: 12, color: "#9CA3AF", marginLeft: 10 }}>{previewDoc.isPdf ? "PDF" : "Image"}</span>
+            </div>
+            <button
+              onClick={() => setPreviewDoc(null)}
+              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#6B7280", lineHeight: 1, padding: "2px 6px" }}
+              title="Close"
+            >✕</button>
+          </div>
+          {/* Modal body */}
+          <div style={{ flex: 1, overflow: "auto", background: "#1F2937", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 360 }}>
+            {previewDoc.isPdf ? (
+              <iframe
+                src={previewDoc.url}
+                style={{ width: "100%", height: "72vh", border: "none" }}
+                title={previewDoc.label}
+              />
+            ) : (
+              <img
+                src={previewDoc.url}
+                alt={previewDoc.label}
+                style={{ maxWidth: "100%", maxHeight: "72vh", objectFit: "contain", display: "block" }}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+
     <div style={{ maxWidth: 780 }}>
       <button
         style={{ background: "none", border: "none", cursor: "pointer", color: "#1A56DB", fontWeight: 600, padding: "8px 0", fontSize: 14, marginBottom: 12 }}
@@ -2696,17 +2740,25 @@ function UserReviewPanel({ token, entityId, entityType, onBack }) {
                     {DOC_STATUS_LABELS[doc.status] ?? doc.status}
                   </span>
                 </div>
-                <div style={{ marginBottom: 8 }}>
-                  {doc.url.startsWith("data:") ? (
-                    <span style={{ fontSize: 13, color: "#6B7280" }}>
-                      {isPdf ? "📄 PDF stored (base64)" : "🖼 Image stored (base64)"}
-                    </span>
-                  ) : (
-                    <a href={doc.url} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: "#1A56DB" }}>
-                      View document ↗
+                <div style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  {/* Type label */}
+                  <span style={{ fontSize: 13, color: "#6B7280" }}>
+                    {isPdf ? "📄 PDF" : "🖼 Image"}
+                  </span>
+                  {/* Preview button — opens modal */}
+                  <button
+                    onClick={() => setPreviewDoc({ url: doc.url, isPdf, label: DOC_TYPE_LABELS[doc.type] ?? doc.type })}
+                    style={{ background: "#1D4ED8", color: "#fff", border: "none", borderRadius: 4, padding: "3px 10px", cursor: "pointer", fontSize: 12, fontWeight: 600 }}
+                  >
+                    👁 Preview
+                  </button>
+                  {/* External link for non-base64 URLs */}
+                  {!doc.url.startsWith("data:") && (
+                    <a href={doc.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "#1A56DB" }}>
+                      Open ↗
                     </a>
                   )}
-                  <span style={{ color: "#9CA3AF", fontSize: 12, marginLeft: 12 }}>
+                  <span style={{ color: "#9CA3AF", fontSize: 12, marginLeft: 4 }}>
                     {new Date(doc.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" })}
                   </span>
                 </div>
@@ -2768,6 +2820,7 @@ function UserReviewPanel({ token, entityId, entityType, onBack }) {
         </>
       )}
     </div>
+    </>
   );
 }
 
