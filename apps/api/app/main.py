@@ -2009,7 +2009,7 @@ class OnboardingDetailResponse(BaseModel):
     email: str
     name: str
     status: str
-    # Driver-specific (Sprint 63)
+    # Sprint 63: driver-specific fields
     phone: str | None = None
     is_online: bool = False
     license_number: str | None = None
@@ -2018,6 +2018,10 @@ class OnboardingDetailResponse(BaseModel):
     avg_rating: float | None = None
     total_ratings: int = 0
     total_trips: int = 0
+    # Sprint 64: identity fields (driver + professional)
+    first_name: str | None = None
+    last_name: str | None = None
+    date_of_birth: str | None = None
     # Professional-specific
     specialties: str | None = None
     documents: list[OnboardingDocRecord]

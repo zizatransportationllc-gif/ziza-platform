@@ -2670,9 +2670,11 @@ function UserReviewPanel({ token, entityId, entityType, onBack }) {
           {/* ── Identity ────────────────────────────────────────────────── */}
           <SectionTitle>Identity</SectionTitle>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "8px 24px" }}>
-            <ProfileField label="Full name"    value={detail.name  || "—"} />
-            <ProfileField label="Email"        value={detail.email || "—"} />
-            <ProfileField label="Phone"        value={detail.phone || "—"} />
+            <ProfileField label="First name"    value={detail.first_name || "—"} />
+            <ProfileField label="Last name"     value={detail.last_name  || "—"} />
+            <ProfileField label="Date of birth" value={detail.date_of_birth || "—"} />
+            <ProfileField label="Email"         value={detail.email || "—"} />
+            <ProfileField label="Phone"         value={detail.phone || "—"} />
             {entityType === "driver" && (
               <ProfileField label="License No." value={detail.license_number || "—"} />
             )}
@@ -3024,7 +3026,7 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "users"        && <UsersPanel          token={token} />}
       {activeTab === "craft"        && <CraftPanel          token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 63 — Full Driver Profile</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 64 — Profile Fields</p>
     </div>
   );
 }
