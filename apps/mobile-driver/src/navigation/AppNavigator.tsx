@@ -13,6 +13,7 @@ import EarningsScreen from "../screens/EarningsScreen";
 import HistoryScreen from "../screens/HistoryScreen";
 import DocumentsScreen from "../screens/DocumentsScreen";
 import ProfileScreen from "../screens/ProfileScreen";
+import VehicleScreen from "../screens/VehicleScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
 
 export type RootStackParamList = {
@@ -23,6 +24,7 @@ export type RootStackParamList = {
   History: undefined;
   Documents: undefined;
   Profile: undefined;
+  Vehicle: undefined;
   Notifications: undefined;
 };
 
@@ -68,6 +70,11 @@ export default function AppNavigator(): React.ReactElement {
           name="Profile"
           component={ProfileScreen}
           options={{ title: "Profil" }}
+        />
+        <Stack.Screen
+          name="Vehicle"
+          component={VehicleScreen}
+          options={{ title: "My Vehicle" }}
         />
         <Stack.Screen
           name="Notifications"

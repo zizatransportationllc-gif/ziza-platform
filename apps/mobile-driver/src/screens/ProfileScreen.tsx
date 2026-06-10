@@ -19,11 +19,29 @@ export default function ProfileScreen(): React.ReactElement {
     <View style={styles.container}>
       <Text style={styles.heading}>My Profile</Text>
 
+      {/* Sprint 62 — Vehicle tile */}
       <TouchableOpacity
-        style={styles.docsButton}
+        style={styles.tileButton}
+        onPress={() => navigation.navigate("Vehicle")}
+      >
+        <Text style={styles.tileIcon}>🚗</Text>
+        <View style={styles.tileBody}>
+          <Text style={styles.tileTitle}>My Vehicle</Text>
+          <Text style={styles.tileSub}>Registration, make, model &amp; category</Text>
+        </View>
+        <Text style={styles.tileChevron}>›</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.tileButton}
         onPress={() => navigation.navigate("Documents")}
       >
-        <Text style={styles.docsText}>📄 My Documents</Text>
+        <Text style={styles.tileIcon}>📄</Text>
+        <View style={styles.tileBody}>
+          <Text style={styles.tileTitle}>My Documents</Text>
+          <Text style={styles.tileSub}>KYC verification documents</Text>
+        </View>
+        <Text style={styles.tileChevron}>›</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.logoutButton} onPress={logout}>
@@ -34,21 +52,35 @@ export default function ProfileScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20 },
-  heading: { fontSize: 22, fontWeight: "bold", marginBottom: 20 },
-  docsButton: {
-    backgroundColor: "#1D4ED8",
-    borderRadius: 8,
-    padding: 14,
+  container: { flex: 1, backgroundColor: "#F9FAFB", padding: 20 },
+  heading: { fontSize: 22, fontWeight: "bold", color: "#111827", marginBottom: 20 },
+
+  tileButton: {
+    flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 16,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  docsText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  tileIcon: { fontSize: 26, marginRight: 14 },
+  tileBody: { flex: 1 },
+  tileTitle: { fontSize: 16, fontWeight: "700", color: "#111827" },
+  tileSub: { fontSize: 13, color: "#6B7280", marginTop: 2 },
+  tileChevron: { fontSize: 22, color: "#9CA3AF" },
+
   logoutButton: {
     backgroundColor: "#EF4444",
     borderRadius: 8,
     padding: 14,
     alignItems: "center",
+    marginTop: 8,
   },
   logoutText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
 });

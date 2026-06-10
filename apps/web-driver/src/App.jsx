@@ -1132,7 +1132,6 @@ function Dashboard({ user, token, onLogout }) {
         {togglingOnline ? "…" : driverStatus === "pending_docs" ? "🔒 Locked" : isOnline ? "Online" : "Offline"}
       </button>
 
-      <VehicleCard token={token} vehicle={vehicle} onSaved={setVehicle} />
       <EarningsCard earnings={earnings} balance={balance} />
       <RatingStats stats={ratingStats} />
 
@@ -1148,6 +1147,12 @@ function Dashboard({ user, token, onLogout }) {
               onClick={() => setTab("dispatch")}
             >
               🚕 Dispatch
+            </button>
+            <button
+              className={`driver-tab ${tab === "vehicle" ? "active" : ""}`}
+              onClick={() => setTab("vehicle")}
+            >
+              🚗 Vehicle
             </button>
             <button
               className={`driver-tab ${tab === "history" ? "active" : ""}`}
@@ -1216,6 +1221,7 @@ function Dashboard({ user, token, onLogout }) {
             )
           )}
 
+          {tab === "vehicle"       && <VehicleCard token={token} vehicle={vehicle} onSaved={setVehicle} />}
           {tab === "history"       && <DriverTripHistory token={token} />}
           {tab === "payouts"       && <PayoutSection token={token} />}
           {tab === "documents"     && <DocumentsSection token={token} driverStatus={driverStatus} />}
@@ -1224,7 +1230,7 @@ function Dashboard({ user, token, onLogout }) {
         </>
       )}
 
-      <p className="footer">App: <strong>web-driver</strong> · Sprint 61 — PDF Document Upload</p>
+      <p className="footer">App: <strong>web-driver</strong> · Sprint 62 — Vehicle Tab</p>
     </div>
   );
 }

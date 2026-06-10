@@ -410,6 +410,45 @@ export async function deregisterDeviceToken(
 }
 
 // ---------------------------------------------------------------------------
+// Vehicle — Sprint 62
+// ---------------------------------------------------------------------------
+
+export interface VehicleResponse {
+  vehicle_id: string;
+  plate: string;
+  make: string | null;
+  model: string | null;
+  year: number | null;
+  color: string | null;
+  category: string;
+}
+
+export async function getMyVehicle(token: string): Promise<VehicleResponse | null> {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/vehicle`, {
+    headers: _auth(token),
+  });
+  if (res.status === 404) return null;
+  return _json<VehicleResponse>(res);
+}
+
+export async function registerVehicle(
+  token: string,
+  plate: string,
+  make: string | null,
+  model: string | null,
+  year: number | null,
+  color: string | null,
+  category: string = "economy"
+): Promise<VehicleResponse> {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/vehicle`, {
+    method: "POST",
+    headers: { ..._auth(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ plate, make, model, year, color, category }),
+  });
+  return _json<VehicleResponse>(res);
+}
+
+// ---------------------------------------------------------------------------
 // Navigation utilities
 // ---------------------------------------------------------------------------
 
