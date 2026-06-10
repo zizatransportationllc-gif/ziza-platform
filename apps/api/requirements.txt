@@ -21,3 +21,6 @@ fakeredis==2.26.1
 
 # Sprint 49 — Local account creation (password hashing)
 bcrypt==4.2.1
+
+# Sprint 61 — Convert uploaded images to PDF before storage
+Pillow==10.4.0

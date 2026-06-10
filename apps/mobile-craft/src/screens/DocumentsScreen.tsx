@@ -1,11 +1,12 @@
 /**
  * DocumentsScreen — KYC document submission and status.
- * Sprint 61 — PDF-only document upload (expo-document-picker + expo-file-system).
+ * Sprint 61 — Accept image (camera/gallery) OR PDF; backend converts images to PDF.
  */
 import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
+  Image,
   TouchableOpacity,
   FlatList,
   ScrollView,
@@ -13,6 +14,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
 import { useAuth } from "../context/AuthContext";
@@ -99,9 +101,14 @@ export default function DocumentsScreen(): React.ReactElement {
   const [documents, setDocuments] = useState<DocumentResponse[]>([]);
   const [loading, setLoading]     = useState(true);
   const [docType, setDocType]     = useState(DOC_TYPES[0]);
-  const [pdfName, setPdfName]     = useState<string | null>(null);
-  const [pdfData, setPdfData]     = useState<string | null>(null); // base64 data URL
-  const [submitting, setSubmitting]   = useState(false);
+
+  // Captured file — either a base64 image data URL or a PDF data URL
+  const [fileData, setFileData]   = useState<string | null>(null);
+  const [fileUri, setFileUri]     = useState<string | null>(null);   // image preview URI
+  const [fileName, setFileName]   = useState<string | null>(null);   // PDF filename
+  const [submitting, setSubmitting] = useState(false);
+
+  const isPdf = fileData?.startsWith("data:application/pdf") ?? false;
 
   const load = () => {
     if (!token) return;
@@ -119,9 +126,46 @@ export default function DocumentsScreen(): React.ReactElement {
 
   function handleResubmit(type: string) {
     setDocType(type);
-    setPdfName(null);
-    setPdfData(null);
+    setFileData(null);
+    setFileUri(null);
+    setFileName(null);
   }
+
+  const pickFromCamera = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission needed", "Camera permission is required.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+      base64: true,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setFileUri(result.assets[0].uri);
+      setFileData(`data:image/jpeg;base64,${result.assets[0].base64}`);
+      setFileName(null);
+    }
+  };
+
+  const pickFromGallery = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission needed", "Gallery permission is required.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+      base64: true,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setFileUri(result.assets[0].uri);
+      setFileData(`data:image/jpeg;base64,${result.assets[0].base64}`);
+      setFileName(null);
+    }
+  };
 
   const pickPDF = async () => {
     try {
@@ -134,20 +178,22 @@ export default function DocumentsScreen(): React.ReactElement {
       const base64 = await FileSystem.readAsStringAsync(asset.uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      setPdfName(asset.name);
-      setPdfData(`data:application/pdf;base64,${base64}`);
+      setFileData(`data:application/pdf;base64,${base64}`);
+      setFileUri(null);
+      setFileName(asset.name);
     } catch {
       Alert.alert("Error", "Could not read the selected file.");
     }
   };
 
   const handleSubmit = async () => {
-    if (!pdfData || !token) return;
+    if (!fileData || !token) return;
     setSubmitting(true);
     try {
-      await submitDocument(token, docType, pdfData);
-      setPdfName(null);
-      setPdfData(null);
+      await submitDocument(token, docType, fileData);
+      setFileData(null);
+      setFileUri(null);
+      setFileName(null);
       load();
       Alert.alert("Success", "Document submitted successfully.");
     } catch {
@@ -203,24 +249,40 @@ export default function DocumentsScreen(): React.ReactElement {
         ))}
       </View>
 
-      {/* PDF picker */}
-      <TouchableOpacity style={styles.pickPdfBtn} onPress={pickPDF}>
-        <Text style={styles.pickPdfBtnText}>📎 Select PDF</Text>
-      </TouchableOpacity>
+      {/* Capture buttons */}
+      <View style={styles.captureRow}>
+        <TouchableOpacity style={styles.captureBtn} onPress={pickFromCamera}>
+          <Text style={styles.captureBtnText}>📷 Camera</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.captureBtn, styles.galleryBtn]} onPress={pickFromGallery}>
+          <Text style={[styles.captureBtnText, styles.galleryBtnText]}>🖼 Gallery</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.captureBtn, styles.pdfBtn]} onPress={pickPDF}>
+          <Text style={[styles.captureBtnText, styles.pdfBtnText]}>📎 PDF</Text>
+        </TouchableOpacity>
+      </View>
 
-      {/* Selected file name */}
-      {pdfName && (
-        <View style={styles.pdfSelectedWrap}>
-          <Text style={styles.pdfIcon}>📄</Text>
-          <Text style={styles.pdfFileName} numberOfLines={1}>{pdfName}</Text>
-        </View>
+      {/* Preview — image or PDF filename */}
+      {fileData && (
+        isPdf ? (
+          <View style={styles.pdfSelectedWrap}>
+            <Text style={styles.pdfIcon}>📄</Text>
+            <Text style={styles.pdfFileName} numberOfLines={1}>{fileName}</Text>
+          </View>
+        ) : (
+          fileUri && (
+            <View style={styles.previewWrap}>
+              <Image source={{ uri: fileUri }} style={styles.previewImg} resizeMode="cover" />
+            </View>
+          )
+        )
       )}
 
       {/* Submit */}
       <TouchableOpacity
-        style={[styles.submitBtn, (!pdfData || submitting) && styles.submitBtnDisabled]}
+        style={[styles.submitBtn, (!fileData || submitting) && styles.submitBtnDisabled]}
         onPress={handleSubmit}
-        disabled={!pdfData || submitting}
+        disabled={!fileData || submitting}
       >
         {submitting
           ? <ActivityIndicator color="#fff" />
@@ -305,9 +367,16 @@ const styles = StyleSheet.create({
   typeText: { color: "#34d399", fontSize: 12 },
   typeTextSelected: { color: "#fff" },
 
-  pickPdfBtn: { backgroundColor: "#059669", borderRadius: 8, paddingVertical: 12, alignItems: "center", marginBottom: 10 },
-  pickPdfBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  captureRow: { flexDirection: "row", gap: 8, marginBottom: 14 },
+  captureBtn: { flex: 1, backgroundColor: "#059669", borderRadius: 8, paddingVertical: 11, alignItems: "center" },
+  captureBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  galleryBtn: { backgroundColor: "#162117", borderWidth: 1, borderColor: "#34d399" },
+  galleryBtnText: { color: "#34d399" },
+  pdfBtn: { backgroundColor: "transparent", borderWidth: 1, borderColor: "#6b9e7a" },
+  pdfBtnText: { color: "#6b9e7a" },
 
+  previewWrap: { marginBottom: 14, alignItems: "center" },
+  previewImg: { width: 200, height: 150, borderRadius: 8, borderWidth: 2, borderColor: "#34d399" },
   pdfSelectedWrap: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#162117", borderWidth: 1, borderColor: "#34d399", borderRadius: 8, padding: 10, marginBottom: 12 },
   pdfIcon: { fontSize: 20 },
   pdfFileName: { flex: 1, fontSize: 13, color: "#34d399", fontWeight: "600" },

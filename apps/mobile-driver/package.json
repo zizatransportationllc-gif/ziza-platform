@@ -25,6 +25,7 @@
     "react-native-screens": "3.31.1",
     "expo-document-picker": "~12.0.1",
     "expo-file-system": "~17.0.1",
+    "expo-image-picker": "~15.0.7",
     "react-native-svg": "15.2.0"
   },
   "devDependencies": {

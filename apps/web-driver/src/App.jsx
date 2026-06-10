@@ -680,10 +680,6 @@ function DocumentsSection({ token, driverStatus = "pending_docs" }) {
   function handleFileChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-      setError("Only PDF files are accepted.");
-      return;
-    }
     setFileName(file.name);
     setError(null);
     const reader = new FileReader();
@@ -693,7 +689,7 @@ function DocumentsSection({ token, driverStatus = "pending_docs" }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!preview) { setError("Please select a PDF file first."); return; }
+    if (!preview) { setError("Please capture or select a document first."); return; }
     setSubmitting(true); setError(null); setSuccess(null);
     try {
       await submitDocument(token, docType, preview);
@@ -734,16 +730,28 @@ function DocumentsSection({ token, driverStatus = "pending_docs" }) {
           ))}
         </select>
         <div className="doc-capture-row">
+          <label className="doc-capture-btn">
+            📷 Camera
+            <input type="file" accept="image/*" capture="environment" hidden onChange={handleFileChange} />
+          </label>
           <label className="doc-capture-btn doc-file-btn">
-            📎 Select PDF
-            <input type="file" accept=".pdf,application/pdf" hidden onChange={handleFileChange} />
+            📁 File
+            <input type="file" accept="image/*,.pdf,application/pdf" hidden onChange={handleFileChange} />
           </label>
         </div>
         {preview && (
-          <div className="doc-pdf-selected">
-            <span className="doc-pdf-icon">📄</span>
-            <span className="doc-file-name">{fileName}</span>
-          </div>
+          preview.startsWith("data:image/")
+            ? (
+              <div className="doc-preview-wrap">
+                <img src={preview} className="doc-preview-img" alt="Document preview" />
+                <span className="doc-file-name">{fileName}</span>
+              </div>
+            ) : (
+              <div className="doc-pdf-selected">
+                <span className="doc-pdf-icon">📄</span>
+                <span className="doc-file-name">{fileName}</span>
+              </div>
+            )
         )}
         {success && <p className="doc-success">{success}</p>}
         {error   && <p className="doc-err">{error}</p>}

@@ -5,6 +5,8 @@ All functions are async and receive an ``AsyncSession`` from the FastAPI
 """
 from __future__ import annotations
 
+import base64
+import io
 import math
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -1670,6 +1672,31 @@ async def set_surge_multiplier(db: AsyncSession, value: float) -> float:
 _VALID_DOCUMENT_STATUSES = {"approved", "rejected", "needs_resubmission"}  # Sprint 56
 
 
+def _ensure_pdf(data_url: str) -> str:
+    """Sprint 61 — If data_url is an image, convert it to a PDF data URL.
+    PDF data URLs are returned unchanged. Any other format passes through.
+    """
+    if data_url.startswith("data:application/pdf"):
+        return data_url
+    # Only attempt conversion for known image MIME types
+    if not data_url.startswith("data:image/"):
+        return data_url
+    try:
+        from PIL import Image  # Pillow>=10
+        _header, b64 = data_url.split(",", 1)
+        raw = base64.b64decode(b64)
+        img = Image.open(io.BytesIO(raw))
+        if img.mode in ("RGBA", "P", "LA"):
+            img = img.convert("RGB")
+        pdf_buf = io.BytesIO()
+        img.save(pdf_buf, format="PDF", resolution=150)
+        pdf_b64 = base64.b64encode(pdf_buf.getvalue()).decode()
+        return f"data:application/pdf;base64,{pdf_b64}"
+    except Exception:
+        # Conversion failed — store the original to avoid data loss
+        return data_url
+
+
 async def submit_driver_document(
     db: AsyncSession,
     auth_user_id: str,
@@ -1681,8 +1708,10 @@ async def submit_driver_document(
     Sprint 59: upsert by (driver_id, type) — re-uploading the same type
     updates the existing record in place (resets status → pending, clears
     note_admin) rather than accumulating duplicate rows.
+    Sprint 61: images are converted to PDF before storage.
     Raises 422 if doc_type is not one of the allowed values.
     """
+    url = _ensure_pdf(url)
     driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
     if doc_type not in DOCUMENT_TYPES:
         raise HTTPException(
@@ -4769,7 +4798,9 @@ async def submit_professional_document(
     Sprint 59: upsert by (professional_id, type) — re-uploading the same type
     updates the existing record in place (resets status → pending, clears
     note_admin) rather than accumulating duplicate rows.
+    Sprint 61: images are converted to PDF before storage.
     """
+    url = _ensure_pdf(url)
     prof = await _get_professional_by_auth_id(db, auth_user_id)
     if prof is None:
         raise HTTPException(
