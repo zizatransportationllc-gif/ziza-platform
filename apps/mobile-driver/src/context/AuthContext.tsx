@@ -90,7 +90,7 @@ export function AuthProvider({
   const [token, setToken] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
-  const [driverStatus, setDriverStatus] = useState<string>("active"); // Sprint 54
+  const [driverStatus, setDriverStatus] = useState<string>("pending_docs"); // Sprint 54 — safe default: lock until profile confirmed
 
   useEffect(() => {
     (async () => {
@@ -104,7 +104,7 @@ export function AuthProvider({
         try {
           const profile = await getDriverProfile(storedAccess);
           setIsOnline(profile.is_online);
-          setDriverStatus(profile.status || "active"); // Sprint 54
+          setDriverStatus(profile.status || "pending_docs"); // Sprint 54
         } catch (err) {
           if (err instanceof ApiError && err.status === 401) {
             // Access token expired — attempt silent refresh
@@ -118,7 +118,7 @@ export function AuthProvider({
               activeToken = newPair.access_token;
               const profile = await getDriverProfile(activeToken);
               setIsOnline(profile.is_online);
-              setDriverStatus(profile.status || "active"); // Sprint 54
+              setDriverStatus(profile.status || "pending_docs"); // Sprint 54
             } catch {
               // Refresh token revoked or expired → force re-login
               await clearTokenPair();
@@ -145,7 +145,7 @@ export function AuthProvider({
     try {
       const profile = await getDriverProfile(accessToken);
       setIsOnline(profile.is_online);
-      setDriverStatus(profile.status || "active"); // Sprint 54
+      setDriverStatus(profile.status || "pending_docs"); // Sprint 54
     } catch {
       setIsOnline(false);
     }
@@ -161,7 +161,7 @@ export function AuthProvider({
     }
     setToken(null);
     setIsOnline(false);
-    setDriverStatus("active");
+    setDriverStatus("pending_docs"); // reset to safe default on logout
   };
 
   const setOnline = async (online: boolean) => {

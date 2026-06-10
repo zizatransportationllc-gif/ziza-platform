@@ -826,7 +826,7 @@ function NotificationsSection({ token, onRead }) {
 
 function Dashboard({ user, token, onLogout }) {
   const [profile, setProfile] = useState(null);
-  const [profStatus, setProfStatus] = useState("active"); // Sprint 54 — pending_docs gate
+  const [profStatus, setProfStatus] = useState("pending_docs"); // Sprint 54 — safe default: lock until profile confirmed
   const [isOnline, setIsOnline] = useState(false);
   const [togglingOnline, setTogglingOnline] = useState(false);
   const [tab, setTab] = useState("requests");
@@ -839,7 +839,7 @@ function Dashboard({ user, token, onLogout }) {
 
   useEffect(() => {
     Promise.all([
-      getMyProfile(token).then((p) => { setProfile(p); setIsOnline(p.is_online); setProfStatus(p.status || "active"); }).catch(() => {}),
+      getMyProfile(token).then((p) => { setProfile(p); setIsOnline(p.is_online); setProfStatus(p.status || "pending_docs"); }).catch(() => {}),
     ]).finally(() => setInitialized(true));
     refreshUnread();
   }, [token]);

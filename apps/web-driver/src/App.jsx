@@ -1035,7 +1035,7 @@ function Dashboard({ user, token, onLogout }) {
   const [tab, setTab] = useState("dispatch"); // "dispatch" | "history" | "payouts" | "documents" | "notifications" | "location"
   const [unreadCount, setUnreadCount] = useState(0);
   const [balance, setBalance] = useState(null); // Sprint 29 — net balance
-  const [driverStatus, setDriverStatus] = useState("active"); // Sprint 54 — pending_docs gate
+  const [driverStatus, setDriverStatus] = useState("pending_docs"); // Sprint 54 — safe default: lock until profile confirmed
 
   const refreshUnread = useCallback(() => {
     getUnreadCount(token).then((d) => setUnreadCount(d.count)).catch(() => {});
@@ -1052,7 +1052,7 @@ function Dashboard({ user, token, onLogout }) {
       getMyEarnings(token).then(setEarnings).catch(() => {}),
       getDriverBalance(token).then(setBalance).catch(() => {}), // Sprint 29
       getMyVehicle(token).then(setVehicle).catch(() => setVehicle(null)),
-      getDriverProfile(token).then((p) => { setIsOnline(p.is_online); setDriverStatus(p.status || "active"); }).catch(() => {}),
+      getDriverProfile(token).then((p) => { setIsOnline(p.is_online); setDriverStatus(p.status || "pending_docs"); }).catch(() => {}),
     ]).finally(() => setInitialized(true));
   }, [token]);
 
