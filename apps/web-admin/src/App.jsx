@@ -69,7 +69,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
   return (
     <div className="app">
       <h1>Ziza Admin</h1>
-      <p className="subtitle">Sprint 60 — Profile &amp; Docs View</p>
+      <p className="subtitle">Sprint 63 — Full Driver Profile</p>
       <div className="auth-tabs">
         <button className={`auth-tab${tab === "signin" ? " active" : ""}`} onClick={() => setTab("signin")}>Sign In</button>
         <button className={`auth-tab${tab === "signup" ? " active" : ""}`} onClick={() => setTab("signup")}>Create Admin Account</button>
@@ -2530,32 +2530,156 @@ function UserReviewPanel({ token, entityId, entityType, onBack }) {
 
   if (loading && !detail) return <div className="status loading">⏳ Loading profile…</div>;
 
+  const STATUS_BADGE = {
+    active:       { bg: "#D1FAE5", color: "#065F46" },
+    pending_docs: { bg: "#FEF3C7", color: "#92400E" },
+    suspended:    { bg: "#FEE2E2", color: "#991B1B" },
+    inactive:     { bg: "#F3F4F6", color: "#374151" },
+  };
+
+  const VEHICLE_CATEGORY_LABELS = {
+    economy: "🚗 Economy",
+    comfort: "🛋️ Comfort",
+    xl:      "🚐 XL",
+    electric:"⚡ Electric",
+  };
+
+  function ProfileField({ label, value }) {
+    if (!value && value !== 0) return null;
+    return (
+      <div style={{ marginBottom: 8 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>
+        <div style={{ fontSize: 14, color: "#111827", marginTop: 2 }}>{value}</div>
+      </div>
+    );
+  }
+
+  function SectionTitle({ children }) {
+    return (
+      <h3 style={{ fontSize: 13, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.08em", borderBottom: "1px solid #E5E7EB", paddingBottom: 6, marginTop: 24, marginBottom: 14 }}>
+        {children}
+      </h3>
+    );
+  }
+
   return (
-    <div>
+    <div style={{ maxWidth: 780 }}>
       <button
-        style={{ background: "none", border: "none", cursor: "pointer", color: "#1A56DB", fontWeight: 600, padding: "8px 0", fontSize: 14 }}
+        style={{ background: "none", border: "none", cursor: "pointer", color: "#1A56DB", fontWeight: 600, padding: "8px 0", fontSize: 14, marginBottom: 12 }}
         onClick={onBack}
       >← Back to list</button>
+
       {error && <p className="form-error">{error}</p>}
+
       {detail && (
         <>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-            <h2 style={{ margin: 0, fontSize: 20 }}>{detail.name}</h2>
-            <span style={{ background: entityType === "driver" ? "#DBEAFE" : "#EDE9FE", color: entityType === "driver" ? "#1D4ED8" : "#7C3AED", borderRadius: 4, padding: "2px 8px", fontSize: 12, fontWeight: 600 }}>
-              {entityType === "driver" ? "🚗 Driver" : "🔧 Professional"}
-            </span>
-            <span style={{ color: "#6B7280", fontSize: 13 }}>{detail.email}</span>
+          {/* ── Header ───────────────────────────────────────────────────── */}
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 4 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <h2 style={{ margin: 0, fontSize: 22, color: "#111827" }}>{detail.name || "—"}</h2>
+                <span style={{
+                  background: entityType === "driver" ? "#DBEAFE" : "#EDE9FE",
+                  color: entityType === "driver" ? "#1D4ED8" : "#7C3AED",
+                  borderRadius: 4, padding: "2px 8px", fontSize: 12, fontWeight: 700,
+                }}>
+                  {entityType === "driver" ? "🚗 Driver" : "🔧 Professional"}
+                </span>
+                {detail.status && (() => {
+                  const s = STATUS_BADGE[detail.status] || STATUS_BADGE.inactive;
+                  return (
+                    <span style={{ background: s.bg, color: s.color, borderRadius: 4, padding: "2px 8px", fontSize: 12, fontWeight: 700 }}>
+                      {detail.status.replace("_", " ")}
+                    </span>
+                  );
+                })()}
+                {detail.is_online !== undefined && (
+                  <span style={{ fontSize: 12, color: detail.is_online ? "#059669" : "#9CA3AF" }}>
+                    {detail.is_online ? "🟢 Online" : "⚫ Offline"}
+                  </span>
+                )}
+              </div>
+              {detail.created_at && (
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#9CA3AF" }}>
+                  Member since {new Date(detail.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "long", year: "numeric" })}
+                </p>
+              )}
+            </div>
+
+            {/* Quick actions */}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                style={{ background: "#059669", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}
+                disabled={acting === "global"}
+                onClick={() => handleGlobalDecision("active")}
+              >✅ Activate</button>
+              <button
+                style={{ background: "#DC2626", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}
+                disabled={acting === "global"}
+                onClick={() => handleGlobalDecision("suspended")}
+              >✗ Suspend</button>
+            </div>
           </div>
-          {detail.license_number && (
-            <p style={{ color: "#6B7280", fontSize: 13, margin: "0 0 12px" }}>License: {detail.license_number}</p>
-          )}
-          {detail.specialties && (
-            <p style={{ color: "#6B7280", fontSize: 13, margin: "0 0 12px" }}>Specialties: {detail.specialties}</p>
+
+          {/* ── Identity ────────────────────────────────────────────────── */}
+          <SectionTitle>Identity</SectionTitle>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "8px 24px" }}>
+            <ProfileField label="Full name"    value={detail.name} />
+            <ProfileField label="Email"        value={detail.email} />
+            <ProfileField label="Phone"        value={detail.phone || "—"} />
+            {entityType === "driver" && (
+              <ProfileField label="License No." value={detail.license_number || "—"} />
+            )}
+            {entityType === "professional" && detail.specialties && (
+              <ProfileField label="Specialties" value={detail.specialties} />
+            )}
+          </div>
+
+          {/* ── Stats (driver only) ─────────────────────────────────────── */}
+          {entityType === "driver" && (
+            <>
+              <SectionTitle>Activity</SectionTitle>
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                <div style={{ background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 10, padding: "12px 20px", minWidth: 110, textAlign: "center" }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: "#1D4ED8" }}>{detail.total_trips ?? 0}</div>
+                  <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>Completed trips</div>
+                </div>
+                <div style={{ background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 10, padding: "12px 20px", minWidth: 110, textAlign: "center" }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: "#D97706" }}>
+                    {detail.avg_rating != null ? `⭐ ${detail.avg_rating.toFixed(1)}` : "—"}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>
+                    Avg rating{detail.total_ratings ? ` (${detail.total_ratings})` : ""}
+                  </div>
+                </div>
+              </div>
+            </>
           )}
 
-          <h3 style={{ fontSize: 15, borderBottom: "1px solid #E5E7EB", paddingBottom: 6 }}>
-            Documents ({detail.documents.length})
-          </h3>
+          {/* ── Vehicle (driver only) ───────────────────────────────────── */}
+          {entityType === "driver" && (
+            <>
+              <SectionTitle>Vehicle</SectionTitle>
+              {detail.vehicle ? (
+                <div style={{ background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 10, padding: 16 }}>
+                  <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: 3, color: "#111827", marginBottom: 6 }}>
+                    {detail.vehicle.plate}
+                  </div>
+                  <div style={{ fontSize: 14, color: "#374151", marginBottom: 8 }}>
+                    {[detail.vehicle.color, detail.vehicle.make, detail.vehicle.model, detail.vehicle.year].filter(Boolean).join(" · ") || "—"}
+                  </div>
+                  <span style={{ background: "#DBEAFE", color: "#1D4ED8", borderRadius: 20, padding: "3px 10px", fontSize: 12, fontWeight: 700 }}>
+                    {VEHICLE_CATEGORY_LABELS[detail.vehicle.category] ?? detail.vehicle.category}
+                  </span>
+                </div>
+              ) : (
+                <p style={{ color: "#9CA3AF", fontSize: 13 }}>No vehicle registered yet.</p>
+              )}
+            </>
+          )}
+
+          {/* ── Documents ───────────────────────────────────────────────── */}
+          <SectionTitle>Documents ({detail.documents.length})</SectionTitle>
 
           {detail.documents.length === 0 && (
             <p className="muted-msg">No documents submitted yet.</p>
@@ -2563,6 +2687,7 @@ function UserReviewPanel({ token, entityId, entityType, onBack }) {
 
           {detail.documents.map((doc) => {
             const statusStyle = DOC_STATUS_COLORS[doc.status] || { bg: "#F3F4F6", color: "#374151" };
+            const isPdf = doc.url?.startsWith("data:application/pdf") || doc.url?.toLowerCase().endsWith(".pdf");
             return (
               <div key={doc.document_id} style={{ border: "1px solid #E5E7EB", borderRadius: 8, padding: 14, marginBottom: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -2572,10 +2697,15 @@ function UserReviewPanel({ token, entityId, entityType, onBack }) {
                   </span>
                 </div>
                 <div style={{ marginBottom: 8 }}>
-                  <a href={doc.url.startsWith("data:") ? "#" : doc.url} target="_blank" rel="noreferrer"
-                    style={{ fontSize: 13, color: "#1A56DB" }}>
-                    {doc.url.startsWith("data:") ? "Base64 image" : "View document ↗"}
-                  </a>
+                  {doc.url.startsWith("data:") ? (
+                    <span style={{ fontSize: 13, color: "#6B7280" }}>
+                      {isPdf ? "📄 PDF stored (base64)" : "🖼 Image stored (base64)"}
+                    </span>
+                  ) : (
+                    <a href={doc.url} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: "#1A56DB" }}>
+                      View document ↗
+                    </a>
+                  )}
                   <span style={{ color: "#9CA3AF", fontSize: 12, marginLeft: 12 }}>
                     {new Date(doc.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" })}
                   </span>
@@ -2616,8 +2746,8 @@ function UserReviewPanel({ token, entityId, entityType, onBack }) {
             );
           })}
 
-          <div style={{ borderTop: "2px solid #E5E7EB", paddingTop: 16, marginTop: 20 }}>
-            <h3 style={{ fontSize: 15, marginBottom: 12 }}>Global Decision</h3>
+          {/* ── Global decision (bottom) ─────────────────────────────────── */}
+          <div style={{ borderTop: "2px solid #E5E7EB", paddingTop: 16, marginTop: 24 }}>
             <p style={{ color: "#6B7280", fontSize: 13, marginBottom: 12 }}>
               Activating the account allows the {entityType} to accept platform requests.
               Suspending blocks access until further review.
@@ -2627,16 +2757,12 @@ function UserReviewPanel({ token, entityId, entityType, onBack }) {
                 style={{ background: "#059669", color: "#fff", border: "none", borderRadius: 6, padding: "10px 20px", cursor: "pointer", fontWeight: 600, fontSize: 14 }}
                 disabled={acting === "global"}
                 onClick={() => handleGlobalDecision("active")}
-              >
-                ✅ Activate Account
-              </button>
+              >✅ Activate Account</button>
               <button
                 style={{ background: "#DC2626", color: "#fff", border: "none", borderRadius: 6, padding: "10px 20px", cursor: "pointer", fontWeight: 600, fontSize: 14 }}
                 disabled={acting === "global"}
                 onClick={() => handleGlobalDecision("suspended")}
-              >
-                ✗ Suspend Account
-              </button>
+              >✗ Suspend Account</button>
             </div>
           </div>
         </>
@@ -2843,7 +2969,7 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "users"        && <UsersPanel          token={token} />}
       {activeTab === "craft"        && <CraftPanel          token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 60 — Profile &amp; Docs View</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 63 — Full Driver Profile</p>
     </div>
   );
 }
