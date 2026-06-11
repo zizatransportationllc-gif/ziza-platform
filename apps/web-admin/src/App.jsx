@@ -578,20 +578,13 @@ function UserRow({ u }) {
       <div className="user-row-main">
         <span className={`user-role-badge ${ROLE_COLORS[u.role] ?? ""}`}>{u.role}</span>
         <span className="user-email">{u.email}</span>
-        {displayName && <span style={{ fontSize: 13, color: "#374151", fontWeight: 500 }}>{displayName}</span>}
+        {displayName && (
+          <span style={{ fontSize: 13, color: "var(--color-fg)", fontWeight: 500 }}>{displayName}</span>
+        )}
       </div>
       <div className="user-row-meta">
-        {u.first_name && (
-          <span style={{ fontSize: 12, color: "#6B7280" }}>
-            {u.first_name} {u.last_name || ""}
-          </span>
-        )}
-        {u.date_of_birth && (
-          <span style={{ fontSize: 12, color: "#6B7280" }}>🎂 {u.date_of_birth}</span>
-        )}
-        {u.phone && (
-          <span style={{ fontSize: 12, color: "#6B7280" }}>📞 {u.phone}</span>
-        )}
+        {u.date_of_birth && <span>🎂 {u.date_of_birth}</span>}
+        {u.phone && <span>📞 {u.phone}</span>}
         <span className="user-provider">{u.provider}</span>
         <span className="user-date">{new Date(u.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" })}</span>
       </div>
