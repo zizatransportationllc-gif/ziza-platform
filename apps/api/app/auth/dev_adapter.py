@@ -119,3 +119,9 @@ class DevAdapter(AuthAdapter):
             role=payload["role"],
             provider=payload["provider"],
         )
+
+
+# Sprint 66 — l'adaptateur sert désormais de couche SESSION en dev ET en prod
+# (le JWT maison authentifie chaque requête). Le nom « Dev » est conservé comme
+# alias rétro-compatible pour les imports existants.
+SessionJwtAdapter = DevAdapter
