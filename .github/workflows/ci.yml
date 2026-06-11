@@ -57,15 +57,19 @@ jobs:
           pip install -r requirements.txt
           pip install pip-audit bandit
 
+      # NOTE: `--fail-on` is NOT a valid pip-audit flag — the previous step
+      # errored silently (masked by continue-on-error). Now it reports real
+      # vulns. Kept non-blocking until the residual deps (pillow, starlette,
+      # pytest) are upgraded — tracked in docs/plans. bandit below IS blocking.
       - name: pip-audit (Python vulnerability scan)
         working-directory: apps/api
-        run: pip-audit --requirement requirements.txt --fail-on CRITICAL
-        continue-on-error: true   # warn only — don't block CI for transitive deps
+        run: pip-audit --requirement requirements.txt
+        continue-on-error: true   # report only — residual transitive deps tracked
 
+      # Blocking gate: fails CI on any HIGH-severity finding (currently 0).
       - name: bandit (Python static security analysis)
         working-directory: apps/api
-        run: bandit -r app/ -ll --quiet
-        continue-on-error: true   # report only
+        run: bandit -r app/ -lll --quiet
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
