@@ -331,6 +331,40 @@ async def create_local_user(
     return user
 
 
+async def create_firebase_user(
+    db: AsyncSession, *, uid: str, email: str, role: str,
+    first_name: str | None = None, last_name: str | None = None,
+    date_of_birth: str | None = None, phone: str | None = None, name: str | None = None,
+) -> User:
+    """Create a new Firebase-backed user (provider='firebase').
+
+    Identity resolution (by uid, then verified-email collision policy) and the
+    admin gate live in the POST /v1/auth/firebase endpoint; by the time this is
+    called the caller has confirmed no account exists for this uid or email.
+    """
+    user = User(
+        user_id=uid, email=email, role=role, provider="firebase",
+        name=name, phone=phone, first_name=first_name,
+        last_name=last_name, date_of_birth=date_of_birth,
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+async def list_local_users(db: AsyncSession) -> list[User]:
+    """Return all bcrypt-backed local accounts (provider='local' with a hash).
+
+    Used by the one-shot migration that exports these accounts to Firebase
+    Auth via ``firebase auth:import`` (Phase 0).
+    """
+    result = await db.execute(
+        select(User).where(User.provider == "local", User.password_hash.isnot(None))
+    )
+    return list(result.scalars().all())
+
+
 # ---------------------------------------------------------------------------
 # Trips — Sprint 6
 # ---------------------------------------------------------------------------

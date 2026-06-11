@@ -11,16 +11,15 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.auth.base import AuthAdapter, Claims
-from app.config import settings
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_auth_adapter() -> AuthAdapter:
-    """Return the adapter matching the current environment."""
-    if settings.environment == "prod":
-        from app.auth.firebase_adapter import FirebaseAdapter  # noqa: PLC0415
-        return FirebaseAdapter()
+    """Session auth: le JWT maison authentifie chaque requête en dev ET prod.
+
+    Firebase n'est utilisé qu'au login, dans POST /v1/auth/firebase, pas ici.
+    """
     from app.auth.dev_adapter import DevAdapter  # noqa: PLC0415
     return DevAdapter()
 

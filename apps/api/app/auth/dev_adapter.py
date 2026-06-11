@@ -48,7 +48,7 @@ class DevAdapter(AuthAdapter):
             "iat": now,
             "exp": now + timedelta(minutes=settings.jwt_access_ttl_min),
         }
-        return jwt.encode(payload, settings.auth_dev_secret, algorithm=_ALGORITHM)
+        return jwt.encode(payload, settings.jwt_secret, algorithm=_ALGORITHM)
 
     # ------------------------------------------------------------------
     # Token issuance (only called from POST /v1/token)
@@ -98,7 +98,7 @@ class DevAdapter(AuthAdapter):
         try:
             payload = jwt.decode(
                 token,
-                settings.auth_dev_secret,
+                settings.jwt_secret,
                 algorithms=[_ALGORITHM],
             )
         except jwt.ExpiredSignatureError:
@@ -119,3 +119,9 @@ class DevAdapter(AuthAdapter):
             role=payload["role"],
             provider=payload["provider"],
         )
+
+
+# Sprint 66 — l'adaptateur sert désormais de couche SESSION en dev ET en prod
+# (le JWT maison authentifie chaque requête). Le nom « Dev » est conservé comme
+# alias rétro-compatible pour les imports existants.
+SessionJwtAdapter = DevAdapter

@@ -474,6 +474,79 @@ async def signup_create(
     )
 
 
+class FirebaseTokenRequest(BaseModel):
+    id_token: str
+    role: str = "customer"            # customer | driver | professional | admin
+    admin_code: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    date_of_birth: str | None = None
+    phone: str | None = None
+    name: str | None = None
+
+
+@app.post("/v1/auth/firebase", tags=["auth"],
+          summary="Exchange a Firebase ID token for a Ziza JWT + refresh token")
+async def auth_firebase(
+    body: FirebaseTokenRequest,
+    db: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    """Vérifie l'ID token Firebase, upsert le User (rôle en DB), émet le JWT maison."""
+    _ALLOWED_ROLES = {"customer", "driver", "professional", "admin"}
+    if body.role not in _ALLOWED_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"role must be one of: {', '.join(sorted(_ALLOWED_ROLES))}",
+        )
+
+    from app.auth.firebase_adapter import FirebaseAdapter  # noqa: PLC0415
+    identity = FirebaseAdapter().verify(body.id_token)   # raises 401 if invalid
+
+    # Identity resolution. The Firebase uid is authoritative — the caller owns
+    # that account. On an existing user the DB role governs (anti-escalation):
+    # the client-supplied role is ignored.
+    user = await crud._get_user_by_auth_id(db, identity.user_id)
+    if user is None:
+        # No account for this uid yet. Guard against email collisions: e-mail is
+        # unique, so a different uid claiming an already-registered e-mail is
+        # only allowed to LINK to it when Firebase vouches for the e-mail.
+        # Otherwise it is an account-takeover attempt (and would also violate the
+        # unique constraint with a 500) — reject it cleanly.
+        email_owner = (
+            await crud.get_user_by_email(db, identity.email)
+            if identity.email else None
+        )
+        if email_owner is not None:
+            if not identity.email_verified:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Email already registered; verify your email to link this account",
+                )
+            user = email_owner  # verified e-mail → log in as the existing account
+        else:
+            # Brand-new account: apply the admin gate, then create.
+            if body.role == "admin" and body.admin_code != settings.admin_signup_code:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Invalid admin registration code",
+                )
+            user = await crud.create_firebase_user(
+                db, uid=identity.user_id, email=identity.email, role=body.role,
+                first_name=body.first_name, last_name=body.last_name,
+                date_of_birth=body.date_of_birth, phone=body.phone, name=body.name,
+            )
+
+    from app.auth.dev_adapter import DevAdapter  # noqa: PLC0415
+    access_token = DevAdapter().issue_raw(user.email, user.user_id, user.role)
+    raw_refresh, _ = await crud.create_refresh_token(db, user.user_id)
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=settings.jwt_access_ttl_min * 60,
+        refresh_token=raw_refresh,
+    )
+
+
 # ---------------------------------------------------------------------------
 # User Profile — GET/PATCH /v1/profile  (Sprint 16)
 # ---------------------------------------------------------------------------
