@@ -954,6 +954,9 @@ function TripHistory({ token }) {
 
 function ProfileSection({ token }) {
   const [profile, setProfile] = useState(null);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
@@ -966,6 +969,9 @@ function ProfileSection({ token }) {
     getProfile(token)
       .then((p) => {
         setProfile(p);
+        setFirstName(p.first_name || "");
+        setLastName(p.last_name || "");
+        setBirthDate(p.date_of_birth || "");
         setName(p.name || "");
         setPhone(p.phone || "");
       })
@@ -977,7 +983,13 @@ function ProfileSection({ token }) {
     e.preventDefault();
     setSaving(true); setError(null); setSuccess(false);
     try {
-      const updated = await updateProfile(token, name || null, phone || null);
+      const updated = await updateProfile(token, {
+        first_name: firstName || null,
+        last_name: lastName || null,
+        date_of_birth: birthDate || null,
+        name: name || null,
+        phone: phone || null,
+      });
       setProfile(updated);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
@@ -998,6 +1010,37 @@ function ProfileSection({ token }) {
         </div>
       )}
       <form className="profile-form" onSubmit={handleSave}>
+        <label className="profile-label">
+          <span>First name</span>
+          <input
+            className="profile-input"
+            type="text"
+            placeholder="First name"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            maxLength={64}
+          />
+        </label>
+        <label className="profile-label">
+          <span>Last name</span>
+          <input
+            className="profile-input"
+            type="text"
+            placeholder="Last name"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            maxLength={64}
+          />
+        </label>
+        <label className="profile-label">
+          <span>Date of birth</span>
+          <input
+            className="profile-input"
+            type="date"
+            value={birthDate}
+            onChange={(e) => setBirthDate(e.target.value)}
+          />
+        </label>
         <label className="profile-label">
           <span>Display Name</span>
           <input

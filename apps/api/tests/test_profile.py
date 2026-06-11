@@ -84,6 +84,22 @@ def test_patch_profile_updates_both():
     assert data["phone"] == "+225 05 11 22 33"
 
 
+def test_patch_profile_updates_identity_fields():
+    """Sprint 66 — PATCH can update first_name / last_name / date_of_birth."""
+    tok = _tok("customer@ziza.dev")
+    _register(tok)
+    r = client.patch(
+        "/v1/profile",
+        headers=_h(tok),
+        json={"first_name": "Ama", "last_name": "Diallo", "date_of_birth": "1992-03-15"},
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["first_name"] == "Ama"
+    assert data["last_name"] == "Diallo"
+    assert data["date_of_birth"] == "1992-03-15"
+
+
 def test_patch_profile_requires_auth():
     """PATCH /v1/profile without a token returns 401."""
     r = client.patch("/v1/profile", json={"name": "Nobody"})

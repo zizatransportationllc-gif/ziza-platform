@@ -579,6 +579,9 @@ class UserProfileResponse(BaseModel):
 class UserProfileUpdateRequest(BaseModel):
     name: str | None = Field(None, max_length=128, description="Display name (null = leave unchanged)")
     phone: str | None = Field(None, max_length=32, description="Phone number (null = leave unchanged)")
+    first_name: str | None = Field(None, max_length=64, description="First name (null = leave unchanged)")
+    last_name: str | None = Field(None, max_length=64, description="Last name (null = leave unchanged)")
+    date_of_birth: str | None = Field(None, max_length=10, description="YYYY-MM-DD (null = leave unchanged)")
 
 
 @app.get("/v1/profile", tags=["profile"])
@@ -602,7 +605,10 @@ async def update_profile(
     Omit a field (or send null) to leave it unchanged.
     Send an empty string to clear a field.
     """
-    profile = await crud.update_user_profile(db, claims.user_id, body.name, body.phone)
+    profile = await crud.update_user_profile(
+        db, claims.user_id, body.name, body.phone,
+        first_name=body.first_name, last_name=body.last_name, date_of_birth=body.date_of_birth,
+    )
     return UserProfileResponse(**profile)
 
 

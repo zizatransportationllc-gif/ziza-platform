@@ -231,10 +231,7 @@ export async function getProfile(token) {
   return res.json(); // UserProfileResponse
 }
 
-export async function updateProfile(token, name, phone) {
-  const body = {};
-  if (name !== undefined) body.name = name;
-  if (phone !== undefined) body.phone = phone;
+export async function updateProfile(token, fields) {
   const res = await fetch(`${API_BASE}/v1/profile`, {
     method: "PATCH",
     headers: {
@@ -242,7 +239,7 @@ export async function updateProfile(token, name, phone) {
       "Content-Type": "application/json",
       Accept: "application/json",
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(fields),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

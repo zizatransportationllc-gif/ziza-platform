@@ -5,7 +5,7 @@ import {
   acceptTrip, startTrip, completeTrip,
   getMyRating, getMyEarnings, getDriverBalance,
   getMyVehicle, registerVehicle,
-  getDriverProfile, setDriverOnline, listDriverTripHistory,
+  getDriverProfile, getProfile, updateProfile, setDriverOnline, listDriverTripHistory,
   createPayoutRequest, listPayoutRequests,
   submitDocument, listMyDocuments,
   listNotifications, getUnreadCount, markAllRead,
@@ -1028,6 +1028,87 @@ function LocationSection({ token }) {
 }
 
 // ---------------------------------------------------------------------------
+// Profile section — Sprint 66 (personal identity editing)
+// ---------------------------------------------------------------------------
+
+function ProfileSection({ token }) {
+  const [profile, setProfile] = useState(null);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [phone, setPhone] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    getProfile(token)
+      .then((p) => {
+        setProfile(p);
+        setFirstName(p.first_name || "");
+        setLastName(p.last_name || "");
+        setBirthDate(p.date_of_birth || "");
+        setPhone(p.phone || "");
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  async function handleSave(e) {
+    e.preventDefault();
+    setSaving(true); setError(null); setSuccess(false);
+    try {
+      const updated = await updateProfile(token, {
+        first_name: firstName || null,
+        last_name: lastName || null,
+        date_of_birth: birthDate || null,
+        phone: phone || null,
+      });
+      setProfile(updated);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err) { setError(err.message); }
+    finally { setSaving(false); }
+  }
+
+  if (loading) return <p style={{ opacity: 0.7 }}>⏳ Loading profile…</p>;
+  if (error && !profile) return <p className="form-error">{error}</p>;
+
+  const lblStyle = { display: "block", marginBottom: 12, fontSize: 13, fontWeight: 600 };
+  const inStyle = { display: "block", width: "100%", boxSizing: "border-box", marginTop: 4, padding: "10px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 14 };
+
+  return (
+    <div className="card" style={{ padding: 16 }}>
+      <h3 style={{ marginTop: 0 }}>👤 My Profile</h3>
+      {profile && (
+        <p style={{ fontSize: 13, opacity: 0.8, marginTop: -6 }}>✉️ {profile.email} · {profile.role}</p>
+      )}
+      <form onSubmit={handleSave}>
+        <label style={lblStyle}>First name
+          <input style={inStyle} type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} maxLength={64} placeholder="First name" />
+        </label>
+        <label style={lblStyle}>Last name
+          <input style={inStyle} type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} maxLength={64} placeholder="Last name" />
+        </label>
+        <label style={lblStyle}>Date of birth
+          <input style={inStyle} type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
+        </label>
+        <label style={lblStyle}>Phone
+          <input style={inStyle} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={32} placeholder="+1 (201) 555-0000" />
+        </label>
+        {error && <p className="form-error">{error}</p>}
+        {success && <p style={{ color: "#059669", fontWeight: 600 }}>✓ Profile updated</p>}
+        <button type="submit" className="btn-primary" disabled={saving} style={{ marginTop: 4 }}>
+          {saving ? "Saving…" : "Save"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
@@ -1162,6 +1243,12 @@ function Dashboard({ user, token, onLogout }) {
               🚗 Vehicle
             </button>
             <button
+              className={`driver-tab ${tab === "profile" ? "active" : ""}`}
+              onClick={() => setTab("profile")}
+            >
+              👤 Profile
+            </button>
+            <button
               className={`driver-tab ${tab === "history" ? "active" : ""}`}
               onClick={() => setTab("history")}
             >
@@ -1229,6 +1316,7 @@ function Dashboard({ user, token, onLogout }) {
           )}
 
           {tab === "vehicle"       && <VehicleCard token={token} vehicle={vehicle} onSaved={setVehicle} />}
+          {tab === "profile"       && <ProfileSection token={token} />}
           {tab === "history"       && <DriverTripHistory token={token} />}
           {tab === "payouts"       && <PayoutSection token={token} />}
           {tab === "documents"     && <DocumentsSection token={token} driverStatus={driverStatus} />}

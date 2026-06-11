@@ -1639,11 +1639,15 @@ async def update_user_profile(
     auth_user_id: str,
     name: str | None,
     phone: str | None,
+    first_name: str | None = None,
+    last_name: str | None = None,
+    date_of_birth: str | None = None,
 ) -> dict:
-    """Update the user's name and/or phone.
+    """Update the user's name, phone, and identity fields (Sprint 66).
 
     A ``None`` value for a field means "leave unchanged".
-    Pass an empty string to clear the field.
+    Pass an empty string to clear the field. Email is NOT editable here — it is
+    the Firebase identity and must be changed through the auth provider.
     """
     user = await _get_user_by_auth_id(db, auth_user_id)
     if user is None:
@@ -1655,6 +1659,12 @@ async def update_user_profile(
         user.name = name if name != "" else None
     if phone is not None:
         user.phone = phone if phone != "" else None
+    if first_name is not None:
+        user.first_name = first_name if first_name != "" else None
+    if last_name is not None:
+        user.last_name = last_name if last_name != "" else None
+    if date_of_birth is not None:
+        user.date_of_birth = date_of_birth if date_of_birth != "" else None
     user.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(user)
