@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import {
-  login, signup, fetchMe, registerUser,
+  login, signup, exchangeFirebaseToken, fetchMe, registerUser,
   adminListDrivers, adminSetDriverCapabilities,
   adminGetStats, adminListTrips, adminListUsers,
   adminCreatePromo, adminListPromos, adminDeactivatePromo, adminSetDriverStatus,
@@ -20,7 +20,7 @@ import {
   adminListOnboarding, adminGetOnboardingDetail, // Sprint 57
   adminSetProfessionalStatus, // Sprint 54 (used in Sprint 57 review panel)
 } from "./api";
-import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
+import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, firebaseSignOut } from "./auth";
 import LiveMap from "./LiveMap";
 
 const REQUIRED_ROLE = "admin";
@@ -3084,7 +3084,9 @@ export default function App() {
   async function handleEmailLogin(email, password) {
     setLoginLoading(true); setLoginError(null);
     try {
-      const { access_token } = await login(email, password);
+      const { access_token } = firebaseEnabled
+        ? await exchangeFirebaseToken(await signInEmail(email, password))
+        : await login(email, password);
       localStorage.setItem(TOKEN_KEY, access_token);
       setToken(access_token);
     } catch (e) { setLoginError(e.message); }
@@ -3095,8 +3097,9 @@ export default function App() {
     setLoginLoading(true); setLoginError(null);
     try {
       const idToken = await signInWithGoogle();
-      localStorage.setItem(TOKEN_KEY, idToken);
-      setToken(idToken);
+      const { access_token } = await exchangeFirebaseToken(idToken);
+      localStorage.setItem(TOKEN_KEY, access_token);
+      setToken(access_token);
     } catch (e) { setLoginError(e.message); }
     finally { setLoginLoading(false); }
   }
@@ -3104,7 +3107,9 @@ export default function App() {
   async function handleSignup(email, password, name, adminCode) {
     setLoginLoading(true); setLoginError(null);
     try {
-      const { access_token } = await signup(email, password, name || null, adminCode);
+      const { access_token } = firebaseEnabled
+        ? await exchangeFirebaseToken(await signUpEmail(email, password), { adminCode, name })
+        : await signup(email, password, name || null, adminCode);
       localStorage.setItem(TOKEN_KEY, access_token);
       setToken(access_token);
     } catch (e) { setLoginError(e.message); }
