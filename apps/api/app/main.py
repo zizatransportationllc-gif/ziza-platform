@@ -133,6 +133,18 @@ from app.middleware.logging import RequestLoggingMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware, set_rate_limit_enabled
 from app.notifications.dispatcher import register_channel
 
+# Observability (Phase 4) — initialise Sentry as early as possible. No-op when
+# SENTRY_DSN is unset, so dev/CI are unaffected and the import stays optional.
+if settings.sentry_dsn:
+    import sentry_sdk  # noqa: PLC0415
+
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        environment=settings.environment,
+        release=settings.app_version,
+        traces_sample_rate=settings.sentry_traces_sample_rate,
+    )
+
 app = FastAPI(
     title="Ziza API",
     version=settings.app_version,

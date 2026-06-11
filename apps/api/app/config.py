@@ -162,10 +162,20 @@ class Settings(BaseSettings):
     # Maximum radius (km) for dispatch filtering when driver has a position.
     dispatch_radius_km: float = 15.0
 
+    # ------------------------------------------------------------------
+    # Observability — Sentry (Phase 4)
+    # ------------------------------------------------------------------
+    # Sentry DSN for error tracking. Leave empty to disable (no-op everywhere).
+    sentry_dsn: str = ""
+    # Fraction of transactions traced for performance (0.0 = errors only).
+    sentry_traces_sample_rate: float = 0.0
+
     def model_post_init(self, __context) -> None:
         if self.environment == "prod":
             if not self.jwt_secret or self.jwt_secret == "dev-secret-change-in-env":
                 raise ValueError("JWT_SECRET must be set to a non-default value in prod")
+            if len(self.jwt_secret) < 32:
+                raise ValueError("JWT_SECRET must be at least 32 characters in prod")
             if not self.firebase_project_id:
                 raise ValueError("FIREBASE_PROJECT_ID is required in prod")
 
