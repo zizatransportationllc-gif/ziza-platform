@@ -1718,6 +1718,71 @@ async def set_surge_multiplier(db: AsyncSession, value: float) -> float:
 
 
 # ---------------------------------------------------------------------------
+# Pricing — base fare & per-mile rate (USD cents), admin-configurable (Sprint 66)
+# ---------------------------------------------------------------------------
+
+_PRICING_BASE_KEY = "base_fare_cents"
+_PRICING_PER_MILE_KEY = "per_mile_cents"
+
+
+async def _get_setting_int(db: AsyncSession, key: str, default: int) -> int:
+    result = await db.execute(
+        select(PlatformSetting).where(PlatformSetting.key == key)
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        return default
+    try:
+        return int(row.value)
+    except (ValueError, TypeError):
+        return default
+
+
+async def _upsert_setting(db: AsyncSession, key: str, value: str) -> None:
+    result = await db.execute(
+        select(PlatformSetting).where(PlatformSetting.key == key)
+    )
+    row = result.scalar_one_or_none()
+    now = datetime.now(timezone.utc)
+    if row is None:
+        db.add(PlatformSetting(key=key, value=value, updated_at=now))
+    else:
+        row.value = value
+        row.updated_at = now
+
+
+async def get_pricing(db: AsyncSession) -> tuple[int, int]:
+    """Return (base_fare_cents, per_mile_cents) — USD cents.
+
+    Reads admin overrides from platform_settings, falling back to the config
+    defaults (``fare_base_cents`` / ``fare_per_mile_cents``).
+    """
+    from app.config import settings as _settings  # noqa: PLC0415
+
+    base = await _get_setting_int(db, _PRICING_BASE_KEY, _settings.fare_base_cents)
+    per_mile = await _get_setting_int(db, _PRICING_PER_MILE_KEY, _settings.fare_per_mile_cents)
+    return base, per_mile
+
+
+async def set_pricing(
+    db: AsyncSession, base_fare_cents: int, per_mile_cents: int
+) -> tuple[int, int]:
+    """Upsert the base fare and per-mile rate (USD cents). Returns the stored pair.
+
+    Validates 0 < base ≤ 100_000 and 0 < per_mile ≤ 100_000 (i.e. ≤ $1000).
+    """
+    if not (0 < base_fare_cents <= 100_000) or not (0 < per_mile_cents <= 100_000):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="base_fare_cents and per_mile_cents must be between 1 and 100000",
+        )
+    await _upsert_setting(db, _PRICING_BASE_KEY, str(base_fare_cents))
+    await _upsert_setting(db, _PRICING_PER_MILE_KEY, str(per_mile_cents))
+    await db.commit()
+    return base_fare_cents, per_mile_cents
+
+
+# ---------------------------------------------------------------------------
 # Sprint 17 — Driver documents (KYC) & admin pending counts
 # ---------------------------------------------------------------------------
 

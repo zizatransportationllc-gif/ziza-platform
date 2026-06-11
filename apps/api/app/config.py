@@ -58,10 +58,12 @@ class Settings(BaseSettings):
     firebase_project_id: str = ""
 
     # ------------------------------------------------------------------
-    # Pricing — Sprint 5 (currency: XOF, West African CFA Franc)
+    # Pricing — base currency: USD, amounts in integer cents (Sprint 66)
     # ------------------------------------------------------------------
-    fare_base_xof: int = 500          # minimum / base fare (~$0.85)
-    fare_per_km_xof: int = 150        # rate per km (~$0.25)
+    # These are DEFAULTS only — admins override them at runtime via
+    # PATCH /v1/admin/settings/pricing (persisted in platform_settings).
+    fare_base_cents: int = 250        # minimum / base fare ($2.50)
+    fare_per_mile_cents: int = 175    # rate per mile ($1.75)
     fare_surge_multiplier: float = 1.0  # 1.0 = no surge; set > 1 during peak
     fare_estimate_ttl_minutes: int = 15  # how long an estimate is valid
 

@@ -617,7 +617,7 @@ class EstimateResponse(BaseModel):
     distance_km: float
     duration_min: int
     fare_xof: int          # economy fare (backward compat)
-    currency: str = "XOF"
+    currency: str = "USD"
     surge_multiplier: float
     distance_source: str   # "google_maps" | "haversine"
     expires_at: str        # ISO-8601 UTC
@@ -650,7 +650,8 @@ async def estimate(
         body.dest_lat, body.dest_lng,
     )
     surge = await crud.get_surge_multiplier(db)  # Sprint 16: read from DB (falls back to config)
-    fare = calculate_fare(route.distance_km, surge)
+    base_cents, per_mile_cents = await crud.get_pricing(db)  # Sprint 66: admin-configurable USD pricing
+    fare = calculate_fare(route.distance_km, base_cents, per_mile_cents, surge)
 
     now = datetime.now(timezone.utc)
     expires = now + timedelta(minutes=settings.fare_estimate_ttl_minutes)
@@ -689,7 +690,7 @@ async def estimate(
         distance_km=est.distance_km,
         duration_min=est.duration_min,
         fare_xof=est.fare_xof,
-        currency="XOF",
+        currency="USD",
         surge_multiplier=est.surge_multiplier,
         distance_source=est.distance_source,
         expires_at=est.expires_at.isoformat(),
@@ -1793,6 +1794,61 @@ async def admin_set_surge(
 
 
 # ---------------------------------------------------------------------------
+# Admin — base fare & per-mile pricing (USD cents), Sprint 66
+# ---------------------------------------------------------------------------
+
+class PricingResponse(BaseModel):
+    base_fare_cents: int       # base fare in USD cents (e.g. 250 = $2.50)
+    per_mile_cents: int        # rate per mile in USD cents (e.g. 175 = $1.75)
+    currency: str = "USD"
+
+
+class PricingUpdateRequest(BaseModel):
+    base_fare_cents: Annotated[
+        int, Field(ge=1, le=100_000, description="Base fare in USD cents")
+    ]
+    per_mile_cents: Annotated[
+        int, Field(ge=1, le=100_000, description="Rate per mile in USD cents")
+    ]
+
+
+@app.get("/v1/admin/settings/pricing", tags=["admin"])
+async def admin_get_pricing(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PricingResponse:
+    """Admin: return the current base fare and per-mile rate (USD cents)."""
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    base_cents, per_mile_cents = await crud.get_pricing(db)
+    return PricingResponse(base_fare_cents=base_cents, per_mile_cents=per_mile_cents)
+
+
+@app.patch("/v1/admin/settings/pricing", tags=["admin"])
+async def admin_set_pricing(
+    body: PricingUpdateRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PricingResponse:
+    """Admin: set the base fare and per-mile rate (USD cents).
+
+    Takes effect immediately on subsequent calls to POST /v1/estimate.
+    """
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    base_cents, per_mile_cents = await crud.set_pricing(
+        db, body.base_fare_cents, body.per_mile_cents
+    )
+    return PricingResponse(base_fare_cents=base_cents, per_mile_cents=per_mile_cents)
+
+
+# ---------------------------------------------------------------------------
 # Driver Documents (KYC) — Sprint 17
 # ---------------------------------------------------------------------------
 
@@ -2518,7 +2574,7 @@ class PaymentIntentResponse(BaseModel):
     intent_id: str
     trip_id: str
     amount_xof: int
-    currency: str = "XOF"
+    currency: str = "USD"
     provider: str
     provider_ref: str | None = None
     status: str   # pending | paid | failed | refunded
