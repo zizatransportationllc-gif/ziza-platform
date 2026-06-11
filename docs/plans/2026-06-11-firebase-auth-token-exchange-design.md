@@ -75,8 +75,20 @@ Expiration de l'access token → `POST /v1/auth/refresh` (existant, **inchangé*
 - Backend : nouveau `test_firebase_auth.py` (ID token mocké → upsert + attribution rôle + gate admin + anti-escalade sur user existant). Les 52 fichiers de tests existants restent verts (session JWT inchangée).
 - Vérification end-to-end dédiée du flux Google web (jamais exécuté en conditions réelles).
 
-## 9. Hors périmètre Phase 0 (phases suivantes)
+## 9. Suivi / durcissement avant go-live (découvert pendant l'implémentation)
 
+- **🔴 Sécurité — match par email non vérifié.** Dans `POST /v1/auth/firebase`, le fallback de résolution d'utilisateur par email (`crud.get_user_by_email`) ne vérifie pas `email_verified`. Un compte Firebase email/password avec un email **non vérifié** pourrait matcher un compte DB existant → **prise de contrôle de compte**. Mitigé en pratique : la migration (Task 14) mappe par `uid`, donc le fallback email est un filet. **À durcir avant go-live** : exposer `email_verified` dans `FirebaseAdapter.verify` (claims) et n'autoriser le match par email que si l'email est vérifié.
+- **Flux Google web** : jamais exécuté en conditions réelles → vérification end-to-end dédiée avec un vrai projet Firebase.
+
+## 10. Hors périmètre Phase 0 (phases suivantes)
+
+- Frontend : intégration Firebase des 9 apps (web-craft + 3 mobiles n'ont aucun SDK aujourd'hui) — nécessite un projet Firebase de test.
 - Pipeline de déploiement prod (`deploy-prod.yml`, `ENVIRONMENT=prod`, Secret Manager) — Phase 1/2.
 - Réconciliation devise XOF/USD — Phase 3.
 - Observabilité, backups, stores mobiles — Phases 4-6.
+
+## État d'implémentation (backend) — 2026-06-11
+
+Branche `phase0-firebase-auth-design`. Backend Phase 0 **terminé et vérifié** (suite complète : **462 passed** dans Docker python:3.12) :
+- `23c22bf` alias SessionJwtAdapter · `c08d980` config fail-fast prod · `041a98b` session JWT découplée de l'env · `2166bcd` endpoint `/v1/auth/firebase` · `990994f` verrou 404 prod + fix contamination · `2a0f27d` script migration bcrypt→Firebase.
+- **Reste** : intégration frontend (Tasks 7-13, dépend d'un projet Firebase) + durcissement `email_verified` ci-dessus.
