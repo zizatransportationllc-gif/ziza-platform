@@ -358,6 +358,18 @@ async def upsert_firebase_user(
     return user, True
 
 
+async def list_local_users(db: AsyncSession) -> list[User]:
+    """Return all bcrypt-backed local accounts (provider='local' with a hash).
+
+    Used by the one-shot migration that exports these accounts to Firebase
+    Auth via ``firebase auth:import`` (Phase 0).
+    """
+    result = await db.execute(
+        select(User).where(User.provider == "local", User.password_hash.isnot(None))
+    )
+    return list(result.scalars().all())
+
+
 # ---------------------------------------------------------------------------
 # Trips — Sprint 6
 # ---------------------------------------------------------------------------
