@@ -113,6 +113,7 @@ Endpoints:
 """
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Literal
@@ -120,7 +121,7 @@ from typing import Annotated, Literal
 import sqlalchemy as _sa
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import crud
@@ -1855,12 +1856,41 @@ async def admin_set_pricing(
 DocumentType = Literal["license", "insurance", "registration", "id_card"]
 
 
+# Sprint 66 — KYC doc URLs are rendered in the admin panel. Only allow http(s)
+# links and base64 data URLs for images/PDF; reject script-bearing schemes
+# (javascript:, data:text/html, SVG, etc.) that would yield stored XSS.
+_SAFE_DOC_DATA_PREFIXES = (
+    "data:image/png",
+    "data:image/jpeg",
+    "data:image/jpg",
+    "data:image/webp",
+    "data:application/pdf",
+)
+
+
 class DocumentSubmitRequest(BaseModel):
     type: DocumentType = Field(
         ..., description="license | insurance | registration | id_card"
     )
     # Sprint 54: no max_length — accepts base64 data URLs (can be several MB)
     url: str = Field(..., min_length=1, description="URL or base64 data URL of the document scan")
+
+    @field_validator("url")
+    @classmethod
+    def _validate_url(cls, v: str) -> str:
+        s = v.strip()
+        low = s.lower()
+        if low.startswith(("http://", "https://")):
+            return s
+        if low.startswith("data:"):
+            if low.startswith(_SAFE_DOC_DATA_PREFIXES):
+                return s
+            raise ValueError(
+                "data: URL must be an image (png/jpeg/webp) or PDF"
+            )
+        raise ValueError(
+            "url must be an http(s) link or a safe data: image/PDF URL"
+        )
 
 
 class DocumentResponse(BaseModel):
@@ -2759,9 +2789,41 @@ class UploadUrlResponse(BaseModel):
     final_url: str   # Public URL of the file after upload
 
 
+# Sprint 66 — restrict KYC uploads to document/image types. Prevents serving
+# attacker-controlled HTML/SVG from the bucket and rejects executable types.
+_ALLOWED_DOC_CONTENT_TYPES = {
+    "application/pdf",
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+}
+
+
 class UploadUrlRequest(BaseModel):
     filename: str    # e.g. "license.pdf"
-    content_type: str = "application/octet-stream"
+    content_type: str = "application/pdf"
+
+    @field_validator("filename")
+    @classmethod
+    def _safe_filename(cls, v: str) -> str:
+        # Strip any directory components, then allow only safe characters so the
+        # value cannot traverse or alter the server-built object key.
+        base = v.replace("\\", "/").split("/")[-1]
+        base = re.sub(r"[^A-Za-z0-9._-]", "_", base).lstrip(".")
+        if not base:
+            raise ValueError("invalid filename")
+        return base[:128]
+
+    @field_validator("content_type")
+    @classmethod
+    def _allowed_content_type(cls, v: str) -> str:
+        if v not in _ALLOWED_DOC_CONTENT_TYPES:
+            raise ValueError(
+                "content_type must be one of: "
+                + ", ".join(sorted(_ALLOWED_DOC_CONTENT_TYPES))
+            )
+        return v
 
 
 @app.post(
