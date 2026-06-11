@@ -29,6 +29,23 @@ export async function login(email, password) {
   return _json(res);
 }
 
+// Sprint 66 — exchange a Firebase ID token for a Ziza JWT (role: driver).
+export async function exchangeFirebaseToken(idToken, { firstName, lastName, birthDate, phone } = {}) {
+  const res = await fetch(`${API_BASE}/v1/auth/firebase`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id_token: idToken,
+      role: "driver",
+      first_name: firstName || null,
+      last_name: lastName || null,
+      date_of_birth: birthDate || null,
+      phone: phone || null,
+    }),
+  });
+  return _json(res);
+}
+
 export async function fetchMe(token) {
   const res = await fetch(`${API_BASE}/v1/me`, {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },

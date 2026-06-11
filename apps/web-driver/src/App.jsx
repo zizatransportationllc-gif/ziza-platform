@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import {
-  login, signup, fetchMe, registerUser, registerDriver,
+  login, signup, exchangeFirebaseToken, fetchMe, registerUser, registerDriver,
   listAvailableTrips, getActiveTrip,
   acceptTrip, startTrip, completeTrip,
   getMyRating, getMyEarnings, getDriverBalance,
@@ -13,7 +13,7 @@ import {
   updateDriverLocation, getDriverLocation,
   registerDeviceToken,
 } from "./api";
-import { firebaseEnabled, signInWithGoogle, firebaseSignOut } from "./auth";
+import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, firebaseSignOut } from "./auth";
 import DriverMap from "./DriverMap";
 
 const REQUIRED_ROLE = "driver";
@@ -1300,7 +1300,9 @@ export default function App() {
   async function handleEmailLogin(email, password) {
     setLoginLoading(true); setLoginError(null);
     try {
-      const { access_token } = await login(email, password);
+      const { access_token } = firebaseEnabled
+        ? await exchangeFirebaseToken(await signInEmail(email, password))
+        : await login(email, password);
       localStorage.setItem(TOKEN_KEY, access_token);
       setToken(access_token);
     } catch (e) { setLoginError(e.message); }
@@ -1311,8 +1313,9 @@ export default function App() {
     setLoginLoading(true); setLoginError(null);
     try {
       const idToken = await signInWithGoogle();
-      localStorage.setItem(TOKEN_KEY, idToken);
-      setToken(idToken);
+      const { access_token } = await exchangeFirebaseToken(idToken);
+      localStorage.setItem(TOKEN_KEY, access_token);
+      setToken(access_token);
     } catch (e) { setLoginError(e.message); }
     finally { setLoginLoading(false); }
   }
@@ -1320,7 +1323,9 @@ export default function App() {
   async function handleSignup(email, password, firstName, lastName, birthDate, phone) {
     setLoginLoading(true); setLoginError(null);
     try {
-      const { access_token } = await signup(email, password, firstName, lastName, birthDate, phone || null);
+      const { access_token } = firebaseEnabled
+        ? await exchangeFirebaseToken(await signUpEmail(email, password), { firstName, lastName, birthDate, phone })
+        : await signup(email, password, firstName, lastName, birthDate, phone || null);
       localStorage.setItem(TOKEN_KEY, access_token);
       setToken(access_token);
     } catch (e) { setLoginError(e.message); }

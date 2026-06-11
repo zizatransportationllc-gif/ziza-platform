@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import {
-  login, signup, fetchMe, registerUser, registerProfessional,
+  login, signup, exchangeFirebaseToken, fetchMe, registerUser, registerProfessional,
   getMyProfile, updateMyProfile,
   listOpenRequests, getCraftRequest,
   submitBid, getMyBids,
@@ -9,6 +9,7 @@ import {
   registerDeviceToken,
   formatUSD,
 } from "./api";
+import { firebaseEnabled, signUpEmail, signInEmail, firebaseSignOut } from "./auth";
 
 const REQUIRED_ROLE = "professional";
 const TOKEN_KEY = "ziza_craft_token";
@@ -1090,7 +1091,9 @@ export default function App() {
   async function handleLogin(email, password) {
     setLoginLoading(true); setLoginError(null);
     try {
-      const { access_token } = await login(email, password);
+      const { access_token } = firebaseEnabled
+        ? await exchangeFirebaseToken(await signInEmail(email, password))
+        : await login(email, password);
       localStorage.setItem(TOKEN_KEY, access_token);
       setToken(access_token);
     } catch (e) { setLoginError(e.message); }
@@ -1100,14 +1103,17 @@ export default function App() {
   async function handleSignup(email, password, firstName, lastName, birthDate, phone) {
     setLoginLoading(true); setLoginError(null);
     try {
-      const { access_token } = await signup(email, password, firstName, lastName, birthDate, phone || null);
+      const { access_token } = firebaseEnabled
+        ? await exchangeFirebaseToken(await signUpEmail(email, password), { firstName, lastName, birthDate, phone })
+        : await signup(email, password, firstName, lastName, birthDate, phone || null);
       localStorage.setItem(TOKEN_KEY, access_token);
       setToken(access_token);
     } catch (e) { setLoginError(e.message); }
     finally { setLoginLoading(false); }
   }
 
-  function handleLogout() {
+  async function handleLogout() {
+    await firebaseSignOut();
     localStorage.removeItem(TOKEN_KEY);
     setToken(null);
     setUser(null);

@@ -1,6 +1,8 @@
 /**
- * Firebase auth helper for web-driver — Sprint 3.
- * Google Sign-In is only available when VITE_FIREBASE_API_KEY is set.
+ * Firebase auth helper for web-craft — Sprint 66.
+ * Active only when VITE_FIREBASE_API_KEY is set; otherwise the app falls back
+ * to the DEV /v1/token flow.
+ * NOT shared across frontends (isolation rule).
  */
 const FIREBASE_CONFIG = {
   apiKey:     import.meta.env.VITE_FIREBASE_API_KEY,
@@ -21,13 +23,6 @@ async function getFirebaseAuth() {
   return _auth;
 }
 
-export async function signInWithGoogle() {
-  const { GoogleAuthProvider, signInWithPopup } = await import("firebase/auth");
-  const auth = await getFirebaseAuth();
-  const result = await signInWithPopup(auth, new GoogleAuthProvider());
-  return result.user.getIdToken();
-}
-
 /** Create a Firebase account with email/password. Returns the Firebase ID token. */
 export async function signUpEmail(email, password) {
   const { createUserWithEmailAndPassword } = await import("firebase/auth");
@@ -44,6 +39,7 @@ export async function signInEmail(email, password) {
   return cred.user.getIdToken();
 }
 
+/** Sign out of Firebase. */
 export async function firebaseSignOut() {
   if (!_auth) return;
   const { signOut } = await import("firebase/auth");
