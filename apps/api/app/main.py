@@ -474,6 +474,64 @@ async def signup_create(
     )
 
 
+class FirebaseTokenRequest(BaseModel):
+    id_token: str
+    role: str = "customer"            # customer | driver | professional | admin
+    admin_code: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    date_of_birth: str | None = None
+    phone: str | None = None
+    name: str | None = None
+
+
+@app.post("/v1/auth/firebase", tags=["auth"],
+          summary="Exchange a Firebase ID token for a Ziza JWT + refresh token")
+async def auth_firebase(
+    body: FirebaseTokenRequest,
+    db: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    """Vérifie l'ID token Firebase, upsert le User (rôle en DB), émet le JWT maison."""
+    _ALLOWED_ROLES = {"customer", "driver", "professional", "admin"}
+    if body.role not in _ALLOWED_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"role must be one of: {', '.join(sorted(_ALLOWED_ROLES))}",
+        )
+
+    from app.auth.firebase_adapter import FirebaseAdapter  # noqa: PLC0415
+    identity = FirebaseAdapter().verify(body.id_token)   # raises 401 if invalid
+
+    # Le code admin ne gate que la CRÉATION d'un nouvel admin. Sur un user
+    # existant, le rôle DB fait foi (anti-escalade) — on saute le check pour
+    # ne pas bloquer un returning user qui renvoie un rôle élevé par erreur.
+    existing = await crud._get_user_by_auth_id(db, identity.user_id)
+    if existing is None and identity.email:
+        existing = await crud.get_user_by_email(db, identity.email)
+    if existing is None and body.role == "admin" \
+            and body.admin_code != settings.admin_signup_code:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid admin registration code",
+        )
+
+    user, _ = await crud.upsert_firebase_user(
+        db, uid=identity.user_id, email=identity.email, role=body.role,
+        first_name=body.first_name, last_name=body.last_name,
+        date_of_birth=body.date_of_birth, phone=body.phone, name=body.name,
+    )
+
+    from app.auth.dev_adapter import DevAdapter  # noqa: PLC0415
+    access_token = DevAdapter().issue_raw(user.email, user.user_id, user.role)
+    raw_refresh, _ = await crud.create_refresh_token(db, user.user_id)
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=settings.jwt_access_ttl_min * 60,
+        refresh_token=raw_refresh,
+    )
+
+
 # ---------------------------------------------------------------------------
 # User Profile — GET/PATCH /v1/profile  (Sprint 16)
 # ---------------------------------------------------------------------------

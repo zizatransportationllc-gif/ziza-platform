@@ -331,6 +331,33 @@ async def create_local_user(
     return user
 
 
+async def upsert_firebase_user(
+    db: AsyncSession, *, uid: str, email: str, role: str,
+    first_name: str | None = None, last_name: str | None = None,
+    date_of_birth: str | None = None, phone: str | None = None, name: str | None = None,
+) -> tuple[User, bool]:
+    """Crée (rôle demandé) ou retrouve (rôle DB conservé) un user Firebase.
+
+    Retourne (user, created). Anti-escalade : sur un user existant, le rôle
+    fourni par le client est ignoré (le rôle stocké en DB fait foi).
+    """
+    existing = await _get_user_by_auth_id(db, uid)
+    if existing is None and email:
+        existing = await get_user_by_email(db, email)
+    if existing is not None:
+        return existing, False
+
+    user = User(
+        user_id=uid, email=email, role=role, provider="firebase",
+        name=name, phone=phone, first_name=first_name,
+        last_name=last_name, date_of_birth=date_of_birth,
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user, True
+
+
 # ---------------------------------------------------------------------------
 # Trips — Sprint 6
 # ---------------------------------------------------------------------------
