@@ -37,4 +37,5 @@ class FirebaseAdapter(AuthAdapter):
             email=decoded.get("email", ""),
             role=role,
             provider="firebase",
+            email_verified=bool(decoded.get("email_verified", False)),
         )

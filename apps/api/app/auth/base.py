@@ -14,6 +14,7 @@ class Claims:
     email: str
     role: str       # "customer" | "driver" | "admin"
     provider: str   # "dev" | "firebase"
+    email_verified: bool = False  # True only when the IdP vouches for the email
 
 
 class AuthAdapter(ABC):
