@@ -24,3 +24,6 @@ bcrypt==4.2.1
 
 # Sprint 61 — Convert uploaded images to PDF before storage
 Pillow==10.4.0
+
+# Phase 4 — Observability (error tracking; active only when SENTRY_DSN is set)
+sentry-sdk==2.20.0
