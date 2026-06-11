@@ -2512,7 +2512,7 @@ function ProfileField({ label, value }) {
   return (
     <div style={{ marginBottom: 8 }}>
       <span style={{ fontSize: 11, fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>
-      <div style={{ fontSize: 14, color: "#111827", marginTop: 2 }}>{value}</div>
+      <div style={{ fontSize: 14, color: "#F9FAFB", marginTop: 2 }}>{value}</div>
     </div>
   );
 }
@@ -2632,7 +2632,7 @@ function UserReviewPanel({ token, entityId, entityType, onBack }) {
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 4 }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                <h2 style={{ margin: 0, fontSize: 22, color: "#111827" }}>{detail.name || "—"}</h2>
+                <h2 style={{ margin: 0, fontSize: 22, color: "#F9FAFB" }}>{detail.name || "—"}</h2>
                 <span style={{
                   background: entityType === "driver" ? "#DBEAFE" : "#EDE9FE",
                   color: entityType === "driver" ? "#1D4ED8" : "#7C3AED",
