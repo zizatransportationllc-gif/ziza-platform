@@ -1,0 +1,184 @@
+name: Deploy Prod (GCP Cloud Run)
+
+# ---------------------------------------------------------------------------
+# PRODUCTION deployment. Triggered by pushing a release tag (vX.Y.Z), never on
+# push to main. Deploys ENVIRONMENT=prod services suffixed "-prod", isolated
+# from the dev services in the same project.
+#
+# PREREQUISITES (must exist before the first run — see
+# docs/plans/2026-06-11-phase2-prod-groundwork.md):
+#   Secret Manager (accessible by the deployer SA):
+#     - ziza-prod-jwt-secret        (>= 32 bytes)
+#     - ziza-prod-admin-code
+#     - ziza-prod-database-url       (created with the prod Cloud SQL instance)
+#   Repo variables (Settings → Actions → Variables):
+#     - FIREBASE_PROJECT_ID_PROD     (required: prod boots with ENVIRONMENT=prod)
+#     - ZIZA_CORS_ORIGINS_PROD
+#     - CLOUD_SQL_INSTANCE_PROD      (connection name proj:region:instance)
+#     - ZIZA_API_URL_PROD            (set after the first API deploy)
+#     - VITE_MAPBOX_TOKEN
+#   The prod Cloud SQL instance (ziza-db-prod) is provisioned just before the
+#   first go-live (deferred to keep costs at zero until auth is ready).
+# ---------------------------------------------------------------------------
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  GCP_REGION: us-central1
+  AR_REPO: ziza
+
+jobs:
+  # Step 0: deploy gate — backend tests must pass before any prod build/deploy.
+  test-gate:
+    name: Backend tests (deploy gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+      - name: Install dependencies
+        working-directory: apps/api
+        run: pip install -r requirements.txt
+      - name: Run pytest
+        working-directory: apps/api
+        run: pytest
+
+  # Step 1: build & push prod images
+  build-push:
+    name: Build & push ${{ matrix.app }}
+    needs: test-gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [api, web-customer, web-driver, web-admin, web-landing, web-craft]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Auth GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+      - name: Configure docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+      - name: Build & push image
+        run: |
+          IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/${{ matrix.app }}:${GITHUB_REF_NAME}"
+          IMAGE_PROD="${{ env.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/${{ matrix.app }}:prod"
+
+          if [ "${{ matrix.app }}" = "web-customer" ] || [ "${{ matrix.app }}" = "web-driver" ] || [ "${{ matrix.app }}" = "web-admin" ]; then
+            BUILD_ARGS="--build-arg VITE_API_URL=${{ vars.ZIZA_API_URL_PROD }} --build-arg VITE_MAPBOX_TOKEN=${{ vars.VITE_MAPBOX_TOKEN }}"
+          elif [ "${{ matrix.app }}" = "web-craft" ]; then
+            BUILD_ARGS="--build-arg VITE_API_URL=${{ vars.ZIZA_API_URL_PROD }}"
+          else
+            BUILD_ARGS=""
+          fi
+
+          docker build $BUILD_ARGS -t "$IMAGE" -t "$IMAGE_PROD" apps/${{ matrix.app }}
+          docker push "$IMAGE"
+          docker push "$IMAGE_PROD"
+
+  # Step 2: DB migrations against the prod Cloud SQL instance
+  migrate:
+    name: DB migrations (alembic)
+    needs: build-push
+    runs-on: ubuntu-latest
+    if: vars.CLOUD_SQL_INSTANCE_PROD != ''
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Auth GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+      - name: Run alembic upgrade via Cloud Run Job
+        run: |
+          IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/api:${GITHUB_REF_NAME}"
+          JOB_NAME="ziza-migrate-prod-${GITHUB_SHA::7}"
+          gcloud run jobs create "$JOB_NAME" \
+            --image="$IMAGE" \
+            --region="${{ env.GCP_REGION }}" \
+            --command="alembic" \
+            --args="upgrade,head" \
+            --update-secrets="DATABASE_URL=ziza-prod-database-url:latest" \
+            --set-cloudsql-instances="${{ vars.CLOUD_SQL_INSTANCE_PROD }}" \
+            --max-retries=1 \
+            --task-timeout=120 \
+            --quiet
+          gcloud run jobs execute "$JOB_NAME" --region="${{ env.GCP_REGION }}" --wait --quiet
+          gcloud run jobs delete "$JOB_NAME" --region="${{ env.GCP_REGION }}" --quiet || true
+
+  # Step 3: deploy prod services
+  deploy:
+    name: Deploy ${{ matrix.app }}-prod
+    needs: [build-push, migrate]
+    if: always() && needs.build-push.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [api, web-customer, web-driver, web-admin, web-landing, web-craft]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Auth GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+      - name: Deploy to Cloud Run
+        run: |
+          SERVICE="ziza-${{ matrix.app }}-prod"
+          IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/${{ matrix.app }}:${GITHUB_REF_NAME}"
+
+          FLAGS=(
+            "--image=$IMAGE"
+            "--region=${{ env.GCP_REGION }}"
+            "--platform=managed"
+            "--allow-unauthenticated"
+            "--port=8080"
+            "--cpu=1"
+            "--memory=512Mi"
+            "--min-instances=0"
+            "--max-instances=2"
+          )
+
+          if [ "${{ matrix.app }}" = "api" ]; then
+            FLAGS+=("--service-account=${{ vars.GCP_SERVICE_ACCOUNT }}")
+            # ENVIRONMENT=prod -> Firebase identity + own-JWT sessions; password
+            # endpoints are 404. Secrets come from Secret Manager, not env vars.
+            FLAGS+=(
+              "--set-env-vars=^|^ENVIRONMENT=prod|FIREBASE_PROJECT_ID=${{ vars.FIREBASE_PROJECT_ID_PROD }}|CORS_ORIGINS_RAW=${{ vars.ZIZA_CORS_ORIGINS_PROD }}|RATE_LIMIT_ENABLED=true"
+            )
+            FLAGS+=(
+              "--update-secrets=^|^JWT_SECRET=ziza-prod-jwt-secret:latest|ADMIN_SIGNUP_CODE=ziza-prod-admin-code:latest|DATABASE_URL=ziza-prod-database-url:latest"
+            )
+            if [ -n "${{ vars.CLOUD_SQL_INSTANCE_PROD }}" ]; then
+              FLAGS+=("--add-cloudsql-instances=${{ vars.CLOUD_SQL_INSTANCE_PROD }}")
+            fi
+          fi
+
+          gcloud run deploy "$SERVICE" "${FLAGS[@]}"
+          URL=$(gcloud run services describe "$SERVICE" --region="${{ env.GCP_REGION }}" --format="value(status.url)")
+          echo "::notice title=Deployed::$SERVICE → $URL"
