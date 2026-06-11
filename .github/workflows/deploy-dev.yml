@@ -13,10 +13,36 @@ env:
 
 jobs:
   # ------------------------------------------------------------------
+  # Step 0: deploy gate — backend tests MUST pass before anything is
+  # built, migrated, or deployed. A red suite now blocks the deployment.
+  # ------------------------------------------------------------------
+  test-gate:
+    name: Backend tests (deploy gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+
+      - name: Install dependencies
+        working-directory: apps/api
+        run: pip install -r requirements.txt
+
+      - name: Run pytest
+        working-directory: apps/api
+        run: pytest
+
+  # ------------------------------------------------------------------
   # Step 1: build and push images for all apps in parallel
   # ------------------------------------------------------------------
   build-push:
     name: Build & push ${{ matrix.app }}
+    needs: test-gate
     runs-on: ubuntu-latest
     permissions:
       contents: read
