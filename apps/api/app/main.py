@@ -1344,6 +1344,11 @@ class AdminUserRecord(BaseModel):
     role: str
     provider: str
     created_at: str
+    name: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    date_of_birth: str | None = None
+    phone: str | None = None
 
 
 @app.get("/v1/admin/users", tags=["admin"])

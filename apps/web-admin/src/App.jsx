@@ -570,13 +570,28 @@ function DriversPanel({ token }) {
 const ROLE_COLORS = { admin: "role-admin", driver: "role-driver", customer: "role-customer" };
 
 function UserRow({ u }) {
+  const displayName = (u.first_name || u.last_name)
+    ? [u.first_name, u.last_name].filter(Boolean).join(" ")
+    : (u.name || null);
   return (
     <div className="user-row">
       <div className="user-row-main">
         <span className={`user-role-badge ${ROLE_COLORS[u.role] ?? ""}`}>{u.role}</span>
         <span className="user-email">{u.email}</span>
+        {displayName && <span style={{ fontSize: 13, color: "#374151", fontWeight: 500 }}>{displayName}</span>}
       </div>
       <div className="user-row-meta">
+        {u.first_name && (
+          <span style={{ fontSize: 12, color: "#6B7280" }}>
+            {u.first_name} {u.last_name || ""}
+          </span>
+        )}
+        {u.date_of_birth && (
+          <span style={{ fontSize: 12, color: "#6B7280" }}>🎂 {u.date_of_birth}</span>
+        )}
+        {u.phone && (
+          <span style={{ fontSize: 12, color: "#6B7280" }}>📞 {u.phone}</span>
+        )}
         <span className="user-provider">{u.provider}</span>
         <span className="user-date">{new Date(u.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" })}</span>
       </div>
@@ -589,10 +604,11 @@ function UserRow({ u }) {
 // ---------------------------------------------------------------------------
 
 const USER_ROLES = [
-  { value: "",         label: "All roles" },
-  { value: "admin",    label: "Admin" },
-  { value: "driver",   label: "Driver" },
-  { value: "customer", label: "Customer" },
+  { value: "",             label: "All roles" },
+  { value: "admin",        label: "Admin" },
+  { value: "driver",       label: "Driver" },
+  { value: "customer",     label: "Customer" },
+  { value: "professional", label: "Professional" },
 ];
 
 function UsersPanel({ token }) {
@@ -3026,7 +3042,7 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "users"        && <UsersPanel          token={token} />}
       {activeTab === "craft"        && <CraftPanel          token={token} />}
 
-      <p className="footer">App: <strong>web-admin</strong> · Sprint 65 — Identity Fields</p>
+      <p className="footer">App: <strong>web-admin</strong> · Sprint 65 — User Identity Fields</p>
     </div>
   );
 }

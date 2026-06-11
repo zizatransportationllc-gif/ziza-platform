@@ -1272,6 +1272,11 @@ async def admin_list_users(
             "user_id": u.user_id,
             "email": u.email,
             "role": u.role,
+            "name": u.name,
+            "first_name": u.first_name,
+            "last_name": u.last_name,
+            "date_of_birth": u.date_of_birth,
+            "phone": u.phone,
             "provider": u.provider,
             "created_at": u.created_at.isoformat(),
         }
