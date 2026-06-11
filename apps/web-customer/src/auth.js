@@ -36,6 +36,22 @@ export async function signInWithGoogle() {
   return result.user.getIdToken();
 }
 
+/** Create a Firebase account with email/password. Returns the Firebase ID token. */
+export async function signUpEmail(email, password) {
+  const { createUserWithEmailAndPassword } = await import("firebase/auth");
+  const auth = await getFirebaseAuth();
+  const cred = await createUserWithEmailAndPassword(auth, email, password);
+  return cred.user.getIdToken();
+}
+
+/** Sign in with an existing Firebase email/password. Returns the Firebase ID token. */
+export async function signInEmail(email, password) {
+  const { signInWithEmailAndPassword } = await import("firebase/auth");
+  const auth = await getFirebaseAuth();
+  const cred = await signInWithEmailAndPassword(auth, email, password);
+  return cred.user.getIdToken();
+}
+
 /** Sign out of Firebase. */
 export async function firebaseSignOut() {
   if (!_auth) return;

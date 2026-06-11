@@ -18,6 +18,28 @@ export async function login(email, password) {
   return res.json(); // { access_token, token_type }
 }
 
+// Sprint 66 — exchange a Firebase ID token for a Ziza JWT (+ refresh token).
+// Used when Firebase auth is configured (VITE_FIREBASE_API_KEY present).
+export async function exchangeFirebaseToken(idToken, { firstName, lastName, birthDate, phone } = {}) {
+  const res = await fetch(`${API_BASE}/v1/auth/firebase`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id_token: idToken,
+      role: "customer",
+      first_name: firstName || null,
+      last_name: lastName || null,
+      date_of_birth: birthDate || null,
+      phone: phone || null,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Authentication failed (${res.status})`);
+  }
+  return res.json(); // { access_token, token_type, expires_in, refresh_token }
+}
+
 export async function fetchMe(token) {
   const res = await fetch(`${API_BASE}/v1/me`, {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
