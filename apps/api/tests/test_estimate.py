@@ -34,22 +34,29 @@ def test_haversine_route_applies_road_factor() -> None:
 
 
 def test_calculate_fare_minimum() -> None:
-    # Very short distance → minimum fare applies
-    fare = calculate_fare(0.0, surge=1.0)
-    assert fare == 500  # base fare = fare_base_xof default
+    # Very short distance → minimum (base) fare applies. USD cents.
+    fare = calculate_fare(0.0, 250, 175, surge=1.0)
+    assert fare == 250  # base fare in cents ($2.50)
 
 
 def test_calculate_fare_longer_trip() -> None:
-    # 10 km trip: 500 + 10 × 150 = 2 000 XOF
-    fare = calculate_fare(10.0, surge=1.0)
-    assert fare == 2_000
+    # 10 km ≈ 6.214 miles: 250 + miles × 175 cents
+    from app.pricing import _KM_PER_MILE  # noqa: PLC0415
+    miles = 10.0 / _KM_PER_MILE
+    expected = round(250 + miles * 175)
+    fare = calculate_fare(10.0, 250, 175, surge=1.0)
+    assert fare == expected
+    assert fare > 250
 
 
 def test_calculate_fare_surge() -> None:
-    # surge × 2
-    normal = calculate_fare(10.0, surge=1.0)
-    surged = calculate_fare(10.0, surge=2.0)
-    assert surged == normal * 2
+    from app.pricing import _KM_PER_MILE  # noqa: PLC0415
+    miles = 10.0 / _KM_PER_MILE
+    normal = calculate_fare(10.0, 250, 175, surge=1.0)
+    surged = calculate_fare(10.0, 250, 175, surge=2.0)
+    assert surged > normal
+    # surge scales the (base + distance) amount by 2× (allowing for rounding)
+    assert surged == max(250, round((250 + miles * 175) * 2))
 
 
 # ---------------------------------------------------------------------------
@@ -76,8 +83,8 @@ def test_estimate_returns_fare() -> None:
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["currency"] == "XOF"
-    assert body["fare_xof"] >= 500          # at least minimum fare
+    assert body["currency"] == "USD"
+    assert body["fare_xof"] >= 250          # at least minimum (base) fare, USD cents
     assert body["distance_km"] > 0
     assert body["duration_min"] >= 1
     assert body["estimate_id"]              # UUID string
@@ -130,4 +137,4 @@ def test_estimate_same_origin_dest() -> None:
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
-    assert resp.json()["fare_xof"] == 500
+    assert resp.json()["fare_xof"] == 250

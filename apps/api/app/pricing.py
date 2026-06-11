@@ -1,13 +1,18 @@
-"""Pricing engine — Sprint 5.
+"""Pricing engine — Sprint 5 (USD/cents since Sprint 66).
 
-Fare calculation for rides in West Africa (currency: XOF).
+Fare calculation for rides. **Base currency: USD; all amounts are integer
+cents.** The per-distance rate is priced **per mile** (distance is computed in
+km internally and converted to miles for the fare).
 
 Distance sources (in priority order):
   1. Google Maps Distance Matrix API  — if GOOGLE_MAPS_API_KEY is set
   2. Haversine straight-line × 1.3 road-factor fallback (no API key needed)
 
 Fare formula:
-  fare = max(base_fare, round((base_fare + distance_km × per_km_rate) × surge))
+  miles = distance_km / 1.609344
+  fare_cents = max(base_fare_cents, round((base_fare_cents + miles × per_mile_cents) × surge))
+
+base_fare_cents and per_mile_cents are admin-configurable (see crud.get_pricing).
 """
 from __future__ import annotations
 
@@ -117,10 +122,24 @@ def _haversine_route(
 # Fare calculation
 # ---------------------------------------------------------------------------
 
-def calculate_fare(distance_km: float, surge: float = 1.0) -> int:
-    """Return fare in XOF (West African CFA Franc).
+_KM_PER_MILE = 1.609344
 
-    Formula: max(base_fare, round((base_fare + distance_km × per_km) × surge))
+
+def calculate_fare(
+    distance_km: float,
+    base_fare_cents: int,
+    per_mile_cents: int,
+    surge: float = 1.0,
+) -> int:
+    """Return the fare in USD cents (integer).
+
+    ``base_fare_cents`` and ``per_mile_cents`` are supplied by the caller (read
+    from the admin-configurable platform settings; see crud.get_pricing).
+
+    Formula::
+        miles = distance_km / 1.609344
+        fare  = max(base_fare_cents, round((base_fare_cents + miles × per_mile_cents) × surge))
     """
-    raw = (settings.fare_base_xof + distance_km * settings.fare_per_km_xof) * surge
-    return max(settings.fare_base_xof, round(raw))
+    miles = distance_km / _KM_PER_MILE
+    raw = (base_fare_cents + miles * per_mile_cents) * surge
+    return max(base_fare_cents, round(raw))
