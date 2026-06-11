@@ -14,7 +14,8 @@ import {
   Platform,
   ScrollView,
 } from "react-native";
-import { login as apiLogin, signup as apiSignup } from "../api";
+import { login as apiLogin, signup as apiSignup, exchangeFirebaseToken as apiExchangeFirebase } from "../api";
+import { firebaseEnabled, signInEmail, signUpEmail } from "../auth";
 import { useAuth } from "../context/AuthContext";
 import ZizaDriverLogo from "../components/ZizaDriverLogo";
 
@@ -44,7 +45,9 @@ export default function LoginScreen(): React.ReactElement {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiLogin(email, password);
+      const data = firebaseEnabled
+        ? await apiExchangeFirebase(await signInEmail(email, password))
+        : await apiLogin(email, password);
       await login(data.access_token, data.refresh_token ?? null);
     } catch (e: any) {
       setError(e.message || "Login failed");
@@ -63,7 +66,9 @@ export default function LoginScreen(): React.ReactElement {
     if (suPassword !== suConfirm) { setError("Passwords do not match"); return; }
     setLoading(true);
     try {
-      const data = await apiSignup(suEmail.trim(), suPassword, suFirstName.trim(), suLastName.trim(), suBirthDate.trim(), suPhone || null);
+      const data = firebaseEnabled
+        ? await apiExchangeFirebase(await signUpEmail(suEmail.trim(), suPassword), { firstName: suFirstName.trim(), lastName: suLastName.trim(), birthDate: suBirthDate.trim(), phone: suPhone || null })
+        : await apiSignup(suEmail.trim(), suPassword, suFirstName.trim(), suLastName.trim(), suBirthDate.trim(), suPhone || null);
       await login(data.access_token, data.refresh_token ?? null);
     } catch (e: any) {
       setError(e.message || "Sign-up failed");

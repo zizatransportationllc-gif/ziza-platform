@@ -183,6 +183,28 @@ export async function signup(
   return data;
 }
 
+/** Sprint 66 — exchange a Firebase ID token for a Ziza JWT (role: professional). */
+export async function exchangeFirebaseToken(
+  idToken: string,
+  opts: { firstName?: string; lastName?: string; birthDate?: string; phone?: string | null } = {}
+): Promise<TokenResponse> {
+  const res = await fetch(`${API_BASE}/v1/auth/firebase`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id_token: idToken,
+      role: "professional",
+      first_name: opts.firstName || null,
+      last_name: opts.lastName || null,
+      date_of_birth: opts.birthDate || null,
+      phone: opts.phone || null,
+    }),
+  });
+  const data = await _json<TokenResponse>(res);
+  await storeTokenPair(data.access_token, data.refresh_token);
+  return data;
+}
+
 export async function logout(token: string): Promise<void> {
   const refreshToken = await getStoredRefreshToken();
   await fetch(`${API_BASE}/v1/auth/logout`, {
