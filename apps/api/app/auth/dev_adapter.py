@@ -48,7 +48,7 @@ class DevAdapter(AuthAdapter):
             "iat": now,
             "exp": now + timedelta(minutes=settings.jwt_access_ttl_min),
         }
-        return jwt.encode(payload, settings.auth_dev_secret, algorithm=_ALGORITHM)
+        return jwt.encode(payload, settings.jwt_secret, algorithm=_ALGORITHM)
 
     # ------------------------------------------------------------------
     # Token issuance (only called from POST /v1/token)
@@ -98,7 +98,7 @@ class DevAdapter(AuthAdapter):
         try:
             payload = jwt.decode(
                 token,
-                settings.auth_dev_secret,
+                settings.jwt_secret,
                 algorithms=[_ALGORITHM],
             )
         except jwt.ExpiredSignatureError:

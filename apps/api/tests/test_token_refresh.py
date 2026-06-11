@@ -63,7 +63,7 @@ def test_expired_token_returns_401():
 
     signing_input = f"{header}.{payload}".encode()
     sig = _hmac.new(
-        settings.auth_dev_secret.encode(), signing_input, hashlib.sha256
+        settings.jwt_secret.encode(), signing_input, hashlib.sha256
     ).digest()
     signature = base64.urlsafe_b64encode(sig).rstrip(b"=").decode()
 

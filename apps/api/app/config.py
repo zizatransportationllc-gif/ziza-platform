@@ -2,6 +2,7 @@
 
 All settings are env-driven so dev/prod parity is preserved.
 """
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,7 +28,10 @@ class Settings(BaseSettings):
     # DEV auth (Sprint 2)
     # ------------------------------------------------------------------
     # Secret used to sign/verify dev JWTs.  Override in .env for local dev.
-    auth_dev_secret: str = "dev-secret-change-in-env"
+    jwt_secret: str = Field(
+        default="dev-secret-change-in-env",
+        validation_alias=AliasChoices("JWT_SECRET", "AUTH_DEV_SECRET"),
+    )
     # Shared password for all seeded dev users.
     auth_dev_password: str = "ziza2024"
     # Token TTL in hours (kept for backward compat; overridden by jwt_access_ttl_min).
@@ -155,6 +159,13 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     # Maximum radius (km) for dispatch filtering when driver has a position.
     dispatch_radius_km: float = 15.0
+
+    def model_post_init(self, __context) -> None:
+        if self.environment == "prod":
+            if not self.jwt_secret or self.jwt_secret == "dev-secret-change-in-env":
+                raise ValueError("JWT_SECRET must be set to a non-default value in prod")
+            if not self.firebase_project_id:
+                raise ValueError("FIREBASE_PROJECT_ID is required in prod")
 
 
 settings = Settings()
