@@ -77,7 +77,7 @@ Expiration de l'access token → `POST /v1/auth/refresh` (existant, **inchangé*
 
 ## 9. Suivi / durcissement avant go-live (découvert pendant l'implémentation)
 
-- **🔴 Sécurité — match par email non vérifié.** Dans `POST /v1/auth/firebase`, le fallback de résolution d'utilisateur par email (`crud.get_user_by_email`) ne vérifie pas `email_verified`. Un compte Firebase email/password avec un email **non vérifié** pourrait matcher un compte DB existant → **prise de contrôle de compte**. Mitigé en pratique : la migration (Task 14) mappe par `uid`, donc le fallback email est un filet. **À durcir avant go-live** : exposer `email_verified` dans `FirebaseAdapter.verify` (claims) et n'autoriser le match par email que si l'email est vérifié.
+- **✅ Sécurité — match par email non vérifié (RÉSOLU, commit `2f78cad`).** `POST /v1/auth/firebase` résout désormais l'identité par `uid` (autoritaire) ; en cas de collision d'email (email unique en DB), il ne lie le compte que si Firebase atteste l'email (`email_verified`), sinon **403** propre. Bloque la prise de contrôle de compte et évite la violation de contrainte unique (500). `email_verified` est exposé dans `Claims`/`FirebaseAdapter.verify`. Couvert par `test_unverified_email_collision_rejected` + `test_verified_email_links_existing_account`.
 - **Flux Google web** : jamais exécuté en conditions réelles → vérification end-to-end dédiée avec un vrai projet Firebase.
 
 ## 10. Hors périmètre Phase 0 (phases suivantes)
