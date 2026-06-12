@@ -178,6 +178,23 @@ export async function getMyBids(token, limit = 20, offset = 0) {
   return _json(res);
 }
 
+// Sprint 66 — in-app messaging on a craft request (professional ↔ customer)
+export async function listRequestMessages(token, requestId) {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/messages`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
+export async function sendRequestMessage(token, requestId, body) {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ body }),
+  });
+  return _json(res);
+}
+
 // ---------------------------------------------------------------------------
 // Documents (KYC) — reuses driver docs endpoint
 // ---------------------------------------------------------------------------

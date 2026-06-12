@@ -13,6 +13,7 @@ import {
   searchPlaces, // Sprint 43
   checkPointInService, // Sprint 45
   createCraftRequest, getMyCraftRequests, getCraftRequestBids, selectCraftBid, cancelCraftRequest, // Sprint 48
+  listRequestMessages, sendRequestMessage, // Sprint 66
   submitDocument, listMyDocuments, // Sprint 53
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, firebaseSignOut } from "./auth";
@@ -1634,6 +1635,58 @@ const CRAFT_STATUS_LABELS = {
   cancelled:      "✗ Cancelled",
 };
 
+// Chat panel for a craft request conversation — Sprint 66 (polling 3s)
+function RequestChatPanel({ token, requestId, accent = "#F97316" }) {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState(null);
+  const endRef = useRef(null);
+
+  useEffect(() => {
+    let active = true;
+    const load = () => listRequestMessages(token, requestId).then((m) => { if (active) setMessages(m); }).catch(() => {});
+    load();
+    const iv = setInterval(load, 3000);
+    return () => { active = false; clearInterval(iv); };
+  }, [token, requestId]);
+
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length]);
+
+  async function handleSend(e) {
+    e.preventDefault();
+    const body = input.trim();
+    if (!body) return;
+    setSending(true); setError(null);
+    try {
+      const msg = await sendRequestMessage(token, requestId, body);
+      setMessages((prev) => [...prev, msg]);
+      setInput("");
+    } catch (err) { setError(err.message); }
+    finally { setSending(false); }
+  }
+
+  return (
+    <div style={{ marginTop: 12, border: "1px solid #e5e7eb", borderRadius: 12, overflow: "hidden", background: "#fff" }}>
+      <div style={{ padding: "8px 12px", background: "#f9fafb", borderBottom: "1px solid #e5e7eb", fontWeight: 700, fontSize: 14 }}>💬 Chat with your professional</div>
+      <div style={{ maxHeight: 220, overflowY: "auto", padding: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+        {messages.length === 0 && <p style={{ color: "#9ca3af", fontSize: 13, textAlign: "center" }}>No messages yet. Say hello 👋</p>}
+        {messages.map((m) => (
+          <div key={m.message_id} style={{ alignSelf: m.mine ? "flex-end" : "flex-start", maxWidth: "78%", padding: "7px 11px", borderRadius: 14, fontSize: 14, background: m.mine ? accent : "#f1f5f9", color: m.mine ? "#fff" : "#111827" }}>
+            {m.body}
+          </div>
+        ))}
+        <div ref={endRef} />
+      </div>
+      <form onSubmit={handleSend} style={{ display: "flex", gap: 6, padding: 8, borderTop: "1px solid #e5e7eb" }}>
+        <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type a message…" maxLength={4000} style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 14 }} />
+        <button type="submit" disabled={sending || !input.trim()} style={{ background: accent, color: "#fff", border: "none", borderRadius: 8, padding: "0 14px", fontWeight: 600, cursor: "pointer" }}>Send</button>
+      </form>
+      {error && <p className="form-error" style={{ padding: "0 10px 8px" }}>{error}</p>}
+    </div>
+  );
+}
+
 // Bids view for a single craft request
 function CraftBidsView({ token, request, onBack }) {
   const [bids, setBids] = useState([]);
@@ -1705,6 +1758,9 @@ function CraftBidsView({ token, request, onBack }) {
           </div>
         ))}
       </div>
+      {(success || bids.some((b) => b.status === "accepted")) && (
+        <RequestChatPanel token={token} requestId={request.request_id} accent="#F97316" />
+      )}
     </div>
   );
 }
