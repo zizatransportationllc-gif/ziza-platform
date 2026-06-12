@@ -397,3 +397,20 @@ export async function updateProfile(token, fields) {
   });
   return _json(res);
 }
+
+// Sprint 66 — in-app messaging (driver ↔ customer)
+export async function listTripMessages(token, tripId) {
+  const res = await fetch(`${API_BASE}/v1/trips/${tripId}/messages`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
+export async function sendTripMessage(token, tripId, body) {
+  const res = await fetch(`${API_BASE}/v1/trips/${tripId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ body }),
+  });
+  return _json(res);
+}

@@ -6,6 +6,7 @@ import {
   listNotifications, getUnreadCount, markAllRead,
   listPlaces, createPlace, updatePlace, deletePlace,
   listCategories, getTripEta, getTripTracking,
+  listTripMessages, sendTripMessage,
   createPaymentIntent, getTripPayment, simulatePayment,
   registerDeviceToken,
   submitApplication, getApplicationStatus, // Sprint 30
@@ -700,6 +701,61 @@ function PaymentSection({ token, tripId, fareXof }) {
 
 
 // ---------------------------------------------------------------------------
+// Chat panel — Sprint 66 (in-app messaging, polling every 3s)
+// ---------------------------------------------------------------------------
+
+function ChatPanel({ token, tripId, accent = "#F97316" }) {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState(null);
+  const endRef = useRef(null);
+
+  useEffect(() => {
+    let active = true;
+    const load = () => listTripMessages(token, tripId).then((m) => { if (active) setMessages(m); }).catch(() => {});
+    load();
+    const iv = setInterval(load, 3000);
+    return () => { active = false; clearInterval(iv); };
+  }, [token, tripId]);
+
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length]);
+
+  async function handleSend(e) {
+    e.preventDefault();
+    const body = input.trim();
+    if (!body) return;
+    setSending(true); setError(null);
+    try {
+      const msg = await sendTripMessage(token, tripId, body);
+      setMessages((prev) => [...prev, msg]);
+      setInput("");
+    } catch (err) { setError(err.message); }
+    finally { setSending(false); }
+  }
+
+  return (
+    <div style={{ marginTop: 12, border: "1px solid #e5e7eb", borderRadius: 12, overflow: "hidden", background: "#fff" }}>
+      <div style={{ padding: "8px 12px", background: "#f9fafb", borderBottom: "1px solid #e5e7eb", fontWeight: 700, fontSize: 14 }}>💬 Chat</div>
+      <div style={{ maxHeight: 220, overflowY: "auto", padding: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+        {messages.length === 0 && <p style={{ color: "#9ca3af", fontSize: 13, textAlign: "center" }}>No messages yet. Say hello 👋</p>}
+        {messages.map((m) => (
+          <div key={m.message_id} style={{ alignSelf: m.mine ? "flex-end" : "flex-start", maxWidth: "78%", padding: "7px 11px", borderRadius: 14, fontSize: 14, background: m.mine ? accent : "#f1f5f9", color: m.mine ? "#fff" : "#111827" }}>
+            {m.body}
+          </div>
+        ))}
+        <div ref={endRef} />
+      </div>
+      <form onSubmit={handleSend} style={{ display: "flex", gap: 6, padding: 8, borderTop: "1px solid #e5e7eb" }}>
+        <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type a message…" maxLength={4000} style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 14 }} />
+        <button type="submit" disabled={sending || !input.trim()} style={{ background: accent, color: "#fff", border: "none", borderRadius: 8, padding: "0 14px", fontWeight: 600, cursor: "pointer" }}>Send</button>
+      </form>
+      {error && <p className="form-error" style={{ padding: "0 10px 8px" }}>{error}</p>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Booking status card — shows trip state + cancel + 5-second polling
 // ---------------------------------------------------------------------------
 
@@ -826,6 +882,9 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
           </div>
         )}
       </div>
+      {(trip.status === "accepted" || trip.status === "in_progress") && (
+        <ChatPanel token={token} tripId={trip.trip_id} accent="#F97316" />
+      )}
       {error && <p className="form-error">{error}</p>}
       {canCancel && (
         <button className="cancel-btn" onClick={handleCancel} disabled={cancelling}>
