@@ -2297,6 +2297,92 @@ async def admin_professional_summary(
 
 
 # ---------------------------------------------------------------------------
+# In-app messaging — Sprint 66 (trip & craft-request conversations, polling)
+# ---------------------------------------------------------------------------
+
+def _parse_uuid(value: str) -> uuid.UUID:
+    try:
+        return uuid.UUID(value)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid id format")
+
+
+class MessageSendRequest(BaseModel):
+    body: str = Field(..., min_length=1, max_length=4000)
+
+
+class MessageRecord(BaseModel):
+    message_id: str
+    sender_role: str
+    body: str
+    created_at: str
+    read: bool
+    mine: bool
+
+
+@app.post("/v1/trips/{trip_id}/messages", tags=["messaging"], status_code=201)
+async def send_trip_message(
+    trip_id: str,
+    body: MessageSendRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MessageRecord:
+    """Send a message in a ride conversation (customer ↔ assigned driver)."""
+    msg = await crud.send_message(
+        db, sender_auth_id=claims.user_id, sender_role=claims.role,
+        body=body.body, trip_id=_parse_uuid(trip_id),
+    )
+    return MessageRecord(**msg)
+
+
+@app.get("/v1/trips/{trip_id}/messages", tags=["messaging"])
+async def list_trip_messages(
+    trip_id: str,
+    limit: int = 50,
+    offset: int = 0,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[MessageRecord]:
+    """List a ride conversation (participants or admin). Marks incoming as read."""
+    msgs = await crud.list_messages(
+        db, requester_auth_id=claims.user_id, requester_role=claims.role,
+        trip_id=_parse_uuid(trip_id), limit=limit, offset=offset,
+    )
+    return [MessageRecord(**m) for m in msgs]
+
+
+@app.post("/v1/craft/requests/{request_id}/messages", tags=["messaging"], status_code=201)
+async def send_request_message(
+    request_id: str,
+    body: MessageSendRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MessageRecord:
+    """Send a message in an intervention conversation (customer ↔ professional)."""
+    msg = await crud.send_message(
+        db, sender_auth_id=claims.user_id, sender_role=claims.role,
+        body=body.body, craft_request_id=_parse_uuid(request_id),
+    )
+    return MessageRecord(**msg)
+
+
+@app.get("/v1/craft/requests/{request_id}/messages", tags=["messaging"])
+async def list_request_messages(
+    request_id: str,
+    limit: int = 50,
+    offset: int = 0,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[MessageRecord]:
+    """List an intervention conversation (participants or admin)."""
+    msgs = await crud.list_messages(
+        db, requester_auth_id=claims.user_id, requester_role=claims.role,
+        craft_request_id=_parse_uuid(request_id), limit=limit, offset=offset,
+    )
+    return [MessageRecord(**m) for m in msgs]
+
+
+# ---------------------------------------------------------------------------
 # Notifications — Sprint 18
 # ---------------------------------------------------------------------------
 
