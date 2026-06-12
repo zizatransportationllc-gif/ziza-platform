@@ -10,7 +10,10 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://ziza-api-kygd4csdiq-uc.a.run.app"
+        "EXPO_PUBLIC_API_URL": "https://ziza-api-kygd4csdiq-uc.a.run.app",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCv2PZ03w-zBqQ4p2D2b6oVwBga06WG69c",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "ziza-platform.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "ziza-platform"
       }
     },
     "preview": {
@@ -19,7 +22,10 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://ziza-api-kygd4csdiq-uc.a.run.app"
+        "EXPO_PUBLIC_API_URL": "https://ziza-api-kygd4csdiq-uc.a.run.app",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCv2PZ03w-zBqQ4p2D2b6oVwBga06WG69c",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "ziza-platform.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "ziza-platform"
       }
     },
     "production": {
@@ -27,7 +33,10 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://ziza-api-kygd4csdiq-uc.a.run.app"
+        "EXPO_PUBLIC_API_URL": "https://ziza-api-kygd4csdiq-uc.a.run.app",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCv2PZ03w-zBqQ4p2D2b6oVwBga06WG69c",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "ziza-platform.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "ziza-platform"
       }
     }
   },
