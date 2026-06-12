@@ -681,3 +681,44 @@ export async function listMyDocuments(token: string): Promise<DocumentResponse[]
   });
   return _json<DocumentResponse[]>(res);
 }
+
+// ---------------------------------------------------------------------------
+// In-app messaging — Sprint 66
+// ---------------------------------------------------------------------------
+
+export interface ChatMessage {
+  message_id: string;
+  sender_role: string;
+  body: string;
+  created_at: string;
+  read: boolean;
+  mine: boolean;
+}
+
+export async function listTripMessages(token: string, tripId: string): Promise<ChatMessage[]> {
+  const res = await fetch(`${API_BASE}/v1/trips/${tripId}/messages`, { headers: _auth(token) });
+  return _json<ChatMessage[]>(res);
+}
+
+export async function sendTripMessage(token: string, tripId: string, body: string): Promise<ChatMessage> {
+  const res = await fetch(`${API_BASE}/v1/trips/${tripId}/messages`, {
+    method: "POST",
+    headers: { ..._auth(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ body }),
+  });
+  return _json<ChatMessage>(res);
+}
+
+export async function listRequestMessages(token: string, requestId: string): Promise<ChatMessage[]> {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/messages`, { headers: _auth(token) });
+  return _json<ChatMessage[]>(res);
+}
+
+export async function sendRequestMessage(token: string, requestId: string, body: string): Promise<ChatMessage> {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/messages`, {
+    method: "POST",
+    headers: { ..._auth(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ body }),
+  });
+  return _json<ChatMessage>(res);
+}

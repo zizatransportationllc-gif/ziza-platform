@@ -14,6 +14,7 @@ import { useTracking } from "../hooks/useTracking";
 import { createPaymentIntent } from "../api";
 import TrackingMap from "../components/TrackingMap";
 import EtaCard from "../components/EtaCard";
+import ChatPanel from "../components/ChatPanel";
 
 type TrackingRouteProp = RouteProp<RootStackParamList, "Tracking">;
 type TrackingNavProp = NativeStackNavigationProp<RootStackParamList, "Tracking">;
@@ -61,6 +62,9 @@ export default function TrackingScreen(): React.ReactElement {
         <Text style={styles.status}>Status: {trip?.status ?? "…"}</Text>
         {trip?.eta_minutes != null && (
           <EtaCard etaMinutes={trip.eta_minutes} />
+        )}
+        {token && (trip?.status === "accepted" || trip?.status === "in_progress") && (
+          <ChatPanel token={token} scope="trip" id={tripId} accent="#F97316" />
         )}
         {trip?.status === "completed" && (
           <TouchableOpacity

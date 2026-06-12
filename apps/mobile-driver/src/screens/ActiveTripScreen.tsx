@@ -15,6 +15,7 @@ import { useRoute, RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { useAuth } from "../context/AuthContext";
 import ActiveTripActions from "../components/ActiveTripActions";
+import ChatPanel from "../components/ChatPanel";
 import { startTrip, completeTrip, buildNavigationUrl, TripResponse } from "../api";
 
 type ActiveTripRouteProp = RouteProp<RootStackParamList, "ActiveTrip">;
@@ -83,6 +84,10 @@ export default function ActiveTripScreen(): React.ReactElement {
         onComplete={handleComplete}
         loading={loading}
       />
+
+      {token && (status === "accepted" || status === "in_progress") && (
+        <ChatPanel token={token} tripId={tripId} accent="#2563EB" />
+      )}
     </View>
   );
 }

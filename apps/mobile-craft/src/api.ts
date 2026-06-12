@@ -427,3 +427,30 @@ export function calculateDistanceKm(
       Math.sin(dLng / 2);
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
+
+// ---------------------------------------------------------------------------
+// In-app messaging — Sprint 66 (professional ↔ customer, scoped to a request)
+// ---------------------------------------------------------------------------
+
+export interface ChatMessage {
+  message_id: string;
+  sender_role: string;
+  body: string;
+  created_at: string;
+  read: boolean;
+  mine: boolean;
+}
+
+export async function listRequestMessages(token: string, requestId: string): Promise<ChatMessage[]> {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/messages`, { headers: _auth(token) });
+  return _json<ChatMessage[]>(res);
+}
+
+export async function sendRequestMessage(token: string, requestId: string, body: string): Promise<ChatMessage> {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/messages`, {
+    method: "POST",
+    headers: { ..._auth(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ body }),
+  });
+  return _json<ChatMessage>(res);
+}

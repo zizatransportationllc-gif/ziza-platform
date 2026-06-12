@@ -24,6 +24,7 @@ import {
 import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
+import ChatPanel from "../components/ChatPanel";
 import {
   getBidsForRequest,
   selectCraftBid,
@@ -202,6 +203,11 @@ export default function BidsScreen(): React.ReactElement {
         }
         ListEmptyComponent={
           <Text style={styles.empty}>No bids received yet. Check back soon.</Text>
+        }
+        ListFooterComponent={
+          token && bids.some((b) => b.status === "accepted")
+            ? <ChatPanel token={token} scope="request" id={requestId} accent="#F97316" />
+            : null
         }
         contentContainerStyle={styles.list}
       />
