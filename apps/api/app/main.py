@@ -2243,6 +2243,60 @@ async def admin_get_onboarding_detail(
 
 
 # ---------------------------------------------------------------------------
+# Admin — per-driver history & earnings, per-professional summary (Sprint 66)
+# ---------------------------------------------------------------------------
+
+@app.get("/v1/admin/drivers/{entity_id}/history", tags=["admin"])
+async def admin_driver_history(
+    entity_id: str,
+    limit: int = 20,
+    offset: int = 0,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[DriverTripRecord]:
+    """Admin: a specific driver's completed/cancelled trips, newest first."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    auth_id = await crud.resolve_driver_auth_id(db, entity_id)
+    trips = await crud.list_driver_trip_history(db, auth_id, limit=min(limit, 100), offset=offset)
+    return [
+        DriverTripRecord(
+            trip_id=str(t.id), status=t.status, fare_xof=t.fare_xof,
+            distance_km=t.distance_km, duration_min=t.duration_min,
+            created_at=t.created_at.isoformat(), updated_at=t.updated_at.isoformat(),
+        )
+        for t in trips
+    ]
+
+
+@app.get("/v1/admin/drivers/{entity_id}/earnings", tags=["admin"])
+async def admin_driver_earnings(
+    entity_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Admin: a specific driver's earnings summary (total / today / week)."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    auth_id = await crud.resolve_driver_auth_id(db, entity_id)
+    data = await crud.get_driver_earnings(db, auth_id)
+    data.pop("recent_trips", None)  # ORM Trip objects; use the /history endpoint instead
+    return data
+
+
+@app.get("/v1/admin/professionals/{entity_id}/summary", tags=["admin"])
+async def admin_professional_summary(
+    entity_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Admin: a professional's accepted interventions + total earnings (USD cents)."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return await crud.admin_professional_summary(db, entity_id)
+
+
+# ---------------------------------------------------------------------------
 # Notifications — Sprint 18
 # ---------------------------------------------------------------------------
 

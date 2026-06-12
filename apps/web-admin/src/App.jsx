@@ -18,6 +18,7 @@ import {
   adminGetServices, adminSetService, // Sprint 36
   adminListCraftRequests, adminListProfessionals, adminListBidsForRequest, // Sprint 47
   adminListOnboarding, adminGetOnboardingDetail, // Sprint 57
+  adminGetDriverHistory, adminGetDriverEarnings, adminGetProfessionalSummary, // Sprint 66
   adminSetProfessionalStatus, // Sprint 54 (used in Sprint 57 review panel)
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, firebaseSignOut } from "./auth";
@@ -2532,6 +2533,74 @@ const DOC_STATUS_COLORS = {
   needs_resubmission: { bg: "#FDE8D8", color: "#C05621" },
 };
 
+// Sprint 66 — per-driver history/earnings, per-professional summary (admin)
+function HistoryEarningsSection({ token, entityId, entityType }) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true); setError(null);
+    const load = entityType === "driver"
+      ? Promise.all([
+          adminGetDriverEarnings(token, entityId),
+          adminGetDriverHistory(token, entityId, 20),
+        ]).then(([earnings, history]) => ({ earnings, history }))
+      : adminGetProfessionalSummary(token, entityId).then((summary) => ({ summary }));
+    load.then(setData).catch((e) => setError(e.message)).finally(() => setLoading(false));
+  }, [token, entityId, entityType]);
+
+  if (loading) return <p style={{ color: "#9CA3AF" }}>⏳ Loading…</p>;
+  if (error) return <p className="form-error">{error}</p>;
+  if (!data) return null;
+
+  const cell = { color: "#F9FAFB", fontSize: 14 };
+  const lbl = { color: "#9CA3AF", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em" };
+  const row = { display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #1f2937" };
+  const stats = { display: "flex", gap: 24, marginBottom: 12, flexWrap: "wrap" };
+
+  if (entityType === "driver") {
+    const e = data.earnings || {};
+    const hist = data.history || [];
+    return (
+      <div>
+        <div style={stats}>
+          <div><div style={lbl}>Total earned</div><div style={{ ...cell, fontWeight: 700, fontSize: 20 }}>{formatUSD(e.total_xof ?? 0)}</div></div>
+          <div><div style={lbl}>Trips</div><div style={cell}>{e.total_trips ?? 0}</div></div>
+          <div><div style={lbl}>This week</div><div style={cell}>{formatUSD(e.week_xof ?? 0)}</div></div>
+        </div>
+        {hist.length === 0
+          ? <p style={{ color: "#9CA3AF" }}>No trips yet.</p>
+          : hist.map((t) => (
+              <div key={t.trip_id} style={row}>
+                <span style={cell}>{t.status} · {Number(t.distance_km).toFixed(1)} mi · {t.duration_min} min</span>
+                <span style={{ ...cell, fontWeight: 600 }}>{formatUSD(t.fare_xof)}</span>
+              </div>
+            ))}
+      </div>
+    );
+  }
+
+  const s = data.summary || {};
+  const ivs = s.interventions || [];
+  return (
+    <div>
+      <div style={stats}>
+        <div><div style={lbl}>Total earned</div><div style={{ ...cell, fontWeight: 700, fontSize: 20 }}>{formatUSD(s.total_earnings_cents ?? 0)}</div></div>
+        <div><div style={lbl}>Interventions</div><div style={cell}>{s.intervention_count ?? 0}</div></div>
+      </div>
+      {ivs.length === 0
+        ? <p style={{ color: "#9CA3AF" }}>No interventions yet.</p>
+        : ivs.map((iv) => (
+            <div key={iv.bid_id} style={row}>
+              <span style={cell}>{new Date(iv.created_at).toLocaleDateString()} · ETA {iv.eta_min} min</span>
+              <span style={{ ...cell, fontWeight: 600 }}>{formatUSD(iv.price_cents)}</span>
+            </div>
+          ))}
+    </div>
+  );
+}
+
 function UserReviewPanel({ token, entityId, entityType, onBack }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2734,6 +2803,10 @@ function UserReviewPanel({ token, entityId, entityType, onBack }) {
               )}
             </>
           )}
+
+          {/* ── History & Earnings ──────────────────────────────────────── */}
+          <SectionTitle>{entityType === "driver" ? "Ride history & earnings" : "Interventions & earnings"}</SectionTitle>
+          <HistoryEarningsSection token={token} entityId={entityId} entityType={entityType} />
 
           {/* ── Documents ───────────────────────────────────────────────── */}
           <SectionTitle>Documents ({detail.documents.length})</SectionTitle>

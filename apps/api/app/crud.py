@@ -4629,6 +4629,62 @@ async def list_professional_bids(
     return [_craft_bid_to_dict(b) for b in result.scalars()]
 
 
+# ---------------------------------------------------------------------------
+# Sprint 66 — admin per-entity history & earnings
+# ---------------------------------------------------------------------------
+
+async def resolve_driver_auth_id(db: AsyncSession, entity_id_str: str) -> str:
+    """Resolve a Driver DB id (UUID string) to the driver's auth ``user_id``.
+
+    Lets admin endpoints reuse the existing self-service driver crud
+    (``list_driver_trip_history`` / ``get_driver_earnings``).
+    """
+    try:
+        entity_uuid = uuid.UUID(entity_id_str)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid driver id format")
+    driver = await db.scalar(select(Driver).where(Driver.id == entity_uuid))
+    if driver is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Driver not found")
+    user = await db.scalar(select(User).where(User.id == driver.user_id))
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Driver user not found")
+    return user.user_id
+
+
+async def admin_professional_summary(db: AsyncSession, entity_id_str: str) -> dict:
+    """Return a professional's accepted interventions + total earnings (USD cents)."""
+    try:
+        entity_uuid = uuid.UUID(entity_id_str)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid professional id format")
+    pro = await db.scalar(select(Professional).where(Professional.id == entity_uuid))
+    if pro is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Professional not found")
+    rows = await db.execute(
+        select(CraftBid)
+        .where(CraftBid.professional_id == pro.id, CraftBid.status == "accepted")
+        .order_by(CraftBid.created_at.desc())
+    )
+    bids = list(rows.scalars())
+    interventions = [
+        {
+            "bid_id": str(b.id),
+            "request_id": str(b.request_id),
+            "price_cents": b.price_cents,
+            "eta_min": b.eta_min,
+            "created_at": _utc(b.created_at).isoformat(),
+        }
+        for b in bids
+    ]
+    total = sum(b.price_cents for b in bids)
+    return {
+        "total_earnings_cents": total,
+        "intervention_count": len(bids),
+        "interventions": interventions,
+    }
+
+
 async def select_craft_bid(
     db: AsyncSession,
     request_id: uuid.UUID,
