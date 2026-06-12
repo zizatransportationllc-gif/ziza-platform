@@ -14,6 +14,10 @@ ENV ZIZA_DRIVER_URL=http://localhost:3002 \
 COPY index.html            /usr/share/nginx/html/index.html
 COPY styles.css            /usr/share/nginx/html/styles.css
 COPY main.js               /usr/share/nginx/html/main.js
+# Legal pages linked from the footer (were missing -> 404 fell back to index.html)
+COPY terms.html            /usr/share/nginx/html/terms.html
+COPY privacy.html          /usr/share/nginx/html/privacy.html
+COPY legal.html            /usr/share/nginx/html/legal.html
 COPY env-config.js.template /etc/nginx/env-config.js.template
 
 # Override default Nginx config
