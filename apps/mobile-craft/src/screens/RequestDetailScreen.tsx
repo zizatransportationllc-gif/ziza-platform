@@ -29,6 +29,7 @@ import {
   formatUSD,
 } from "../api";
 import { useAuth } from "../context/AuthContext";
+import ChatPanel from "../components/ChatPanel";
 
 type RouteProps = RouteProp<RootStackParamList, "RequestDetail">;
 type NavProp = NativeStackNavigationProp<RootStackParamList, "RequestDetail">;
@@ -223,6 +224,10 @@ export default function RequestDetailScreen(): React.ReactElement {
           </Text>
         </View>
       ) : null}
+
+      {token && (request.status === "assigned" || request.status === "in_progress") && (
+        <ChatPanel token={token} requestId={requestId} accent="#059669" />
+      )}
     </ScrollView>
   );
 }
