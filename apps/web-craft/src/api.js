@@ -117,6 +117,23 @@ export async function updateMyProfile(token, updates) {
   return _json(res);
 }
 
+// Sprint 66 — personal profile (identity) editing via /v1/profile
+export async function getProfile(token) {
+  const res = await fetch(`${API_BASE}/v1/profile`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
+export async function updateProfile(token, fields) {
+  const res = await fetch(`${API_BASE}/v1/profile`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(fields),
+  });
+  return _json(res);
+}
+
 // ---------------------------------------------------------------------------
 // Craft requests
 // ---------------------------------------------------------------------------

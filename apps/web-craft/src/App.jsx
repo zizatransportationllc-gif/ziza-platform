@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   login, signup, exchangeFirebaseToken, fetchMe, registerUser, registerProfessional,
-  getMyProfile, updateMyProfile,
+  getMyProfile, updateMyProfile, getProfile, updateProfile,
   listOpenRequests, getCraftRequest,
   submitBid, getMyBids,
   submitDocument, listMyDocuments,
@@ -417,6 +417,45 @@ function ProfileSection({ token, profile, onProfileUpdated }) {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState(null);
 
+  // Sprint 66 — personal identity (separate from the professional profile)
+  const [me, setMe] = useState(null);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [phone, setPhone] = useState("");
+  const [savingMe, setSavingMe] = useState(false);
+  const [successMe, setSuccessMe] = useState(false);
+  const [errorMe, setErrorMe] = useState(null);
+
+  useEffect(() => {
+    getProfile(token)
+      .then((p) => {
+        setMe(p);
+        setFirstName(p.first_name || "");
+        setLastName(p.last_name || "");
+        setBirthDate(p.date_of_birth || "");
+        setPhone(p.phone || "");
+      })
+      .catch((e) => setErrorMe(e.message));
+  }, [token]);
+
+  async function handleSavePersonal(e) {
+    e.preventDefault();
+    setSavingMe(true); setErrorMe(null); setSuccessMe(false);
+    try {
+      const updated = await updateProfile(token, {
+        first_name: firstName || null,
+        last_name: lastName || null,
+        date_of_birth: birthDate || null,
+        phone: phone || null,
+      });
+      setMe(updated);
+      setSuccessMe(true);
+      setTimeout(() => setSuccessMe(false), 3000);
+    } catch (err) { setErrorMe(err.message); }
+    finally { setSavingMe(false); }
+  }
+
   // Show current skills as a read-only summary
   const currentSkills = (profile?.specialties ?? "")
     .split(",").map(s => s.trim()).filter(Boolean);
@@ -437,6 +476,22 @@ function ProfileSection({ token, profile, onProfileUpdated }) {
     <div>
       <div className="profile-card">
         <h3>👤 My Profile</h3>
+        {me && <p style={{ fontSize: 13, opacity: 0.8, marginTop: -6 }}>✉️ {me.email} · {me.role}</p>}
+        <form className="profile-form" onSubmit={handleSavePersonal}>
+          <label>First name</label>
+          <input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} maxLength={64} placeholder="First name" />
+          <label>Last name</label>
+          <input type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} maxLength={64} placeholder="Last name" />
+          <label>Date of birth</label>
+          <input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
+          <label>Phone</label>
+          <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={32} placeholder="Phone number" />
+          {errorMe && <p className="form-error">{errorMe}</p>}
+          <button className="profile-save-btn" type="submit" disabled={savingMe}>
+            {savingMe ? "Saving…" : "✓ Save Personal Info"}
+          </button>
+          {successMe && <p className="profile-success">✓ Profile updated!</p>}
+        </form>
         {currentSkills.length > 0 && (
           <div className="profile-skills-summary">
             <span className="profile-skills-label">Skills:</span>
