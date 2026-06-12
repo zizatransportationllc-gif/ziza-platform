@@ -738,3 +738,25 @@ export async function adminGetOnboardingDetail(token, entityId, entityType) {
   );
   return _json(res); // OnboardingDetailResponse
 }
+
+// Sprint 66 — admin per-entity history & earnings
+export async function adminGetDriverHistory(token, entityId, limit = 20) {
+  const res = await fetch(`${API_BASE}/v1/admin/drivers/${entityId}/history?limit=${limit}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // DriverTripRecord[]
+}
+
+export async function adminGetDriverEarnings(token, entityId) {
+  const res = await fetch(`${API_BASE}/v1/admin/drivers/${entityId}/earnings`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
+export async function adminGetProfessionalSummary(token, entityId) {
+  const res = await fetch(`${API_BASE}/v1/admin/professionals/${entityId}/summary`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // { total_earnings_cents, intervention_count, interventions[] }
+}
