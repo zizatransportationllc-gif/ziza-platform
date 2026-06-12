@@ -760,3 +760,19 @@ export async function adminGetProfessionalSummary(token, entityId) {
   });
   return _json(res); // { total_earnings_cents, intervention_count, interventions[] }
 }
+
+// Sprint 66 — admin read-only access to a conversation (admins are allowed by
+// the messaging endpoints; reading does NOT mark messages as read).
+export async function adminListTripMessages(token, tripId) {
+  const res = await fetch(`${API_BASE}/v1/trips/${tripId}/messages`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // ChatMessage[]
+}
+
+export async function adminListRequestMessages(token, requestId) {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/messages`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // ChatMessage[]
+}

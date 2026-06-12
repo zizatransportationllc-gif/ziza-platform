@@ -19,6 +19,7 @@ import {
   adminListCraftRequests, adminListProfessionals, adminListBidsForRequest, // Sprint 47
   adminListOnboarding, adminGetOnboardingDetail, // Sprint 57
   adminGetDriverHistory, adminGetDriverEarnings, adminGetProfessionalSummary, // Sprint 66
+  adminListTripMessages, adminListRequestMessages, // Sprint 66 — read conversations
   adminSetProfessionalStatus, // Sprint 54 (used in Sprint 57 review panel)
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, firebaseSignOut } from "./auth";
@@ -2533,11 +2534,58 @@ const DOC_STATUS_COLORS = {
   needs_resubmission: { bg: "#FDE8D8", color: "#C05621" },
 };
 
+// Sprint 66 — read-only conversation viewer for admins. Fetching as admin does
+// NOT mark the participants' messages as read (enforced server-side).
+function AdminConversation({ token, scope, id }) {
+  const [messages, setMessages] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    setMessages(null); setError(null);
+    const fetcher = scope === "trip" ? adminListTripMessages : adminListRequestMessages;
+    fetcher(token, id)
+      .then((m) => { if (active) setMessages(m); })
+      .catch((e) => { if (active) setError(e.message); });
+    return () => { active = false; };
+  }, [token, scope, id]);
+
+  const box = { marginTop: 8, padding: 10, background: "#0b1220", border: "1px solid #1f2937", borderRadius: 8 };
+  const bubble = (m) => ({
+    maxWidth: "80%", margin: "4px 0", padding: "6px 10px", borderRadius: 10, fontSize: 13,
+    background: m.sender_role === "customer" ? "#1f2937" : "#134e4a",
+    color: "#F9FAFB",
+    alignSelf: m.sender_role === "customer" ? "flex-start" : "flex-end",
+  });
+
+  if (error) return <p className="form-error" style={{ marginTop: 8 }}>{error}</p>;
+  if (messages === null) return <p style={{ color: "#9CA3AF", marginTop: 8 }}>⏳ Loading conversation…</p>;
+  if (messages.length === 0) return <p style={{ color: "#9CA3AF", marginTop: 8 }}>No messages in this conversation.</p>;
+
+  return (
+    <div style={box}>
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        {messages.map((m) => (
+          <div key={m.message_id} style={bubble(m)}>
+            <div style={{ fontSize: 10, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>
+              {m.sender_role} · {new Date(m.created_at).toLocaleString()}
+            </div>
+            {m.body}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Sprint 66 — per-driver history/earnings, per-professional summary (admin)
 function HistoryEarningsSection({ token, entityId, entityType }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [openConv, setOpenConv] = useState(null); // { scope, id } or null
+  const toggleConv = (scope, id) =>
+    setOpenConv((cur) => (cur && cur.scope === scope && cur.id === id ? null : { scope, id }));
 
   useEffect(() => {
     setLoading(true); setError(null);
@@ -2571,12 +2619,22 @@ function HistoryEarningsSection({ token, entityId, entityType }) {
         </div>
         {hist.length === 0
           ? <p style={{ color: "#9CA3AF" }}>No trips yet.</p>
-          : hist.map((t) => (
-              <div key={t.trip_id} style={row}>
-                <span style={cell}>{t.status} · {Number(t.distance_km).toFixed(1)} mi · {t.duration_min} min</span>
-                <span style={{ ...cell, fontWeight: 600 }}>{formatUSD(t.fare_xof)}</span>
-              </div>
-            ))}
+          : hist.map((t) => {
+              const open = openConv && openConv.scope === "trip" && openConv.id === t.trip_id;
+              return (
+                <div key={t.trip_id}>
+                  <div
+                    style={{ ...row, cursor: "pointer" }}
+                    onClick={() => toggleConv("trip", t.trip_id)}
+                    title="View conversation"
+                  >
+                    <span style={cell}>{open ? "▾" : "▸"} {t.status} · {Number(t.distance_km).toFixed(1)} mi · {t.duration_min} min</span>
+                    <span style={{ ...cell, fontWeight: 600 }}>{formatUSD(t.fare_xof)}</span>
+                  </div>
+                  {open && <AdminConversation token={token} scope="trip" id={t.trip_id} />}
+                </div>
+              );
+            })}
       </div>
     );
   }
@@ -2591,12 +2649,22 @@ function HistoryEarningsSection({ token, entityId, entityType }) {
       </div>
       {ivs.length === 0
         ? <p style={{ color: "#9CA3AF" }}>No interventions yet.</p>
-        : ivs.map((iv) => (
-            <div key={iv.bid_id} style={row}>
-              <span style={cell}>{new Date(iv.created_at).toLocaleDateString()} · ETA {iv.eta_min} min</span>
-              <span style={{ ...cell, fontWeight: 600 }}>{formatUSD(iv.price_cents)}</span>
-            </div>
-          ))}
+        : ivs.map((iv) => {
+            const open = openConv && openConv.scope === "request" && openConv.id === iv.request_id;
+            return (
+              <div key={iv.bid_id}>
+                <div
+                  style={{ ...row, cursor: "pointer" }}
+                  onClick={() => toggleConv("request", iv.request_id)}
+                  title="View conversation"
+                >
+                  <span style={cell}>{open ? "▾" : "▸"} {new Date(iv.created_at).toLocaleDateString()} · ETA {iv.eta_min} min</span>
+                  <span style={{ ...cell, fontWeight: 600 }}>{formatUSD(iv.price_cents)}</span>
+                </div>
+                {open && <AdminConversation token={token} scope="request" id={iv.request_id} />}
+              </div>
+            );
+          })}
     </div>
   );
 }
