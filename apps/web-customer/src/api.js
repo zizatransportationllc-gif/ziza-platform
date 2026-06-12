@@ -391,6 +391,23 @@ export async function getTripTracking(token, tripId) {
   return _json(res);
 }
 
+// Sprint 66 — in-app messaging (customer ↔ driver)
+export async function listTripMessages(token, tripId) {
+  const res = await fetch(`${API_BASE}/v1/trips/${tripId}/messages`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
+export async function sendTripMessage(token, tripId, body) {
+  const res = await fetch(`${API_BASE}/v1/trips/${tripId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ body }),
+  });
+  return _json(res);
+}
+
 // ---------------------------------------------------------------------------
 // Payment — Sprint 24
 // ---------------------------------------------------------------------------
