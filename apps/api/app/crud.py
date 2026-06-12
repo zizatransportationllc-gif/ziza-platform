@@ -22,6 +22,7 @@ from app.models.driver import Driver
 from app.models.driver_capability import DriverCapability
 from app.models.driver_document import DriverDocument, DOCUMENT_TYPES
 from app.models.professional_document import ProfessionalDocument  # Sprint 54
+from app.models.message import Message  # Sprint 66
 from app.models.notification import Notification
 from app.models.driver_location import DriverLocation
 from app.models.payment import PaymentIntent
@@ -5176,6 +5177,116 @@ async def admin_update_professional_document_status(
         "created_at": _utc(doc.created_at).isoformat(),
         "updated_at": _utc(doc.updated_at).isoformat(),
     }
+
+
+# ---------------------------------------------------------------------------
+# In-app messaging — Sprint 66 (trip & craft-request conversations)
+# ---------------------------------------------------------------------------
+
+def _message_to_dict(m: Message, my_user_id=None) -> dict:
+    return {
+        "message_id": str(m.id),
+        "sender_role": m.sender_role,
+        "body": m.body,
+        "created_at": _utc(m.created_at).isoformat(),
+        "read": m.read_at is not None,
+        "mine": my_user_id is not None and m.sender_user_id == my_user_id,
+    }
+
+
+async def _trip_participant_ids(db: AsyncSession, trip: Trip) -> set:
+    ids = {trip.customer_id}
+    if trip.driver_id is not None:
+        driver = await db.scalar(select(Driver).where(Driver.id == trip.driver_id))
+        if driver is not None:
+            ids.add(driver.user_id)
+    return ids
+
+
+async def _request_participant_ids(db: AsyncSession, request: CraftRequest) -> set:
+    ids = {request.customer_id}
+    if request.selected_bid_id is not None:
+        bid = await db.scalar(select(CraftBid).where(CraftBid.id == request.selected_bid_id))
+        if bid is not None:
+            pro = await db.scalar(select(Professional).where(Professional.id == bid.professional_id))
+            if pro is not None:
+                ids.add(pro.user_id)
+    return ids
+
+
+async def _conversation_context(db: AsyncSession, *, trip_id=None, craft_request_id=None):
+    """Return (column filter, participant user-id set) for a trip or request."""
+    if trip_id is not None:
+        trip = await db.scalar(select(Trip).where(Trip.id == trip_id))
+        if trip is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+        return Message.trip_id == trip_id, await _trip_participant_ids(db, trip)
+    req = await db.scalar(select(CraftRequest).where(CraftRequest.id == craft_request_id))
+    if req is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
+    return Message.craft_request_id == craft_request_id, await _request_participant_ids(db, req)
+
+
+async def send_message(
+    db: AsyncSession, *, sender_auth_id: str, sender_role: str, body: str,
+    trip_id=None, craft_request_id=None,
+) -> dict:
+    """Post a message to a trip/request conversation. Only participants may send."""
+    body = (body or "").strip()
+    if not body:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Message body is required")
+    sender = await _get_user_by_auth_id(db, sender_auth_id)
+    if sender is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    _filter, participants = await _conversation_context(db, trip_id=trip_id, craft_request_id=craft_request_id)
+    if sender.id not in participants:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a participant of this conversation")
+    msg = Message(
+        trip_id=trip_id, craft_request_id=craft_request_id,
+        sender_user_id=sender.id, sender_role=sender_role, body=body[:4000],
+    )
+    db.add(msg)
+    await db.commit()
+    await db.refresh(msg)
+    for uid in participants:
+        if uid != sender.id:
+            try:
+                await _push_notification(db, uid, "message", "💬 New message", body[:120])
+            except Exception:
+                pass
+    return _message_to_dict(msg, my_user_id=sender.id)
+
+
+async def list_messages(
+    db: AsyncSession, *, requester_auth_id: str, requester_role: str,
+    trip_id=None, craft_request_id=None, limit: int = 50, offset: int = 0,
+) -> list[dict]:
+    """List a conversation's messages (oldest first). Participants or admins only.
+
+    Marks the other party's messages as read for a participant viewer.
+    """
+    requester = await _get_user_by_auth_id(db, requester_auth_id)
+    is_admin = requester_role == "admin"
+    col_filter, participants = await _conversation_context(db, trip_id=trip_id, craft_request_id=craft_request_id)
+    if not is_admin and (requester is None or requester.id not in participants):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a participant of this conversation")
+    rows = await db.execute(
+        select(Message).where(col_filter)
+        .order_by(Message.created_at.asc())
+        .limit(min(limit, 200)).offset(offset)
+    )
+    msgs = list(rows.scalars())
+    my_id = requester.id if requester else None
+    if not is_admin and my_id is not None:
+        now = datetime.now(timezone.utc)
+        changed = False
+        for m in msgs:
+            if m.read_at is None and m.sender_user_id != my_id:
+                m.read_at = now
+                changed = True
+        if changed:
+            await db.commit()
+    return [_message_to_dict(m, my_user_id=my_id) for m in msgs]
 
 
 async def admin_update_professional_status(
