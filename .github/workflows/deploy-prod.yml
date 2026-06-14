@@ -130,6 +130,7 @@ jobs:
           gcloud run jobs create "$JOB_NAME" \
             --image="$IMAGE" \
             --region="${{ env.GCP_REGION }}" \
+            --service-account="${{ vars.GCP_SERVICE_ACCOUNT }}" \
             --command="alembic" \
             --args="upgrade,head" \
             --update-secrets="DATABASE_URL=ziza-prod-database-url:latest" \

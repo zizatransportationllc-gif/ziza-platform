@@ -115,8 +115,31 @@ done
 > Tant que `PAYMENT_PROVIDER_PROD=mock`, **aucun argent réel** n'est manipulé.
 > En `stripe`, enregistrer le webhook Stripe sur `<api>/v1/payments/webhook`
 > (events `checkout.session.completed`, `payment_intent.payment_failed`,
-> `checkout.session.expired`). Confirmer les noms de champs de l'API WF Gateway
-> contre leur guide d'intégration avant la bascule live (adaptateur config-driven).
+> `checkout.session.expired`).
+
+### 7bis. Wells Fargo Gateway — contrat d'API (confirmé) + reste à faire
+
+**Credentials reçues et stockées** dans `ziza-prod-wf-gateway-credentials` (secret JSON :
+`api_key`, `consumer_key`, `consumer_secret`, `company_id`, `entity_id`) — accès SA accordé.
+⚠️ Ce secret JSON **ne correspond pas** au `ziza-prod-wf-gateway-key` (api key seule)
+attendu par `deploy-prod.yml` + l'adaptateur bearer-token actuel : à réconcilier avant la
+bascule `PAYOUT_PROVIDER_PROD=wellsfargo`.
+
+**Pattern confirmé via developer.wellsfargo.com :**
+- **OAuth2** client-credentials : `POST {base}/oauth2/v1/token`, `Authorization: Basic base64(consumer_key:consumer_secret)`, `grant_type=client_credentials` → `access_token`.
+- **Headers d'appel** : `Authorization: Bearer {token}`, `gateway-entity-id: {entity_id}`, `client-request-id: {uuid}`, + l'**api key** (header `apikey`).
+- **mTLS OBLIGATOIRE** en Validation et Production (pas en Sandbox) → il faut un **certificat client** généré/obtenu via le portail WF (lui-même un secret à stocker).
+- **Base URL** : certification = `https://api-certification.wellsfargo.com`, prod = `https://api.wellsfargo.com` (à confirmer).
+
+**Reste à obtenir (portail authentifié, non accessible à l'agent) :**
+1. Le **path exact de l'endpoint paiement ACH** + le **schéma JSON du body** (originator/company id, compte de financement, routing+account du bénéficiaire, montant, devise, date d'effet, SEC code).
+2. Le **certificat client mTLS** (.crt/.key) → à stocker en Secret Manager.
+3. Confirmer la base URL de prod.
+
+→ Tant que ces 3 points ne sont pas fournis, **`PAYOUT_PROVIDER_PROD` reste `mock`**.
+Ensuite : réécrire `WellsFargoPayoutAdapter` (OAuth2 + headers + mTLS, config-driven),
+mettre à jour `deploy-prod.yml` pour lire le secret JSON + monter le cert mTLS, et tester
+en environnement **certification** WF avant la prod.
 
 ## 8. (Optionnel) migration des comptes bcrypt → Firebase
 
