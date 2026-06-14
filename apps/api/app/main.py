@@ -1822,6 +1822,114 @@ async def list_pro_payout_requests(
 
 
 # ---------------------------------------------------------------------------
+# WS3 (Sprint 68) — Stripe Connect onboarding (driver + professional)
+# ---------------------------------------------------------------------------
+
+class ConnectOnboardResponse(BaseModel):
+    account_id: str
+    onboarding_url: str
+
+
+class ConnectStatusResponse(BaseModel):
+    account_id: str | None = None
+    onboarded: bool
+    payouts_enabled: bool
+
+
+@app.post("/v1/payouts/connect/onboard", tags=["payouts"], status_code=201)
+async def connect_onboard(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ConnectOnboardResponse:
+    """Driver/professional: start (or resume) Stripe Connect onboarding to receive payouts."""
+    if claims.role not in ("driver", "professional"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers and professionals can set up payouts",
+        )
+    result = await crud.start_connect_onboarding(db, claims.user_id, claims.role)
+    return ConnectOnboardResponse(**result)
+
+
+@app.get("/v1/payouts/connect/status", tags=["payouts"])
+async def connect_status(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ConnectStatusResponse:
+    """Driver/professional: whether their payout account is onboarded and enabled."""
+    if claims.role not in ("driver", "professional"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers and professionals can set up payouts",
+        )
+    result = await crud.get_connect_status(db, claims.user_id, claims.role)
+    return ConnectStatusResponse(**result)
+
+
+# ---------------------------------------------------------------------------
+# WS3 (Sprint 68) — Admin: professional payout processing
+# ---------------------------------------------------------------------------
+
+class AdminProPayoutRecord(BaseModel):
+    payout_id: str
+    professional_id: str
+    professional_email: str
+    amount_cents: int
+    status: str
+    note_admin: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class ProPayoutBatchResponse(BaseModel):
+    processed: int
+    failed: int
+    total_net_cents: int
+
+
+@app.get("/v1/admin/professional-payout-requests", tags=["payouts"])
+async def admin_list_professional_payouts(
+    limit: int = 50,
+    offset: int = 0,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[AdminProPayoutRecord]:
+    """Admin: list all professional payout requests (newest first)."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    rows = await crud.admin_list_professional_payouts(db, limit=min(limit, 200), offset=offset)
+    return [AdminProPayoutRecord(**r) for r in rows]
+
+
+@app.patch("/v1/admin/professional-payout-requests/{payout_id}/status", tags=["payouts"])
+async def admin_update_professional_payout(
+    payout_id: str,
+    body: AdminPayoutStatusRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AdminProPayoutRecord:
+    """Admin: approve or reject a professional payout request."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    result = await crud.admin_update_professional_payout_status(
+        db, payout_id, body.status, body.note_admin
+    )
+    return AdminProPayoutRecord(**result)
+
+
+@app.post("/v1/admin/professional-payouts/run", tags=["payouts"], status_code=200)
+async def admin_run_professional_payout_batch(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProPayoutBatchResponse:
+    """Admin: process all approved professional payouts via Stripe Connect transfers."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    result = await crud.run_professional_payout_batch(db)
+    return ProPayoutBatchResponse(**result)
+
+
+# ---------------------------------------------------------------------------
 # Admin Ratings View — Sprint 15
 # ---------------------------------------------------------------------------
 

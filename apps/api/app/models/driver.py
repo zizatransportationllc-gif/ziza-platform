@@ -48,6 +48,8 @@ class Driver(Base):
     last_seen_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # WS3 (Sprint 68) — Stripe Connect (Express) account for real payouts.
+    stripe_account_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )

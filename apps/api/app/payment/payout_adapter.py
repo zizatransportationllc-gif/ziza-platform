@@ -1,77 +1,81 @@
-"""PayoutAdapter — Sprint 29.
+"""PayoutAdapter — Sprint 29 → WS3 (Sprint 68).
 
-Protocol and implementations for sending real money payouts to drivers.
-The mock adapter is used in dev / CI; real adapters are wired up in
-production via the ``payout_provider`` config setting.
+Sends real money payouts to drivers / professionals. Since D3 = Stripe, the
+real rail is **Stripe Connect**: funds are transferred from the platform balance
+to the payee's connected account (which Stripe then pays out to their bank).
+
+The mock adapter is used in dev / CI; the Stripe adapter is wired in production
+via the ``payout_provider`` config setting.
 """
 from __future__ import annotations
 
-import uuid
+import json
+import urllib.parse
+import urllib.request
 from typing import Protocol
 
 
 class PayoutAdapter(Protocol):
     """Minimal interface required by the batch payout runner."""
 
-    async def send_payout(
-        self,
-        phone: str,
-        amount_cents: int,
-        ref: str,
-    ) -> str:
-        """Send ``amount_cents`` XOF to ``phone``.
+    async def send_payout(self, *, account_id: str, amount_cents: int, ref: str) -> str:
+        """Send ``amount_cents`` (USD cents) to the payee's connected account.
 
-        Returns an opaque ``provider_ref`` string on success.
-        Raises ``RuntimeError`` on failure (caller marks the request as
-        ``failed`` and continues with the next one).
+        ``ref`` is a stable unique reference (the payout request id) used as an
+        idempotency key so retries never double-pay.
+
+        Returns an opaque ``provider_ref`` on success. Raises ``RuntimeError``
+        on failure (the caller marks the request ``failed`` and continues).
         """
         ...
 
 
 class MockPayoutAdapter:
-    """Always succeeds — returns a deterministic fake reference.
+    """Always succeeds — returns a deterministic fake reference (dev / CI / tests)."""
 
-    Used in dev, CI, and unit tests.
-    """
-
-    async def send_payout(self, phone: str, amount_cents: int, ref: str) -> str:
-        # Return a stable fake ref so tests can assert on it
+    async def send_payout(self, *, account_id: str, amount_cents: int, ref: str) -> str:
         return f"mock_payout_{ref}"
 
 
-class OrangeMoneyB2CAdapter:
-    """Orange Money B2C payout (West Africa).
+class StripePayoutAdapter:
+    """Stripe Connect payout via the Transfers API (idempotent)."""
 
-    Requires ``ORANGE_MONEY_CLIENT_ID`` and ``ORANGE_MONEY_CLIENT_SECRET``
-    environment variables in production.
-    """
+    _provider_name = "stripe"
+    _API_BASE = "https://api.stripe.com/v1"
 
-    def __init__(self, client_id: str, client_secret: str) -> None:
-        self._client_id = client_id
-        self._client_secret = client_secret
+    def __init__(self, secret_key: str) -> None:
+        self._secret_key = secret_key
 
-    async def send_payout(self, phone: str, amount_cents: int, ref: str) -> str:
-        """Call Orange Money B2C API.
-
-        Not fully implemented in this sprint — raises NotImplementedError
-        in dev.  Production deployment wires real credentials.
-        """
-        raise NotImplementedError(
-            "OrangeMoneyB2CAdapter is not yet configured for this environment. "
-            "Set payout_provider=mock to use the test adapter."
+    async def send_payout(self, *, account_id: str, amount_cents: int, ref: str) -> str:
+        if not account_id:
+            raise RuntimeError("Payee has no connected Stripe account")
+        payload = urllib.parse.urlencode({
+            "amount": amount_cents,
+            "currency": "usd",
+            "destination": account_id,
+            "transfer_group": ref,
+        }).encode()
+        req = urllib.request.Request(
+            f"{self._API_BASE}/transfers",
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {self._secret_key}",
+                "Content-Type": "application/x-www-form-urlencoded",
+                # Idempotency key — Stripe collapses retries with the same key.
+                "Idempotency-Key": f"payout_{ref}",
+            },
         )
+        try:
+            with urllib.request.urlopen(req) as resp:
+                transfer = json.loads(resp.read())
+        except Exception as exc:  # network / Stripe error
+            raise RuntimeError(f"Stripe transfer failed: {exc}") from exc
+        return transfer["id"]
 
 
 def get_payout_adapter(provider: str) -> PayoutAdapter:
-    """Factory — returns the correct adapter based on ``provider`` string."""
-    if provider == "mock":
-        return MockPayoutAdapter()
-    if provider == "orange_money":
-        # In production, read credentials from Secret Manager / env vars
-        import os  # noqa: PLC0415
-        return OrangeMoneyB2CAdapter(
-            client_id=os.getenv("ORANGE_MONEY_CLIENT_ID", ""),
-            client_secret=os.getenv("ORANGE_MONEY_CLIENT_SECRET", ""),
-        )
-    # Default fallback
+    """Factory — returns the correct adapter based on ``provider``."""
+    if provider == "stripe":
+        from app.config import settings  # noqa: PLC0415
+        return StripePayoutAdapter(secret_key=settings.stripe_secret_key)
     return MockPayoutAdapter()

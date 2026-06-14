@@ -69,6 +69,8 @@ class Professional(Base):
     # Live position snapshot (updated when professional is online)
     current_lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     current_lng: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # WS3 (Sprint 68) — Stripe Connect (Express) account for real payouts.
+    stripe_account_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
