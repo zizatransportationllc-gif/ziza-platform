@@ -29,6 +29,7 @@ from app.models.craft import Professional, CraftRequest, CraftBid  # noqa: F401 
 from app.models.professional_document import ProfessionalDocument  # noqa: F401  — Sprint 54
 from app.models.message import Message  # noqa: F401  — Sprint 66
 from app.models.professional_payout_request import ProfessionalPayoutRequest  # noqa: F401  — Sprint 67
+from app.models.wallet_topup import WalletTopup  # noqa: F401  — Sprint 68 (WS2)
 
 __all__ = [
     "Base", "User", "Driver", "Vehicle", "Trip", "TripEvent", "Estimate",
@@ -38,5 +39,5 @@ __all__ = [
     "DeviceToken", "DriverApplication", "FeatureFlag", "InviteCode",
     "City", "ServiceZone", "Wallet", "WalletTransaction",
     "Professional", "CraftRequest", "CraftBid",
-    "ProfessionalDocument", "Message", "ProfessionalPayoutRequest",
+    "ProfessionalDocument", "Message", "ProfessionalPayoutRequest", "WalletTopup",
 ]

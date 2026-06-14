@@ -2618,10 +2618,8 @@ async def confirm_payment(
     )
     intent: PaymentIntent | None = intent_result.scalar_one_or_none()
     if intent is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No payment intent found for provider_ref {provider_ref!r}",
-        )
+        # WS2 — not a trip payment? It may be a wallet top-up (same webhook path).
+        return await _confirm_wallet_topup(db, provider_ref, new_status)
 
     # Idempotency + state guard — providers (Stripe/CinetPay) deliver webhooks
     # at-least-once, so the same event may arrive several times.
@@ -3864,6 +3862,7 @@ async def delete_city(
 # ---------------------------------------------------------------------------
 
 from app.models.wallet import Wallet, WalletTransaction  # noqa: E402
+from app.models.wallet_topup import WalletTopup  # noqa: E402  — WS2 (Sprint 68)
 from datetime import datetime as _dt, timezone as _tz  # noqa: E402
 
 
@@ -3911,30 +3910,23 @@ async def get_wallet(db: AsyncSession, auth_id: str) -> dict:
     return _wallet_to_dict(wallet)
 
 
-async def wallet_topup(
+async def _credit_wallet(
     db: AsyncSession,
-    auth_id: str,
+    user_id: uuid.UUID,
     amount_cents: float,
+    reason: str,
     reference_id: str | None = None,
     note: str | None = None,
-) -> dict:
-    """Credit the wallet (top-up via mobile money or admin)."""
-    if amount_cents <= 0:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Top-up amount must be positive.",
-        )
-    user = await _get_user_by_auth_id(db, auth_id)
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
-    wallet = await _get_or_create_wallet(db, user.id)
+) -> tuple[Wallet, WalletTransaction]:
+    """Credit a wallet and record an immutable ledger transaction."""
+    wallet = await _get_or_create_wallet(db, user_id)
     wallet.balance_cents += amount_cents
     wallet.updated_at = _dt.now(_tz.utc)
     tx = WalletTransaction(
         wallet_id=wallet.id,
         tx_type="credit",
         amount_cents=amount_cents,
-        reason="topup",
+        reason=reason,
         reference_id=reference_id,
         note=note,
         balance_after=wallet.balance_cents,
@@ -3943,7 +3935,95 @@ async def wallet_topup(
     await db.commit()
     await db.refresh(wallet)
     await db.refresh(tx)
-    return {"wallet": _wallet_to_dict(wallet), "transaction": _tx_to_dict(tx)}
+    return wallet, tx
+
+
+def _topup_to_dict(topup: WalletTopup) -> dict:
+    return {
+        "topup_id": str(topup.id),
+        "amount_cents": topup.amount_cents,
+        "currency": topup.currency,
+        "provider": topup.provider,
+        "provider_ref": topup.provider_ref,
+        "status": topup.status,
+        "checkout_url": topup.checkout_url,
+    }
+
+
+async def create_wallet_topup(
+    db: AsyncSession,
+    auth_id: str,
+    amount_cents: int,
+    adapter,
+    return_url: str = "https://app.ziza.ci/wallet/return",
+) -> dict:
+    """WS2 — Start a real wallet top-up.
+
+    Creates a ``pending`` top-up and a provider checkout session. The wallet is
+    credited only later, when the provider confirms via webhook (idempotently).
+    """
+    if amount_cents <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Top-up amount must be positive.",
+        )
+    user = await _get_user_by_auth_id(db, auth_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+
+    topup = WalletTopup(
+        user_id=user.id,
+        amount_cents=int(amount_cents),
+        provider=getattr(adapter, "_provider_name", "mock"),
+    )
+    db.add(topup)
+    await db.flush()  # get the UUID for the provider ref
+
+    checkout = await adapter.create_checkout(
+        amount_cents=int(amount_cents),
+        ref=str(topup.id),
+        return_url=return_url,
+    )
+    topup.provider_ref = checkout["provider_ref"]
+    topup.checkout_url = checkout["checkout_url"]
+    await db.commit()
+    await db.refresh(topup)
+    return _topup_to_dict(topup)
+
+
+async def _confirm_wallet_topup(
+    db: AsyncSession, provider_ref: str, new_status: str
+) -> dict:
+    """Apply a webhook result to a wallet top-up (idempotent). 404 if unknown."""
+    topup = await db.scalar(
+        select(WalletTopup).where(WalletTopup.provider_ref == provider_ref)
+    )
+    if topup is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No payment intent found for provider_ref {provider_ref!r}",
+        )
+
+    # Idempotency + state guard — never credit a wallet twice on webhook replay.
+    if topup.status == new_status or topup.status == "paid":
+        return {"intent_id": str(topup.id), "status": topup.status}
+
+    topup.status = new_status
+    if new_status == "paid":
+        await _credit_wallet(
+            db, topup.user_id, topup.amount_cents,
+            reason="topup", reference_id=str(topup.id),
+        )  # commits the credit + the topup.status change in one transaction
+        try:
+            await _push_notification(
+                db, topup.user_id, "wallet_topup", "💰 Wallet topped up",
+                f"Your wallet has been credited with ${topup.amount_cents / 100:,.2f}.",
+            )
+        except Exception:
+            pass
+    else:
+        await db.commit()
+    return {"intent_id": str(topup.id), "status": topup.status}
 
 
 async def wallet_pay_trip(
