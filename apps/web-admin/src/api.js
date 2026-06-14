@@ -776,3 +776,25 @@ export async function adminListRequestMessages(token, requestId) {
   });
   return _json(res); // ChatMessage[]
 }
+
+// WS6 — Finance observability
+export async function adminFinanceMetrics(token) {
+  const res = await fetch(`${API_BASE}/v1/admin/finance/metrics`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
+export async function adminFinanceAlerts(token) {
+  const res = await fetch(`${API_BASE}/v1/admin/finance/alerts`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
+export async function adminFinanceTransactions(token, limit = 50) {
+  const res = await fetch(`${API_BASE}/v1/admin/finance/transactions?limit=${limit}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
