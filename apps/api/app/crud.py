@@ -3449,6 +3449,29 @@ async def get_driver_balance(db: AsyncSession, auth_user_id: str) -> dict:
     }
 
 
+async def _resolve_payout_destination(
+    db: AsyncSession, provider: str, *, user_id, stripe_account_id
+) -> dict:
+    """Resolve the provider-specific payout destination for a payee.
+
+    - ``wellsfargo`` → the payee's bank account (decrypted) for ACH/RTP.
+    - ``stripe`` / ``mock`` → the Stripe Connect account id.
+    Raises ``RuntimeError`` when the payee has not set up a destination.
+    """
+    if provider == "wellsfargo":
+        ba = await db.scalar(select(BankAccount).where(BankAccount.user_id == user_id))
+        if ba is None:
+            raise RuntimeError("Payee has no bank account on file")
+        return {
+            "routing": ba.routing_number,
+            "account": decrypt_bank_account_number(ba),
+            "holder": ba.account_holder_name,
+        }
+    if not stripe_account_id:
+        raise RuntimeError("Payee has not set up payouts (no connected account)")
+    return {"account_id": stripe_account_id}
+
+
 async def run_payout_batch(db: AsyncSession) -> dict:
     """Process all approved payout requests via the configured PayoutAdapter.
 
@@ -3488,12 +3511,13 @@ async def run_payout_batch(db: AsyncSession) -> dict:
         commission_cents = math.floor(req.amount_cents * rate / 100)
         net_amount_cents = req.amount_cents - commission_cents
 
-        account_id = driver.stripe_account_id
         try:
-            if not account_id:
-                raise RuntimeError("Driver has not set up payouts (no connected account)")
+            destination = await _resolve_payout_destination(
+                db, _settings.payout_provider,
+                user_id=driver.user_id, stripe_account_id=driver.stripe_account_id,
+            )
             ref = await adapter.send_payout(
-                account_id=account_id, amount_cents=net_amount_cents, ref=str(req.id)
+                destination=destination, amount_cents=net_amount_cents, ref=str(req.id)
             )
             req.status = "processed"
             req.provider_ref = ref
@@ -3661,12 +3685,13 @@ async def run_professional_payout_batch(db: AsyncSession) -> dict:
     total_net_cents = 0
     now = datetime.now(timezone.utc)
     for req, prof in rows:
-        account_id = prof.stripe_account_id
         try:
-            if not account_id:
-                raise RuntimeError("Professional has not set up payouts (no connected account)")
+            destination = await _resolve_payout_destination(
+                db, _settings.payout_provider,
+                user_id=prof.user_id, stripe_account_id=prof.stripe_account_id,
+            )
             ref = await adapter.send_payout(
-                account_id=account_id, amount_cents=req.amount_cents, ref=str(req.id)
+                destination=destination, amount_cents=req.amount_cents, ref=str(req.id)
             )
             req.status = "processed"
             req.provider_ref = ref

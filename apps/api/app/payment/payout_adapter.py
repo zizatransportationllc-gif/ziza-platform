@@ -1,4 +1,4 @@
-"""PayoutAdapter — Sprint 29 → WS3 (Sprint 68).
+"""PayoutAdapter — Sprint 29 → WS3 (Sprint 68) → Sprint 69.
 
 Sends real money payouts to drivers / professionals. Two real rails are
 available, selected via ``payout_provider``:
@@ -6,11 +6,14 @@ available, selected via ``payout_provider``:
   - ``wellsfargo`` → Wells Fargo Gateway ACH/RTP credit to the payee's US bank.
 
 The mock adapter is used in dev / CI.
+
+The payout **destination** is a provider-specific dict resolved by the batch:
+  - Stripe : ``{"account_id": "acct_..."}``
+  - Wells Fargo : ``{"routing": "...", "account": "...", "holder": "..."}``
 """
 from __future__ import annotations
 
 import json
-import urllib.parse
 import urllib.request
 from typing import Protocol
 
@@ -18,14 +21,12 @@ from typing import Protocol
 class PayoutAdapter(Protocol):
     """Minimal interface required by the batch payout runner."""
 
-    async def send_payout(self, *, account_id: str, amount_cents: int, ref: str) -> str:
-        """Send ``amount_cents`` (USD cents) to the payee's connected account.
+    async def send_payout(self, *, destination: dict, amount_cents: int, ref: str) -> str:
+        """Send ``amount_cents`` (USD cents) to ``destination``.
 
         ``ref`` is a stable unique reference (the payout request id) used as an
-        idempotency key so retries never double-pay.
-
-        Returns an opaque ``provider_ref`` on success. Raises ``RuntimeError``
-        on failure (the caller marks the request ``failed`` and continues).
+        idempotency key so retries never double-pay. Returns an opaque
+        ``provider_ref`` on success; raises ``RuntimeError`` on failure.
         """
         ...
 
@@ -33,7 +34,7 @@ class PayoutAdapter(Protocol):
 class MockPayoutAdapter:
     """Always succeeds — returns a deterministic fake reference (dev / CI / tests)."""
 
-    async def send_payout(self, *, account_id: str, amount_cents: int, ref: str) -> str:
+    async def send_payout(self, *, destination: dict, amount_cents: int, ref: str) -> str:
         return f"mock_payout_{ref}"
 
 
@@ -46,7 +47,10 @@ class StripePayoutAdapter:
     def __init__(self, secret_key: str) -> None:
         self._secret_key = secret_key
 
-    async def send_payout(self, *, account_id: str, amount_cents: int, ref: str) -> str:
+    async def send_payout(self, *, destination: dict, amount_cents: int, ref: str) -> str:
+        import urllib.parse  # noqa: PLC0415
+
+        account_id = destination.get("account_id")
         if not account_id:
             raise RuntimeError("Payee has no connected Stripe account")
         payload = urllib.parse.urlencode({
@@ -61,14 +65,13 @@ class StripePayoutAdapter:
             headers={
                 "Authorization": f"Bearer {self._secret_key}",
                 "Content-Type": "application/x-www-form-urlencoded",
-                # Idempotency key — Stripe collapses retries with the same key.
                 "Idempotency-Key": f"payout_{ref}",
             },
         )
         try:
             with urllib.request.urlopen(req) as resp:
                 transfer = json.loads(resp.read())
-        except Exception as exc:  # network / Stripe error
+        except Exception as exc:
             raise RuntimeError(f"Stripe transfer failed: {exc}") from exc
         return transfer["id"]
 
@@ -77,13 +80,11 @@ class WellsFargoPayoutAdapter:
     """Wells Fargo Gateway payout via ACH / RTP / wire (US bank rails).
 
     Sends ``amount_cents`` from the platform's WF funding account to the payee's
-    destination account reference (``account_id``), with an idempotency key so
-    retries never double-pay.
+    bank account (routing + account number), with an idempotency key.
 
     NOTE: WF Gateway uses OAuth2 + mutual TLS in production; the endpoint path and
     field names follow the common payments pattern and are config-driven. Confirm
-    them against the Wells Fargo Gateway integration guide before going live; the
-    contract with the ZIZA payout batch does not change.
+    them against the Wells Fargo Gateway integration guide before going live.
     """
 
     _provider_name = "wellsfargo"
@@ -94,12 +95,18 @@ class WellsFargoPayoutAdapter:
         self._funding_account = funding_account
         self._rail = rail
 
-    async def send_payout(self, *, account_id: str, amount_cents: int, ref: str) -> str:
-        if not account_id:
+    async def send_payout(self, *, destination: dict, amount_cents: int, ref: str) -> str:
+        routing = destination.get("routing")
+        account = destination.get("account")
+        if not routing or not account:
             raise RuntimeError("Payee has no destination bank account on file")
         body = json.dumps({
             "fundingAccount": self._funding_account,
-            "destinationAccount": account_id,
+            "destination": {
+                "routingNumber": routing,
+                "accountNumber": account,
+                "accountHolderName": destination.get("holder", ""),
+            },
             "amount": amount_cents,
             "currency": "USD",
             "rail": self._rail,
