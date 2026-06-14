@@ -283,6 +283,41 @@ def test_webhook_unknown_provider_ref_returns_404() -> None:
     assert resp.status_code == 404
 
 
+def test_webhook_paid_is_idempotent_on_replay() -> None:
+    """WS1: replaying a 'paid' webhook (at-least-once delivery) does not re-stamp."""
+    trip_id, token_c = _completed_trip_id()
+    provider_ref = client.post(
+        "/v1/payments/intent", json={"trip_id": trip_id}, headers=_auth_header(token_c)
+    ).json()["provider_ref"]
+
+    first = client.post("/v1/payments/webhook", json={"provider_ref": provider_ref, "status": "paid"})
+    assert first.status_code == 200 and first.json()["status"] == "paid"
+    paid_at_1 = client.get(f"/v1/trips/{trip_id}", headers=_auth_header(token_c)).json()["paid_at"]
+
+    # Replay the same event
+    second = client.post("/v1/payments/webhook", json={"provider_ref": provider_ref, "status": "paid"})
+    assert second.status_code == 200 and second.json()["status"] == "paid"
+    paid_at_2 = client.get(f"/v1/trips/{trip_id}", headers=_auth_header(token_c)).json()["paid_at"]
+
+    assert paid_at_1 == paid_at_2  # not re-stamped
+
+
+def test_webhook_failed_after_paid_is_ignored() -> None:
+    """WS1: a late 'failed'/'expired' event must not regress a 'paid' intent."""
+    trip_id, token_c = _completed_trip_id()
+    create = client.post(
+        "/v1/payments/intent", json={"trip_id": trip_id}, headers=_auth_header(token_c)
+    ).json()
+    provider_ref, intent_id = create["provider_ref"], create["intent_id"]
+
+    client.post("/v1/payments/webhook", json={"provider_ref": provider_ref, "status": "paid"})
+    late = client.post("/v1/payments/webhook", json={"provider_ref": provider_ref, "status": "failed"})
+    assert late.status_code == 200
+    # Intent stays paid
+    status_now = client.get(f"/v1/payments/{intent_id}", headers=_auth_header(token_c)).json()["status"]
+    assert status_now == "paid"
+
+
 # ---------------------------------------------------------------------------
 # GET /v1/trips/{trip_id}/payment
 # ---------------------------------------------------------------------------

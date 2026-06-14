@@ -34,15 +34,16 @@ class StripeAdapter:
 
         Returns ``{"provider_ref": session_id, "checkout_url": url}``.
 
-        Note: Stripe amounts are in the smallest currency unit.
-        For XOF (zero-decimal currency) ``amount_cents`` is used directly.
+        Note: Stripe amounts are in the smallest currency unit. USD is a
+        two-decimal currency, so ``amount_cents`` (USD cents) maps directly to
+        Stripe's ``unit_amount``.
         """
         import urllib.parse  # noqa: PLC0415
         import urllib.request  # noqa: PLC0415
 
         payload = urllib.parse.urlencode({
             "payment_method_types[]": "card",
-            "line_items[0][price_data][currency]": "xof",
+            "line_items[0][price_data][currency]": "usd",
             "line_items[0][price_data][product_data][name]": "Ziza ride",
             "line_items[0][price_data][unit_amount]": amount_cents,
             "line_items[0][quantity]": 1,
