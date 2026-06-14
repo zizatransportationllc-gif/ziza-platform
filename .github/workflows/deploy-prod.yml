@@ -8,17 +8,22 @@ name: Deploy Prod (GCP Cloud Run)
 # PREREQUISITES (must exist before the first run — see
 # docs/plans/2026-06-11-phase2-prod-groundwork.md):
 #   Secret Manager (accessible by the deployer SA):
-#     - ziza-prod-jwt-secret        (>= 32 bytes)
+#     - ziza-prod-jwt-secret          (>= 32 bytes)
 #     - ziza-prod-admin-code
-#     - ziza-prod-database-url       (created with the prod Cloud SQL instance)
+#     - ziza-prod-database-url         (created with the prod Cloud SQL instance)
+#     - ziza-prod-bank-encryption-key  (Fernet key — bank numbers encrypted at rest)
 #   Repo variables (Settings → Actions → Variables):
 #     - FIREBASE_PROJECT_ID_PROD     (required: prod boots with ENVIRONMENT=prod)
 #     - ZIZA_CORS_ORIGINS_PROD
 #     - CLOUD_SQL_INSTANCE_PROD      (connection name proj:region:instance)
 #     - ZIZA_API_URL_PROD            (set after the first API deploy)
 #     - VITE_MAPBOX_TOKEN
+#     - ZIZA_KYC_BUCKET_PROD         (private GCS bucket for KYC docs + avatars)
+#     - PAYMENT_PROVIDER_PROD        (mock | stripe | cinetpay | wellsfargo; default mock)
+#     - PAYOUT_PROVIDER_PROD         (mock | stripe | wellsfargo; default mock)
 #   The prod Cloud SQL instance (ziza-db-prod) is provisioned just before the
 #   first go-live (deferred to keep costs at zero until auth is ready).
+#   See docs/go-live/2026-06-14-prod-gcp-runbook.md for the exact gcloud commands.
 # ---------------------------------------------------------------------------
 
 on:
@@ -174,10 +179,12 @@ jobs:
             # ENVIRONMENT=prod -> Firebase identity + own-JWT sessions; password
             # endpoints are 404. Secrets come from Secret Manager, not env vars.
             FLAGS+=(
-              "--set-env-vars=^|^ENVIRONMENT=prod|FIREBASE_PROJECT_ID=${{ vars.FIREBASE_PROJECT_ID_PROD }}|CORS_ORIGINS_RAW=${{ vars.ZIZA_CORS_ORIGINS_PROD }}|RATE_LIMIT_ENABLED=true"
+              "--set-env-vars=^|^ENVIRONMENT=prod|FIREBASE_PROJECT_ID=${{ vars.FIREBASE_PROJECT_ID_PROD }}|CORS_ORIGINS_RAW=${{ vars.ZIZA_CORS_ORIGINS_PROD }}|RATE_LIMIT_ENABLED=true|GCS_BUCKET_NAME=${{ vars.ZIZA_KYC_BUCKET_PROD }}|PAYMENT_PROVIDER=${{ vars.PAYMENT_PROVIDER_PROD }}|PAYOUT_PROVIDER=${{ vars.PAYOUT_PROVIDER_PROD }}"
             )
+            # Sprint 69 — BANK_ENCRYPTION_KEY is required so bank numbers are never
+            # stored in cleartext in production (the API refuses otherwise).
             FLAGS+=(
-              "--update-secrets=^|^JWT_SECRET=ziza-prod-jwt-secret:latest|ADMIN_SIGNUP_CODE=ziza-prod-admin-code:latest|DATABASE_URL=ziza-prod-database-url:latest"
+              "--update-secrets=^|^JWT_SECRET=ziza-prod-jwt-secret:latest|ADMIN_SIGNUP_CODE=ziza-prod-admin-code:latest|DATABASE_URL=ziza-prod-database-url:latest|BANK_ENCRYPTION_KEY=ziza-prod-bank-encryption-key:latest"
             )
             if [ -n "${{ vars.CLOUD_SQL_INSTANCE_PROD }}" ]; then
               FLAGS+=("--add-cloudsql-instances=${{ vars.CLOUD_SQL_INSTANCE_PROD }}")
