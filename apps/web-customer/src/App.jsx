@@ -319,7 +319,7 @@ function EstimateSection({ token, onTripCreated }) {
   }
 
   // Sprint 21: use category-specific fare as the base
-  const baseFare = result?.categories?.[selectedCategory]?.fare_xof ?? result?.fare_xof;
+  const baseFare = result?.categories?.[selectedCategory]?.fare_cents ?? result?.fare_cents;
   // Compute displayed fare (with or without promo)
   const displayFare = promoApplied && result
     ? Math.max(1, Math.round(baseFare * (1 - promoApplied.discount_pct / 100)))
@@ -439,7 +439,7 @@ function EstimateSection({ token, onTripCreated }) {
                     >
                       <span className="category-card-icon">{CATEGORY_ICONS[cat]}</span>
                       <span className="category-card-name">{opt.label}</span>
-                      <span className="category-card-fare">{formatUSD(opt.fare_xof)}</span>
+                      <span className="category-card-fare">{formatUSD(opt.fare_cents)}</span>
                       <span className="category-card-desc">{opt.description}</span>
                     </button>
                   );
@@ -622,7 +622,7 @@ function PaymentSection({ token, tripId, fareXof }) {
           <span className="payment-icon">✅</span>
           <div className="payment-info">
             <div className="payment-status-paid">Payment confirmed</div>
-            <div className="payment-amount">{formatUSD(intent.amount_xof)}</div>
+            <div className="payment-amount">{formatUSD(intent.amount_cents)}</div>
           </div>
         </div>
       </div>
@@ -636,7 +636,7 @@ function PaymentSection({ token, tripId, fareXof }) {
           <span className="payment-icon">❌</span>
           <div className="payment-info">
             <div className="payment-status-failed">Payment failed</div>
-            <div className="payment-amount">{formatUSD(intent.amount_xof)}</div>
+            <div className="payment-amount">{formatUSD(intent.amount_cents)}</div>
           </div>
         </div>
         <button className="payment-btn" onClick={handlePay} disabled={loading}>
@@ -655,7 +655,7 @@ function PaymentSection({ token, tripId, fareXof }) {
           <span className="payment-icon">💳</span>
           <div className="payment-info">
             <div className="payment-label">Payment pending…</div>
-            <div className="payment-amount">{formatUSD(intent.amount_xof)}</div>
+            <div className="payment-amount">{formatUSD(intent.amount_cents)}</div>
           </div>
         </div>
         {isMock && (
@@ -824,8 +824,8 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
         <div className="booking-status">
           {STATUS_LABELS[trip.status] ?? trip.status}
         </div>
-        {trip.fare_xof && (
-          <div className="booking-fare">{formatUSD(trip.fare_xof)}</div>
+        {trip.fare_cents && (
+          <div className="booking-fare">{formatUSD(trip.fare_cents)}</div>
         )}
         <div className="fare-meta">
           {trip.distance_km != null && <span>🛣️ {trip.distance_km.toFixed(1)} mi</span>}
@@ -893,7 +893,7 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
         </button>
       )}
       {trip.status === "completed" && (
-        <PaymentSection token={token} tripId={trip.trip_id} fareXof={trip.fare_xof} />
+        <PaymentSection token={token} tripId={trip.trip_id} fareXof={trip.fare_cents} />
       )}
       {trip.status === "completed" && (
         <RatingForm token={token} tripId={trip.trip_id} />
@@ -972,8 +972,8 @@ function TripHistory({ token }) {
                   <span className="history-paid-badge">💳 Paid</span>
                 )}
               </div>
-              {t.fare_xof && (
-                <div className="history-fare">{formatUSD(t.fare_xof)}</div>
+              {t.fare_cents && (
+                <div className="history-fare">{formatUSD(t.fare_cents)}</div>
               )}
               <div className="history-meta">
                 {t.distance_km != null && <span>🛣️ {t.distance_km.toFixed(1)} mi</span>}
@@ -1617,7 +1617,7 @@ function WalletSection({ token }) {
         <div className="wallet-balance-card">
           <p className="wallet-balance-label">Available Balance</p>
           <p className="wallet-balance-amount">
-            {formatUSD(wallet.balance_xof)}
+            {formatUSD(wallet.balance_cents)}
           </p>
         </div>
       )}
@@ -1655,7 +1655,7 @@ function WalletSection({ token }) {
               {tx.reference_id && <span className="wallet-tx-ref">#{tx.reference_id.slice(-8)}</span>}
             </div>
             <span className="wallet-tx-amount" style={{ color: TX_COLORS[tx.tx_type] }}>
-              {tx.tx_type === "debit" ? "−" : "+"}{formatUSD(tx.amount_xof)}
+              {tx.tx_type === "debit" ? "−" : "+"}{formatUSD(tx.amount_cents)}
             </span>
             <span className="wallet-tx-time">
               {new Date(tx.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "short" })}

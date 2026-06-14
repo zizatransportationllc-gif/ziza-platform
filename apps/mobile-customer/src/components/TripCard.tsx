@@ -34,7 +34,7 @@ export default function TripCard({ trip, onPay }: Props): React.ReactElement {
   return (
     <View style={styles.card}>
       <View style={styles.row}>
-        <Text style={styles.price}>{formatUSD(trip.price_xof)}</Text>
+        <Text style={styles.price}>{formatUSD(trip.price_cents)}</Text>
         <Text style={[styles.status, { color }]}>{trip.status}</Text>
       </View>
       <View style={styles.row}>

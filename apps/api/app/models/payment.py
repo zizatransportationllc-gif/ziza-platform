@@ -39,9 +39,9 @@ class PaymentIntent(Base):
         index=True,
     )
 
-    # Sprint 66: amounts are USD cents (field name kept as amount_xof until the
+    # Sprint 66: amounts are USD cents (field name kept as amount_cents until the
     # coordinated backend+frontend rename in Phase 3b).
-    amount_xof: Mapped[int] = mapped_column(Integer, nullable=False)
+    amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     currency: Mapped[str] = mapped_column(String(8), nullable=False, default="USD")
 
     # "cinetpay" | "orange_money" | "stripe" | "mock"

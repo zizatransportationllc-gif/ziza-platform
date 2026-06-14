@@ -25,7 +25,7 @@ class StripeAdapter:
 
     async def create_checkout(
         self,
-        amount_xof: int,
+        amount_cents: int,
         ref: str,
         return_url: str,
         notify_url: str | None = None,  # unused by Stripe (webhook registered in dashboard)
@@ -35,7 +35,7 @@ class StripeAdapter:
         Returns ``{"provider_ref": session_id, "checkout_url": url}``.
 
         Note: Stripe amounts are in the smallest currency unit.
-        For XOF (zero-decimal currency) ``amount_xof`` is used directly.
+        For XOF (zero-decimal currency) ``amount_cents`` is used directly.
         """
         import urllib.parse  # noqa: PLC0415
         import urllib.request  # noqa: PLC0415
@@ -44,7 +44,7 @@ class StripeAdapter:
             "payment_method_types[]": "card",
             "line_items[0][price_data][currency]": "xof",
             "line_items[0][price_data][product_data][name]": "Ziza ride",
-            "line_items[0][price_data][unit_amount]": amount_xof,
+            "line_items[0][price_data][unit_amount]": amount_cents,
             "line_items[0][quantity]": 1,
             "mode": "payment",
             "success_url": return_url,

@@ -78,14 +78,14 @@ def _setup_driver_with_earnings() -> str:
 def _available(tok: str) -> int:
     r = client.get("/v1/drivers/me/balance", headers=_h(tok))
     assert r.status_code == 200, r.text
-    return r.json()["disponible_xof"]
+    return r.json()["disponible_cents"]
 
 
 def _create_payout(tok: str, amount: int):
     return client.post(
         "/v1/drivers/me/payout-requests",
         headers=_h(tok),
-        json={"amount_xof": amount},
+        json={"amount_cents": amount},
     )
 
 
@@ -101,7 +101,7 @@ def test_driver_create_payout_request():
     r = _create_payout(tok, avail)
     assert r.status_code == 201, r.text
     data = r.json()
-    assert data["amount_xof"] == avail
+    assert data["amount_cents"] == avail
     assert data["status"] == "pending"
     assert data["note_admin"] is None
     assert "payout_id" in data
@@ -148,7 +148,7 @@ def test_driver_create_payout_requires_auth():
     """Unauthenticated request returns 401."""
     r = client.post(
         "/v1/drivers/me/payout-requests",
-        json={"amount_xof": 10_000},
+        json={"amount_cents": 10_000},
     )
     assert r.status_code == 401
 
@@ -167,7 +167,7 @@ def test_driver_list_payout_requests():
     data = r.json()
     assert isinstance(data, list)
     assert len(data) >= 1
-    assert amount in [p["amount_xof"] for p in data]
+    assert amount in [p["amount_cents"] for p in data]
 
 
 def test_driver_list_payout_requires_auth():

@@ -158,7 +158,7 @@ def test_driver_trip_history_after_complete():
     first = history[0]
     assert first["status"] == "completed"
     assert "trip_id" in first
-    assert "fare_xof" in first
+    assert "fare_cents" in first
     assert "created_at" in first
     assert "updated_at" in first
 

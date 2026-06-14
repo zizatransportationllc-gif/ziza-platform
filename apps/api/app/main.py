@@ -625,7 +625,7 @@ class EstimateRequest(BaseModel):
 
 class CategoryFareOption(BaseModel):
     """Per-category fare info returned inside EstimateResponse."""
-    fare_xof: int
+    fare_cents: int
     label: str        # "Économique" / "Confort" / "Premium"
     description: str  # short description
     multiplier: float
@@ -635,7 +635,7 @@ class EstimateResponse(BaseModel):
     estimate_id: str
     distance_km: float
     duration_min: int
-    fare_xof: int          # economy fare (backward compat)
+    fare_cents: int          # economy fare (backward compat)
     currency: str = "USD"
     surge_multiplier: float
     distance_source: str   # "google_maps" | "haversine"
@@ -683,7 +683,7 @@ async def estimate(
         dest_lng=body.dest_lng,
         distance_km=route.distance_km,
         duration_min=route.duration_min,
-        fare_xof=fare,
+        fare_cents=fare,
         surge_multiplier=surge,
         distance_source=route.source,
         created_at=now,
@@ -696,7 +696,7 @@ async def estimate(
     # Sprint 21: compute per-category fares
     category_options = {
         cat: CategoryFareOption(
-            fare_xof=max(1, round(est.fare_xof * mult)),
+            fare_cents=max(1, round(est.fare_cents * mult)),
             label=crud.CATEGORY_LABELS[cat],
             description=crud.CATEGORY_DESCRIPTIONS[cat],
             multiplier=mult,
@@ -708,7 +708,7 @@ async def estimate(
         estimate_id=str(est.id),
         distance_km=est.distance_km,
         duration_min=est.duration_min,
-        fare_xof=est.fare_xof,
+        fare_cents=est.fare_cents,
         currency="USD",
         surge_multiplier=est.surge_multiplier,
         distance_source=est.distance_source,
@@ -747,7 +747,7 @@ class VehicleInfo(BaseModel):
 class TripResponse(BaseModel):
     trip_id: str
     status: str
-    fare_xof: int | None = None
+    fare_cents: int | None = None
     distance_km: float | None = None
     duration_min: int | None = None
     estimate_id: str | None = None
@@ -779,7 +779,7 @@ def _trip_response(trip, events=None, vehicle=None) -> TripResponse:
     return TripResponse(
         trip_id=str(trip.id),
         status=trip.status,
-        fare_xof=trip.fare_xof,
+        fare_cents=trip.fare_cents,
         distance_km=trip.distance_km,
         duration_min=trip.duration_min,
         estimate_id=str(trip.estimate_id) if trip.estimate_id else None,
@@ -998,7 +998,7 @@ async def get_driver_active_trip(
 class DriverTripRecord(BaseModel):
     trip_id: str
     status: str
-    fare_xof: int | None = None
+    fare_cents: int | None = None
     distance_km: float | None = None
     duration_min: int | None = None
     created_at: str
@@ -1024,7 +1024,7 @@ async def list_driver_trip_history(
         DriverTripRecord(
             trip_id=str(t.id),
             status=t.status,
-            fare_xof=t.fare_xof,
+            fare_cents=t.fare_cents,
             distance_km=t.distance_km,
             duration_min=t.duration_min,
             created_at=t.created_at.isoformat(),
@@ -1210,18 +1210,18 @@ async def admin_list_drivers(
 
 class EarningsTripRecord(BaseModel):
     trip_id: str
-    fare_xof: int | None
+    fare_cents: int | None
     distance_km: float | None
     duration_min: int | None
     completed_at: str
 
 
 class DriverEarningsSummary(BaseModel):
-    total_xof: int
+    total_cents: int
     total_trips: int
-    today_xof: int
+    today_cents: int
     today_trips: int
-    week_xof: int
+    week_cents: int
     week_trips: int
     recent_trips: list[EarningsTripRecord]
 
@@ -1243,16 +1243,16 @@ async def get_my_earnings(
         )
     data = await crud.get_driver_earnings(db, claims.user_id)
     return DriverEarningsSummary(
-        total_xof=data["total_xof"],
+        total_cents=data["total_cents"],
         total_trips=data["total_trips"],
-        today_xof=data["today_xof"],
+        today_cents=data["today_cents"],
         today_trips=data["today_trips"],
-        week_xof=data["week_xof"],
+        week_cents=data["week_cents"],
         week_trips=data["week_trips"],
         recent_trips=[
             EarningsTripRecord(
                 trip_id=str(t.id),
-                fare_xof=t.fare_xof,
+                fare_cents=t.fare_cents,
                 distance_km=t.distance_km,
                 duration_min=t.duration_min,
                 completed_at=t.updated_at.isoformat(),
@@ -1275,7 +1275,7 @@ class AdminStats(BaseModel):
 class AdminTripRecord(BaseModel):
     trip_id: str
     status: str
-    fare_xof: int | None = None
+    fare_cents: int | None = None
     distance_km: float | None = None
     duration_min: int | None = None
     customer_email: str
@@ -1616,13 +1616,13 @@ async def admin_set_driver_status(
 # ---------------------------------------------------------------------------
 
 class PayoutCreateRequest(BaseModel):
-    amount_xof: Annotated[int, Field(ge=1, description="Amount in XOF to withdraw")]
+    amount_cents: Annotated[int, Field(ge=1, description="Amount in XOF to withdraw")]
 
 
 class PayoutResponse(BaseModel):
     payout_id: str
     driver_id: str
-    amount_xof: int
+    amount_cents: int
     status: str
     note_admin: str | None = None
     created_at: str
@@ -1633,7 +1633,7 @@ def _payout_response(req) -> PayoutResponse:
     return PayoutResponse(
         payout_id=str(req.id),
         driver_id=str(req.driver_id),
-        amount_xof=req.amount_xof,
+        amount_cents=req.amount_cents,
         status=req.status,
         note_admin=req.note_admin,
         created_at=req.created_at.isoformat(),
@@ -1656,7 +1656,7 @@ async def create_payout_request(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only drivers can create payout requests",
         )
-    req = await crud.create_payout_request(db, claims.user_id, body.amount_xof)
+    req = await crud.create_payout_request(db, claims.user_id, body.amount_cents)
     return _payout_response(req)
 
 
@@ -1679,7 +1679,7 @@ class AdminPayoutRecord(BaseModel):
     payout_id: str
     driver_id: str
     driver_email: str
-    amount_xof: int
+    amount_cents: int
     status: str
     note_admin: str | None = None
     created_at: str
@@ -2350,7 +2350,7 @@ async def admin_driver_history(
     trips = await crud.list_driver_trip_history(db, auth_id, limit=min(limit, 100), offset=offset)
     return [
         DriverTripRecord(
-            trip_id=str(t.id), status=t.status, fare_xof=t.fare_xof,
+            trip_id=str(t.id), status=t.status, fare_cents=t.fare_cents,
             distance_km=t.distance_km, duration_min=t.duration_min,
             created_at=t.created_at.isoformat(), updated_at=t.updated_at.isoformat(),
         )
@@ -2850,7 +2850,7 @@ class PaymentIntentRequest(BaseModel):
 class PaymentIntentResponse(BaseModel):
     intent_id: str
     trip_id: str
-    amount_xof: int
+    amount_cents: int
     currency: str = "USD"
     provider: str
     provider_ref: str | None = None
@@ -3217,19 +3217,19 @@ class SetCommissionRequest(BaseModel):
 
 class DriverBalanceResponse(BaseModel):
     driver_id: str
-    gains_bruts_xof: int
-    commission_xof: int
-    retraits_xof: int
-    solde_net_xof: int
+    gains_bruts_cents: int
+    commission_cents: int
+    retraits_cents: int
+    solde_net_cents: int
     # Sprint 67 — amount available to withdraw now (nets out pending/approved payouts)
-    disponible_xof: int
+    disponible_cents: int
 
 
 class PayoutBatchResponse(BaseModel):
     processed: int
     failed: int
-    total_net_xof: int
-    total_commission_xof: int
+    total_net_cents: int
+    total_commission_cents: int
 
 
 @app.get("/v1/drivers/me/balance", tags=["payouts"])
@@ -3240,10 +3240,10 @@ async def get_driver_balance(
     """Sprint 29 — Return the driver's net available balance.
 
     Breakdown:
-    - ``gains_bruts_xof``: total gross earnings from completed trips
-    - ``commission_xof``: platform fee (configurable per category)
-    - ``retraits_xof``: total already paid out (processed payout requests)
-    - ``solde_net_xof``: available balance = gains - commission - retraits
+    - ``gains_bruts_cents``: total gross earnings from completed trips
+    - ``commission_cents``: platform fee (configurable per category)
+    - ``retraits_cents``: total already paid out (processed payout requests)
+    - ``solde_net_cents``: available balance = gains - commission - retraits
     """
     if claims.role != "driver":
         raise HTTPException(
@@ -3912,7 +3912,7 @@ async def point_in_service(
 class WalletResponse(BaseModel):
     wallet_id: str
     user_id: str
-    balance_xof: float
+    balance_cents: float
     created_at: str
     updated_at: str
 
@@ -3921,7 +3921,7 @@ class WalletTransactionResponse(BaseModel):
     tx_id: str
     wallet_id: str
     tx_type: str      # credit | debit | refund
-    amount_xof: float
+    amount_cents: float
     reason: str
     reference_id: str | None = None
     note: str | None = None
@@ -3930,18 +3930,18 @@ class WalletTransactionResponse(BaseModel):
 
 
 class TopupRequest(BaseModel):
-    amount_xof: float
+    amount_cents: float
     reference_id: str | None = None
     note: str | None = None
 
 
 class WalletPayTripRequest(BaseModel):
     trip_id: str
-    amount_xof: float
+    amount_cents: float
 
 
 class AdminWalletAdjustRequest(BaseModel):
-    amount_xof: float   # positive = credit, negative = debit
+    amount_cents: float   # positive = credit, negative = debit
     note: str | None = None
 
 
@@ -3970,7 +3970,7 @@ async def topup_wallet(
 ):
     """Credit the authenticated user's wallet. 422 if amount <= 0."""
     result = await crud.wallet_topup(
-        db, claims.user_id, body.amount_xof, body.reference_id, body.note
+        db, claims.user_id, body.amount_cents, body.reference_id, body.note
     )
     return WalletWithTxResponse(
         wallet=WalletResponse(**result["wallet"]),
@@ -3990,7 +3990,7 @@ async def wallet_pay_trip(
         trip_uuid = uuid.UUID(body.trip_id)
     except ValueError:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid trip_id UUID")
-    result = await crud.wallet_pay_trip(db, claims.user_id, trip_uuid, body.amount_xof)
+    result = await crud.wallet_pay_trip(db, claims.user_id, trip_uuid, body.amount_cents)
     return WalletWithTxResponse(
         wallet=WalletResponse(**result["wallet"]),
         transaction=WalletTransactionResponse(**result["transaction"]),
@@ -4025,7 +4025,7 @@ async def admin_adjust_wallet(
         uid = uuid.UUID(user_id)
     except ValueError:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid UUID")
-    result = await crud.admin_adjust_wallet(db, uid, body.amount_xof, body.note)
+    result = await crud.admin_adjust_wallet(db, uid, body.amount_cents, body.note)
     return WalletResponse(**result)
 
 
@@ -4035,7 +4035,7 @@ async def admin_adjust_wallet(
 
 class RevenueByPeriodResponse(BaseModel):
     period: str
-    revenue_xof: float
+    revenue_cents: float
     trip_count: int
 
 
@@ -4043,15 +4043,15 @@ class DriverPerformanceResponse(BaseModel):
     driver_id: str
     email: str
     trip_count: int
-    total_revenue_xof: float
+    total_revenue_cents: float
     avg_rating: float
 
 
 class CategoryBreakdownResponse(BaseModel):
     category: str
     trip_count: int
-    total_revenue_xof: float
-    avg_fare_xof: float
+    total_revenue_cents: float
+    avg_fare_cents: float
 
 
 class HourlyDemandResponse(BaseModel):
@@ -4063,7 +4063,7 @@ class TopCustomerResponse(BaseModel):
     user_id: str
     email: str
     trip_count: int
-    total_spent_xof: float
+    total_spent_cents: float
 
 
 class PlatformKPIsResponse(BaseModel):
@@ -4073,7 +4073,7 @@ class PlatformKPIsResponse(BaseModel):
     total_trips: int
     completed_trips: int
     completion_rate_pct: float
-    total_revenue_xof: float
+    total_revenue_cents: float
     avg_rating: float
 
 

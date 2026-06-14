@@ -64,7 +64,7 @@ def test_get_wallet_initial_balance_zero():
     r = client.get("/v1/wallet", headers=_h(c_tok))
     assert r.status_code == 200, r.text
     data = r.json()
-    assert data["balance_xof"] == 0.0
+    assert data["balance_cents"] == 0.0
     assert "wallet_id" in data
 
 
@@ -72,10 +72,10 @@ def test_topup_credits_wallet():
     """POST /v1/wallet/topup adds the amount to balance."""
     c_tok = _customer()
     r = client.post("/v1/wallet/topup", headers=_h(c_tok),
-                    json={"amount_xof": 5000.0, "reference_id": "OM-123456"})
+                    json={"amount_cents": 5000.0, "reference_id": "OM-123456"})
     assert r.status_code == 200, r.text
     data = r.json()
-    assert data["wallet"]["balance_xof"] == 5000.0
+    assert data["wallet"]["balance_cents"] == 5000.0
     assert data["transaction"]["tx_type"] == "credit"
     assert data["transaction"]["reason"] == "topup"
 
@@ -83,7 +83,7 @@ def test_topup_credits_wallet():
 def test_topup_zero_amount_returns_422():
     """POST /v1/wallet/topup with amount=0 returns 422."""
     c_tok = _customer()
-    r = client.post("/v1/wallet/topup", headers=_h(c_tok), json={"amount_xof": 0.0})
+    r = client.post("/v1/wallet/topup", headers=_h(c_tok), json={"amount_cents": 0.0})
     assert r.status_code == 422, r.text
 
 
@@ -91,16 +91,16 @@ def test_pay_trip_debits_wallet():
     """POST /v1/wallet/pay-trip deducts from balance when funds are sufficient."""
     c_tok = _customer()
     # Snapshot balance before top-up (shared DB may have prior balance)
-    before = client.get("/v1/wallet", headers=_h(c_tok)).json()["balance_xof"]
+    before = client.get("/v1/wallet", headers=_h(c_tok)).json()["balance_cents"]
     # Fund wallet
-    client.post("/v1/wallet/topup", headers=_h(c_tok), json={"amount_xof": 10000.0})
+    client.post("/v1/wallet/topup", headers=_h(c_tok), json={"amount_cents": 10000.0})
     fake_trip_id = str(uuid.uuid4())
     r = client.post("/v1/wallet/pay-trip", headers=_h(c_tok),
-                    json={"trip_id": fake_trip_id, "amount_xof": 3000.0})
+                    json={"trip_id": fake_trip_id, "amount_cents": 3000.0})
     assert r.status_code == 200, r.text
     data = r.json()
     # Use delta: before + 10000 - 3000 = expected balance
-    assert data["wallet"]["balance_xof"] == before + 7000.0
+    assert data["wallet"]["balance_cents"] == before + 7000.0
     assert data["transaction"]["tx_type"] == "debit"
     assert data["transaction"]["reason"] == "trip_payment"
 
@@ -109,24 +109,24 @@ def test_pay_trip_insufficient_balance_returns_402():
     """POST /v1/wallet/pay-trip returns 402 when balance is insufficient."""
     c_tok = _customer()
     # Read current balance and attempt to pay more than available
-    current_balance = client.get("/v1/wallet", headers=_h(c_tok)).json()["balance_xof"]
+    current_balance = client.get("/v1/wallet", headers=_h(c_tok)).json()["balance_cents"]
     fake_trip_id = str(uuid.uuid4())
     r = client.post("/v1/wallet/pay-trip", headers=_h(c_tok),
-                    json={"trip_id": fake_trip_id, "amount_xof": current_balance + 5000.0})
+                    json={"trip_id": fake_trip_id, "amount_cents": current_balance + 5000.0})
     assert r.status_code == 402, r.text
 
 
 def test_transaction_history_ordered_newest_first():
     """GET /v1/wallet/transactions returns transactions newest first."""
     c_tok = _customer()
-    client.post("/v1/wallet/topup", headers=_h(c_tok), json={"amount_xof": 1000.0})
-    client.post("/v1/wallet/topup", headers=_h(c_tok), json={"amount_xof": 2000.0})
+    client.post("/v1/wallet/topup", headers=_h(c_tok), json={"amount_cents": 1000.0})
+    client.post("/v1/wallet/topup", headers=_h(c_tok), json={"amount_cents": 2000.0})
     r = client.get("/v1/wallet/transactions", headers=_h(c_tok))
     assert r.status_code == 200, r.text
     txs = r.json()
     assert len(txs) >= 2
     # Newest first: second topup (2000) should come before first (1000)
-    amounts = [t["amount_xof"] for t in txs]
+    amounts = [t["amount_cents"] for t in txs]
     assert 2000.0 in amounts
     assert 1000.0 in amounts
 
@@ -142,11 +142,11 @@ def test_admin_credit_wallet():
     r = client.post(
         f"/v1/admin/wallets/{customer_id}/adjust",
         headers=_h(a_tok),
-        json={"amount_xof": 8000.0, "note": "Bonus bienvenue"},
+        json={"amount_cents": 8000.0, "note": "Bonus bienvenue"},
     )
     assert r.status_code == 200, r.text
     data = r.json()
-    assert data["balance_xof"] >= 8000.0
+    assert data["balance_cents"] >= 8000.0
 
 
 def test_admin_debit_wallet():
@@ -154,14 +154,14 @@ def test_admin_debit_wallet():
     a_tok = _admin()
     c_tok = _customer()
     # Fund first
-    client.post("/v1/wallet/topup", headers=_h(c_tok), json={"amount_xof": 10000.0})
+    client.post("/v1/wallet/topup", headers=_h(c_tok), json={"amount_cents": 10000.0})
     me = client.get("/v1/me", headers=_h(c_tok)).json()
     customer_id = me["id"]
 
     r = client.post(
         f"/v1/admin/wallets/{customer_id}/adjust",
         headers=_h(a_tok),
-        json={"amount_xof": -2000.0, "note": "Correction manuelle"},
+        json={"amount_cents": -2000.0, "note": "Correction manuelle"},
     )
     assert r.status_code == 200, r.text
 
@@ -174,13 +174,13 @@ def test_admin_debit_below_zero_returns_422():
     customer_id = me["id"]
 
     # Debit more than the current balance to guarantee underflow
-    current_balance = client.get("/v1/wallet", headers=_h(c_tok)).json()["balance_xof"]
+    current_balance = client.get("/v1/wallet", headers=_h(c_tok)).json()["balance_cents"]
     debit_amount = -(current_balance + 500.0)  # always negative and always overflows
 
     r = client.post(
         f"/v1/admin/wallets/{customer_id}/adjust",
         headers=_h(a_tok),
-        json={"amount_xof": debit_amount},
+        json={"amount_cents": debit_amount},
     )
     assert r.status_code == 422, r.text
 
@@ -194,6 +194,6 @@ def test_non_admin_cannot_adjust_wallet():
     r = client.post(
         f"/v1/admin/wallets/{customer_id}/adjust",
         headers=_h(c_tok),  # customer token, not admin
-        json={"amount_xof": 1000.0},
+        json={"amount_cents": 1000.0},
     )
     assert r.status_code == 403, r.text

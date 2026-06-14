@@ -50,7 +50,7 @@ export default function HistoryScreen(): React.ReactElement {
             <Text style={styles.date}>
               {new Date(item.created_at).toLocaleDateString("en-US")}
             </Text>
-            <Text style={styles.price}>{formatUSD(item.price_xof)}</Text>
+            <Text style={styles.price}>{formatUSD(item.price_cents)}</Text>
           </View>
         )}
         ListEmptyComponent={

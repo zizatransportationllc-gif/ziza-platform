@@ -34,7 +34,7 @@ class Estimate(Base):
 
     distance_km: Mapped[float] = mapped_column(Float, nullable=False)
     duration_min: Mapped[int] = mapped_column(Integer, nullable=False)
-    fare_xof: Mapped[int] = mapped_column(Integer, nullable=False)
+    fare_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     surge_multiplier: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
     # "google_maps" | "haversine"
     distance_source: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -47,4 +47,4 @@ class Estimate(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<Estimate id={self.id!r} fare={self.fare_xof} XOF>"
+        return f"<Estimate id={self.id!r} fare={self.fare_cents} XOF>"

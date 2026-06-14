@@ -26,7 +26,7 @@ test("createPaymentIntent() returns checkout_url used to open the payment WebVie
     json: async () => ({
       payment_id: "pay_001",
       trip_id: TRIP_ID,
-      amount_xof: 1500,
+      amount_cents: 1500,
       provider_ref: "cinetpay_ref_xyz",
       checkout_url: "https://pay.ziza.ci/checkout/trip_abc",
       status: "pending",
@@ -37,7 +37,7 @@ test("createPaymentIntent() returns checkout_url used to open the payment WebVie
 
   expect(intent.checkout_url).toBe("https://pay.ziza.ci/checkout/trip_abc");
   expect(intent.provider_ref).toBe("cinetpay_ref_xyz");
-  expect(intent.amount_xof).toBe(1500);
+  expect(intent.amount_cents).toBe(1500);
 });
 
 test("createPaymentIntent() throws an error when the API returns 400", async () => {

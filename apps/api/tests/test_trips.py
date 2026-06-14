@@ -73,7 +73,7 @@ def test_create_trip_from_estimate() -> None:
     assert body["trip_id"]
     assert body["status"] == "pending"
     assert body["estimate_id"] == estimate_id
-    assert body["fare_xof"] >= 500
+    assert body["fare_cents"] >= 500
 
 
 def test_create_trip_copies_fare_and_route() -> None:
@@ -96,7 +96,7 @@ def test_create_trip_copies_fare_and_route() -> None:
     trip_resp = _create_trip(token, est["estimate_id"])
     assert trip_resp.status_code == 201
     trip = trip_resp.json()
-    assert trip["fare_xof"] == est["fare_xof"]
+    assert trip["fare_cents"] == est["fare_cents"]
     assert abs(trip["distance_km"] - est["distance_km"]) < 0.01
     assert trip["duration_min"] == est["duration_min"]
     assert abs(trip["origin_lat"] - 5.3386) < 0.001
@@ -263,7 +263,7 @@ def test_list_trips() -> None:
     for t in trips:
         assert "trip_id" in t
         assert "status" in t
-        assert "fare_xof" in t
+        assert "fare_cents" in t
 
 
 def test_list_trips_requires_auth() -> None:

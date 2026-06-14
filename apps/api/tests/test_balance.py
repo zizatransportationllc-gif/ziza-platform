@@ -5,11 +5,11 @@ Covers:
 
 Scenarios:
   - Balance is zero when driver has no trips
-  - After a completed trip, gains_bruts_xof > 0
+  - After a completed trip, gains_bruts_cents > 0
   - Commission is deducted for economy category
   - Commission is higher for premium category
-  - After a processed payout, retraits_xof is incremented
-  - solde_net_xof = gains - commission - retraits
+  - After a processed payout, retraits_cents is incremented
+  - solde_net_cents = gains - commission - retraits
   - Admin cannot call this endpoint (403)
   - Customer cannot call this endpoint (403)
 """
@@ -99,16 +99,16 @@ def test_balance_zero_with_no_trips():
     assert r.status_code == 200, r.text
     data = r.json()
     # Formula consistency check (shared DB may already contain trips for this driver)
-    assert data["gains_bruts_xof"] >= 0
-    assert data["commission_xof"] >= 0
-    assert data["retraits_xof"] >= 0
-    assert data["solde_net_xof"] == (
-        data["gains_bruts_xof"] - data["commission_xof"] - data["retraits_xof"]
+    assert data["gains_bruts_cents"] >= 0
+    assert data["commission_cents"] >= 0
+    assert data["retraits_cents"] >= 0
+    assert data["solde_net_cents"] == (
+        data["gains_bruts_cents"] - data["commission_cents"] - data["retraits_cents"]
     )
 
 
 def test_balance_after_completed_economy_trip():
-    """After an economy trip, gains_bruts_xof increases by the trip fare."""
+    """After an economy trip, gains_bruts_cents increases by the trip fare."""
     c_tok = _setup_customer()
     d_tok = _setup_driver()
 
@@ -116,15 +116,15 @@ def test_balance_after_completed_economy_trip():
     before = client.get("/v1/drivers/me/balance", headers=_h(d_tok)).json()
 
     trip = _create_completed_trip(c_tok, d_tok, category="economy")
-    fare = trip["fare_xof"]
+    fare = trip["fare_cents"]
     assert fare is not None and fare > 0
 
     r = client.get("/v1/drivers/me/balance", headers=_h(d_tok))
     assert r.status_code == 200, r.text
     data = r.json()
     # Check the delta, not the absolute value, to survive test-isolation
-    assert data["gains_bruts_xof"] - before["gains_bruts_xof"] == fare
-    assert data["gains_bruts_xof"] > 0
+    assert data["gains_bruts_cents"] - before["gains_bruts_cents"] == fare
+    assert data["gains_bruts_cents"] > 0
     assert "driver_id" in data
 
 
@@ -143,7 +143,7 @@ def test_balance_commission_deducted_for_economy():
     before = client.get("/v1/drivers/me/balance", headers=_h(d_tok)).json()
 
     trip = _create_completed_trip(c_tok, d_tok, category="economy")
-    fare = trip["fare_xof"]
+    fare = trip["fare_cents"]
 
     r = client.get("/v1/drivers/me/balance", headers=_h(d_tok))
     assert r.status_code == 200, r.text
@@ -151,8 +151,8 @@ def test_balance_commission_deducted_for_economy():
 
     expected_commission = fare * 15 // 100
     # Use delta to survive test-isolation (driver may have previous trips)
-    assert data["commission_xof"] - before["commission_xof"] == expected_commission
-    assert data["solde_net_xof"] - before["solde_net_xof"] == fare - expected_commission
+    assert data["commission_cents"] - before["commission_cents"] == expected_commission
+    assert data["solde_net_cents"] - before["solde_net_cents"] == fare - expected_commission
 
 
 def test_balance_commission_higher_for_premium():
@@ -170,17 +170,17 @@ def test_balance_commission_higher_for_premium():
 
     # Create a premium trip (higher multiplier → bigger fare → bigger commission)
     trip_premium = _create_completed_trip(c_tok, d_tok, category="premium")
-    fare_premium = trip_premium["fare_xof"]
+    fare_premium = trip_premium["fare_cents"]
 
     r = client.get("/v1/drivers/me/balance", headers=_h(d_tok))
     data = r.json()
 
     expected_commission = fare_premium * 20 // 100
-    assert data["commission_xof"] >= expected_commission  # at least this much
+    assert data["commission_cents"] >= expected_commission  # at least this much
 
 
 def test_balance_retraits_after_processed_payout():
-    """After a processed payout, retraits_xof increases and solde_net decreases."""
+    """After a processed payout, retraits_cents increases and solde_net decreases."""
     c_tok = _setup_customer()
     d_tok = _setup_driver()
     a_tok = _setup_admin()
@@ -194,7 +194,7 @@ def test_balance_retraits_after_processed_payout():
     # Create and approve a payout request (within the driver's balance — Sprint 67 cap)
     amount = 100
     pr = client.post("/v1/drivers/me/payout-requests", headers=_h(d_tok), json={
-        "amount_xof": amount
+        "amount_cents": amount
     })
     payout_id = pr.json()["payout_id"]
     client.patch(
@@ -210,20 +210,20 @@ def test_balance_retraits_after_processed_payout():
     # Balance should now reflect the payout
     r = client.get("/v1/drivers/me/balance", headers=_h(d_tok))
     data_after = r.json()
-    assert data_after["retraits_xof"] > 0
-    assert data_after["solde_net_xof"] < data_before["solde_net_xof"] or data_after["retraits_xof"] > 0
+    assert data_after["retraits_cents"] > 0
+    assert data_after["solde_net_cents"] < data_before["solde_net_cents"] or data_after["retraits_cents"] > 0
 
 
 def test_balance_solde_net_formula():
-    """solde_net_xof == gains_bruts_xof - commission_xof - retraits_xof."""
+    """solde_net_cents == gains_bruts_cents - commission_cents - retraits_cents."""
     c_tok = _setup_customer()
     d_tok = _setup_driver()
     _create_completed_trip(c_tok, d_tok, category="economy")
 
     r = client.get("/v1/drivers/me/balance", headers=_h(d_tok))
     data = r.json()
-    assert data["solde_net_xof"] == (
-        data["gains_bruts_xof"] - data["commission_xof"] - data["retraits_xof"]
+    assert data["solde_net_cents"] == (
+        data["gains_bruts_cents"] - data["commission_cents"] - data["retraits_cents"]
     )
 
 

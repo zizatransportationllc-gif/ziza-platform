@@ -200,7 +200,7 @@ function ActiveTripCard({ token, trip, onUpdate }) {
   return (
     <div className={`active-trip-card active-${trip.status}`}>
       <div className="active-status">{STATUS_LABELS[trip.status] ?? trip.status}</div>
-      {trip.fare_xof && <div className="active-fare">{formatUSD(trip.fare_xof)}</div>}
+      {trip.fare_cents && <div className="active-fare">{formatUSD(trip.fare_cents)}</div>}
       <div className="fare-meta">
         {trip.distance_km != null && <span>🛣️ {trip.distance_km.toFixed(1)} mi</span>}
         {trip.duration_min != null && <span>⏱️ ~{trip.duration_min} min</span>}
@@ -262,12 +262,12 @@ function RatingStats({ stats }) {
 
 function EarningsCard({ earnings, balance }) {
   if (!earnings) return null;
-  const { total_xof, total_trips, today_xof, today_trips, week_xof, week_trips, recent_trips = [] } = earnings;
+  const { total_cents, total_trips, today_cents, today_trips, week_cents, week_trips, recent_trips = [] } = earnings;
 
   return (
     <div className="earnings-card">
       <div className="earnings-label">My Earnings</div>
-      <div className="earnings-total">{formatUSD(total_xof)}</div>
+      <div className="earnings-total">{formatUSD(total_cents)}</div>
       <div className="earnings-count">{total_trips} ride{total_trips !== 1 ? "s" : ""} completed</div>
 
       {/* Sprint 29 — net balance breakdown */}
@@ -275,21 +275,21 @@ function EarningsCard({ earnings, balance }) {
         <div className="balance-breakdown">
           <div className="balance-row">
             <span className="balance-label">Gross earnings</span>
-            <span className="balance-value">{formatUSD(balance.gains_bruts_xof)}</span>
+            <span className="balance-value">{formatUSD(balance.gains_bruts_cents)}</span>
           </div>
           <div className="balance-row balance-row--deduction">
             <span className="balance-label">Platform commission</span>
-            <span className="balance-value balance-value--negative">- {formatUSD(balance.commission_xof)}</span>
+            <span className="balance-value balance-value--negative">- {formatUSD(balance.commission_cents)}</span>
           </div>
-          {balance.retraits_xof > 0 && (
+          {balance.retraits_cents > 0 && (
             <div className="balance-row balance-row--deduction">
               <span className="balance-label">Withdrawals</span>
-              <span className="balance-value balance-value--negative">- {formatUSD(balance.retraits_xof)}</span>
+              <span className="balance-value balance-value--negative">- {formatUSD(balance.retraits_cents)}</span>
             </div>
           )}
           <div className="balance-row balance-row--net">
             <span className="balance-label">Net available balance</span>
-            <span className="balance-value balance-value--net">{formatUSD(balance.solde_net_xof)}</span>
+            <span className="balance-value balance-value--net">{formatUSD(balance.solde_net_cents)}</span>
           </div>
         </div>
       )}
@@ -297,12 +297,12 @@ function EarningsCard({ earnings, balance }) {
       <div className="earnings-periods">
         <div className="earnings-period">
           <span className="period-label">Today</span>
-          <span className="period-value">{formatUSD(today_xof)}</span>
+          <span className="period-value">{formatUSD(today_cents)}</span>
           <span className="period-trips">{today_trips} ride{today_trips !== 1 ? "s" : ""}</span>
         </div>
         <div className="earnings-period">
           <span className="period-label">This week</span>
-          <span className="period-value">{formatUSD(week_xof)}</span>
+          <span className="period-value">{formatUSD(week_cents)}</span>
           <span className="period-trips">{week_trips} ride{week_trips !== 1 ? "s" : ""}</span>
         </div>
       </div>
@@ -316,7 +316,7 @@ function EarningsCard({ earnings, balance }) {
               <div key={t.trip_id} className="earnings-recent-row">
                 <div className="earnings-recent-left">
                   <span className="earnings-recent-fare">
-                    {t.fare_xof != null ? formatUSD(t.fare_xof) : "—"}
+                    {t.fare_cents != null ? formatUSD(t.fare_cents) : "—"}
                   </span>
                   <span className="earnings-recent-meta">
                     {t.distance_km != null && `🛣️ ${t.distance_km.toFixed(1)} mi`}
@@ -477,7 +477,7 @@ function AvailableTripsSection({ token, onTripAccepted }) {
                 {VEHICLE_CATEGORIES.find((c) => c.value === t.category)?.label ?? t.category}
               </div>
             )}
-            <div className="trip-card-fare">{t.fare_xof ? formatUSD(t.fare_xof) : "—"}</div>
+            <div className="trip-card-fare">{t.fare_cents ? formatUSD(t.fare_cents) : "—"}</div>
             <div className="trip-card-meta">
               {t.distance_km != null && <span>🛣️ {t.distance_km.toFixed(1)} mi</span>}
               {t.duration_min != null && <span>⏱️ ~{t.duration_min} min</span>}
@@ -538,7 +538,7 @@ function DriverTripHistory({ token }) {
             <div className={`dispatch-tag ${t.status === "completed" ? "tag-ride" : "tag-cancelled"}`}>
               {t.status === "completed" ? "✅ Completed" : "✗ Cancelled"}
             </div>
-            {t.fare_xof && <div className="trip-card-fare">{formatUSD(t.fare_xof)}</div>}
+            {t.fare_cents && <div className="trip-card-fare">{formatUSD(t.fare_cents)}</div>}
             <div className="trip-card-meta">
               {t.distance_km != null && <span>🛣️ {t.distance_km.toFixed(1)} mi</span>}
               {t.duration_min != null && <span>⏱️ {t.duration_min} min</span>}
@@ -571,7 +571,7 @@ const PAYOUT_STATUS_LABELS = {
 function PayoutSection({ token }) {
   const [amount, setAmount]   = useState("");
   const [payouts, setPayouts] = useState([]);
-  const [available, setAvailable] = useState(null); // disponible_xof (cents)
+  const [available, setAvailable] = useState(null); // disponible_cents (cents)
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]     = useState(null);
@@ -582,7 +582,7 @@ function PayoutSection({ token }) {
     Promise.all([
       listPayoutRequests(token).then(setPayouts).catch(() => {}),
       getDriverBalance(token)
-        .then((b) => setAvailable(b.disponible_xof ?? 0))
+        .then((b) => setAvailable(b.disponible_cents ?? 0))
         .catch(() => {}),
     ]).finally(() => setLoading(false));
   }, [token]);
@@ -655,7 +655,7 @@ function PayoutSection({ token }) {
         {payouts.map((p) => (
           <div key={p.payout_id} className={`payout-item payout-${p.status}`}>
             <div className="payout-item-main">
-              <span className="payout-amount">{formatUSD(p.amount_xof)}</span>
+              <span className="payout-amount">{formatUSD(p.amount_cents)}</span>
               <span className={`payout-status payout-status-${p.status}`}>
                 {PAYOUT_STATUS_LABELS[p.status] ?? p.status}
               </span>

@@ -84,7 +84,7 @@ def test_estimate_returns_fare() -> None:
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["currency"] == "USD"
-    assert body["fare_xof"] >= 250          # at least minimum (base) fare, USD cents
+    assert body["fare_cents"] >= 250          # at least minimum (base) fare, USD cents
     assert body["distance_km"] > 0
     assert body["duration_min"] >= 1
     assert body["estimate_id"]              # UUID string
@@ -107,7 +107,7 @@ def test_estimate_saves_to_db_and_returns_uuid() -> None:
     assert r1.status_code == r2.status_code == 200
     assert r1.json()["estimate_id"] != r2.json()["estimate_id"]
     # Fare must be equal for the same route
-    assert r1.json()["fare_xof"] == r2.json()["fare_xof"]
+    assert r1.json()["fare_cents"] == r2.json()["fare_cents"]
 
 
 def test_estimate_requires_auth() -> None:
@@ -137,4 +137,4 @@ def test_estimate_same_origin_dest() -> None:
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
-    assert resp.json()["fare_xof"] == 250
+    assert resp.json()["fare_cents"] == 250

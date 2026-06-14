@@ -37,7 +37,7 @@ export default function PromoInput({ token, estimateId }: Props): React.ReactEle
     <View style={styles.container}>
       {promo ? (
         <Text style={styles.success}>
-          Code appliqué ! Remise : {promo.discount_xof} XOF → {promo.final_price_xof} XOF
+          Code appliqué ! Remise : {promo.discount_cents} XOF → {promo.final_price_cents} XOF
         </Text>
       ) : (
         <View style={styles.row}>

@@ -25,12 +25,12 @@ beforeEach(() => {
 // Estimate
 // ---------------------------------------------------------------------------
 
-test("getEstimate() returns price_xof and estimate_id from API", async () => {
+test("getEstimate() returns price_cents and estimate_id from API", async () => {
   mockFetch.mockResolvedValueOnce({
     ok: true,
     json: async () => ({
       estimate_id: "est_001",
-      price_xof: 1500,
+      price_cents: 1500,
       distance_km: 4.2,
       duration_min: 12,
       category_id: "economy",
@@ -41,7 +41,7 @@ test("getEstimate() returns price_xof and estimate_id from API", async () => {
   const result = await getEstimate(TOKEN, 5.32, -4.02, 5.36, -3.98);
 
   expect(result.estimate_id).toBe("est_001");
-  expect(result.price_xof).toBe(1500);
+  expect(result.price_cents).toBe(1500);
   expect(result.distance_km).toBe(4.2);
 });
 
@@ -57,15 +57,15 @@ test("listCategories() returns an array of vehicle categories", async () => {
         category_id: "economy",
         name: "Économie",
         description: "Berlines standard",
-        base_fare_xof: 500,
-        per_km_xof: 200,
+        base_fare_cents: 500,
+        per_km_cents: 200,
       },
       {
         category_id: "comfort",
         name: "Confort",
         description: "Berlines premium",
-        base_fare_xof: 800,
-        per_km_xof: 300,
+        base_fare_cents: 800,
+        per_km_cents: 300,
       },
     ],
   });
@@ -86,15 +86,15 @@ test("applyPromo() returns discounted price when code is valid", async () => {
     ok: true,
     json: async () => ({
       promo_code: "ZIZA10",
-      discount_xof: 150,
-      final_price_xof: 1350,
+      discount_cents: 150,
+      final_price_cents: 1350,
     }),
   });
 
   const promo = await applyPromo(TOKEN, "ZIZA10", "est_001");
 
-  expect(promo.discount_xof).toBe(150);
-  expect(promo.final_price_xof).toBe(1350);
+  expect(promo.discount_cents).toBe(150);
+  expect(promo.final_price_cents).toBe(1350);
 });
 
 // ---------------------------------------------------------------------------
@@ -112,7 +112,7 @@ test("createTrip() returns trip_id with pending status", async () => {
       origin_lng: -4.02,
       dest_lat: 5.36,
       dest_lng: -3.98,
-      price_xof: 1350,
+      price_cents: 1350,
       eta_minutes: null,
       created_at: new Date().toISOString(),
     }),
@@ -158,7 +158,7 @@ test("getTripStatus() returns trip with status field", async () => {
       origin_lng: -4.02,
       dest_lat: 5.36,
       dest_lng: -3.98,
-      price_xof: 1350,
+      price_cents: 1350,
       eta_minutes: 8,
       created_at: new Date().toISOString(),
     }),
@@ -185,7 +185,7 @@ test("getTripStatus() reflects driver_id once trip is accepted", async () => {
       origin_lng: -4.02,
       dest_lat: 5.36,
       dest_lng: -3.98,
-      price_xof: 1350,
+      price_cents: 1350,
       eta_minutes: 5,
       created_at: new Date().toISOString(),
     }),

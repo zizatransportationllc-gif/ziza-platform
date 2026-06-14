@@ -69,7 +69,7 @@ def test_admin_pending_counts_reflects_state():
     client.post(
         "/v1/drivers/me/payout-requests",
         headers=_h(d_tok),
-        json={"amount_xof": 100},
+        json={"amount_cents": 100},
     )
 
     # Submit a document

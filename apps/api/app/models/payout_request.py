@@ -75,7 +75,7 @@ class PayoutRequest(Base):
         nullable=False,
         index=True,
     )
-    amount_xof: Mapped[int] = mapped_column(Integer, nullable=False)
+    amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     # pending | approved | rejected | processed | failed
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default="pending", server_default="pending"
@@ -83,8 +83,8 @@ class PayoutRequest(Base):
     # Optional admin note (reason for rejection, etc.)
     note_admin: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Sprint 29 — commission and batch payout fields
-    commission_xof: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    net_amount_xof: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    commission_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    net_amount_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
     provider_ref: Mapped[str | None] = mapped_column(String(128), nullable=True)
     processed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -98,6 +98,6 @@ class PayoutRequest(Base):
 
     def __repr__(self) -> str:
         return (
-            f"<PayoutRequest id={self.id!r} amount={self.amount_xof} "
+            f"<PayoutRequest id={self.id!r} amount={self.amount_cents} "
             f"status={self.status!r}>"
         )

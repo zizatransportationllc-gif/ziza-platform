@@ -92,11 +92,11 @@ def test_estimate_category_shape():
     tok = _setup("customer@ziza.dev")
     est = _estimate(tok)
     for cat_name, cat_data in est["categories"].items():
-        assert "fare_xof" in cat_data
+        assert "fare_cents" in cat_data
         assert "label" in cat_data
         assert "description" in cat_data
         assert "multiplier" in cat_data
-        assert cat_data["fare_xof"] >= 1
+        assert cat_data["fare_cents"] >= 1
 
 
 def test_estimate_category_fares_ordered():
@@ -104,15 +104,15 @@ def test_estimate_category_fares_ordered():
     tok = _setup("customer@ziza.dev")
     est = _estimate(tok)
     cats = est["categories"]
-    assert cats["economy"]["fare_xof"] <= cats["comfort"]["fare_xof"]
-    assert cats["comfort"]["fare_xof"] <= cats["premium"]["fare_xof"]
+    assert cats["economy"]["fare_cents"] <= cats["comfort"]["fare_cents"]
+    assert cats["comfort"]["fare_cents"] <= cats["premium"]["fare_cents"]
 
 
 def test_estimate_economy_fare_matches_top_level():
-    """The top-level fare_xof must equal the economy category fare."""
+    """The top-level fare_cents must equal the economy category fare."""
     tok = _setup("customer@ziza.dev")
     est = _estimate(tok)
-    assert est["fare_xof"] == est["categories"]["economy"]["fare_xof"]
+    assert est["fare_cents"] == est["categories"]["economy"]["fare_cents"]
 
 
 # ---------------------------------------------------------------------------
@@ -137,8 +137,8 @@ def test_trip_with_comfort_category():
     body = r.json()
     assert body["category"] == "comfort"
     # Comfort fare should be >= economy fare from the same estimate
-    comfort_fare = est["categories"]["comfort"]["fare_xof"]
-    assert body["fare_xof"] == comfort_fare
+    comfort_fare = est["categories"]["comfort"]["fare_cents"]
+    assert body["fare_cents"] == comfort_fare
 
 
 def test_trip_with_premium_category():
@@ -149,8 +149,8 @@ def test_trip_with_premium_category():
     assert r.status_code == 201, r.text
     body = r.json()
     assert body["category"] == "premium"
-    premium_fare = est["categories"]["premium"]["fare_xof"]
-    assert body["fare_xof"] == premium_fare
+    premium_fare = est["categories"]["premium"]["fare_cents"]
+    assert body["fare_cents"] == premium_fare
 
 
 def test_trip_invalid_category_returns_422():

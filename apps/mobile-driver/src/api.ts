@@ -70,7 +70,7 @@ export interface TripResponse {
   origin_lng: number;
   dest_lat: number;
   dest_lng: number;
-  price_xof: number;
+  price_cents: number;
   category_id: string;
   eta_minutes: number | null;
   created_at: string;
@@ -85,11 +85,11 @@ export interface LocationResponse {
 }
 
 export interface EarningsResponse {
-  total_xof: number;
+  total_cents: number;
   total_trips: number;
-  today_xof: number;
+  today_cents: number;
   today_trips: number;
-  week_xof: number;
+  week_cents: number;
   week_trips: number;
 }
 
@@ -567,17 +567,17 @@ export async function sendTripMessage(token: string, tripId: string, body: strin
 
 export interface DriverBalance {
   driver_id: string;
-  gains_bruts_xof: number;
-  commission_xof: number;
-  retraits_xof: number;
-  solde_net_xof: number;
-  disponible_xof: number;
+  gains_bruts_cents: number;
+  commission_cents: number;
+  retraits_cents: number;
+  solde_net_cents: number;
+  disponible_cents: number;
 }
 
 export interface PayoutRecord {
   payout_id: string;
   driver_id: string;
-  amount_xof: number;
+  amount_cents: number;
   status: string;
   note_admin: string | null;
   created_at: string;
@@ -593,7 +593,7 @@ export async function createPayout(token: string, amountXof: number): Promise<Pa
   const res = await fetch(`${API_BASE}/v1/drivers/me/payout-requests`, {
     method: "POST",
     headers: { ..._auth(token), "Content-Type": "application/json" },
-    body: JSON.stringify({ amount_xof: amountXof }),
+    body: JSON.stringify({ amount_cents: amountXof }),
   });
   return _json<PayoutRecord>(res);
 }

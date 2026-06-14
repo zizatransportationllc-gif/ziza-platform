@@ -16,7 +16,7 @@ class MockPaymentAdapter:
 
     async def create_checkout(
         self,
-        amount_xof: int,
+        amount_cents: int,
         ref: str,
         return_url: str,
         notify_url: str | None = None,
@@ -26,7 +26,7 @@ class MockPaymentAdapter:
             "provider_ref": f"mock-{ref}",
             "checkout_url": (
                 f"http://localhost/mock-pay"
-                f"?ref={ref}&amount={amount_xof}&return={return_url}"
+                f"?ref={ref}&amount={amount_cents}&return={return_url}"
             ),
         }
 

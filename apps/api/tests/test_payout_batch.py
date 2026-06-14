@@ -72,7 +72,7 @@ def _approved_payout(driver_tok: str, admin_tok: str, amount: int = 100) -> str:
     pr = client.post(
         "/v1/drivers/me/payout-requests",
         headers=_h(driver_tok),
-        json={"amount_xof": amount},
+        json={"amount_cents": amount},
     )
     assert pr.status_code == 201, pr.text
     payout_id = pr.json()["payout_id"]
@@ -98,8 +98,8 @@ def test_batch_with_no_approved_requests():
     # There may be leftovers from other tests, so just check structure
     assert "processed" in data
     assert "failed" in data
-    assert "total_net_xof" in data
-    assert "total_commission_xof" in data
+    assert "total_net_cents" in data
+    assert "total_commission_cents" in data
 
 
 def test_batch_processes_one_approved_request():
@@ -143,7 +143,7 @@ def test_batch_report_processed_failed_counts():
     r = client.post("/v1/admin/payouts/run", headers=_h(a_tok))
     data = r.json()
     assert data["processed"] >= 2
-    assert data["total_net_xof"] > 0
+    assert data["total_net_cents"] > 0
 
 
 def test_batch_idempotent_on_processed_requests():
@@ -165,7 +165,7 @@ def test_batch_idempotent_on_processed_requests():
 
 
 def test_batch_summary_includes_totals():
-    """Batch result includes total_net_xof and total_commission_xof."""
+    """Batch result includes total_net_cents and total_commission_cents."""
     d_tok = _setup_driver_with_earnings()
     a_tok = _setup_admin()
     _approved_payout(d_tok, a_tok, 100)
@@ -178,10 +178,10 @@ def test_batch_summary_includes_totals():
     r = client.post("/v1/admin/payouts/run", headers=_h(a_tok))
     data = r.json()
     assert data["processed"] >= 1
-    assert data["total_net_xof"] >= 0
-    assert data["total_commission_xof"] >= 0
+    assert data["total_net_cents"] >= 0
+    assert data["total_commission_cents"] >= 0
     # net + commission should roughly equal gross
-    assert data["total_net_xof"] + data["total_commission_xof"] > 0
+    assert data["total_net_cents"] + data["total_commission_cents"] > 0
 
 
 def test_batch_non_admin_forbidden():

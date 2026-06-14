@@ -75,7 +75,7 @@ export default function WalletScreen(): React.ReactElement {
       {wallet && (
         <View style={styles.balanceCard}>
           <Text style={styles.balanceLabel}>Available Balance</Text>
-          <Text style={styles.balanceAmount}>{formatUSD(wallet.balance_xof)}</Text>
+          <Text style={styles.balanceAmount}>{formatUSD(wallet.balance_cents)}</Text>
         </View>
       )}
 
@@ -112,7 +112,7 @@ export default function WalletScreen(): React.ReactElement {
             ) : null}
           </View>
           <Text style={[styles.txAmount, { color: TX_COLORS[tx.tx_type] ?? "#111827" }]}>
-            {tx.tx_type === "debit" ? "−" : "+"}{formatUSD(tx.amount_xof)}
+            {tx.tx_type === "debit" ? "−" : "+"}{formatUSD(tx.amount_cents)}
           </Text>
         </View>
       ))}

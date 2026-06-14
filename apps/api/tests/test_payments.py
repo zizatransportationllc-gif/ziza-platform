@@ -169,7 +169,7 @@ def test_create_payment_intent_happy_path() -> None:
     assert body["status"] == "pending"
     assert body["checkout_url"]
     assert body["provider_ref"]
-    assert body["amount_xof"] > 0
+    assert body["amount_cents"] > 0
     assert body["currency"] == "USD"
 
 

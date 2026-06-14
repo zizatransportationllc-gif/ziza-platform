@@ -42,7 +42,7 @@ class Trip(Base):
     dest_lng: Mapped[float | None] = mapped_column(Float, nullable=True)
     # Sprint 6: fare snapshot copied from the Estimate at booking time
     estimate_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
-    fare_xof: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    fare_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
     distance_km: Mapped[float | None] = mapped_column(Float, nullable=True)
     duration_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Sprint 14: optional promo code applied at booking

@@ -33,7 +33,7 @@ export default function TripDispatchCard({
         <Text style={[styles.badge, { backgroundColor: badgeColor }]}>
           {trip.category_id.toUpperCase()}
         </Text>
-        <Text style={styles.price}>{trip.price_xof} XOF</Text>
+        <Text style={styles.price}>{trip.price_cents} XOF</Text>
       </View>
       <Text style={styles.route}>
         ({trip.origin_lat.toFixed(3)}, {trip.origin_lng.toFixed(3)}) →{" "}

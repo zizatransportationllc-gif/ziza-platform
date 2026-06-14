@@ -44,7 +44,7 @@ function WithdrawalCard({ token }: { token: string }): React.ReactElement {
 
   useEffect(() => { load(); }, [load]);
 
-  const available = balance?.disponible_xof ?? null;
+  const available = balance?.disponible_cents ?? null;
   const amountNum = Number(amount);
   const overBalance = available != null && amountNum > available;
 
@@ -94,7 +94,7 @@ function WithdrawalCard({ token }: { token: string }): React.ReactElement {
 
       {payouts.map((p) => (
         <View key={p.payout_id} style={styles.payoutRow}>
-          <Text style={styles.payoutAmount}>{formatUSD(p.amount_xof)}</Text>
+          <Text style={styles.payoutAmount}>{formatUSD(p.amount_cents)}</Text>
           <Text style={styles.payoutStatus}>{PAYOUT_STATUS_LABELS[p.status] ?? p.status}</Text>
         </View>
       ))}
@@ -131,23 +131,23 @@ export default function EarningsScreen(): React.ReactElement {
         <>
           <View style={styles.totalCard}>
             <Text style={styles.totalLabel}>Total earned</Text>
-            <Text style={styles.totalAmount}>{formatUSD(earnings.total_xof)}</Text>
+            <Text style={styles.totalAmount}>{formatUSD(earnings.total_cents)}</Text>
             <Text style={styles.totalTrips}>{earnings.total_trips} trips</Text>
           </View>
           <EarningsChart
-            todayXof={earnings.today_xof}
-            weekXof={earnings.week_xof}
-            totalXof={earnings.total_xof}
+            todayXof={earnings.today_cents}
+            weekXof={earnings.week_cents}
+            totalXof={earnings.total_cents}
           />
           <View style={styles.row}>
             <View style={styles.statBox}>
               <Text style={styles.statLabel}>Today</Text>
-              <Text style={styles.statValue}>{formatUSD(earnings.today_xof)}</Text>
+              <Text style={styles.statValue}>{formatUSD(earnings.today_cents)}</Text>
               <Text style={styles.statSub}>{earnings.today_trips} trips</Text>
             </View>
             <View style={styles.statBox}>
               <Text style={styles.statLabel}>This week</Text>
-              <Text style={styles.statValue}>{formatUSD(earnings.week_xof)}</Text>
+              <Text style={styles.statValue}>{formatUSD(earnings.week_cents)}</Text>
               <Text style={styles.statSub}>{earnings.week_trips} trips</Text>
             </View>
           </View>
