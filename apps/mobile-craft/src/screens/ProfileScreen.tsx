@@ -2,7 +2,7 @@
  * ProfileScreen — professional manages their profile and specialties.
  * Sprint 53 — added Documents link.
  */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,10 +12,16 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Image,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { registerProfessional, updateProfessionalProfile, CRAFT_CATEGORIES } from "../api";
+import {
+  registerProfessional, updateProfessionalProfile, CRAFT_CATEGORIES,
+  getProfile, updateProfile, avatarUploadUrl, getBankAccount, setBankAccount,
+  UserProfile, BankAccountInfo,
+} from "../api";
 import { RootStackParamList } from "../navigation/AppNavigator";
 
 const CAT_LABELS: Record<string, string> = {
@@ -32,6 +38,99 @@ const CAT_LABELS: Record<string, string> = {
 import { useAuth } from "../context/AuthContext";
 
 type ProfileNav = NativeStackNavigationProp<RootStackParamList, "Profile">;
+
+const ACCENT = "#059669";
+
+function AccountSection({ token }: { token: string }): React.ReactElement {
+  const [me, setMe] = useState<UserProfile | null>(null);
+  const [bank, setBank] = useState<BankAccountInfo | null>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [holder, setHolder] = useState("");
+  const [routing, setRouting] = useState("");
+  const [number, setNumber] = useState("");
+  const [acctType, setAcctType] = useState("checking");
+  const [savingBank, setSavingBank] = useState(false);
+  const [bankMsg, setBankMsg] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    getProfile(token).then(setMe).catch(() => {});
+    getBankAccount(token).then((b) => { setBank(b); if (b) setHolder(b.account_holder_name); }).catch(() => {});
+  }, [token]);
+  useEffect(() => { load(); }, [load]);
+
+  const pickAvatar = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status !== "granted") return;
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7,
+    });
+    if (res.canceled || !res.assets || !res.assets[0]) return;
+    const asset = res.assets[0];
+    setAvatarBusy(true);
+    try {
+      const ct = (asset as any).mimeType || "image/jpeg";
+      const name = (asset as any).fileName || "avatar.jpg";
+      const { upload_url, final_url } = await avatarUploadUrl(token, name, ct);
+      const blob = await (await fetch(asset.uri)).blob();
+      await fetch(upload_url, { method: "PUT", headers: { "Content-Type": ct }, body: blob });
+      setMe(await updateProfile(token, { avatar_url: final_url }));
+    } catch { /* ignore */ } finally { setAvatarBusy(false); }
+  };
+
+  const saveBank = async () => {
+    if (savingBank) return;
+    setSavingBank(true); setBankMsg(null);
+    try {
+      const b = await setBankAccount(token, {
+        account_holder_name: holder, routing_number: routing, account_number: number, account_type: acctType,
+      });
+      setBank(b); setNumber(""); setBankMsg("✓ Bank account saved");
+    } catch (e: any) { setBankMsg(e?.message || "Save failed"); }
+    finally { setSavingBank(false); }
+  };
+
+  return (
+    <View>
+      <View style={acc.avatarRow}>
+        <View style={acc.avatar}>
+          {me?.avatar_url
+            ? <Image source={{ uri: me.avatar_url }} style={{ width: "100%", height: "100%" }} />
+            : <Text style={{ fontSize: 28 }}>👤</Text>}
+        </View>
+        <TouchableOpacity onPress={pickAvatar} disabled={avatarBusy}>
+          <Text style={{ color: ACCENT, fontWeight: "700" }}>{avatarBusy ? "Uploading…" : "📷 Change photo"}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={styles.sectionTitle}>🏦 Payout bank account</Text>
+      {bank && <Text style={acc.onFile}>On file: {bank.account_holder_name} · ****{bank.account_number_last4} ({bank.account_type})</Text>}
+      <TextInput style={styles.input} value={holder} onChangeText={setHolder} placeholder="Account holder name" />
+      <TextInput style={styles.input} value={routing} onChangeText={setRouting} placeholder="Routing number" keyboardType="number-pad" />
+      <TextInput style={styles.input} value={number} onChangeText={setNumber} placeholder={bank ? "Enter to replace account number" : "Account number"} keyboardType="number-pad" />
+      <View style={acc.typeRow}>
+        {(["checking", "savings"] as const).map((t) => (
+          <TouchableOpacity key={t} onPress={() => setAcctType(t)}
+            style={[acc.typeBtn, acctType === t && { backgroundColor: ACCENT, borderColor: ACCENT }]}>
+            <Text style={[acc.typeTxt, acctType === t && { color: "#fff" }]}>{t}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <TouchableOpacity style={[styles.saveBtn, savingBank && styles.saveBtnDisabled]} onPress={saveBank} disabled={savingBank}>
+        <Text style={styles.saveBtnText}>{savingBank ? "Saving…" : "Save bank account"}</Text>
+      </TouchableOpacity>
+      {bankMsg && <Text style={styles.successText}>{bankMsg}</Text>}
+    </View>
+  );
+}
+
+const acc = StyleSheet.create({
+  avatarRow: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 16 },
+  avatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#E5E7EB", alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  onFile: { fontSize: 13, color: "#6B7280", marginBottom: 8 },
+  typeRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
+  typeBtn: { flex: 1, borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, paddingVertical: 10, alignItems: "center", backgroundColor: "#fff" },
+  typeTxt: { textTransform: "capitalize", color: "#374151", fontWeight: "600" },
+});
 
 export default function ProfileScreen(): React.ReactElement {
   const { token, profile, refreshProfile, logout } = useAuth();
@@ -98,6 +197,8 @@ export default function ProfileScreen(): React.ReactElement {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Professional Profile</Text>
+
+      {token ? <AccountSection token={token} /> : null}
 
       {profile ? (
         <View style={styles.infoCard}>
