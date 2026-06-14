@@ -16,7 +16,8 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
+// SDK 54 — the classic readAsStringAsync/EncodingType API now lives in /legacy
+import * as FileSystem from "expo-file-system/legacy";
 import { useAuth } from "../context/AuthContext";
 import { listMyDocuments, submitDocument, DocumentResponse } from "../api";
 

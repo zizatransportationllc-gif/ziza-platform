@@ -17,7 +17,9 @@ import "./src/background/LocationTask";
 // Show alerts when a notification arrives while the app is open
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    // SDK 54 — shouldShowAlert split into shouldShowBanner + shouldShowList
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
