@@ -2,15 +2,29 @@
 
 | | |
 |---|---|
-| **Version** | 1.0 |
+| **Version** | 1.1 |
 | **Date** | 2026-06-14 |
 | **Auteur** | MOA / Product Owner — assisté Claude Code |
-| **Objectif** | Faire passer la plateforme d'un argent **simulé (mock)** à des **flux financiers réels** : encaissement, wallet, reversement, en devise du marché. |
+| **Objectif** | Faire passer la plateforme d'un argent **simulé (mock)** à des **flux financiers réels** : encaissement, wallet, reversement. |
 | **Référence** | Complète `docs/go-live/2026-06-14-go-live-readiness.md` (écarts G1–G4). |
 
 > « Argent réel » = un utilisateur paie réellement, un driver/pro est réellement
 > payé, et chaque centime est traçable et réconcilié. Tant qu'un seul maillon est
 > en `mock`, on n'est pas à argent réel.
+
+## Décisions MOA actées (v1.1)
+
+| Réf | Décision | Conséquence |
+|---|---|---|
+| **D1 — Devise** | **USD** comme base (conversions multi-devises plus tard) | Tous les montants en **USD cents** ; nommage `*_cents` (ambiguïté `*_xof` **levée — fait, PR #27**). |
+| **D2 — Encaissement** | **Stripe** | `StripeAdapter` (déjà codé) devient le rail principal ; CinetPay/mobile money repoussés (option future marché FCFA). |
+| **D3 — Reversement** | **Stripe (Connect)** | Payout marketplace via **Stripe Connect** (comptes connectés driver/pro) ; remplace le *stub* Orange Money. |
+
+> ⚠️ **À valider (dépendance externe)** : la **couverture géographique de Stripe**
+> pour l'encaissement **et surtout les payouts Connect** dépend du pays
+> d'exploitation. Stripe ne reverse pas vers tous les pays/banques (Afrique de
+> l'Ouest notamment limitée). Le choix Stripe implique soit un **marché supporté
+> par Stripe**, soit un rail payout local à rajouter plus tard. À confirmer côté MOA.
 
 ---
 
@@ -19,134 +33,124 @@
 | Brique | Fichier | État |
 |---|---|---|
 | Interface paiement | `app/payment/base.py` | 🟢 `create_checkout` + `verify_webhook` |
-| **Encaissement CinetPay** (Afrique de l'Ouest) | `app/payment/cinetpay.py` | 🟢 **implémenté** (API v2, `notify_url` → `/v1/payments/webhook`) — à créditer/tester |
-| Encaissement Stripe (cartes) | `app/payment/stripe_adapter.py` | 🟢 implémenté (rail secours) |
-| Sélecteur de provider | `app/payment/__init__.py` + `config.payment_provider` | 🟢 `mock` \| `cinetpay` \| `stripe` (défaut **mock**) |
-| Intent de paiement course | `crud.create_payment_intent`, modèle `PaymentIntent` | 🟢 flux checkout course |
+| **Encaissement Stripe** (rail retenu) | `app/payment/stripe_adapter.py` | 🟢 **implémenté** (Checkout + `verify_webhook`) — à créditer/recetter |
+| Encaissement CinetPay (option future) | `app/payment/cinetpay.py` | 🟢 codé, mis en réserve (marché FCFA) |
+| Sélecteur de provider | `app/payment/__init__.py` + `config.payment_provider` | 🟢 `mock` \| `stripe` \| `cinetpay` (défaut **mock**) |
+| Intent de paiement course | `crud.create_payment_intent`, modèle `PaymentIntent` (`amount_cents`) | 🟢 flux checkout course |
 | **Topup wallet** | `crud.wallet_topup` | 🔴 **crédite en direct, sans encaisser** |
-| **Payout (reversement B2C)** | `app/payment/payout_adapter.py` | 🔴 `MockPayoutAdapter` OK ; `OrangeMoneyB2CAdapter` = *stub* (`NotImplementedError`) |
+| **Payout (reversement)** | `app/payment/payout_adapter.py` | 🔴 `MockPayoutAdapter` OK ; pas d'adaptateur **Stripe Connect** ; `OrangeMoneyB2CAdapter` = *stub* |
 | Batch de payout | `crud.run_payout_batch` | 🟢 logique OK, branchée sur l'adaptateur (donc mock aujourd'hui) |
-| Ledger wallet | modèle `WalletTransaction` (`balance_after`) | 🟢 immuable, snapshot solde |
-| Devise | partout `amount_xof` mais **maths en USD** | 🔴 incohérence à lever |
+| Ledger wallet | modèle `WalletTransaction` (`balance_after`, `amount_cents`) | 🟢 immuable, snapshot solde |
+| Devise / nommage | **USD cents**, champs `*_cents` | 🟢 **clarifié (PR #27)** |
 
-**Conclusion** : la **collecte** est largement faite (CinetPay). Les vrais chantiers
-sont **topup réel**, **payout réel**, **devise**, et la **robustesse financière**
-(idempotence, réconciliation, conformité).
+**Conclusion** : l'**encaissement Stripe** est codé (à recetter). Les vrais chantiers
+restants sont **topup réel**, **payout via Stripe Connect**, et la **robustesse
+financière** (idempotence, réconciliation, conformité).
 
 ---
 
-## 2. Pré-requis (décisions MOA — bloquent le démarrage)
+## 2. Pré-requis restants (MOA)
 
-| # | Décision | Impact |
+| # | Élément | Impact |
 |---|---|---|
-| D1 | **Devise** : figer **XOF/FCFA** ? | Déclenche WS0 (conversion) |
-| D2 | **Rail encaissement** : CinetPay (agrégateur : Orange/MTN/Moov Money + cartes) ? | Crédentials + recette WS1/WS2 |
-| D3 | **Rail payout** : CinetPay *Transfer* B2C, ou Orange Money / Wave direct ? | Implémentation WS3 |
-| D4 | **Limites & politique** : plafonds wallet, montants min/max retrait, délais | Paramètres WS4/WS5 |
-| D5 | **Comptes PSP** : sandbox + prod (contrat, KYC entreprise) | Recette puis prod |
-
-> Sans D1–D3, on peut quand même avancer en **mode sandbox / mock-réaliste** ;
-> seul le passage en prod réelle exige les contrats PSP signés.
+| P1 | **Pays d'exploitation** compatible Stripe (encaissement + payout Connect) | Conditionne D2/D3 ; sinon rail payout local à prévoir |
+| P2 | **Compte Stripe** (test + live) + activation Connect | Recette puis prod |
+| P3 | **Plafonds & politique** : min/max retrait, plafond wallet, délais | Paramètres WS4/WS5 |
+| P4 | **Modèle Connect** : Express (onboarding hébergé Stripe, KYC délégué) recommandé | Flux d'onboarding driver/pro |
 
 ---
 
 ## 3. Workstreams
 
-Chaque WS liste : objectif · tâches principales · **critère d'acceptation**.
+Chaque WS : objectif · tâches · **critère d'acceptation**.
 
-### WS0 — Devise FCFA (fondation) 🔴
-- Lever l'ambiguïté USD/XOF : maths entières en **centimes XOF** (ou unité XOF, sans
-  décimale — le FCFA n'a pas de subdivision), arrondis, formatage.
-- Harmoniser back (estimation, commission, payouts, wallet) **et** les 9 frontends.
-- Migration éventuelle des données existantes (dev/pilote).
-- **Acceptation** : un prix affiché = un montant débité = un montant réconcilié, en
-  FCFA, sans conversion implicite ; tests de cohérence verts.
+### WS0 — Devise & nommage 🟢 (fait)
+- Base **USD cents** ; nommage `*_cents` sans ambiguïté (**PR #27**).
+- Multi-devises / affichage FCFA = **différé** (i18n monétaire ultérieure).
+- **Acceptation** : ✅ plus aucun champ ambigu ; un prix affiché = un montant débité, en USD cents.
 
-### WS1 — Encaissement course réel (CinetPay) 🟠
-- Renseigner `cinetpay_api_key` / `cinetpay_site_id` / secret webhook (par env).
-- Finaliser le **webhook** `/v1/payments/webhook` : vérif signature, **machine à
-  états async** mobile money (`pending → paid | failed | expired`), mise à jour
-  `PaymentIntent` + déclenchement post-paiement (course payée).
-- **Idempotence** webhook (un même notify rejoué ne double pas).
-- **Acceptation** : une course payée en sandbox CinetPay passe `paid` via webhook,
-  une seule fois, et le trip reflète le paiement.
+### WS1 — Encaissement course réel (Stripe) 🟠
+- Renseigner `stripe_secret_key` / `stripe_webhook_secret` (par env, Secret Manager).
+- Finaliser le **webhook** `/v1/payments/webhook` : **vérif signature Stripe**, machine
+  à états (`pending → paid | failed`), mise à jour `PaymentIntent` + post-paiement.
+- **Idempotence** (clé d'idempotence Stripe + dédoublonnage des events webhook).
+- **Acceptation** : une course payée en **test mode** Stripe passe `paid` via webhook,
+  une seule fois ; le trip reflète le paiement.
 
 ### WS2 — Topup wallet réel 🔴
-- Réécrire `wallet_topup` : ne plus créditer en direct → **créer un checkout PSP**,
-  rester `pending`, **créditer uniquement sur webhook confirmé**.
-- Réutiliser le webhook WS1 (distinguer `topup` vs `trip` via metadata/reference).
-- **Acceptation** : un topup sandbox ne crédite le wallet **qu'après** confirmation
-  PSP ; un échec/abandon ne crédite rien.
+- Réécrire `wallet_topup` : ne plus créditer en direct → **Stripe Checkout**, rester
+  `pending`, **créditer uniquement sur webhook confirmé** (metadata `kind=topup`).
+- **Acceptation** : un topup test ne crédite le wallet **qu'après** confirmation Stripe ;
+  un abandon ne crédite rien.
 
-### WS3 — Payout B2C réel 🔴
-- Implémenter un **adaptateur de décaissement réel** (selon D3) : CinetPay Transfer
-  ou Orange Money/Wave B2C — remplacer le *stub* `OrangeMoneyB2CAdapter`.
-- Gérer l'**asynchronisme** (statut `processing → processed | failed`), le
-  `provider_ref`, les **retries** et la reprise (le batch existe déjà).
-- Vérifier le **solde disponible** au moment du décaissement (déjà plafonné côté demande).
-- **Acceptation** : un payout approuvé est réellement envoyé en sandbox, statut final
-  fiable, `provider_ref` stocké, rejouable sans double versement.
+### WS3 — Payout réel via Stripe Connect 🔴
+- **Onboarding Connect** : créer un compte connecté (Express) par driver/pro, lien
+  d'onboarding hébergé (KYC/bank info gérés par Stripe), stocker l'`account_id`.
+- **Adaptateur StripePayoutAdapter** : `transfer` vers le compte connecté (+ payout
+  Stripe), statut `processing → processed | failed`, `provider_ref`, anti-double-versement.
+- Gating : payout possible seulement si compte connecté **actif/vérifié**.
+- **Acceptation** : un payout approuvé crée un transfer Stripe vers le compte connecté
+  en test mode, statut fiable, rejouable sans doublon.
 
 ### WS4 — Robustesse & intégrité financière 🟠
-- **Idempotence** de bout en bout (intents, webhooks, payouts) via clés uniques.
-- **Remboursements / annulations** (course annulée payée, échec partiel).
-- **Réconciliation** : rapport quotidien PSP ↔ ledger interne, **alerte si écart ≠ 0**.
-- **Audit** : journal des mouvements (qui/quoi/quand/montant), conservation.
-- **Acceptation** : rapport de réconciliation automatique à zéro écart sur un jeu de
-  transactions de test incluant succès/échecs/remboursements.
+- **Idempotence** bout-en-bout (intents, webhooks, payouts).
+- **Remboursements / annulations** via Stripe Refunds (course annulée payée).
+- **Réconciliation** : rapport quotidien **Stripe (balance/transactions) ↔ ledger
+  interne**, alerte si écart ≠ 0.
+- **Audit** des mouvements.
+- **Acceptation** : réconciliation auto à zéro écart sur succès/échecs/remboursements.
 
 ### WS5 — Conformité & sécurité « money » 🔴
-- **F1 (G4)** : KYC en lecture **privée** (URLs signées) — pré-requis avant payout réel.
-- **Limites AML** : plafonds par utilisateur/jour, seuils de vigilance (D4).
-- **Secrets** par environnement (clés PSP en Secret Manager), **rotation**.
-- **Signature webhook** vérifiée et obligatoire en prod.
-- **Acceptation** : aucun document KYC accessible publiquement ; webhook non signé
-  rejeté ; plafonds appliqués côté serveur.
+- **F1 (G4)** : KYC interne en lecture **privée** (URLs signées) — **indépendant de Stripe**.
+- **KYC payees délégué à Stripe Connect** (Express) — réduit notre charge réglementaire.
+- **Limites AML** : plafonds/seuils côté serveur (P3).
+- **Secrets** Stripe par env (Secret Manager) + **signature webhook obligatoire** en prod.
+- **Acceptation** : aucun doc KYC interne public ; webhook non signé rejeté ; plafonds appliqués.
 
 ### WS6 — Observabilité & exploitation financière 🟠
-- Métriques : taux de succès paiement/payout, latence webhook, volume, échecs.
-- **Alerting** : pic d'échecs paiement, écart de réconciliation, payout en `failed`.
-- Tableau de bord opérationnel (admin) des transactions.
-- **Acceptation** : un échec de paiement/payout déclenche une alerte ; dashboard à jour.
+- Métriques succès/échec paiement & payout, latence webhook, volumes.
+- **Alerting** : pics d'échecs, écart de réconciliation, payout `failed`, compte Connect non vérifié.
+- Dashboard admin des transactions.
+- **Acceptation** : un échec déclenche une alerte ; dashboard à jour.
 
 ### WS7 — Recette & sandbox 🟠
-- Mode **sandbox** PSP de bout en bout (encaissement, topup, payout, webhook).
+- Bout-en-bout en **Stripe test mode** (encaissement, topup, payout Connect, webhooks via Stripe CLI).
 - Tests automatisés : idempotence, rejeu de webhook, échecs, remboursements.
-- **Recette métier** (parcours réels) avant bascule prod.
-- **Acceptation** : suite de tests « money » verte + recette signée par la MOA.
+- **Recette métier** signée MOA avant bascule live.
+- **Acceptation** : suite « money » verte + recette signée.
 
 ---
 
 ## 4. Séquencement & jalons
 
 ```
-M0  Décisions D1–D3 figées + comptes PSP sandbox ouverts
-M1  WS0 Devise FCFA livrée (fondation)                      ── bloque tout le reste
-M2  WS1 Encaissement course réel (sandbox)  + WS5(F1)       ── 1ère vraie collecte
-M3  WS2 Topup wallet réel (sandbox)
-M4  WS3 Payout B2C réel (sandbox)                           ── boucle argent complète
+M0  P1 (marché Stripe) confirmé + compte Stripe test + Connect activé
+M1  WS0 ✅ (fait : USD cents, nommage clarifié)
+M2  WS1 Encaissement course réel (Stripe test) + WS5(F1)     ── 1ère vraie collecte
+M3  WS2 Topup wallet réel (Stripe test)
+M4  WS3 Payout Stripe Connect (onboarding + transfer, test)  ── boucle argent complète
 M5  WS4 Robustesse/réconciliation + WS6 observabilité
-M6  WS7 Recette sandbox complète + bascule clés PROD        ── "argent réel" prêt
+M6  WS7 Recette test complète + bascule clés LIVE            ── "argent réel" prêt
 ```
 
-**Chemin critique** : M1 (devise) → M2 (encaissement+KYC) → M4 (payout). Le topup
-(M3) et la robustesse (M5) peuvent partiellement paralléliser.
+**Chemin critique** : M2 (encaissement+KYC) → M4 (payout Connect). Topup (M3) et
+robustesse (M5) parallélisables.
 
 ---
 
 ## 5. Critères de sortie « Argent réel prêt » (Go)
 
-- [ ] WS0 : devise FCFA cohérente bout-en-bout
-- [ ] WS1 : encaissement course confirmé par webhook idempotent (sandbox → prod)
+- [x] WS0 : devise USD cents, nommage sans ambiguïté (PR #27)
+- [ ] WS1 : encaissement course confirmé par webhook **signé** et idempotent (test → live)
 - [ ] WS2 : topup wallet crédité **uniquement** sur paiement confirmé
-- [ ] WS3 : payout B2C réel, statut fiable, anti-double-versement
+- [ ] WS3 : payout Stripe Connect réel, compte connecté vérifié, anti-double-versement
 - [ ] WS4 : réconciliation quotidienne à zéro écart + remboursements gérés
-- [ ] WS5 : KYC privé (F1), webhooks signés, plafonds AML appliqués
+- [ ] WS5 : KYC interne privé (F1), webhooks signés, plafonds AML appliqués
 - [ ] WS6 : alerting paiement/payout + dashboard
 - [ ] WS7 : suite « money » verte + recette MOA signée
-- [ ] Clés **PROD** PSP en Secret Manager, contrats signés
+- [ ] Clés **LIVE** Stripe en Secret Manager ; pays d'exploitation compatible Stripe confirmé
 
-Tant qu'un item est rouge → l'argent reste en **sandbox/mock**.
+Tant qu'un item est rouge → l'argent reste en **test/mock**.
 
 ---
 
@@ -154,26 +158,25 @@ Tant qu'un item est rouge → l'argent reste en **sandbox/mock**.
 
 | Élément | Détail |
 |---|---|
-| **Contrats PSP** | CinetPay (+ rail payout) : KYC entreprise, délais d'activation — **démarrer maintenant** (chemin critique non-technique). |
-| **Conformité** | Licence/partenariat money-transmission selon le cadre local (lié au dossier go-live G5). |
-| **Asynchronisme mobile money** | Les confirmations arrivent par webhook, parfois différées → la machine à états et l'idempotence sont **non négociables**. |
-| **Réconciliation** | Source de vérité = PSP ; le ledger interne doit s'aligner, écart = incident. |
+| **Couverture Stripe** | Encaissement **et** payout Connect dépendent du pays. **À confirmer (P1)** — risque majeur si marché non supporté. |
+| **Onboarding Connect** | Chaque driver/pro doit compléter l'onboarding (KYC/bank) avant d'être payable → friction à prévoir dans le parcours. |
+| **Asynchronisme webhooks** | Confirmations & statuts via webhooks → machine à états + idempotence **non négociables**. |
+| **Réconciliation** | Source de vérité = Stripe ; le ledger interne doit s'aligner, écart = incident. |
 | **Double versement** | Risque majeur côté payout → idempotence + statut fiable + revue manuelle au pilote. |
 
 ---
 
-## 7. Ce que je peux démarrer sans attendre les contrats PSP
+## 7. Ce que je peux démarrer sans attendre le compte Stripe live
 
-1. **WS0 (devise FCFA)** — purement interne, débloque le reste.
-2. **WS1/WS2/WS3 en mode sandbox / mock-réaliste** — coder les flux, la machine à
-   états, l'idempotence et la réconciliation contre le **mode test** des PSP, puis ne
-   basculer que les **clés** en prod une fois les contrats signés.
-3. **WS5 — F1 (KYC privé)** — indépendant des PSP.
+1. **WS5 — F1 (KYC interne privé)** — totalement indépendant de Stripe.
+2. **WS1/WS2/WS3 en Stripe test mode** — coder les flux, la signature webhook, la
+   machine à états, l'idempotence, l'onboarding Connect et la réconciliation contre
+   le **mode test** Stripe ; ne basculer que les **clés** en live une fois P1/P2 confirmés.
 
-> Recommandation : lancer **WS0** immédiatement (fondation), **WS5/F1** en parallèle,
-> puis WS1→WS3 en sandbox. La signature des contrats PSP avance côté MOA en parallèle.
+> Recommandation : **WS5/F1** en premier (indépendant, sécurité), puis WS1 → WS3 en
+> test mode. La confirmation du marché Stripe (P1) avance côté MOA en parallèle.
 
 ---
 
-*Prochaine étape : valider D1–D3, puis je produis un plan d'implémentation détaillé
-(task-planning) par workstream, en commençant par WS0.*
+*Prochaine étape : confirmer P1 (marché compatible Stripe), puis plan d'implémentation
+détaillé (task-planning) par workstream — démarrage proposé sur **WS5/F1**.*
