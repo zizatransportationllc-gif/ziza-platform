@@ -24,6 +24,7 @@ from app.models.driver_document import DriverDocument, DOCUMENT_TYPES
 from app.models.professional_document import ProfessionalDocument  # Sprint 54
 from app.models.message import Message  # Sprint 66
 from app.storage import signed_read_url  # F1 (Sprint 68) — private KYC reads
+from app.models.bank_account import BankAccount  # Sprint 69
 from app.models.notification import Notification
 from app.models.driver_location import DriverLocation
 from app.models.payment import PaymentIntent
@@ -1667,6 +1668,7 @@ async def get_user_profile(db: AsyncSession, auth_user_id: str) -> dict:
         "first_name": user.first_name,
         "last_name": user.last_name,
         "date_of_birth": user.date_of_birth,
+        "avatar_url": signed_read_url(user.avatar_url),
         "created_at": _utc(user.created_at).isoformat(),
     }
 
@@ -1679,6 +1681,7 @@ async def update_user_profile(
     first_name: str | None = None,
     last_name: str | None = None,
     date_of_birth: str | None = None,
+    avatar_url: str | None = None,
 ) -> dict:
     """Update the user's name, phone, and identity fields (Sprint 66).
 
@@ -1702,6 +1705,8 @@ async def update_user_profile(
         user.last_name = last_name if last_name != "" else None
     if date_of_birth is not None:
         user.date_of_birth = date_of_birth if date_of_birth != "" else None
+    if avatar_url is not None:
+        user.avatar_url = avatar_url if avatar_url != "" else None
     user.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(user)
@@ -1714,8 +1719,72 @@ async def update_user_profile(
         "first_name": user.first_name,
         "last_name": user.last_name,
         "date_of_birth": user.date_of_birth,
+        "avatar_url": signed_read_url(user.avatar_url),
         "created_at": _utc(user.created_at).isoformat(),
     }
+
+
+# ---------------------------------------------------------------------------
+# Sprint 69 — Bank account (payout destination). account_number is masked on read.
+# ---------------------------------------------------------------------------
+
+def _bank_account_to_dict(ba) -> dict:
+    return {
+        "account_holder_name": ba.account_holder_name,
+        "bank_name": ba.bank_name,
+        "routing_number": ba.routing_number,
+        "account_number_last4": ba.account_number[-4:] if ba.account_number else "",
+        "account_type": ba.account_type,
+        "country": ba.country,
+        "updated_at": _utc(ba.updated_at).isoformat(),
+    }
+
+
+async def get_bank_account(db: AsyncSession, auth_user_id: str) -> dict | None:
+    """Return the user's bank account (masked), or None if not set."""
+    user = await _get_user_by_auth_id(db, auth_user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    ba = await db.scalar(select(BankAccount).where(BankAccount.user_id == user.id))
+    return _bank_account_to_dict(ba) if ba else None
+
+
+async def upsert_bank_account(
+    db: AsyncSession, auth_user_id: str, *,
+    account_holder_name: str, routing_number: str, account_number: str,
+    bank_name: str | None = None, account_type: str = "checking", country: str = "US",
+) -> dict:
+    """Create or replace the user's bank account. Returns the masked record."""
+    holder = (account_holder_name or "").strip()
+    routing = "".join(c for c in (routing_number or "") if c.isdigit())
+    number = "".join(c for c in (account_number or "") if c.isdigit())
+    if not holder:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="account_holder_name is required")
+    if len(number) < 4:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="account_number is invalid")
+    if not routing:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="routing_number is required")
+    if account_type not in ("checking", "savings"):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="account_type must be checking or savings")
+
+    user = await _get_user_by_auth_id(db, auth_user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+
+    ba = await db.scalar(select(BankAccount).where(BankAccount.user_id == user.id))
+    if ba is None:
+        ba = BankAccount(user_id=user.id)
+        db.add(ba)
+    ba.account_holder_name = holder
+    ba.bank_name = (bank_name or "").strip() or None
+    ba.routing_number = routing
+    ba.account_number = number  # TODO(prod): encrypt at rest (KMS/Fernet)
+    ba.account_type = account_type
+    ba.country = (country or "US").upper()[:2]
+    ba.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(ba)
+    return _bank_account_to_dict(ba)
 
 
 async def get_surge_multiplier(db: AsyncSession) -> float:

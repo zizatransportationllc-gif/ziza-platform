@@ -45,6 +45,8 @@ class User(Base):
     first_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     last_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     date_of_birth: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    # Sprint 69: profile photo (GCS object reference; served via signed read URL)
+    avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     # Sprint 49: bcrypt hash for locally-created accounts (provider="local")
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

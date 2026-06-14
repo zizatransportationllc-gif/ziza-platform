@@ -574,6 +574,7 @@ class UserProfileResponse(BaseModel):
     first_name: str | None = None   # Sprint 64
     last_name: str | None = None    # Sprint 64
     date_of_birth: str | None = None  # Sprint 64
+    avatar_url: str | None = None   # Sprint 69 — signed read URL of the profile photo
     created_at: str
 
 
@@ -583,6 +584,7 @@ class UserProfileUpdateRequest(BaseModel):
     first_name: str | None = Field(None, max_length=64, description="First name (null = leave unchanged)")
     last_name: str | None = Field(None, max_length=64, description="Last name (null = leave unchanged)")
     date_of_birth: str | None = Field(None, max_length=10, description="YYYY-MM-DD (null = leave unchanged)")
+    avatar_url: str | None = Field(None, max_length=512, description="Profile photo object URL (null = leave unchanged)")
 
 
 @app.get("/v1/profile", tags=["profile"])
@@ -609,8 +611,97 @@ async def update_profile(
     profile = await crud.update_user_profile(
         db, claims.user_id, body.name, body.phone,
         first_name=body.first_name, last_name=body.last_name, date_of_birth=body.date_of_birth,
+        avatar_url=body.avatar_url,
     )
     return UserProfileResponse(**profile)
+
+
+# ---------------------------------------------------------------------------
+# Sprint 69 — Profile photo upload + bank account (payout destination)
+# ---------------------------------------------------------------------------
+
+class AvatarUploadUrlRequest(BaseModel):
+    filename: str = Field(..., max_length=200)
+    content_type: str = Field("image/jpeg", max_length=100)
+
+
+class AvatarUploadUrlResponse(BaseModel):
+    upload_url: str   # PUT the image here
+    final_url: str    # store this via PATCH /v1/profile { avatar_url }
+
+
+_ALLOWED_AVATAR_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic"}
+
+
+@app.post("/v1/profile/avatar-upload-url", tags=["profile"], status_code=200)
+async def profile_avatar_upload_url(
+    body: AvatarUploadUrlRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AvatarUploadUrlResponse:
+    """Sprint 69 — Return a signed URL to upload a profile photo directly to GCS."""
+    if body.content_type not in _ALLOWED_AVATAR_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"content_type must be one of {sorted(_ALLOWED_AVATAR_TYPES)}",
+        )
+    user = await crud.get_user_db_id(db, claims.user_id)
+    import uuid as _uuid  # noqa: PLC0415
+    safe_name = body.filename.replace("/", "_").replace("\\", "_")
+    key = f"avatars/{user}/{_uuid.uuid4()}/{safe_name}"
+    from app.storage import signed_upload_url  # noqa: PLC0415
+    upload_url, object_ref = signed_upload_url(key, body.content_type)
+    return AvatarUploadUrlResponse(upload_url=upload_url, final_url=object_ref)
+
+
+class BankAccountResponse(BaseModel):
+    account_holder_name: str
+    bank_name: str | None = None
+    routing_number: str
+    account_number_last4: str
+    account_type: str
+    country: str
+    updated_at: str
+
+
+class BankAccountUpdateRequest(BaseModel):
+    account_holder_name: str = Field(..., max_length=128)
+    routing_number: str = Field(..., max_length=34)
+    account_number: str = Field(..., max_length=64)
+    bank_name: str | None = Field(None, max_length=128)
+    account_type: str = Field("checking", max_length=16)
+    country: str = Field("US", max_length=2)
+
+
+@app.get("/v1/profile/bank-account", tags=["profile"])
+async def get_my_bank_account(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> BankAccountResponse:
+    """Sprint 69 — Return the user's bank account (masked: only last 4 digits)."""
+    ba = await crud.get_bank_account(db, claims.user_id)
+    if ba is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No bank account on file")
+    return BankAccountResponse(**ba)
+
+
+@app.put("/v1/profile/bank-account", tags=["profile"])
+async def set_my_bank_account(
+    body: BankAccountUpdateRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> BankAccountResponse:
+    """Sprint 69 — Create or replace the user's bank account (payout destination)."""
+    ba = await crud.upsert_bank_account(
+        db, claims.user_id,
+        account_holder_name=body.account_holder_name,
+        routing_number=body.routing_number,
+        account_number=body.account_number,
+        bank_name=body.bank_name,
+        account_type=body.account_type,
+        country=body.country,
+    )
+    return BankAccountResponse(**ba)
 
 
 # ---------------------------------------------------------------------------
