@@ -8,6 +8,7 @@ import {
   getDriverProfile, getProfile, updateProfile, setDriverOnline, listDriverTripHistory,
   listTripMessages, sendTripMessage,
   createPayoutRequest, listPayoutRequests,
+  getConnectStatus, connectOnboard,
   submitDocument, listMyDocuments,
   listNotifications, getUnreadCount, markAllRead,
   listCategories,
@@ -572,6 +573,7 @@ function PayoutSection({ token }) {
   const [amount, setAmount]   = useState("");
   const [payouts, setPayouts] = useState([]);
   const [available, setAvailable] = useState(null); // disponible_cents (cents)
+  const [connect, setConnect] = useState(null); // { onboarded, payouts_enabled }
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]     = useState(null);
@@ -584,12 +586,21 @@ function PayoutSection({ token }) {
       getDriverBalance(token)
         .then((b) => setAvailable(b.disponible_cents ?? 0))
         .catch(() => {}),
+      getConnectStatus(token).then(setConnect).catch(() => {}),
     ]).finally(() => setLoading(false));
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
 
   const overBalance = available != null && Number(amount) > available;
+  const payoutsReady = connect && connect.payouts_enabled;
+
+  async function handleOnboard() {
+    try {
+      const r = await connectOnboard(token);
+      if (r.onboarding_url) window.open(r.onboarding_url, "_blank", "noopener");
+    } catch (e) { setError(e.message); }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -614,6 +625,17 @@ function PayoutSection({ token }) {
   return (
     <div className="payout-section">
       <h3 className="section-title">💰 Withdrawal Requests</h3>
+
+      {connect && !payoutsReady && (
+        <div className="payout-onboard-banner" style={{ background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: 8, padding: 12, marginBottom: 12 }}>
+          <p style={{ margin: "0 0 8px" }}>
+            ⚠️ To receive withdrawals, set up your payout account.
+          </p>
+          <button type="button" className="payout-submit-btn" onClick={handleOnboard}>
+            Set up payouts →
+          </button>
+        </div>
+      )}
 
       {available != null && (
         <p className="payout-available">

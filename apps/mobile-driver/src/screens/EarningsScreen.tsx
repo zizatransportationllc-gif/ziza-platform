@@ -6,13 +6,14 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   View, Text, StyleSheet, ActivityIndicator, ScrollView,
-  TextInput, TouchableOpacity,
+  TextInput, TouchableOpacity, Linking,
 } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import {
   getMyEarnings, EarningsResponse,
   getDriverBalance, createPayout, listPayouts,
-  DriverBalance, PayoutRecord,
+  getConnectStatus, connectOnboard,
+  DriverBalance, PayoutRecord, ConnectStatus,
 } from "../api";
 import EarningsChart from "../components/EarningsChart";
 
@@ -32,6 +33,7 @@ const PAYOUT_STATUS_LABELS: Record<string, string> = {
 function WithdrawalCard({ token }: { token: string }): React.ReactElement {
   const [balance, setBalance] = useState<DriverBalance | null>(null);
   const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
+  const [connect, setConnect] = useState<ConnectStatus | null>(null);
   const [amount, setAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,9 +42,18 @@ function WithdrawalCard({ token }: { token: string }): React.ReactElement {
   const load = useCallback(() => {
     getDriverBalance(token).then(setBalance).catch(() => {});
     listPayouts(token).then(setPayouts).catch(() => {});
+    getConnectStatus(token).then(setConnect).catch(() => {});
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+
+  const payoutsReady = connect?.payouts_enabled ?? false;
+  const handleOnboard = async () => {
+    try {
+      const r = await connectOnboard(token);
+      if (r.onboarding_url) Linking.openURL(r.onboarding_url).catch(() => {});
+    } catch { /* ignore */ }
+  };
 
   const available = balance?.disponible_cents ?? null;
   const amountNum = Number(amount);
@@ -67,6 +78,11 @@ function WithdrawalCard({ token }: { token: string }): React.ReactElement {
   return (
     <View style={styles.withdrawCard}>
       <Text style={styles.sectionTitle}>💰 Withdrawals</Text>
+      {connect && !payoutsReady && (
+        <TouchableOpacity style={styles.onboardBanner} onPress={handleOnboard}>
+          <Text style={styles.onboardText}>⚠️ Set up your payout account to receive withdrawals →</Text>
+        </TouchableOpacity>
+      )}
       {available != null && (
         <Text style={styles.available}>
           Available to withdraw: <Text style={styles.availableStrong}>{formatUSD(available)}</Text>
@@ -194,6 +210,8 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   sectionTitle: { fontSize: 18, fontWeight: "700", marginBottom: 10, color: "#111827" },
+  onboardBanner: { backgroundColor: "#FEF3C7", borderWidth: 1, borderColor: "#FCD34D", borderRadius: 8, padding: 12, marginBottom: 12 },
+  onboardText: { color: "#92400E", fontSize: 13, fontWeight: "600" },
   available: { fontSize: 14, color: "#374151", marginBottom: 10 },
   availableStrong: { fontWeight: "700", color: "#1D4ED8" },
   formRow: { flexDirection: "row", gap: 8 },

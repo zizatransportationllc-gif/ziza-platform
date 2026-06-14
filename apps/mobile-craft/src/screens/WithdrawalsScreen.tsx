@@ -4,12 +4,13 @@
  */
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Linking,
 } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import {
   getProBalance, createProPayout, listProPayouts,
-  ProBalance, ProPayoutRecord, formatUSD,
+  getConnectStatus, connectOnboard,
+  ProBalance, ProPayoutRecord, ConnectStatus, formatUSD,
 } from "../api";
 
 const PAYOUT_STATUS_LABELS: Record<string, string> = {
@@ -24,6 +25,7 @@ export default function WithdrawalsScreen(): React.ReactElement {
   const { token } = useAuth();
   const [balance, setBalance] = useState<ProBalance | null>(null);
   const [payouts, setPayouts] = useState<ProPayoutRecord[]>([]);
+  const [connect, setConnect] = useState<ConnectStatus | null>(null);
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -36,10 +38,20 @@ export default function WithdrawalsScreen(): React.ReactElement {
     Promise.all([
       getProBalance(token).then(setBalance).catch(() => {}),
       listProPayouts(token).then(setPayouts).catch(() => {}),
+      getConnectStatus(token).then(setConnect).catch(() => {}),
     ]).finally(() => setLoading(false));
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+
+  const payoutsReady = connect?.payouts_enabled ?? false;
+  const handleOnboard = async () => {
+    if (!token) return;
+    try {
+      const r = await connectOnboard(token);
+      if (r.onboarding_url) Linking.openURL(r.onboarding_url).catch(() => {});
+    } catch { /* ignore */ }
+  };
 
   const available = balance?.disponible_cents ?? null;
   const amountNum = Number(amount);
@@ -72,6 +84,12 @@ export default function WithdrawalsScreen(): React.ReactElement {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.heading}>💰 Withdrawals</Text>
+
+      {connect && !payoutsReady && (
+        <TouchableOpacity style={styles.onboardBanner} onPress={handleOnboard}>
+          <Text style={styles.onboardText}>⚠️ Set up your payout account to receive withdrawals →</Text>
+        </TouchableOpacity>
+      )}
 
       {available != null && (
         <View style={styles.balanceCard}>
@@ -120,6 +138,8 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   heading: { fontSize: 22, fontWeight: "bold", marginBottom: 16, color: "#111827" },
+  onboardBanner: { backgroundColor: "#FEF3C7", borderWidth: 1, borderColor: "#FCD34D", borderRadius: 8, padding: 12, marginBottom: 14 },
+  onboardText: { color: "#92400E", fontSize: 13, fontWeight: "600" },
   balanceCard: {
     backgroundColor: "#059669",
     borderRadius: 14,
