@@ -20,6 +20,7 @@ import {
   adminListOnboarding, adminGetOnboardingDetail, // Sprint 57
   adminGetDriverHistory, adminGetDriverEarnings, adminGetProfessionalSummary, // Sprint 66
   adminListTripMessages, adminListRequestMessages, // Sprint 66 — read conversations
+  adminFinanceMetrics, adminFinanceAlerts, adminFinanceTransactions, // WS6 — finance
   adminSetProfessionalStatus, // Sprint 54 (used in Sprint 57 review panel)
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, firebaseSignOut } from "./auth";
@@ -3101,6 +3102,111 @@ function OnboardingPanel({ token }) {
 // Dashboard — tabbed navigation
 // ---------------------------------------------------------------------------
 
+// WS6 — Finance observability dashboard
+const ALERT_COLORS = { critical: "#DC2626", warning: "#D97706", info: "#2563EB" };
+const TX_KIND_LABELS = {
+  payment: "💳 Payment",
+  driver_payout: "🚗 Driver payout",
+  professional_payout: "🔧 Pro payout",
+  wallet_topup: "💰 Top-up",
+};
+
+function FinancePanel({ token }) {
+  const [metrics, setMetrics] = useState(null);
+  const [alerts, setAlerts] = useState([]);
+  const [txs, setTxs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(() => {
+    setLoading(true); setError(null);
+    Promise.all([
+      adminFinanceMetrics(token).then(setMetrics).catch((e) => setError(e.message)),
+      adminFinanceAlerts(token).then(setAlerts).catch(() => {}),
+      adminFinanceTransactions(token, 30).then(setTxs).catch(() => {}),
+    ]).finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (loading && !metrics) return <p style={{ color: "#9CA3AF" }}>⏳ Loading finance…</p>;
+  if (error) return <p className="form-error">{error}</p>;
+  if (!metrics) return null;
+
+  const pct = (v) => (v == null ? "—" : `${Math.round(v * 100)}%`);
+  const card = { background: "#111827", border: "1px solid #1f2937", borderRadius: 10, padding: 14, minWidth: 150 };
+  const lbl = { color: "#9CA3AF", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em" };
+  const big = { color: "#F9FAFB", fontSize: 22, fontWeight: 700 };
+  const sub = { color: "#9CA3AF", fontSize: 12 };
+  const row = { display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #1f2937" };
+  const cell = { color: "#F9FAFB", fontSize: 14 };
+
+  const p = metrics.payments, d = metrics.payouts.driver, pr = metrics.payouts.professional, tu = metrics.topups;
+
+  return (
+    <div>
+      <div className="section-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2 className="section-title">💵 Finance</h2>
+        <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
+      </div>
+
+      {/* Alerts */}
+      {alerts.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          {alerts.map((a) => (
+            <div key={a.code} style={{ borderLeft: `4px solid ${ALERT_COLORS[a.level] || "#6B7280"}`, background: "#1f2937", padding: "8px 12px", borderRadius: 6, marginBottom: 6 }}>
+              <span style={{ color: ALERT_COLORS[a.level] || "#fff", fontWeight: 700, textTransform: "uppercase", fontSize: 11 }}>{a.level}</span>
+              <span style={{ color: "#F9FAFB", marginLeft: 8 }}>{a.message} ({a.count})</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Metric cards */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+        <div style={card}>
+          <div style={lbl}>Payments</div>
+          <div style={big}>{pct(p.success_rate)}</div>
+          <div style={sub}>{p.paid} paid · {p.failed} failed · {p.refunded} refunded · {p.pending} pending</div>
+        </div>
+        <div style={card}>
+          <div style={lbl}>Driver payouts</div>
+          <div style={big}>{d.processed}</div>
+          <div style={sub}>{d.approved} approved · {d.pending} pending · {d.failed} failed</div>
+        </div>
+        <div style={card}>
+          <div style={lbl}>Pro payouts</div>
+          <div style={big}>{pr.processed}</div>
+          <div style={sub}>{pr.approved} approved · {pr.pending} pending · {pr.failed} failed</div>
+        </div>
+        <div style={card}>
+          <div style={lbl}>Top-ups</div>
+          <div style={big}>{tu.paid}</div>
+          <div style={sub}>{tu.pending} pending · {tu.failed} failed</div>
+        </div>
+        <div style={card}>
+          <div style={lbl}>Payout success</div>
+          <div style={big}>{pct(metrics.payouts.success_rate)}</div>
+        </div>
+      </div>
+
+      {/* Recent transactions */}
+      <h3 style={{ color: "#F9FAFB", fontSize: 15, marginBottom: 8 }}>Recent transactions</h3>
+      {txs.length === 0 && <p style={{ color: "#9CA3AF" }}>No transactions yet.</p>}
+      {txs.map((t) => (
+        <div key={`${t.kind}-${t.id}`} style={row}>
+          <span style={cell}>{TX_KIND_LABELS[t.kind] || t.kind}</span>
+          <span style={cell}>{formatUSD(t.amount_cents)}</span>
+          <span style={{ ...cell, color: "#9CA3AF" }}>{t.status}</span>
+          <span style={{ ...cell, color: "#6B7280", fontSize: 12 }}>
+            {new Date(t.at).toLocaleDateString("en-US", { day: "2-digit", month: "short" })}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const TABS = [
   { id: "stats",        label: "📊 Stats" },
   { id: "trips",        label: "🚕 Trips" },
@@ -3110,6 +3216,7 @@ const TABS = [
   { id: "analytics",    label: "📈 Analytics" },
   { id: "promos",       label: "🏷️ Promos" },
   { id: "payouts",      label: "💸 Payouts",      pendingKey: "payout_requests" },
+  { id: "finance",      label: "💵 Finance" },
   { id: "ratings",      label: "⭐ Reviews" },
   { id: "documents",    label: "📄 Documents",    pendingKey: "documents" },
   { id: "onboarding",   label: "🆔 Onboarding",   pendingKey: "onboarding" },
@@ -3162,6 +3269,7 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "drivers"    && <DriversPanel token={token} />}
       {activeTab === "promos"     && <PromoPanel       token={token} />}
       {activeTab === "payouts"    && <PayoutsPanel     token={token} />}
+      {activeTab === "finance"    && <FinancePanel     token={token} />}
       {activeTab === "ratings"    && <RatingsPanel     token={token} />}
       {activeTab === "documents"  && <DocumentsPanel   token={token} />}
       {activeTab === "onboarding"   && <OnboardingPanel     token={token} />}
