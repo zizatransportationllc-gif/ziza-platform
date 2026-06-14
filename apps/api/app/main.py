@@ -3076,6 +3076,31 @@ async def get_trip_payment(
     return PaymentIntentResponse(**intent_data)
 
 
+@app.post("/v1/admin/payments/{intent_id}/refund", tags=["payments"])
+async def admin_refund_payment(
+    intent_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PaymentIntentResponse:
+    """WS4 — Admin refunds a paid trip payment (idempotent)."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    from app.payment import get_adapter  # noqa: PLC0415
+    result = await crud.refund_payment(db, intent_id, get_adapter())
+    return PaymentIntentResponse(**result)
+
+
+@app.get("/v1/admin/finance/reconciliation", tags=["payments"])
+async def admin_finance_reconciliation(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """WS4 — Admin financial integrity report (payments, payouts, top-ups, wallet ledger)."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return await crud.finance_reconciliation(db)
+
+
 # ---------------------------------------------------------------------------
 # Auth — Refresh & Logout (Sprint 25)
 # ---------------------------------------------------------------------------

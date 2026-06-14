@@ -134,3 +134,36 @@ class StripeAdapter:
             }
 
         raise ValueError(f"Unhandled Stripe event type: {event_type!r}")
+
+    async def refund(self, provider_ref: str, amount_cents: int | None = None) -> str:
+        """Refund a payment. ``provider_ref`` is the Checkout Session id, so we
+        first resolve its ``payment_intent`` then create the refund (idempotent)."""
+        import urllib.parse  # noqa: PLC0415
+        import urllib.request  # noqa: PLC0415
+
+        # Resolve the payment_intent from the session.
+        sess_req = urllib.request.Request(
+            f"{self._API_BASE}/checkout/sessions/{provider_ref}",
+            headers={"Authorization": f"Bearer {self._secret_key}"},
+        )
+        with urllib.request.urlopen(sess_req) as resp:
+            session = json.loads(resp.read())
+        payment_intent = session.get("payment_intent")
+        if not payment_intent:
+            raise RuntimeError("No payment_intent on the checkout session to refund")
+
+        fields = {"payment_intent": payment_intent}
+        if amount_cents:
+            fields["amount"] = amount_cents
+        req = urllib.request.Request(
+            f"{self._API_BASE}/refunds",
+            data=urllib.parse.urlencode(fields).encode(),
+            headers={
+                "Authorization": f"Bearer {self._secret_key}",
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Idempotency-Key": f"refund_{provider_ref}",
+            },
+        )
+        with urllib.request.urlopen(req) as resp:
+            refund = json.loads(resp.read())
+        return refund["id"]

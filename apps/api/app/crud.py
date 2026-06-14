@@ -2696,6 +2696,110 @@ async def get_payment_intent(
     return _intent_to_dict(intent)
 
 
+async def refund_payment(db: AsyncSession, intent_id: str, adapter) -> dict:
+    """WS4 — Admin refunds a paid trip payment (idempotent).
+
+    Only a ``paid`` intent can be refunded; an already-``refunded`` intent is a
+    no-op. Delegates to the provider and records ``status='refunded'``.
+    """
+    try:
+        iid = uuid.UUID(intent_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid intent_id"
+        )
+    intent = await db.scalar(select(PaymentIntent).where(PaymentIntent.id == iid))
+    if intent is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment intent not found")
+    if intent.status == "refunded":
+        return _intent_to_dict(intent)  # idempotent
+    if intent.status != "paid":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Only paid payments can be refunded (current: {intent.status!r})",
+        )
+    try:
+        await adapter.refund(intent.provider_ref, intent.amount_cents)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Refund failed at provider: {exc}",
+        )
+    intent.status = "refunded"
+    intent.updated_at = datetime.now(timezone.utc)
+    trip = await db.scalar(select(Trip).where(Trip.id == intent.trip_id))
+    customer_id = trip.customer_id if trip else None
+    await db.commit()
+    await db.refresh(intent)
+    if customer_id is not None:
+        try:
+            await _push_notification(
+                db, customer_id, "payment_refunded", "↩️ Payment refunded",
+                f"Your payment of ${intent.amount_cents / 100:,.2f} has been refunded.",
+            )
+        except Exception:
+            pass
+    return _intent_to_dict(intent)
+
+
+async def finance_reconciliation(db: AsyncSession) -> dict:
+    """WS4 — Internal financial integrity report (foundation for daily reconciliation).
+
+    Aggregates payments, payouts, top-ups, and checks that every wallet's stored
+    balance equals the sum of its ledger transactions. ``balanced`` is False if
+    any wallet's ledger does not reconcile.
+    """
+    async def _count_sum(model, amount_col, **filters):
+        q = select(func.count(), func.coalesce(func.sum(amount_col), 0))
+        for col, val in filters.items():
+            q = q.where(getattr(model, col) == val)
+        row = (await db.execute(q)).one()
+        return int(row[0]), int(row[1] or 0)
+
+    paid_n, paid_total = await _count_sum(PaymentIntent, PaymentIntent.amount_cents, status="paid")
+    ref_n, ref_total = await _count_sum(PaymentIntent, PaymentIntent.amount_cents, status="refunded")
+    _, drv_payout = await _count_sum(PayoutRequestModel, PayoutRequestModel.amount_cents, status="processed")
+    _, pro_payout = await _count_sum(ProPayoutModel, ProPayoutModel.amount_cents, status="processed")
+    _, topup_total = await _count_sum(WalletTopup, WalletTopup.amount_cents, status="paid")
+
+    # Wallet ledger integrity
+    wallets = list((await db.execute(select(Wallet))).scalars())
+    mismatches = []
+    total_balance = 0.0
+    for w in wallets:
+        total_balance += w.balance_cents
+        txs = list((await db.execute(
+            select(WalletTransaction).where(WalletTransaction.wallet_id == w.id)
+        )).scalars())
+        computed = 0.0
+        for tx in txs:
+            computed += -tx.amount_cents if tx.tx_type == "debit" else tx.amount_cents
+        if abs(computed - w.balance_cents) > 0.001:
+            mismatches.append({
+                "wallet_id": str(w.id),
+                "stored_balance_cents": w.balance_cents,
+                "computed_balance_cents": computed,
+            })
+
+    return {
+        "payments": {
+            "paid_count": paid_n, "paid_total_cents": paid_total,
+            "refunded_count": ref_n, "refunded_total_cents": ref_total,
+        },
+        "payouts": {
+            "driver_processed_total_cents": drv_payout,
+            "professional_processed_total_cents": pro_payout,
+        },
+        "topups": {"paid_total_cents": topup_total},
+        "wallets": {
+            "count": len(wallets),
+            "total_balance_cents": total_balance,
+            "ledger_mismatches": mismatches,
+        },
+        "balanced": len(mismatches) == 0,
+    }
+
+
 async def get_trip_payment(
     db: AsyncSession,
     claims: Claims,

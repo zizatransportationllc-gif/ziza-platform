@@ -66,3 +66,7 @@ class MockPaymentAdapter:
             "status": data["status"],
             "provider_ref": data["provider_ref"],
         }
+
+    async def refund(self, provider_ref: str, amount_cents: int | None = None) -> str:
+        """Return a deterministic fake refund reference (WS4)."""
+        return f"mock_refund_{provider_ref}"
