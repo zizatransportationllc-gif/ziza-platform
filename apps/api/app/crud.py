@@ -1471,6 +1471,33 @@ async def validate_promo(db: AsyncSession, code: str) -> dict:
 _VALID_PAYOUT_STATUSES = {"approved", "rejected"}
 
 
+async def _enforce_withdrawal_limits(db: AsyncSession, model, id_col, id_value, amount_cents: int) -> None:
+    """WS5 — AML caps: per-request max and per-user daily limit (USD cents).
+
+    The daily limit counts today's non-rejected requests for this payee.
+    """
+    from app.config import settings as _s  # noqa: PLC0415
+
+    if amount_cents > _s.withdrawal_max_single_cents:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Amount exceeds the per-request limit ({_s.withdrawal_max_single_cents})",
+        )
+    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    today_total = int((await db.execute(
+        select(func.coalesce(func.sum(model.amount_cents), 0)).where(
+            id_col == id_value,
+            model.created_at >= today,
+            model.status != "rejected",
+        )
+    )).scalar_one() or 0)
+    if today_total + amount_cents > _s.withdrawal_daily_limit_cents:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Amount exceeds the daily withdrawal limit ({_s.withdrawal_daily_limit_cents})",
+        )
+
+
 async def create_payout_request(
     db: AsyncSession,
     auth_user_id: str,
@@ -1486,6 +1513,7 @@ async def create_payout_request(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="amount_cents must be greater than 0",
         )
+    await _enforce_withdrawal_limits(db, PayoutRequestModel, PayoutRequestModel.driver_id, driver.id, amount_cents)
     *_, disponible = await _driver_gains_and_payouts(db, driver)
     disponible = max(disponible, 0)
     if amount_cents > disponible:
@@ -4330,6 +4358,12 @@ async def create_wallet_topup(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Top-up amount must be positive.",
         )
+    from app.config import settings as _s  # noqa: PLC0415
+    if amount_cents > _s.topup_max_single_cents:  # WS5 — AML cap
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Top-up exceeds the per-transaction limit ({_s.topup_max_single_cents})",
+        )
     user = await _get_user_by_auth_id(db, auth_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
@@ -5240,6 +5274,7 @@ async def create_professional_payout_request(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="amount_cents must be greater than 0",
         )
+    await _enforce_withdrawal_limits(db, ProPayoutModel, ProPayoutModel.professional_id, prof.id, amount_cents)
     _gains, _committed, disponible = await _professional_gains_and_payouts(db, prof)
     disponible = max(disponible, 0)
     if amount_cents > disponible:

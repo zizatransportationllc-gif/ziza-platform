@@ -144,6 +144,13 @@ class Settings(BaseSettings):
     default_commission_pct: int = 15
 
     # ------------------------------------------------------------------
+    # WS5 — AML limits (USD cents). Enforced server-side on creation.
+    # ------------------------------------------------------------------
+    withdrawal_max_single_cents: int = 500_000      # $5,000 per request
+    withdrawal_daily_limit_cents: int = 1_000_000   # $10,000 per user per day
+    topup_max_single_cents: int = 500_000           # $5,000 per top-up
+
+    # ------------------------------------------------------------------
     # Redis cache — Sprint 31
     # ------------------------------------------------------------------
     # Redis URL (e.g. redis://localhost:6379/0 or rediss:// for TLS).

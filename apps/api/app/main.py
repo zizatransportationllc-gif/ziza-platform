@@ -3040,6 +3040,13 @@ async def payment_webhook(
     """
     from app.payment import get_adapter  # noqa: PLC0415
     adapter = get_adapter()
+    # WS5 — in production a signing provider is mandatory; the mock adapter does
+    # not verify signatures, so reject it to prevent forged webhooks.
+    if settings.environment == "prod" and getattr(adapter, "_provider_name", "mock") == "mock":
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Payment provider not configured for production (signed webhooks required)",
+        )
     payload = await request.body()
     headers = dict(request.headers)
     try:
