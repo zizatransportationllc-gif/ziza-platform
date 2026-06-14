@@ -2623,6 +2623,13 @@ async def confirm_payment(
             detail=f"No payment intent found for provider_ref {provider_ref!r}",
         )
 
+    # Idempotency + state guard — providers (Stripe/CinetPay) deliver webhooks
+    # at-least-once, so the same event may arrive several times.
+    #   - Same status already applied → no-op (no re-stamp, no duplicate notif).
+    #   - Already 'paid' (terminal)    → ignore later 'failed'/'expired' events.
+    if intent.status == new_status or intent.status == "paid":
+        return _intent_to_dict(intent)
+
     intent.status = new_status
 
     customer_uuid: uuid.UUID | None = None
