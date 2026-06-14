@@ -16,7 +16,9 @@ import LoginScreen from "./src/screens/LoginScreen";
 // Show alerts + play sound when a notification arrives while the app is open
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    // SDK 54 — shouldShowAlert split into shouldShowBanner + shouldShowList
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
