@@ -30,6 +30,7 @@ from app.models.professional_document import ProfessionalDocument  # noqa: F401 
 from app.models.message import Message  # noqa: F401  — Sprint 66
 from app.models.professional_payout_request import ProfessionalPayoutRequest  # noqa: F401  — Sprint 67
 from app.models.wallet_topup import WalletTopup  # noqa: F401  — Sprint 68 (WS2)
+from app.models.bank_account import BankAccount  # noqa: F401  — Sprint 69
 
 __all__ = [
     "Base", "User", "Driver", "Vehicle", "Trip", "TripEvent", "Estimate",
@@ -40,4 +41,5 @@ __all__ = [
     "City", "ServiceZone", "Wallet", "WalletTransaction",
     "Professional", "CraftRequest", "CraftBid",
     "ProfessionalDocument", "Message", "ProfessionalPayoutRequest", "WalletTopup",
+    "BankAccount",
 ]

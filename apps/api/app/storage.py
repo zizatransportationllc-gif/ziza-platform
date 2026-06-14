@@ -42,6 +42,30 @@ def _sign(object_key: str, ttl_min: int) -> str:
     )
 
 
+def signed_upload_url(object_key: str, content_type: str, ttl_min: int = 15) -> tuple[str, str]:
+    """Return ``(upload_url, object_ref)`` for a direct PUT upload.
+
+    In dev / CI (no bucket) returns mock URLs so the flow works locally.
+    ``object_ref`` is the canonical GCS URL stored in the DB and later turned
+    into a signed read URL by :func:`signed_read_url`.
+    """
+    if not settings.gcs_bucket_name:
+        return (f"http://localhost/mock-gcs-upload/{object_key}",
+                f"http://localhost/mock-gcs/{object_key}")
+    from google.cloud import storage as _gcs  # noqa: PLC0415
+
+    client = _gcs.Client()
+    blob = client.bucket(settings.gcs_bucket_name).blob(object_key)
+    upload_url = blob.generate_signed_url(
+        expiration=timedelta(minutes=ttl_min),
+        method="PUT",
+        content_type=content_type,
+        version="v4",
+    )
+    object_ref = f"{_GCS_PREFIX}{settings.gcs_bucket_name}/{object_key}"
+    return upload_url, object_ref
+
+
 def signed_read_url(stored_url: str | None, ttl_min: int | None = None) -> str | None:
     """Return a short-lived signed read URL for a stored KYC document URL.
 
