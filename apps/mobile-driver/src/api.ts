@@ -619,3 +619,62 @@ export async function connectOnboard(token: string): Promise<{ account_id: strin
   const res = await fetch(`${API_BASE}/v1/payouts/connect/onboard`, { method: "POST", headers: _auth(token) });
   return _json<{ account_id: string; onboarding_url: string }>(res);
 }
+
+// Sprint 69 — profile, photo, bank account
+export interface UserProfile {
+  user_id: string;
+  email: string;
+  role: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  date_of_birth?: string | null;
+  avatar_url?: string | null;
+}
+
+export interface BankAccountInfo {
+  account_holder_name: string;
+  bank_name?: string | null;
+  routing_number: string;
+  account_number_last4: string;
+  account_type: string;
+  country: string;
+}
+
+export async function getProfile(token: string): Promise<UserProfile> {
+  const res = await fetch(`${API_BASE}/v1/profile`, { headers: _auth(token) });
+  return _json<UserProfile>(res);
+}
+
+export async function updateProfile(token: string, fields: Record<string, unknown>): Promise<UserProfile> {
+  const res = await fetch(`${API_BASE}/v1/profile`, {
+    method: "PATCH",
+    headers: { ..._auth(token), "Content-Type": "application/json" },
+    body: JSON.stringify(fields),
+  });
+  return _json<UserProfile>(res);
+}
+
+export async function avatarUploadUrl(token: string, filename: string, contentType: string): Promise<{ upload_url: string; final_url: string }> {
+  const res = await fetch(`${API_BASE}/v1/profile/avatar-upload-url`, {
+    method: "POST",
+    headers: { ..._auth(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ filename, content_type: contentType }),
+  });
+  return _json<{ upload_url: string; final_url: string }>(res);
+}
+
+export async function getBankAccount(token: string): Promise<BankAccountInfo | null> {
+  const res = await fetch(`${API_BASE}/v1/profile/bank-account`, { headers: _auth(token) });
+  if (res.status === 404) return null;
+  return _json<BankAccountInfo>(res);
+}
+
+export async function setBankAccount(token: string, fields: Record<string, unknown>): Promise<BankAccountInfo> {
+  const res = await fetch(`${API_BASE}/v1/profile/bank-account`, {
+    method: "PUT",
+    headers: { ..._auth(token), "Content-Type": "application/json" },
+    body: JSON.stringify(fields),
+  });
+  return _json<BankAccountInfo>(res);
+}
