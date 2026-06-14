@@ -12,6 +12,9 @@ name: Deploy Prod (GCP Cloud Run)
 #     - ziza-prod-admin-code
 #     - ziza-prod-database-url         (created with the prod Cloud SQL instance)
 #     - ziza-prod-bank-encryption-key  (Fernet key — bank numbers encrypted at rest)
+#     - ziza-prod-stripe-secret-key       (only if PAYMENT_PROVIDER_PROD=stripe)
+#     - ziza-prod-stripe-webhook-secret   (only if PAYMENT_PROVIDER_PROD=stripe)
+#     - ziza-prod-wf-gateway-key          (only if PAYOUT_PROVIDER_PROD=wellsfargo)
 #   Repo variables (Settings → Actions → Variables):
 #     - FIREBASE_PROJECT_ID_PROD     (required: prod boots with ENVIRONMENT=prod)
 #     - ZIZA_CORS_ORIGINS_PROD
@@ -21,6 +24,8 @@ name: Deploy Prod (GCP Cloud Run)
 #     - ZIZA_KYC_BUCKET_PROD         (private GCS bucket for KYC docs + avatars)
 #     - PAYMENT_PROVIDER_PROD        (mock | stripe | cinetpay | wellsfargo; default mock)
 #     - PAYOUT_PROVIDER_PROD         (mock | stripe | wellsfargo; default mock)
+#     - WELLSFARGO_FUNDING_ACCOUNT_PROD  (only if PAYOUT_PROVIDER_PROD=wellsfargo)
+#     - WELLSFARGO_PAYMENT_RAIL_PROD     (ach | rtp | wire; if wellsfargo payout)
 #   The prod Cloud SQL instance (ziza-db-prod) is provisioned just before the
 #   first go-live (deferred to keep costs at zero until auth is ready).
 #   See docs/go-live/2026-06-14-prod-gcp-runbook.md for the exact gcloud commands.
@@ -178,14 +183,24 @@ jobs:
             FLAGS+=("--service-account=${{ vars.GCP_SERVICE_ACCOUNT }}")
             # ENVIRONMENT=prod -> Firebase identity + own-JWT sessions; password
             # endpoints are 404. Secrets come from Secret Manager, not env vars.
-            FLAGS+=(
-              "--set-env-vars=^|^ENVIRONMENT=prod|FIREBASE_PROJECT_ID=${{ vars.FIREBASE_PROJECT_ID_PROD }}|CORS_ORIGINS_RAW=${{ vars.ZIZA_CORS_ORIGINS_PROD }}|RATE_LIMIT_ENABLED=true|GCS_BUCKET_NAME=${{ vars.ZIZA_KYC_BUCKET_PROD }}|PAYMENT_PROVIDER=${{ vars.PAYMENT_PROVIDER_PROD }}|PAYOUT_PROVIDER=${{ vars.PAYOUT_PROVIDER_PROD }}"
-            )
-            # Sprint 69 — BANK_ENCRYPTION_KEY is required so bank numbers are never
-            # stored in cleartext in production (the API refuses otherwise).
-            FLAGS+=(
-              "--update-secrets=^|^JWT_SECRET=ziza-prod-jwt-secret:latest|ADMIN_SIGNUP_CODE=ziza-prod-admin-code:latest|DATABASE_URL=ziza-prod-database-url:latest|BANK_ENCRYPTION_KEY=ziza-prod-bank-encryption-key:latest"
-            )
+            ENVVARS="ENVIRONMENT=prod|FIREBASE_PROJECT_ID=${{ vars.FIREBASE_PROJECT_ID_PROD }}|CORS_ORIGINS_RAW=${{ vars.ZIZA_CORS_ORIGINS_PROD }}|RATE_LIMIT_ENABLED=true|GCS_BUCKET_NAME=${{ vars.ZIZA_KYC_BUCKET_PROD }}|PAYMENT_PROVIDER=${{ vars.PAYMENT_PROVIDER_PROD }}|PAYOUT_PROVIDER=${{ vars.PAYOUT_PROVIDER_PROD }}"
+            # BANK_ENCRYPTION_KEY is required so bank numbers are never stored in
+            # cleartext in production (the API refuses otherwise).
+            SECRETS="JWT_SECRET=ziza-prod-jwt-secret:latest|ADMIN_SIGNUP_CODE=ziza-prod-admin-code:latest|DATABASE_URL=ziza-prod-database-url:latest|BANK_ENCRYPTION_KEY=ziza-prod-bank-encryption-key:latest"
+
+            # Decision (US, hybrid): Stripe collection + Wells Fargo ACH payout.
+            # Provider secrets are wired only when the matching provider is selected,
+            # so a 'mock' deploy needs no payment secrets.
+            if [ "${{ vars.PAYMENT_PROVIDER_PROD }}" = "stripe" ]; then
+              SECRETS="$SECRETS|STRIPE_SECRET_KEY=ziza-prod-stripe-secret-key:latest|STRIPE_WEBHOOK_SECRET=ziza-prod-stripe-webhook-secret:latest"
+            fi
+            if [ "${{ vars.PAYOUT_PROVIDER_PROD }}" = "wellsfargo" ]; then
+              SECRETS="$SECRETS|WELLSFARGO_GATEWAY_API_KEY=ziza-prod-wf-gateway-key:latest"
+              ENVVARS="$ENVVARS|WELLSFARGO_FUNDING_ACCOUNT=${{ vars.WELLSFARGO_FUNDING_ACCOUNT_PROD }}|WELLSFARGO_PAYMENT_RAIL=${{ vars.WELLSFARGO_PAYMENT_RAIL_PROD }}"
+            fi
+
+            FLAGS+=("--set-env-vars=^|^$ENVVARS")
+            FLAGS+=("--update-secrets=^|^$SECRETS")
             if [ -n "${{ vars.CLOUD_SQL_INSTANCE_PROD }}" ]; then
               FLAGS+=("--add-cloudsql-instances=${{ vars.CLOUD_SQL_INSTANCE_PROD }}")
             fi
