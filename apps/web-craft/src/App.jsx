@@ -4,6 +4,7 @@ import {
   getMyProfile, updateMyProfile, getProfile, updateProfile,
   listOpenRequests, getCraftRequest,
   submitBid, getMyBids,
+  getProBalance, createProPayout, listProPayouts,
   listRequestMessages, sendRequestMessage,
   submitDocument, listMyDocuments,
   listNotifications, getUnreadCount, markAllRead,
@@ -463,6 +464,110 @@ function MyBidsSection({ token }) {
           <button className="page-btn" onClick={() => load(page + 1)} disabled={bids.length < BIDS_PAGE || loading}>Next →</button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Withdrawals section — Sprint 67 (balance-capped)
+// ---------------------------------------------------------------------------
+
+const PRO_PAYOUT_STATUS_LABELS = {
+  pending:  "⏳ Pending",
+  approved: "✅ Approved",
+  rejected: "✗ Rejected",
+  processed: "💸 Paid",
+  failed:   "⚠ Failed",
+};
+
+function WithdrawalsSection({ token }) {
+  const [amount, setAmount] = useState("");
+  const [available, setAvailable] = useState(null); // disponible_cents
+  const [payouts, setPayouts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    Promise.all([
+      getProBalance(token).then((b) => setAvailable(b.disponible_cents ?? 0)).catch(() => {}),
+      listProPayouts(token).then(setPayouts).catch(() => {}),
+    ]).finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const overBalance = available != null && Number(amount) > available;
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!amount || Number(amount) <= 0) return;
+    if (overBalance) { setError("Amount exceeds your available balance."); return; }
+    setSubmitting(true); setError(null); setSuccess(null);
+    try {
+      await createProPayout(token, Number(amount));
+      setAmount("");
+      setSuccess("Withdrawal request submitted!");
+      load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="section-header">
+        <h2 className="section-title">💰 Withdrawals</h2>
+        <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
+      </div>
+
+      {available != null && (
+        <p className="payout-available">
+          Available to withdraw: <strong>{formatUSD(available)}</strong>
+        </p>
+      )}
+
+      <form className="payout-form" onSubmit={handleSubmit}>
+        <input
+          className="payout-amount-input"
+          type="number"
+          min="1"
+          step="100"
+          max={available ?? undefined}
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="Amount in cents (e.g. 5000 = $50)"
+          required
+        />
+        <button className="payout-submit-btn" type="submit" disabled={submitting || overBalance || !available}>
+          {submitting ? "Sending…" : "Request Withdrawal"}
+        </button>
+      </form>
+      {overBalance && <p className="payout-err">Amount exceeds your available balance.</p>}
+      {success && <p className="payout-success">{success}</p>}
+      {error && <p className="payout-err">{error}</p>}
+
+      {!loading && payouts.length === 0 && <div className="empty-state">No withdrawal requests yet.</div>}
+      <div className="bid-list">
+        {payouts.map((p) => (
+          <div key={p.payout_id} className="bid-item">
+            <div className="bid-item-header">
+              <span className="bid-price">{formatUSD(p.amount_cents)}</span>
+              <span className={`bid-status bid-status-${p.status}`}>
+                {PRO_PAYOUT_STATUS_LABELS[p.status] ?? p.status}
+              </span>
+            </div>
+            {p.note_admin && <p className="bid-note">💬 {p.note_admin}</p>}
+            <p className="bid-date">
+              {new Date(p.created_at).toLocaleDateString("en-US", { dateStyle: "medium" })}
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1105,6 +1210,12 @@ function Dashboard({ user, token, onLogout }) {
           📄 Documents
         </button>
         <button
+          className={`craft-tab ${tab === "withdrawals" ? "active" : ""}`}
+          onClick={() => setTab("withdrawals")}
+        >
+          💰 Withdrawals
+        </button>
+        <button
           className={`craft-tab ${tab === "notifications" ? "active" : ""}`}
           onClick={() => setTab("notifications")}
         >
@@ -1141,6 +1252,7 @@ function Dashboard({ user, token, onLogout }) {
       {tab === "profile"       && <ProfileSection token={token} profile={profile} onProfileUpdated={(p) => { setProfile(p); setIsOnline(p.is_online); }} />}
       {tab === "skills"        && <SkillsSection token={token} profile={profile} onProfileUpdated={(p) => { setProfile(p); }} />}
       {tab === "documents"     && <DocumentsSection token={token} profStatus={profStatus} />}
+      {tab === "withdrawals"   && <WithdrawalsSection token={token} />}
       {tab === "notifications" && <NotificationsSection token={token} onRead={refreshUnread} />}
 
       <p className="footer">App: <strong>web-craft</strong> · Sprint 64 — Profile Fields</p>
