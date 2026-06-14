@@ -37,6 +37,10 @@ def _adapter() -> WellsFargoPayoutAdapter:
     )
 
 
+def _dest():
+    return {"routing": "021000021", "account": "123456789012", "holder": "Jane Doe"}
+
+
 def test_send_payout_posts_ach_and_returns_ref(monkeypatch):
     captured = {}
 
@@ -47,13 +51,14 @@ def test_send_payout_posts_ach_and_returns_ref(monkeypatch):
         return _FakeResp(json.dumps({"paymentId": "wf_pay_1"}).encode())
 
     monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
-    ref = asyncio.run(_adapter().send_payout(account_id="BANK-ACCT-9", amount_cents=12_345, ref="payout-1"))
+    ref = asyncio.run(_adapter().send_payout(destination=_dest(), amount_cents=12_345, ref="payout-1"))
 
     assert ref == "wf_pay_1"
     assert captured["url"].endswith("/payments")
     b = captured["body"]
     assert b["fundingAccount"] == "WF-FUND-1"
-    assert b["destinationAccount"] == "BANK-ACCT-9"
+    assert b["destination"]["routingNumber"] == "021000021"
+    assert b["destination"]["accountNumber"] == "123456789012"
     assert b["amount"] == 12_345
     assert b["currency"] == "USD"
     assert b["rail"] == "ach"
@@ -62,7 +67,7 @@ def test_send_payout_posts_ach_and_returns_ref(monkeypatch):
 
 def test_send_payout_without_account_raises():
     with pytest.raises(RuntimeError):
-        asyncio.run(_adapter().send_payout(account_id="", amount_cents=100, ref="x"))
+        asyncio.run(_adapter().send_payout(destination={}, amount_cents=100, ref="x"))
 
 
 def test_send_payout_gateway_error_raises(monkeypatch):
@@ -71,7 +76,7 @@ def test_send_payout_gateway_error_raises(monkeypatch):
 
     monkeypatch.setattr(urllib.request, "urlopen", _boom)
     with pytest.raises(RuntimeError):
-        asyncio.run(_adapter().send_payout(account_id="A", amount_cents=100, ref="x"))
+        asyncio.run(_adapter().send_payout(destination=_dest(), amount_cents=100, ref="x"))
 
 
 def test_factory_selects_payout_provider(monkeypatch):
