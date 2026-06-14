@@ -1597,11 +1597,17 @@ function WalletSection({ token }) {
     if (!amount || amount <= 0) return;
     setTopping(true); setTopupError(null); setTopupSuccess(null);
     try {
+      // WS2: top-up is now a real payment. Returns a checkout URL; the wallet is
+      // credited only once the provider confirms (webhook).
       const result = await topupWallet(token, amount);
-      setWallet(result.wallet);
-      setTxs((prev) => [result.transaction, ...prev]);
       setTopupAmount("");
-      setTopupSuccess(`✅ Top-up of ${formatUSD(amount)} completed!`);
+      if (result.checkout_url && !result.checkout_url.includes("localhost")) {
+        window.open(result.checkout_url, "_blank", "noopener");
+        setTopupSuccess("Redirecting to payment — your wallet will be credited once the payment is confirmed.");
+      } else {
+        setTopupSuccess("Top-up initiated. Your wallet will be credited once the payment is confirmed.");
+      }
+      load();  // refresh; the credit appears after payment is confirmed
     } catch (err) { setTopupError(err.message); }
     finally { setTopping(false); }
   }

@@ -748,16 +748,25 @@ export async function getWallet(token: string): Promise<Wallet> {
   return _json<Wallet>(res);
 }
 
-export async function topupWallet(
-  token: string,
-  amountXof: number,
-): Promise<{ wallet: Wallet; transaction: WalletTransaction }> {
+// WS2 — a top-up is now a real payment. The wallet is credited only once the
+// provider confirms via webhook.
+export interface WalletTopup {
+  topup_id: string;
+  amount_cents: number;
+  currency: string;
+  provider: string;
+  provider_ref: string | null;
+  status: string; // pending | paid | failed
+  checkout_url: string | null;
+}
+
+export async function topupWallet(token: string, amountCents: number): Promise<WalletTopup> {
   const res = await fetch(`${API_BASE}/v1/wallet/topup`, {
     method: "POST",
     headers: { ..._auth(token), "Content-Type": "application/json" },
-    body: JSON.stringify({ amount_cents: amountXof }),
+    body: JSON.stringify({ amount_cents: amountCents }),
   });
-  return _json<{ wallet: Wallet; transaction: WalletTransaction }>(res);
+  return _json<WalletTopup>(res);
 }
 
 export async function getWalletTransactions(

@@ -3951,6 +3951,18 @@ class WalletWithTxResponse(BaseModel):
     transaction: WalletTransactionResponse
 
 
+class WalletTopupResponse(BaseModel):
+    """WS2 — a pending top-up. The wallet is credited only after the customer
+    completes the checkout and the provider confirms via webhook."""
+    topup_id: str
+    amount_cents: int
+    currency: str
+    provider: str
+    provider_ref: str | None = None
+    status: str           # pending | paid | failed
+    checkout_url: str | None = None
+
+
 @app.get("/v1/wallet", response_model=WalletResponse,
          summary="Get current user's wallet (Sprint 33)")
 async def get_my_wallet(
@@ -3962,21 +3974,21 @@ async def get_my_wallet(
     return WalletResponse(**result)
 
 
-@app.post("/v1/wallet/topup", response_model=WalletWithTxResponse,
-          summary="Top up wallet via mobile money (Sprint 33)")
+@app.post("/v1/wallet/topup", response_model=WalletTopupResponse, status_code=201,
+          summary="Start a wallet top-up via the payment provider (WS2)")
 async def topup_wallet(
     body: TopupRequest,
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Credit the authenticated user's wallet. 422 if amount <= 0."""
-    result = await crud.wallet_topup(
-        db, claims.user_id, body.amount_cents, body.reference_id, body.note
+    """WS2 — Start a real top-up: returns a ``checkout_url`` to pay. The wallet
+    is credited only after the provider confirms the payment (webhook). 422 if
+    amount <= 0."""
+    from app.payment import get_adapter  # noqa: PLC0415
+    result = await crud.create_wallet_topup(
+        db, claims.user_id, int(body.amount_cents), get_adapter()
     )
-    return WalletWithTxResponse(
-        wallet=WalletResponse(**result["wallet"]),
-        transaction=WalletTransactionResponse(**result["transaction"]),
-    )
+    return WalletTopupResponse(**result)
 
 
 @app.post("/v1/wallet/pay-trip", response_model=WalletWithTxResponse,

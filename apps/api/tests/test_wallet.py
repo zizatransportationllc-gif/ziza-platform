@@ -54,6 +54,17 @@ def _customer() -> str:
     return tok
 
 
+def _fund_wallet(token: str, amount: float) -> str:
+    """WS2 — fund a wallet through the real flow: start a top-up, then confirm
+    it via the payment webhook (mock provider). Returns the provider_ref."""
+    r = client.post("/v1/wallet/topup", headers=_h(token), json={"amount_cents": amount})
+    assert r.status_code == 201, r.text
+    ref = r.json()["provider_ref"]
+    w = client.post("/v1/payments/webhook", json={"provider_ref": ref, "status": "paid"})
+    assert w.status_code == 200, w.text
+    return ref
+
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
@@ -68,16 +79,41 @@ def test_get_wallet_initial_balance_zero():
     assert "wallet_id" in data
 
 
-def test_topup_credits_wallet():
-    """POST /v1/wallet/topup adds the amount to balance."""
+def test_topup_returns_checkout_and_stays_pending():
+    """WS2: POST /v1/wallet/topup returns a checkout URL and does NOT credit yet."""
     c_tok = _customer()
-    r = client.post("/v1/wallet/topup", headers=_h(c_tok),
-                    json={"amount_cents": 5000.0, "reference_id": "OM-123456"})
-    assert r.status_code == 200, r.text
+    before = client.get("/v1/wallet", headers=_h(c_tok)).json()["balance_cents"]
+    r = client.post("/v1/wallet/topup", headers=_h(c_tok), json={"amount_cents": 5000.0})
+    assert r.status_code == 201, r.text
     data = r.json()
-    assert data["wallet"]["balance_cents"] == 5000.0
-    assert data["transaction"]["tx_type"] == "credit"
-    assert data["transaction"]["reason"] == "topup"
+    assert data["status"] == "pending"
+    assert data["checkout_url"]
+    assert data["provider_ref"]
+    assert data["amount_cents"] == 5000
+    # Wallet not credited until the webhook confirms
+    after = client.get("/v1/wallet", headers=_h(c_tok)).json()["balance_cents"]
+    assert after == before
+
+
+def test_topup_credited_after_webhook():
+    """WS2: the wallet is credited once the provider confirms via webhook."""
+    c_tok = _customer()
+    before = client.get("/v1/wallet", headers=_h(c_tok)).json()["balance_cents"]
+    _fund_wallet(c_tok, 5000.0)
+    after = client.get("/v1/wallet", headers=_h(c_tok)).json()["balance_cents"]
+    assert after == before + 5000.0
+
+
+def test_topup_webhook_idempotent_no_double_credit():
+    """WS2: replaying the paid webhook must not credit the wallet twice."""
+    c_tok = _customer()
+    before = client.get("/v1/wallet", headers=_h(c_tok)).json()["balance_cents"]
+    ref = _fund_wallet(c_tok, 4000.0)
+    # Replay the same paid event
+    again = client.post("/v1/payments/webhook", json={"provider_ref": ref, "status": "paid"})
+    assert again.status_code == 200
+    after = client.get("/v1/wallet", headers=_h(c_tok)).json()["balance_cents"]
+    assert after == before + 4000.0  # credited exactly once
 
 
 def test_topup_zero_amount_returns_422():
@@ -92,8 +128,8 @@ def test_pay_trip_debits_wallet():
     c_tok = _customer()
     # Snapshot balance before top-up (shared DB may have prior balance)
     before = client.get("/v1/wallet", headers=_h(c_tok)).json()["balance_cents"]
-    # Fund wallet
-    client.post("/v1/wallet/topup", headers=_h(c_tok), json={"amount_cents": 10000.0})
+    # Fund wallet (real flow: top-up + webhook confirmation)
+    _fund_wallet(c_tok, 10000.0)
     fake_trip_id = str(uuid.uuid4())
     r = client.post("/v1/wallet/pay-trip", headers=_h(c_tok),
                     json={"trip_id": fake_trip_id, "amount_cents": 3000.0})
@@ -119,8 +155,8 @@ def test_pay_trip_insufficient_balance_returns_402():
 def test_transaction_history_ordered_newest_first():
     """GET /v1/wallet/transactions returns transactions newest first."""
     c_tok = _customer()
-    client.post("/v1/wallet/topup", headers=_h(c_tok), json={"amount_cents": 1000.0})
-    client.post("/v1/wallet/topup", headers=_h(c_tok), json={"amount_cents": 2000.0})
+    _fund_wallet(c_tok, 1000.0)
+    _fund_wallet(c_tok, 2000.0)
     r = client.get("/v1/wallet/transactions", headers=_h(c_tok))
     assert r.status_code == 200, r.text
     txs = r.json()
@@ -153,8 +189,8 @@ def test_admin_debit_wallet():
     """Admin can debit a user's wallet with negative amount."""
     a_tok = _admin()
     c_tok = _customer()
-    # Fund first
-    client.post("/v1/wallet/topup", headers=_h(c_tok), json={"amount_cents": 10000.0})
+    # Fund first (real flow)
+    _fund_wallet(c_tok, 10000.0)
     me = client.get("/v1/me", headers=_h(c_tok)).json()
     customer_id = me["id"]
 

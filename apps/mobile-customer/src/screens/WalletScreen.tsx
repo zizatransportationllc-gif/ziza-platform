@@ -4,7 +4,7 @@
  */
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Linking,
 } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -47,11 +47,17 @@ export default function WalletScreen(): React.ReactElement {
     if (!token || !amt || amt <= 0 || topping) return;
     setTopping(true); setTopupError(null); setTopupSuccess(null);
     try {
+      // WS2: top-up is a real payment. Open the checkout; the wallet is credited
+      // only once the provider confirms (webhook).
       const result = await topupWallet(token, amt);
-      setWallet(result.wallet);
-      setTxs((prev) => [result.transaction, ...prev]);
       setAmount("");
-      setTopupSuccess(`✅ Top-up of ${formatUSD(amt)} completed!`);
+      if (result.checkout_url && !result.checkout_url.includes("localhost")) {
+        Linking.openURL(result.checkout_url).catch(() => {});
+        setTopupSuccess("Opening payment — your wallet will be credited once the payment is confirmed.");
+      } else {
+        setTopupSuccess("Top-up initiated. Your wallet will be credited once the payment is confirmed.");
+      }
+      load();  // refresh; the credit appears after confirmation
     } catch (e: any) {
       setTopupError(e?.message || "Top-up failed.");
     } finally {
