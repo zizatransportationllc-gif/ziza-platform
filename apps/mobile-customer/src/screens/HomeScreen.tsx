@@ -178,7 +178,15 @@ export default function HomeScreen(): React.ReactElement {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.heading}>Book a Ride</Text>
+      <View style={styles.topRow}>
+        <Text style={styles.heading}>Book a Ride</Text>
+        <TouchableOpacity
+          style={styles.walletBtn}
+          onPress={() => navigation.navigate("Wallet")}
+        >
+          <Text style={styles.walletBtnText}>💰 Wallet</Text>
+        </TouchableOpacity>
+      </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       {/* Sprint 47 — Ziza Craft entry point */}
@@ -321,7 +329,17 @@ export default function HomeScreen(): React.ReactElement {
 
 const styles = StyleSheet.create({
   container: { padding: 20 },
-  heading: { fontSize: 22, fontWeight: "bold", marginBottom: 12 },
+  topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  heading: { fontSize: 22, fontWeight: "bold" },
+  walletBtn: {
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  walletBtnText: { color: "#C2410C", fontWeight: "700", fontSize: 13 },
   error: { color: "#EF4444", marginBottom: 8, fontSize: 13 },
   hintText: { textAlign: "center", color: "#9CA3AF", fontSize: 12, marginTop: 4 },
 

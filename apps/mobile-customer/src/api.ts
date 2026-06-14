@@ -722,3 +722,52 @@ export async function sendRequestMessage(token: string, requestId: string, body:
   });
   return _json<ChatMessage>(res);
 }
+
+// ---------------------------------------------------------------------------
+// Wallet — Sprint 33 (mirrors the web-customer wallet). Amounts in USD cents.
+// ---------------------------------------------------------------------------
+
+export interface Wallet {
+  wallet_id: string;
+  balance_xof: number;
+}
+
+export interface WalletTransaction {
+  tx_id: string;
+  wallet_id: string;
+  tx_type: string; // credit | debit | refund
+  amount_xof: number;
+  reason: string;
+  reference_id: string | null;
+  balance_after: number;
+  created_at: string;
+}
+
+export async function getWallet(token: string): Promise<Wallet> {
+  const res = await fetch(`${API_BASE}/v1/wallet`, { headers: _auth(token) });
+  return _json<Wallet>(res);
+}
+
+export async function topupWallet(
+  token: string,
+  amountXof: number,
+): Promise<{ wallet: Wallet; transaction: WalletTransaction }> {
+  const res = await fetch(`${API_BASE}/v1/wallet/topup`, {
+    method: "POST",
+    headers: { ..._auth(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ amount_xof: amountXof }),
+  });
+  return _json<{ wallet: Wallet; transaction: WalletTransaction }>(res);
+}
+
+export async function getWalletTransactions(
+  token: string,
+  limit = 20,
+  offset = 0,
+): Promise<WalletTransaction[]> {
+  const res = await fetch(
+    `${API_BASE}/v1/wallet/transactions?limit=${limit}&offset=${offset}`,
+    { headers: _auth(token) },
+  );
+  return _json<WalletTransaction[]>(res);
+}
