@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -37,8 +37,10 @@ class BankAccount(Base):
     bank_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     # Public bank identifier (US ABA routing number or local bank code).
     routing_number: Mapped[str] = mapped_column(String(34), nullable=False)
-    # SENSITIVE — never returned by the API (only last 4 exposed).
-    account_number: Mapped[str] = mapped_column(String(64), nullable=False)
+    # SENSITIVE — encrypted at rest (Fernet, see app/crypto.py). Never returned.
+    account_number: Mapped[str] = mapped_column(Text, nullable=False)
+    # Non-sensitive last 4 digits, stored plaintext for masked display.
+    account_last4: Mapped[str] = mapped_column(String(4), nullable=False, default="")
     # "checking" | "savings"
     account_type: Mapped[str] = mapped_column(String(16), nullable=False, default="checking")
     country: Mapped[str] = mapped_column(String(2), nullable=False, default="US")
@@ -50,4 +52,4 @@ class BankAccount(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<BankAccount user_id={self.user_id!r} ****{self.account_number[-4:]}>"
+        return f"<BankAccount user_id={self.user_id!r} ****{self.account_last4}>"

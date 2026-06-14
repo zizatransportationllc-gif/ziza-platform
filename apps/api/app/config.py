@@ -163,6 +163,10 @@ class Settings(BaseSettings):
     withdrawal_daily_limit_cents: int = 1_000_000   # $10,000 per user per day
     topup_max_single_cents: int = 500_000           # $5,000 per top-up
 
+    # Sprint 69 — Fernet key (urlsafe base64, 32 bytes) for bank-account field
+    # encryption at rest. Empty in dev/CI → values stored as-is. REQUIRED in prod.
+    bank_encryption_key: str = ""
+
     # ------------------------------------------------------------------
     # Redis cache — Sprint 31
     # ------------------------------------------------------------------
