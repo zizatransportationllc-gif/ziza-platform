@@ -3101,6 +3101,40 @@ async def admin_finance_reconciliation(
     return await crud.finance_reconciliation(db)
 
 
+@app.get("/v1/admin/finance/metrics", tags=["payments"])
+async def admin_finance_metrics(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """WS6 — Operational finance metrics (success rates, counts by status)."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return await crud.finance_metrics(db)
+
+
+@app.get("/v1/admin/finance/transactions", tags=["payments"])
+async def admin_finance_transactions(
+    limit: int = 50,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """WS6 — Unified recent money-movement feed for the admin dashboard."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return await crud.finance_transactions(db, limit=min(limit, 200))
+
+
+@app.get("/v1/admin/finance/alerts", tags=["payments"])
+async def admin_finance_alerts(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """WS6 — Conditions needing operator attention (pollable by monitoring)."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return await crud.finance_alerts(db)
+
+
 # ---------------------------------------------------------------------------
 # Auth — Refresh & Logout (Sprint 25)
 # ---------------------------------------------------------------------------
