@@ -2800,6 +2800,108 @@ async def finance_reconciliation(db: AsyncSession) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# WS6 (Sprint 68) — Finance observability (metrics, transactions feed, alerts)
+# ---------------------------------------------------------------------------
+
+async def _status_count(db: AsyncSession, model, status_value: str) -> int:
+    return int((await db.execute(
+        select(func.count()).select_from(model).where(model.status == status_value)
+    )).scalar_one() or 0)
+
+
+def _rate(ok: int, total: int):
+    return round(ok / total, 4) if total else None
+
+
+async def finance_metrics(db: AsyncSession) -> dict:
+    """WS6 — operational metrics for the admin finance dashboard."""
+    pay_paid = await _status_count(db, PaymentIntent, "paid")
+    pay_failed = await _status_count(db, PaymentIntent, "failed")
+    pay_pending = await _status_count(db, PaymentIntent, "pending")
+    pay_refunded = await _status_count(db, PaymentIntent, "refunded")
+
+    drv = {s: await _status_count(db, PayoutRequestModel, s)
+           for s in ("processed", "failed", "approved", "pending")}
+    pro = {s: await _status_count(db, ProPayoutModel, s)
+           for s in ("processed", "failed", "approved", "pending")}
+    topup = {s: await _status_count(db, WalletTopup, s)
+             for s in ("paid", "pending", "failed")}
+
+    payout_terminal = drv["processed"] + drv["failed"] + pro["processed"] + pro["failed"]
+    return {
+        "payments": {
+            "paid": pay_paid, "failed": pay_failed, "pending": pay_pending,
+            "refunded": pay_refunded,
+            "success_rate": _rate(pay_paid, pay_paid + pay_failed),
+        },
+        "payouts": {
+            "driver": drv,
+            "professional": pro,
+            "success_rate": _rate(drv["processed"] + pro["processed"], payout_terminal),
+        },
+        "topups": topup,
+    }
+
+
+async def finance_transactions(db: AsyncSession, limit: int = 50) -> list[dict]:
+    """WS6 — unified recent money-movement feed for the admin dashboard."""
+    items: list[dict] = []
+
+    async def _collect(model, kind: str):
+        rows = (await db.execute(
+            select(model).order_by(model.updated_at.desc()).limit(limit)
+        )).scalars()
+        for r in rows:
+            items.append({
+                "kind": kind,
+                "id": str(r.id),
+                "amount_cents": r.amount_cents,
+                "status": r.status,
+                "at": _utc(r.updated_at).isoformat(),
+            })
+
+    await _collect(PaymentIntent, "payment")
+    await _collect(PayoutRequestModel, "driver_payout")
+    await _collect(ProPayoutModel, "professional_payout")
+    await _collect(WalletTopup, "wallet_topup")
+
+    items.sort(key=lambda x: x["at"], reverse=True)
+    return items[:limit]
+
+
+async def finance_alerts(db: AsyncSession) -> list[dict]:
+    """WS6 — conditions an operator should act on (pollable by monitoring)."""
+    alerts: list[dict] = []
+
+    recon = await finance_reconciliation(db)
+    if not recon["balanced"]:
+        alerts.append({
+            "level": "critical", "code": "ledger_imbalance",
+            "message": "One or more wallet ledgers do not reconcile.",
+            "count": len(recon["wallets"]["ledger_mismatches"]),
+        })
+
+    drv_failed = await _status_count(db, PayoutRequestModel, "failed")
+    pro_failed = await _status_count(db, ProPayoutModel, "failed")
+    if drv_failed + pro_failed > 0:
+        alerts.append({
+            "level": "warning", "code": "failed_payouts",
+            "message": "There are failed payouts to investigate.",
+            "count": drv_failed + pro_failed,
+        })
+
+    pay_failed = await _status_count(db, PaymentIntent, "failed")
+    if pay_failed > 0:
+        alerts.append({
+            "level": "info", "code": "failed_payments",
+            "message": "There are failed payment attempts.",
+            "count": pay_failed,
+        })
+
+    return alerts
+
+
 async def get_trip_payment(
     db: AsyncSession,
     claims: Claims,
