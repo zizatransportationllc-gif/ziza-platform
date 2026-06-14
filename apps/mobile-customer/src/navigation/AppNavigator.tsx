@@ -18,6 +18,7 @@ import CraftRequestScreen from "../screens/CraftRequestScreen";
 import MyCraftRequestsScreen from "../screens/MyCraftRequestsScreen";
 import BidsScreen from "../screens/BidsScreen";
 import DocumentsScreen from "../screens/DocumentsScreen";
+import WalletScreen from "../screens/WalletScreen";
 
 export type RootStackParamList = {
   Login: undefined;
@@ -32,6 +33,7 @@ export type RootStackParamList = {
   MyCraftRequests: undefined;
   Bids: { requestId: string; customerLat?: number; customerLng?: number };
   Documents: undefined;
+  Wallet: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -76,6 +78,11 @@ export default function AppNavigator({
               name="Documents"
               component={DocumentsScreen}
               options={{ title: "My Documents" }}
+            />
+            <Stack.Screen
+              name="Wallet"
+              component={WalletScreen}
+              options={{ title: "My Wallet" }}
             />
           </>
         ) : (
