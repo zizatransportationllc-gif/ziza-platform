@@ -442,6 +442,23 @@ export async function listProPayouts(token: string): Promise<ProPayoutRecord[]> 
   return _json<ProPayoutRecord[]>(res);
 }
 
+// WS3 — Stripe Connect payout onboarding
+export interface ConnectStatus {
+  account_id: string | null;
+  onboarded: boolean;
+  payouts_enabled: boolean;
+}
+
+export async function getConnectStatus(token: string): Promise<ConnectStatus> {
+  const res = await fetch(`${API_BASE}/v1/payouts/connect/status`, { headers: _auth(token) });
+  return _json<ConnectStatus>(res);
+}
+
+export async function connectOnboard(token: string): Promise<{ account_id: string; onboarding_url: string }> {
+  const res = await fetch(`${API_BASE}/v1/payouts/connect/onboard`, { method: "POST", headers: _auth(token) });
+  return _json<{ account_id: string; onboarding_url: string }>(res);
+}
+
 // ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
