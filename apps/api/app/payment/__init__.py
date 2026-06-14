@@ -3,9 +3,10 @@
 Exposes a ``get_adapter()`` factory that returns the right backend based on
 ``settings.payment_provider``:
 
-  "mock"      → MockPaymentAdapter   (dev / CI / tests)
-  "cinetpay"  → CinetPayAdapter      (West Africa)
-  "stripe"    → StripeAdapter        (international cards)
+  "mock"        → MockPaymentAdapter   (dev / CI / tests)
+  "cinetpay"    → CinetPayAdapter      (West Africa)
+  "stripe"      → StripeAdapter        (international cards)
+  "wellsfargo"  → WellsFargoAdapter    (US cards — Wells Fargo Merchant Services)
 """
 from __future__ import annotations
 
@@ -26,6 +27,14 @@ def get_adapter():
         return StripeAdapter(
             secret_key=settings.stripe_secret_key,
             webhook_secret=settings.stripe_webhook_secret,
+        )
+    if provider == "wellsfargo":
+        from app.payment.wellsfargo import WellsFargoAdapter  # noqa: PLC0415
+        return WellsFargoAdapter(
+            api_base=settings.wellsfargo_api_base,
+            api_key=settings.wellsfargo_api_key,
+            merchant_id=settings.wellsfargo_merchant_id,
+            webhook_secret=settings.wellsfargo_webhook_secret,
         )
     # Default: mock adapter (safe fallback for dev / CI)
     from app.payment.mock import MockPaymentAdapter  # noqa: PLC0415
