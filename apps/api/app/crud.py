@@ -25,6 +25,7 @@ from app.models.professional_document import ProfessionalDocument  # Sprint 54
 from app.models.message import Message  # Sprint 66
 from app.storage import signed_read_url  # F1 (Sprint 68) — private KYC reads
 from app.models.bank_account import BankAccount  # Sprint 69
+from app import crypto as _crypto  # Sprint 69 — bank field encryption
 from app.models.notification import Notification
 from app.models.driver_location import DriverLocation
 from app.models.payment import PaymentIntent
@@ -1733,11 +1734,16 @@ def _bank_account_to_dict(ba) -> dict:
         "account_holder_name": ba.account_holder_name,
         "bank_name": ba.bank_name,
         "routing_number": ba.routing_number,
-        "account_number_last4": ba.account_number[-4:] if ba.account_number else "",
+        "account_number_last4": ba.account_last4,
         "account_type": ba.account_type,
         "country": ba.country,
         "updated_at": _utc(ba.updated_at).isoformat(),
     }
+
+
+def decrypt_bank_account_number(ba) -> str:
+    """Return the cleartext account number (for payout execution only)."""
+    return _crypto.decrypt(ba.account_number)
 
 
 async def get_bank_account(db: AsyncSession, auth_user_id: str) -> dict | None:
@@ -1767,6 +1773,14 @@ async def upsert_bank_account(
     if account_type not in ("checking", "savings"):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="account_type must be checking or savings")
 
+    # Never store cleartext bank numbers in production.
+    from app.config import settings as _s  # noqa: PLC0415
+    if _s.environment == "prod" and not _s.bank_encryption_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Bank account storage is not configured (encryption key missing)",
+        )
+
     user = await _get_user_by_auth_id(db, auth_user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
@@ -1778,7 +1792,8 @@ async def upsert_bank_account(
     ba.account_holder_name = holder
     ba.bank_name = (bank_name or "").strip() or None
     ba.routing_number = routing
-    ba.account_number = number  # TODO(prod): encrypt at rest (KMS/Fernet)
+    ba.account_number = _crypto.encrypt(number)  # encrypted at rest (Fernet)
+    ba.account_last4 = number[-4:]
     ba.account_type = account_type
     ba.country = (country or "US").upper()[:2]
     ba.updated_at = datetime.now(timezone.utc)
