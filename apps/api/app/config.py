@@ -93,7 +93,11 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     # GCS bucket name for driver KYC documents.
     # Leave empty to use mock URLs (dev / CI).
+    # F1 (Sprint 68): this bucket MUST be PRIVATE in prod — documents are served
+    # only via short-lived signed read URLs (see app/storage.py).
     gcs_bucket_name: str = ""
+    # TTL (minutes) for signed read URLs of KYC documents.
+    gcs_signed_url_ttl_min: int = 15
 
     # ------------------------------------------------------------------
     # Payment — Sprint 24

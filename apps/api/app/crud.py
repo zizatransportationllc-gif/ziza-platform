@@ -23,6 +23,7 @@ from app.models.driver_capability import DriverCapability
 from app.models.driver_document import DriverDocument, DOCUMENT_TYPES
 from app.models.professional_document import ProfessionalDocument  # Sprint 54
 from app.models.message import Message  # Sprint 66
+from app.storage import signed_read_url  # F1 (Sprint 68) — private KYC reads
 from app.models.notification import Notification
 from app.models.driver_location import DriverLocation
 from app.models.payment import PaymentIntent
@@ -1935,7 +1936,7 @@ async def admin_list_documents(
             "driver_id": str(doc.driver_id),
             "driver_email": user.email,
             "type": doc.type,
-            "url": doc.url,
+            "url": signed_read_url(doc.url),
             "status": doc.status,
             "note_admin": doc.note_admin,
             "created_at": _utc(doc.created_at).isoformat(),
@@ -2033,7 +2034,7 @@ async def admin_update_document_status(
         "document_id": str(doc.id),
         "driver_id": str(doc.driver_id),
         "type": doc.type,
-        "url": doc.url,
+        "url": signed_read_url(doc.url),
         "status": doc.status,
         "note_admin": doc.note_admin,
         "created_at": _utc(doc.created_at).isoformat(),
@@ -5001,7 +5002,7 @@ async def admin_get_onboarding_detail(
             {
                 "document_id": str(d.id),
                 "type": d.type,
-                "url": d.url,
+                "url": signed_read_url(d.url),
                 "status": d.status,
                 "note_admin": d.note_admin,
                 "created_at": _utc(d.created_at).isoformat(),
@@ -5072,7 +5073,7 @@ async def admin_get_onboarding_detail(
             {
                 "document_id": str(d.id),
                 "type": d.type,
-                "url": d.url,
+                "url": signed_read_url(d.url),
                 "status": d.status,
                 "note_admin": d.note_admin,
                 "created_at": _utc(d.created_at).isoformat(),
@@ -5304,7 +5305,7 @@ async def admin_update_professional_document_status(
         "document_id": str(doc.id),
         "driver_id": str(doc.professional_id),  # reuse driver_id field for admin response
         "type": doc.type,
-        "url": doc.url,
+        "url": signed_read_url(doc.url),
         "status": doc.status,
         "note_admin": doc.note_admin,
         "owner_type": "professional",
