@@ -1732,6 +1732,95 @@ async def admin_update_payout_status(
 
 
 # ---------------------------------------------------------------------------
+# Professional Payout Requests — Sprint 67 (isolated from driver payouts)
+# ---------------------------------------------------------------------------
+
+class ProPayoutCreateRequest(BaseModel):
+    amount_cents: Annotated[int, Field(ge=1, description="Amount in USD cents to withdraw")]
+
+
+class ProPayoutResponse(BaseModel):
+    payout_id: str
+    professional_id: str
+    amount_cents: int
+    status: str
+    note_admin: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class ProBalanceResponse(BaseModel):
+    professional_id: str
+    gains_cents: int
+    retraits_cents: int
+    disponible_cents: int
+
+
+def _pro_payout_response(req) -> ProPayoutResponse:
+    return ProPayoutResponse(
+        payout_id=str(req.id),
+        professional_id=str(req.professional_id),
+        amount_cents=req.amount_cents,
+        status=req.status,
+        note_admin=req.note_admin,
+        created_at=req.created_at.isoformat(),
+        updated_at=req.updated_at.isoformat(),
+    )
+
+
+@app.get("/v1/craft/professionals/me/balance", tags=["payouts"])
+async def get_my_professional_balance(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProBalanceResponse:
+    """Professional: available withdrawal balance (USD cents)."""
+    if claims.role != "professional":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only professionals can view their balance",
+        )
+    result = await crud.get_professional_balance(db, claims.user_id)
+    return ProBalanceResponse(**result)
+
+
+@app.post(
+    "/v1/craft/professionals/me/payout-requests",
+    tags=["payouts"],
+    status_code=201,
+)
+async def create_pro_payout_request(
+    body: ProPayoutCreateRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProPayoutResponse:
+    """Professional requests a payout, capped at their available balance."""
+    if claims.role != "professional":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only professionals can create payout requests",
+        )
+    req = await crud.create_professional_payout_request(
+        db, claims.user_id, body.amount_cents
+    )
+    return _pro_payout_response(req)
+
+
+@app.get("/v1/craft/professionals/me/payout-requests", tags=["payouts"])
+async def list_pro_payout_requests(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[ProPayoutResponse]:
+    """Professional: list all their payout requests, newest first."""
+    if claims.role != "professional":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only professionals can view payout requests",
+        )
+    reqs = await crud.list_professional_payout_requests(db, claims.user_id)
+    return [_pro_payout_response(r) for r in reqs]
+
+
+# ---------------------------------------------------------------------------
 # Admin Ratings View — Sprint 15
 # ---------------------------------------------------------------------------
 
@@ -3132,6 +3221,8 @@ class DriverBalanceResponse(BaseModel):
     commission_xof: int
     retraits_xof: int
     solde_net_xof: int
+    # Sprint 67 — amount available to withdraw now (nets out pending/approved payouts)
+    disponible_xof: int
 
 
 class PayoutBatchResponse(BaseModel):

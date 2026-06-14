@@ -1,17 +1,10 @@
-"""Sprint 29 — Payout batch tests (8 tests).
+"""Sprint 29 + Sprint 67 — Payout batch tests (8 tests).
 
 Covers:
   POST /v1/admin/payouts/run
 
-Scenarios:
-  - Batch with 0 approved requests returns processed=0 failed=0
-  - Batch with 1 approved request processes it (mock adapter)
-  - Processed request has provider_ref set
-  - Batch report shows correct processed/failed counts
-  - Batch is idempotent: re-running on already-processed requests does nothing
-  - Summary includes total_net_xof and total_commission_xof
-  - Non-admin cannot run the batch (403)
-  - Unauthenticated request returns 401
+Sprint 67: payouts are capped at the driver's available balance, so drivers are
+given earnings via a completed trip and withdrawal amounts are small.
 """
 import uuid
 
@@ -50,8 +43,32 @@ def _setup_admin() -> str:
     return tok
 
 
-def _approved_payout(driver_tok: str, admin_tok: str, amount: int = 50_000) -> str:
-    """Create a payout request and approve it — return the payout_id."""
+def _create_completed_trip(customer_tok: str, driver_tok: str) -> None:
+    est = client.post("/v1/estimate", headers=_h(customer_tok), json={
+        "origin_lat": 5.3207, "origin_lng": -4.0175,
+        "dest_lat": 5.3600, "dest_lng": -3.9801,
+    })
+    estimate_id = est.json()["estimate_id"]
+    trip = client.post("/v1/trips", headers=_h(customer_tok), json={
+        "estimate_id": estimate_id, "category": "economy",
+    })
+    trip_id = trip.json()["trip_id"]
+    client.patch(f"/v1/trips/{trip_id}/accept", headers=_h(driver_tok))
+    client.patch(f"/v1/trips/{trip_id}/start", headers=_h(driver_tok))
+    assert client.patch(f"/v1/trips/{trip_id}/complete", headers=_h(driver_tok)).status_code == 200
+
+
+def _setup_driver_with_earnings() -> str:
+    """Driver with one completed trip → enough balance for small withdrawals."""
+    d_tok = _setup_driver()
+    c_tok = _tok("customer@ziza.dev")
+    client.post("/v1/auth/register", headers=_h(c_tok))
+    _create_completed_trip(c_tok, d_tok)
+    return d_tok
+
+
+def _approved_payout(driver_tok: str, admin_tok: str, amount: int = 100) -> str:
+    """Create a payout request (within balance) and approve it — return the payout_id."""
     pr = client.post(
         "/v1/drivers/me/payout-requests",
         headers=_h(driver_tok),
@@ -87,9 +104,9 @@ def test_batch_with_no_approved_requests():
 
 def test_batch_processes_one_approved_request():
     """Batch processes one approved payout and returns processed=1."""
-    d_tok = _setup_driver()
+    d_tok = _setup_driver_with_earnings()
     a_tok = _setup_admin()
-    _approved_payout(d_tok, a_tok, 60_000)
+    _approved_payout(d_tok, a_tok, 100)
 
     r = client.post("/v1/admin/payouts/run", headers=_h(a_tok))
     assert r.status_code == 200, r.text
@@ -100,9 +117,9 @@ def test_batch_processes_one_approved_request():
 
 def test_batch_sets_provider_ref_on_processed_request():
     """After batch runs, the payout request should have status 'processed'."""
-    d_tok = _setup_driver()
+    d_tok = _setup_driver_with_earnings()
     a_tok = _setup_admin()
-    payout_id = _approved_payout(d_tok, a_tok, 40_000)
+    payout_id = _approved_payout(d_tok, a_tok, 100)
 
     client.post("/v1/admin/payouts/run", headers=_h(a_tok))
 
@@ -116,12 +133,12 @@ def test_batch_sets_provider_ref_on_processed_request():
 
 def test_batch_report_processed_failed_counts():
     """Batch summary reports the exact number of processed and failed requests."""
-    d_tok = _setup_driver()
+    d_tok = _setup_driver_with_earnings()
     a_tok = _setup_admin()
 
-    # Create 2 approved payouts
-    _approved_payout(d_tok, a_tok, 10_000)
-    _approved_payout(d_tok, a_tok, 20_000)
+    # Create 2 approved payouts (sum stays within the driver's balance)
+    _approved_payout(d_tok, a_tok, 100)
+    _approved_payout(d_tok, a_tok, 100)
 
     r = client.post("/v1/admin/payouts/run", headers=_h(a_tok))
     data = r.json()
@@ -131,9 +148,9 @@ def test_batch_report_processed_failed_counts():
 
 def test_batch_idempotent_on_processed_requests():
     """Re-running the batch on already-processed requests does not re-process them."""
-    d_tok = _setup_driver()
+    d_tok = _setup_driver_with_earnings()
     a_tok = _setup_admin()
-    _approved_payout(d_tok, a_tok, 30_000)
+    _approved_payout(d_tok, a_tok, 100)
 
     # First run
     r1 = client.post("/v1/admin/payouts/run", headers=_h(a_tok))
@@ -148,10 +165,10 @@ def test_batch_idempotent_on_processed_requests():
 
 
 def test_batch_summary_includes_totals():
-    """Batch result includes total_net_xof and total_commission_xof > 0."""
-    d_tok = _setup_driver()
+    """Batch result includes total_net_xof and total_commission_xof."""
+    d_tok = _setup_driver_with_earnings()
     a_tok = _setup_admin()
-    _approved_payout(d_tok, a_tok, 100_000)
+    _approved_payout(d_tok, a_tok, 100)
 
     # Ensure commission is set to 15%
     client.post("/v1/admin/commission", headers=_h(a_tok), json={

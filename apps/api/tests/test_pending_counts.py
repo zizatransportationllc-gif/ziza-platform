@@ -47,14 +47,29 @@ def test_admin_pending_counts_reflects_state():
     client.post("/v1/auth/register", headers=_h(d_tok))
     client.post("/v1/drivers/register", headers=_h(d_tok))
 
+    # Sprint 67 — payouts are capped at available balance, so give the driver
+    # earnings via a completed trip first.
+    c_tok = _tok("customer@ziza.dev")
+    client.post("/v1/auth/register", headers=_h(c_tok))
+    est = client.post("/v1/estimate", headers=_h(c_tok), json={
+        "origin_lat": 5.3207, "origin_lng": -4.0175,
+        "dest_lat": 5.3600, "dest_lng": -3.9801,
+    }).json()["estimate_id"]
+    trip_id = client.post("/v1/trips", headers=_h(c_tok), json={
+        "estimate_id": est, "category": "economy",
+    }).json()["trip_id"]
+    client.patch(f"/v1/trips/{trip_id}/accept", headers=_h(d_tok))
+    client.patch(f"/v1/trips/{trip_id}/start", headers=_h(d_tok))
+    client.patch(f"/v1/trips/{trip_id}/complete", headers=_h(d_tok))
+
     # Baseline counts
     before = client.get("/v1/admin/pending-counts", headers=_h(a_tok)).json()
 
-    # Create a payout request
+    # Create a payout request (within balance)
     client.post(
         "/v1/drivers/me/payout-requests",
         headers=_h(d_tok),
-        json={"amount_xof": 5000},
+        json={"amount_xof": 100},
     )
 
     # Submit a document
