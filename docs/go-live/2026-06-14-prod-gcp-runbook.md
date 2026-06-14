@@ -88,22 +88,35 @@ gh variable set FIREBASE_PROJECT_ID_PROD --repo "$REPO" --body "ziza-platform"
 gh variable set ZIZA_CORS_ORIGINS_PROD  --repo "$REPO" --body "https://app.ziza.app,https://driver.ziza.app,https://admin.ziza.app,https://pro.ziza.app"
 gh variable set ZIZA_KYC_BUCKET_PROD    --repo "$REPO" --body "$BUCKET"
 gh variable set VITE_MAPBOX_TOKEN       --repo "$REPO" --body "<ton_token_mapbox>"
-# Paiement : laisser 'mock' tant que les contrats PSP ne sont pas prêts (sûr).
-gh variable set PAYMENT_PROVIDER_PROD   --repo "$REPO" --body "mock"
-gh variable set PAYOUT_PROVIDER_PROD    --repo "$REPO" --body "mock"
+# DÉCISION (US, hybride) : Stripe encaisse, Wells Fargo ACH reverse.
+# Astuce : commencer en 'mock' pour un 1er smoke test, puis basculer après l'étape 7.
+gh variable set PAYMENT_PROVIDER_PROD   --repo "$REPO" --body "stripe"
+gh variable set PAYOUT_PROVIDER_PROD    --repo "$REPO" --body "wellsfargo"
+gh variable set WELLSFARGO_FUNDING_ACCOUNT_PROD --repo "$REPO" --body "<compte_WF_de_financement>"
+gh variable set WELLSFARGO_PAYMENT_RAIL_PROD    --repo "$REPO" --body "ach"
 # ZIZA_API_URL_PROD : renseigné APRÈS le 1er déploiement (étape 9).
 ```
 
-## 7. (Quand un PSP réel est prêt) secrets paiement
+## 7. Secrets paiement (décision : Stripe encaisse + Wells Fargo reverse)
+
+Le workflow n'exige ces secrets que si le provider correspondant est sélectionné.
 
 ```bash
-# Stripe
-printf '%s' "sk_live_xxx"   | gcloud secrets create ziza-prod-stripe-secret-key --data-file=-
-printf '%s' "whsec_xxx"     | gcloud secrets create ziza-prod-stripe-webhook-secret --data-file=-
-# …puis ajouter ces secrets dans deploy-prod.yml (--update-secrets) + passer
-#   PAYMENT_PROVIDER_PROD=stripe / PAYOUT_PROVIDER_PROD=stripe.
+# Stripe (cartes) — commencer par les clés TEST, basculer en live à la recette
+printf '%s' "sk_test_xxx" | gcloud secrets create ziza-prod-stripe-secret-key --data-file=-
+printf '%s' "whsec_xxx"   | gcloud secrets create ziza-prod-stripe-webhook-secret --data-file=-
+# Wells Fargo Gateway (payout ACH)
+printf '%s' "<wf_gateway_api_key>" | gcloud secrets create ziza-prod-wf-gateway-key --data-file=-
+# Accès SA à tous ces secrets
+for S in ziza-prod-stripe-secret-key ziza-prod-stripe-webhook-secret ziza-prod-wf-gateway-key; do
+  gcloud secrets add-iam-policy-binding "$S" --member="serviceAccount:$SA" --role="roles/secretmanager.secretAccessor"
+done
 ```
-> Tant que `PAYMENT_PROVIDER_PROD=mock`, **aucun argent réel** n'est manipulé en prod.
+> Tant que `PAYMENT_PROVIDER_PROD=mock`, **aucun argent réel** n'est manipulé.
+> En `stripe`, enregistrer le webhook Stripe sur `<api>/v1/payments/webhook`
+> (events `checkout.session.completed`, `payment_intent.payment_failed`,
+> `checkout.session.expired`). Confirmer les noms de champs de l'API WF Gateway
+> contre leur guide d'intégration avant la bascule live (adaptateur config-driven).
 
 ## 8. (Optionnel) migration des comptes bcrypt → Firebase
 
