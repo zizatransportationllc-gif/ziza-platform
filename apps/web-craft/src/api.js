@@ -264,6 +264,37 @@ export async function registerDeviceToken(token, deviceToken, platform = "web") 
 }
 
 // ---------------------------------------------------------------------------
+// Withdrawals (payouts) — Sprint 67. Capped at available balance server-side.
+// ---------------------------------------------------------------------------
+
+export async function getProBalance(token) {
+  const res = await fetch(`${API_BASE}/v1/craft/professionals/me/balance`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // { professional_id, gains_cents, retraits_cents, disponible_cents }
+}
+
+export async function createProPayout(token, amountCents) {
+  const res = await fetch(`${API_BASE}/v1/craft/professionals/me/payout-requests`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ amount_cents: amountCents }),
+  });
+  return _json(res);
+}
+
+export async function listProPayouts(token) {
+  const res = await fetch(`${API_BASE}/v1/craft/professionals/me/payout-requests`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
+// ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
 

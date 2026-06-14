@@ -1477,13 +1477,20 @@ async def create_payout_request(
 ) -> PayoutRequestModel:
     """Driver creates a payout (withdrawal) request.
 
-    Raises 422 if amount_xof ≤ 0.
+    Raises 422 if amount_xof ≤ 0 or exceeds the driver's available balance.
     """
     driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
     if amount_xof <= 0:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="amount_xof must be greater than 0",
+        )
+    *_, disponible = await _driver_gains_and_payouts(db, driver)
+    disponible = max(disponible, 0)
+    if amount_xof > disponible:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Amount exceeds available balance ({disponible})",
         )
     req = PayoutRequestModel(
         driver_id=driver.id,
@@ -3034,6 +3041,56 @@ async def _get_commission_rate(db: AsyncSession, category: str) -> int:
     return default_row.rate_pct if default_row else 15
 
 
+#: Payout statuses that count against a driver's available balance. A request
+#: that is rejected frees the funds again; everything else (pending review,
+#: approved, or already paid out) is "committed" and must not be re-withdrawn.
+_ACTIVE_DRIVER_PAYOUT_STATUSES = ("pending", "approved", "processed")
+
+
+async def _driver_gains_and_payouts(
+    db: AsyncSession, driver
+) -> tuple[int, int, int, int, int]:
+    """Compute a driver's earnings vs. payouts.
+
+    Returns ``(gains_bruts, commission, retraits_processed, committed, disponible)``
+    where ``committed`` sums pending+approved+processed payouts and
+    ``disponible = gains_bruts - commission - committed`` (not clamped).
+    """
+    trips_result = await db.execute(
+        select(Trip.fare_xof, Trip.category)
+        .where(Trip.driver_id == driver.id, Trip.status == "completed")
+    )
+    gains_bruts = 0
+    commission_total = 0
+    for fare_xof, category in trips_result.all():
+        if fare_xof is None:
+            continue
+        gains_bruts += fare_xof
+        rate = await _get_commission_rate(db, category or "economy")
+        commission_total += math.floor(fare_xof * rate / 100)
+
+    payouts_result = await db.execute(
+        select(
+            PayoutRequestModel.status,
+            PayoutRequestModel.net_amount_xof,
+            PayoutRequestModel.amount_xof,
+        ).where(
+            PayoutRequestModel.driver_id == driver.id,
+            PayoutRequestModel.status.in_(_ACTIVE_DRIVER_PAYOUT_STATUSES),
+        )
+    )
+    committed = 0
+    retraits_processed = 0
+    for st, net, gross in payouts_result.all():
+        amt = net if net is not None else gross
+        committed += amt
+        if st == "processed":
+            retraits_processed += amt
+
+    disponible = gains_bruts - commission_total - committed
+    return gains_bruts, commission_total, retraits_processed, committed, disponible
+
+
 async def get_driver_balance(db: AsyncSession, auth_user_id: str) -> dict:
     """Return the net available balance for a driver.
 
@@ -3053,35 +3110,9 @@ async def get_driver_balance(db: AsyncSession, auth_user_id: str) -> dict:
             detail="Driver profile not found — call POST /v1/drivers/register first",
         )
 
-    # Fetch all completed trips for this driver
-    trips_result = await db.execute(
-        select(Trip.fare_xof, Trip.category)
-        .where(Trip.driver_id == driver.id, Trip.status == "completed")
+    gains_bruts, commission_total, retraits, _committed, disponible = (
+        await _driver_gains_and_payouts(db, driver)
     )
-    trips_rows = trips_result.all()
-
-    gains_bruts = 0
-    commission_total = 0
-    for fare_xof, category in trips_rows:
-        if fare_xof is None:
-            continue
-        gains_bruts += fare_xof
-        rate = await _get_commission_rate(db, category or "economy")
-        commission_total += math.floor(fare_xof * rate / 100)
-
-    # Processed payout requests (use net_amount_xof when set, else amount_xof)
-    payouts_result = await db.execute(
-        select(PayoutRequestModel.net_amount_xof, PayoutRequestModel.amount_xof)
-        .where(
-            PayoutRequestModel.driver_id == driver.id,
-            PayoutRequestModel.status == "processed",
-        )
-    )
-    retraits = sum(
-        (net if net is not None else gross)
-        for net, gross in payouts_result.all()
-    )
-
     solde_net = gains_bruts - commission_total - retraits
 
     return {
@@ -3090,6 +3121,7 @@ async def get_driver_balance(db: AsyncSession, auth_user_id: str) -> dict:
         "commission_xof": commission_total,
         "retraits_xof": retraits,
         "solde_net_xof": solde_net,
+        "disponible_xof": max(disponible, 0),
     }
 
 
@@ -4280,6 +4312,9 @@ async def set_service_flags(db: AsyncSession, updates: dict[str, bool]) -> dict[
 # ===========================================================================
 
 from app.models.craft import CraftBid, CraftRequest, Professional  # noqa: E402
+from app.models.professional_payout_request import (  # noqa: E402
+    ProfessionalPayoutRequest as ProPayoutModel,
+)
 
 
 async def get_user_db_id(db: AsyncSession, auth_user_id: str) -> uuid.UUID:
@@ -4684,6 +4719,105 @@ async def admin_professional_summary(db: AsyncSession, entity_id_str: str) -> di
         "intervention_count": len(bids),
         "interventions": interventions,
     }
+
+
+# ---------------------------------------------------------------------------
+# Professional payouts (withdrawals) — Sprint 67. Isolated from driver flow.
+# ---------------------------------------------------------------------------
+
+#: Pro payout statuses that count against available balance (mirror driver).
+_ACTIVE_PRO_PAYOUT_STATUSES = ("pending", "approved", "processed")
+
+
+async def _require_professional(db: AsyncSession, auth_user_id: str) -> Professional:
+    """Resolve the authenticated user to their professional profile (404 if none)."""
+    user_id = await get_user_db_id(db, auth_user_id)
+    prof = await get_professional_by_user(db, user_id)
+    if prof is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Professional profile not found.",
+        )
+    return prof
+
+
+async def _professional_gains_and_payouts(
+    db: AsyncSession, prof: Professional
+) -> tuple[int, int, int]:
+    """Return ``(gains_cents, committed_cents, disponible_cents)`` for a pro.
+
+    ``gains`` = Σ price_cents of accepted bids (matches admin_professional_summary).
+    ``committed`` = Σ amount_cents of non-rejected payout requests.
+    ``disponible = gains - committed`` (not clamped).
+    """
+    gains_row = await db.execute(
+        select(func.coalesce(func.sum(CraftBid.price_cents), 0)).where(
+            CraftBid.professional_id == prof.id, CraftBid.status == "accepted"
+        )
+    )
+    gains = int(gains_row.scalar_one() or 0)
+
+    committed_row = await db.execute(
+        select(func.coalesce(func.sum(ProPayoutModel.amount_cents), 0)).where(
+            ProPayoutModel.professional_id == prof.id,
+            ProPayoutModel.status.in_(_ACTIVE_PRO_PAYOUT_STATUSES),
+        )
+    )
+    committed = int(committed_row.scalar_one() or 0)
+    return gains, committed, gains - committed
+
+
+async def get_professional_balance(db: AsyncSession, auth_user_id: str) -> dict:
+    """Return a professional's available withdrawal balance (USD cents)."""
+    prof = await _require_professional(db, auth_user_id)
+    gains, committed, disponible = await _professional_gains_and_payouts(db, prof)
+    return {
+        "professional_id": str(prof.id),
+        "gains_cents": gains,
+        "retraits_cents": committed,
+        "disponible_cents": max(disponible, 0),
+    }
+
+
+async def create_professional_payout_request(
+    db: AsyncSession, auth_user_id: str, amount_cents: int
+) -> ProPayoutModel:
+    """Professional requests a withdrawal, capped at their available balance."""
+    prof = await _require_professional(db, auth_user_id)
+    if amount_cents <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="amount_cents must be greater than 0",
+        )
+    _gains, _committed, disponible = await _professional_gains_and_payouts(db, prof)
+    disponible = max(disponible, 0)
+    if amount_cents > disponible:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Amount exceeds available balance ({disponible})",
+        )
+    req = ProPayoutModel(
+        professional_id=prof.id,
+        amount_cents=amount_cents,
+        status="pending",
+    )
+    db.add(req)
+    await db.commit()
+    await db.refresh(req)
+    return req
+
+
+async def list_professional_payout_requests(
+    db: AsyncSession, auth_user_id: str
+) -> list[ProPayoutModel]:
+    """Return all payout requests for the authenticated professional, newest first."""
+    prof = await _require_professional(db, auth_user_id)
+    result = await db.execute(
+        select(ProPayoutModel)
+        .where(ProPayoutModel.professional_id == prof.id)
+        .order_by(ProPayoutModel.created_at.desc())
+    )
+    return list(result.scalars().all())
 
 
 async def select_craft_bid(

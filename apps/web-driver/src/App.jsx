@@ -571,6 +571,7 @@ const PAYOUT_STATUS_LABELS = {
 function PayoutSection({ token }) {
   const [amount, setAmount]   = useState("");
   const [payouts, setPayouts] = useState([]);
+  const [available, setAvailable] = useState(null); // disponible_xof (cents)
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]     = useState(null);
@@ -578,17 +579,25 @@ function PayoutSection({ token }) {
 
   const load = useCallback(() => {
     setLoading(true);
-    listPayoutRequests(token)
-      .then(setPayouts)
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    Promise.all([
+      listPayoutRequests(token).then(setPayouts).catch(() => {}),
+      getDriverBalance(token)
+        .then((b) => setAvailable(b.disponible_xof ?? 0))
+        .catch(() => {}),
+    ]).finally(() => setLoading(false));
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
 
+  const overBalance = available != null && Number(amount) > available;
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!amount || Number(amount) <= 0) return;
+    if (overBalance) {
+      setError("Amount exceeds your available balance.");
+      return;
+    }
     setSubmitting(true); setError(null); setSuccess(null);
     try {
       await createPayoutRequest(token, Number(amount));
@@ -606,21 +615,35 @@ function PayoutSection({ token }) {
     <div className="payout-section">
       <h3 className="section-title">💰 Withdrawal Requests</h3>
 
+      {available != null && (
+        <p className="payout-available">
+          Available to withdraw: <strong>{formatUSD(available)}</strong>
+        </p>
+      )}
+
       <form className="payout-form" onSubmit={handleSubmit}>
         <input
           className="payout-amount-input"
           type="number"
           min="1"
           step="100"
+          max={available ?? undefined}
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           placeholder="Amount in cents (e.g. 50000 = $500)"
           required
         />
-        <button className="payout-submit-btn" type="submit" disabled={submitting}>
+        <button
+          className="payout-submit-btn"
+          type="submit"
+          disabled={submitting || overBalance || !available}
+        >
           {submitting ? "Sending…" : "Request Withdrawal"}
         </button>
       </form>
+      {overBalance && (
+        <p className="payout-err">Amount exceeds your available balance.</p>
+      )}
       {success && <p className="payout-success">{success}</p>}
       {error   && <p className="payout-err">{error}</p>}
 

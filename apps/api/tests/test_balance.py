@@ -191,8 +191,8 @@ def test_balance_retraits_after_processed_payout():
     r = client.get("/v1/drivers/me/balance", headers=_h(d_tok))
     data_before = r.json()
 
-    # Create and approve a payout request
-    amount = 1000
+    # Create and approve a payout request (within the driver's balance — Sprint 67 cap)
+    amount = 100
     pr = client.post("/v1/drivers/me/payout-requests", headers=_h(d_tok), json={
         "amount_xof": amount
     })

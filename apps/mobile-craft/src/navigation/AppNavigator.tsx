@@ -12,6 +12,7 @@ import RequestDetailScreen from "../screens/RequestDetailScreen";
 import MyBidsScreen from "../screens/MyBidsScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import DocumentsScreen from "../screens/DocumentsScreen";
+import WithdrawalsScreen from "../screens/WithdrawalsScreen";
 
 export type RootStackParamList = {
   Login: undefined;
@@ -20,6 +21,7 @@ export type RootStackParamList = {
   MyBids: undefined;
   Profile: undefined;
   Documents: undefined;
+  Withdrawals: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -65,6 +67,11 @@ export default function AppNavigator({
               name="Documents"
               component={DocumentsScreen}
               options={{ title: "My Documents" }}
+            />
+            <Stack.Screen
+              name="Withdrawals"
+              component={WithdrawalsScreen}
+              options={{ title: "Withdrawals" }}
             />
           </>
         ) : (
