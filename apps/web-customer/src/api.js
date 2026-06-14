@@ -248,6 +248,36 @@ export async function updateProfile(token, fields) {
   return res.json(); // UserProfileResponse
 }
 
+// Sprint 69 — profile photo + bank account
+export async function avatarUploadUrl(token, filename, contentType) {
+  const res = await fetch(`${API_BASE}/v1/profile/avatar-upload-url`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ filename, content_type: contentType }),
+  });
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || `Avatar URL error (${res.status})`); }
+  return res.json();
+}
+
+export async function getBankAccount(token) {
+  const res = await fetch(`${API_BASE}/v1/profile/bank-account`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || `Bank account error (${res.status})`); }
+  return res.json();
+}
+
+export async function setBankAccount(token, fields) {
+  const res = await fetch(`${API_BASE}/v1/profile/bank-account`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || `Save bank account error (${res.status})`); }
+  return res.json();
+}
+
 // ---------------------------------------------------------------------------
 // Notifications — Sprint 18
 // ---------------------------------------------------------------------------
