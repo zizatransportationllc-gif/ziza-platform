@@ -6,6 +6,7 @@ import {
   getMyRating, getMyEarnings, getDriverBalance,
   getMyVehicle, registerVehicle,
   getDriverProfile, getProfile, updateProfile, setDriverOnline, listDriverTripHistory,
+  avatarUploadUrl, getBankAccount, setBankAccount,
   listTripMessages, sendTripMessage,
   createPayoutRequest, listPayoutRequests,
   getConnectStatus, connectOnboard,
@@ -1131,6 +1132,69 @@ function LocationSection({ token }) {
 // Profile section — Sprint 66 (personal identity editing)
 // ---------------------------------------------------------------------------
 
+function BankAccountForm({ token }) {
+  const [bank, setBank] = useState(undefined); // undefined=loading, null=none
+  const [holder, setHolder] = useState("");
+  const [routing, setRouting] = useState("");
+  const [number, setNumber] = useState("");
+  const [type, setType] = useState("checking");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    getBankAccount(token).then((b) => { setBank(b); if (b) setHolder(b.account_holder_name || ""); })
+      .catch(() => setBank(null));
+  }, [token]);
+
+  async function save(e) {
+    e.preventDefault();
+    setSaving(true); setErr(null); setMsg(null);
+    try {
+      const b = await setBankAccount(token, {
+        account_holder_name: holder, routing_number: routing, account_number: number, account_type: type,
+      });
+      setBank(b); setNumber(""); setMsg("✓ Bank account saved");
+      setTimeout(() => setMsg(null), 3000);
+    } catch (e2) { setErr(e2.message); }
+    finally { setSaving(false); }
+  }
+
+  const lbl = { display: "block", marginBottom: 12, fontSize: 13, fontWeight: 600 };
+  const inp = { display: "block", width: "100%", boxSizing: "border-box", marginTop: 4, padding: "10px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 14 };
+
+  return (
+    <div className="card" style={{ padding: 16, marginTop: 16 }}>
+      <h3 style={{ marginTop: 0 }}>🏦 Payout bank account</h3>
+      {bank && (
+        <p style={{ fontSize: 13, opacity: 0.85, marginTop: -6 }}>
+          On file: {bank.account_holder_name} · ****{bank.account_number_last4} ({bank.account_type})
+        </p>
+      )}
+      <form onSubmit={save}>
+        <label style={lbl}>Account holder name
+          <input style={inp} value={holder} onChange={(e) => setHolder(e.target.value)} maxLength={128} required />
+        </label>
+        <label style={lbl}>Routing number
+          <input style={inp} value={routing} onChange={(e) => setRouting(e.target.value)} maxLength={34} required placeholder="021000021" />
+        </label>
+        <label style={lbl}>Account number
+          <input style={inp} value={number} onChange={(e) => setNumber(e.target.value)} maxLength={64} required placeholder={bank ? "Enter to replace" : "Account number"} />
+        </label>
+        <label style={lbl}>Account type
+          <select style={inp} value={type} onChange={(e) => setType(e.target.value)}>
+            <option value="checking">Checking</option>
+            <option value="savings">Savings</option>
+          </select>
+        </label>
+        {err && <p className="form-error">{err}</p>}
+        {msg && <p style={{ color: "#059669", fontWeight: 600 }}>{msg}</p>}
+        <button type="submit" className="btn-primary" disabled={saving}>{saving ? "Saving…" : "Save bank account"}</button>
+      </form>
+    </div>
+  );
+}
+
 function ProfileSection({ token }) {
   const [profile, setProfile] = useState(null);
   const [firstName, setFirstName] = useState("");
@@ -1139,6 +1203,7 @@ function ProfileSection({ token }) {
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
 
@@ -1155,6 +1220,20 @@ function ProfileSection({ token }) {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [token]);
+
+  async function handleAvatar(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setAvatarBusy(true); setError(null);
+    try {
+      const ct = file.type || "image/jpeg";
+      const { upload_url, final_url } = await avatarUploadUrl(token, file.name, ct);
+      await fetch(upload_url, { method: "PUT", headers: { "Content-Type": ct }, body: file });
+      const updated = await updateProfile(token, { avatar_url: final_url });
+      setProfile(updated);
+    } catch (err) { setError("Photo upload failed: " + err.message); }
+    finally { setAvatarBusy(false); }
+  }
 
   async function handleSave(e) {
     e.preventDefault();
@@ -1180,8 +1259,20 @@ function ProfileSection({ token }) {
   const inStyle = { display: "block", width: "100%", boxSizing: "border-box", marginTop: 4, padding: "10px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 14 };
 
   return (
+   <>
     <div className="card" style={{ padding: 16 }}>
       <h3 style={{ marginTop: 0 }}>👤 My Profile</h3>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
+        <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#e5e7eb", overflow: "hidden", flexShrink: 0 }}>
+          {profile && profile.avatar_url
+            ? <img src={profile.avatar_url} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: 26 }}>👤</div>}
+        </div>
+        <label style={{ fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+          {avatarBusy ? "Uploading…" : "📷 Change photo"}
+          <input type="file" accept="image/*" onChange={handleAvatar} disabled={avatarBusy} style={{ display: "none" }} />
+        </label>
+      </div>
       {profile && (
         <p style={{ fontSize: 13, opacity: 0.8, marginTop: -6 }}>✉️ {profile.email} · {profile.role}</p>
       )}
@@ -1205,6 +1296,8 @@ function ProfileSection({ token }) {
         </button>
       </form>
     </div>
+    <BankAccountForm token={token} />
+   </>
   );
 }
 

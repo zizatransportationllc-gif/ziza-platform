@@ -414,6 +414,33 @@ export async function updateProfile(token, fields) {
   return _json(res);
 }
 
+// Sprint 69 — profile photo + bank account
+export async function avatarUploadUrl(token, filename, contentType) {
+  const res = await fetch(`${API_BASE}/v1/profile/avatar-upload-url`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ filename, content_type: contentType }),
+  });
+  return _json(res); // { upload_url, final_url }
+}
+
+export async function getBankAccount(token) {
+  const res = await fetch(`${API_BASE}/v1/profile/bank-account`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (res.status === 404) return null;
+  return _json(res); // { account_holder_name, routing_number, account_number_last4, ... }
+}
+
+export async function setBankAccount(token, fields) {
+  const res = await fetch(`${API_BASE}/v1/profile/bank-account`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(fields),
+  });
+  return _json(res);
+}
+
 // Sprint 66 — in-app messaging (driver ↔ customer)
 export async function listTripMessages(token, tripId) {
   const res = await fetch(`${API_BASE}/v1/trips/${tripId}/messages`, {

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import {
   login, signup, exchangeFirebaseToken, fetchMe, registerUser, registerProfessional,
   getMyProfile, updateMyProfile, getProfile, updateProfile,
+  avatarUploadUrl, getBankAccount, setBankAccount,
   listOpenRequests, getCraftRequest,
   submitBid, getMyBids,
   getProBalance, createProPayout, listProPayouts,
@@ -594,11 +595,68 @@ function WithdrawalsSection({ token }) {
 // Profile section
 // ---------------------------------------------------------------------------
 
+function BankAccountForm({ token }) {
+  const [bank, setBank] = useState(undefined);
+  const [holder, setHolder] = useState("");
+  const [routing, setRouting] = useState("");
+  const [number, setNumber] = useState("");
+  const [type, setType] = useState("checking");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    getBankAccount(token).then((b) => { setBank(b); if (b) setHolder(b.account_holder_name || ""); })
+      .catch(() => setBank(null));
+  }, [token]);
+
+  async function save(e) {
+    e.preventDefault();
+    setSaving(true); setErr(null); setMsg(null);
+    try {
+      const b = await setBankAccount(token, {
+        account_holder_name: holder, routing_number: routing, account_number: number, account_type: type,
+      });
+      setBank(b); setNumber(""); setMsg("✓ Bank account saved");
+      setTimeout(() => setMsg(null), 3000);
+    } catch (e2) { setErr(e2.message); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <div className="profile-card" style={{ marginTop: 16 }}>
+      <h3>🏦 Payout bank account</h3>
+      {bank && (
+        <p style={{ fontSize: 13, opacity: 0.85, marginTop: -6 }}>
+          On file: {bank.account_holder_name} · ****{bank.account_number_last4} ({bank.account_type})
+        </p>
+      )}
+      <form className="profile-form" onSubmit={save}>
+        <label>Account holder name</label>
+        <input value={holder} onChange={(e) => setHolder(e.target.value)} maxLength={128} required />
+        <label>Routing number</label>
+        <input value={routing} onChange={(e) => setRouting(e.target.value)} maxLength={34} required placeholder="021000021" />
+        <label>Account number</label>
+        <input value={number} onChange={(e) => setNumber(e.target.value)} maxLength={64} required placeholder={bank ? "Enter to replace" : "Account number"} />
+        <label>Account type</label>
+        <select value={type} onChange={(e) => setType(e.target.value)}>
+          <option value="checking">Checking</option>
+          <option value="savings">Savings</option>
+        </select>
+        {err && <p className="form-error">{err}</p>}
+        {msg && <p className="profile-success">{msg}</p>}
+        <button className="profile-save-btn" type="submit" disabled={saving}>{saving ? "Saving…" : "Save bank account"}</button>
+      </form>
+    </div>
+  );
+}
+
 function ProfileSection({ token, profile, onProfileUpdated }) {
   const [bio, setBio] = useState(profile?.bio ?? "");
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
 
   // Sprint 66 — personal identity (separate from the professional profile)
   const [me, setMe] = useState(null);
@@ -621,6 +679,20 @@ function ProfileSection({ token, profile, onProfileUpdated }) {
       })
       .catch((e) => setErrorMe(e.message));
   }, [token]);
+
+  async function handleAvatar(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setAvatarBusy(true); setErrorMe(null);
+    try {
+      const ct = file.type || "image/jpeg";
+      const { upload_url, final_url } = await avatarUploadUrl(token, file.name, ct);
+      await fetch(upload_url, { method: "PUT", headers: { "Content-Type": ct }, body: file });
+      const updated = await updateProfile(token, { avatar_url: final_url });
+      setMe(updated);
+    } catch (err) { setErrorMe("Photo upload failed: " + err.message); }
+    finally { setAvatarBusy(false); }
+  }
 
   async function handleSavePersonal(e) {
     e.preventDefault();
@@ -659,6 +731,17 @@ function ProfileSection({ token, profile, onProfileUpdated }) {
     <div>
       <div className="profile-card">
         <h3>👤 My Profile</h3>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
+          <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#e5e7eb", overflow: "hidden", flexShrink: 0 }}>
+            {me && me.avatar_url
+              ? <img src={me.avatar_url} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: 26 }}>👤</div>}
+          </div>
+          <label style={{ fontSize: 13, fontWeight: 600, cursor: "pointer", color: "#059669" }}>
+            {avatarBusy ? "Uploading…" : "📷 Change photo"}
+            <input type="file" accept="image/*" onChange={handleAvatar} disabled={avatarBusy} style={{ display: "none" }} />
+          </label>
+        </div>
         {me && <p style={{ fontSize: 13, opacity: 0.8, marginTop: -6 }}>✉️ {me.email} · {me.role}</p>}
         <form className="profile-form" onSubmit={handleSavePersonal}>
           <label>First name</label>
@@ -698,6 +781,7 @@ function ProfileSection({ token, profile, onProfileUpdated }) {
           {success && <p className="profile-success">✓ Profile updated!</p>}
         </form>
       </div>
+      <BankAccountForm token={token} />
     </div>
   );
 }
