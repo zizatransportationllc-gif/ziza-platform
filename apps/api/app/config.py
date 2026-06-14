@@ -143,8 +143,15 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     # Payout batch — Sprint 29
     # ------------------------------------------------------------------
-    # Which payout backend to use: "mock" | "stripe" (Stripe Connect transfers)
+    # Which payout backend to use:
+    #   "mock" | "stripe" (Stripe Connect) | "wellsfargo" (WF Gateway ACH/RTP)
     payout_provider: str = "mock"
+
+    # Wells Fargo Gateway (developer.wellsfargo.com) — outbound bank payments.
+    wellsfargo_gateway_base: str = "https://api.wellsfargo.com/payments/v1"
+    wellsfargo_gateway_api_key: str = ""
+    wellsfargo_funding_account: str = ""   # your WF account to debit
+    wellsfargo_payment_rail: str = "ach"   # "ach" | "rtp" | "wire"
     # Default platform commission percentage (integer, e.g. 15 = 15%).
     # Overridden per category via POST /v1/admin/commission.
     default_commission_pct: int = 15
