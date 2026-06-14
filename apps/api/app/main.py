@@ -125,6 +125,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import crud
+from app.storage import signed_read_url  # F1 (Sprint 68) — private KYC reads
 from app.auth.base import Claims
 from app.auth.dependencies import get_current_user
 from app.config import settings
@@ -2040,7 +2041,7 @@ def _document_response(doc) -> DocumentResponse:
         document_id=str(doc.id),
         driver_id=str(doc.driver_id),
         type=doc.type,
-        url=doc.url,
+        url=signed_read_url(doc.url),
         status=doc.status,
         note_admin=doc.note_admin,
         created_at=doc.created_at.isoformat(),
@@ -2069,7 +2070,7 @@ async def submit_document(
             document_id=str(doc.id),
             driver_id=str(doc.professional_id),
             type=doc.type,
-            url=doc.url,
+            url=signed_read_url(doc.url),
             status=doc.status,
             note_admin=doc.note_admin,
             created_at=doc.created_at.isoformat(),
@@ -2097,7 +2098,7 @@ async def list_my_documents(
                 document_id=str(d.id),
                 driver_id=str(d.professional_id),
                 type=d.type,
-                url=d.url,
+                url=signed_read_url(d.url),
                 status=d.status,
                 note_admin=d.note_admin,
                 created_at=d.created_at.isoformat(),
@@ -2152,7 +2153,7 @@ async def admin_list_documents(
             driver_id=str(doc.professional_id),
             driver_email=user.email,
             type=doc.type,
-            url=doc.url,
+            url=signed_read_url(doc.url),
             status=doc.status,
             note_admin=doc.note_admin,
             owner_type="professional",
@@ -3033,7 +3034,7 @@ async def logout(
 
 class UploadUrlResponse(BaseModel):
     upload_url: str  # PUT this URL to upload the file directly to GCS
-    final_url: str   # Public URL of the file after upload
+    final_url: str   # Private object reference; served later via signed read URLs (F1)
 
 
 # Sprint 66 — restrict KYC uploads to document/image types. Prevents serving
