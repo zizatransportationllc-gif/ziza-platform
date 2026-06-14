@@ -399,6 +399,50 @@ export async function listMyDocuments(token: string): Promise<DocumentResponse[]
 }
 
 // ---------------------------------------------------------------------------
+// Withdrawals (payouts) — Sprint 67. Capped at available balance server-side.
+// ---------------------------------------------------------------------------
+
+export interface ProBalance {
+  professional_id: string;
+  gains_cents: number;
+  retraits_cents: number;
+  disponible_cents: number;
+}
+
+export interface ProPayoutRecord {
+  payout_id: string;
+  professional_id: string;
+  amount_cents: number;
+  status: string;
+  note_admin: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getProBalance(token: string): Promise<ProBalance> {
+  const res = await fetch(`${API_BASE}/v1/craft/professionals/me/balance`, {
+    headers: _auth(token),
+  });
+  return _json<ProBalance>(res);
+}
+
+export async function createProPayout(token: string, amountCents: number): Promise<ProPayoutRecord> {
+  const res = await fetch(`${API_BASE}/v1/craft/professionals/me/payout-requests`, {
+    method: "POST",
+    headers: { ..._auth(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ amount_cents: amountCents }),
+  });
+  return _json<ProPayoutRecord>(res);
+}
+
+export async function listProPayouts(token: string): Promise<ProPayoutRecord[]> {
+  const res = await fetch(`${API_BASE}/v1/craft/professionals/me/payout-requests`, {
+    headers: _auth(token),
+  });
+  return _json<ProPayoutRecord[]>(res);
+}
+
+// ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
 

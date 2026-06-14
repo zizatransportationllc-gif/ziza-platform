@@ -560,3 +560,45 @@ export async function sendTripMessage(token: string, tripId: string, body: strin
   });
   return _json<ChatMessage>(res);
 }
+
+// ---------------------------------------------------------------------------
+// Withdrawals (payouts) — Sprint 67. Capped at available balance server-side.
+// ---------------------------------------------------------------------------
+
+export interface DriverBalance {
+  driver_id: string;
+  gains_bruts_xof: number;
+  commission_xof: number;
+  retraits_xof: number;
+  solde_net_xof: number;
+  disponible_xof: number;
+}
+
+export interface PayoutRecord {
+  payout_id: string;
+  driver_id: string;
+  amount_xof: number;
+  status: string;
+  note_admin: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getDriverBalance(token: string): Promise<DriverBalance> {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/balance`, { headers: _auth(token) });
+  return _json<DriverBalance>(res);
+}
+
+export async function createPayout(token: string, amountXof: number): Promise<PayoutRecord> {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/payout-requests`, {
+    method: "POST",
+    headers: { ..._auth(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ amount_xof: amountXof }),
+  });
+  return _json<PayoutRecord>(res);
+}
+
+export async function listPayouts(token: string): Promise<PayoutRecord[]> {
+  const res = await fetch(`${API_BASE}/v1/drivers/me/payout-requests`, { headers: _auth(token) });
+  return _json<PayoutRecord[]>(res);
+}

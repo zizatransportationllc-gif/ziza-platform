@@ -167,6 +167,12 @@ export default function HomeScreen(): React.ReactElement {
         >
           <Text style={styles.navBtnText}>Profile</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.navBtn}
+          onPress={() => navigation.navigate("Withdrawals")}
+        >
+          <Text style={styles.navBtnText}>💰 Withdraw</Text>
+        </TouchableOpacity>
       </View>
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
