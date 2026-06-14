@@ -16,10 +16,10 @@ class PayoutAdapter(Protocol):
     async def send_payout(
         self,
         phone: str,
-        amount_xof: int,
+        amount_cents: int,
         ref: str,
     ) -> str:
-        """Send ``amount_xof`` XOF to ``phone``.
+        """Send ``amount_cents`` XOF to ``phone``.
 
         Returns an opaque ``provider_ref`` string on success.
         Raises ``RuntimeError`` on failure (caller marks the request as
@@ -34,7 +34,7 @@ class MockPayoutAdapter:
     Used in dev, CI, and unit tests.
     """
 
-    async def send_payout(self, phone: str, amount_xof: int, ref: str) -> str:
+    async def send_payout(self, phone: str, amount_cents: int, ref: str) -> str:
         # Return a stable fake ref so tests can assert on it
         return f"mock_payout_{ref}"
 
@@ -50,7 +50,7 @@ class OrangeMoneyB2CAdapter:
         self._client_id = client_id
         self._client_secret = client_secret
 
-    async def send_payout(self, phone: str, amount_xof: int, ref: str) -> str:
+    async def send_payout(self, phone: str, amount_cents: int, ref: str) -> str:
         """Call Orange Money B2C API.
 
         Not fully implemented in this sprint — raises NotImplementedError

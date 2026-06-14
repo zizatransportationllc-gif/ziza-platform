@@ -64,5 +64,5 @@ def test_set_pricing_affects_estimate():
         headers=_customer(),
     )
     assert e.status_code == 200
-    assert e.json()["fare_xof"] == 999   # USD cents
+    assert e.json()["fare_cents"] == 999   # USD cents
     assert e.json()["currency"] == "USD"

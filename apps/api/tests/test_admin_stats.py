@@ -2,7 +2,7 @@
 
 Verifies that GET /v1/admin/stats correctly reflects payment data:
   - payments.total_paid increments after webhook confirms a payment
-  - payments.total_paid_xof sums confirmed payment amounts
+  - payments.total_paid_cents sums confirmed payment amounts
 """
 import pytest
 from fastapi.testclient import TestClient
@@ -64,7 +64,7 @@ def _completed_trip_with_payment() -> tuple[str, str]:
         headers={"Authorization": f"Bearer {token_c}"},
     )
     provider_ref = intent_resp.json()["provider_ref"]
-    fare_xof = intent_resp.json()["amount_xof"]
+    fare_cents = intent_resp.json()["amount_cents"]
 
     # Confirm via webhook
     client.post(
@@ -72,7 +72,7 @@ def _completed_trip_with_payment() -> tuple[str, str]:
         json={"provider_ref": provider_ref, "status": "paid"},
     )
 
-    return trip_id, fare_xof
+    return trip_id, fare_cents
 
 
 # ---------------------------------------------------------------------------
@@ -86,7 +86,7 @@ def test_admin_stats_includes_payments_section() -> None:
     body = resp.json()
     assert "payments" in body
     assert "total_paid" in body["payments"]
-    assert "total_paid_xof" in body["payments"]
+    assert "total_paid_cents" in body["payments"]
 
 
 def test_admin_stats_payments_totals_after_paid_webhook() -> None:
@@ -94,10 +94,10 @@ def test_admin_stats_payments_totals_after_paid_webhook() -> None:
     # Baseline
     before = client.get("/v1/admin/stats", headers=_admin_header()).json()
     paid_before = before["payments"]["total_paid"]
-    xof_before = before["payments"]["total_paid_xof"]
+    xof_before = before["payments"]["total_paid_cents"]
 
-    _trip_id, fare_xof = _completed_trip_with_payment()
+    _trip_id, fare_cents = _completed_trip_with_payment()
 
     after = client.get("/v1/admin/stats", headers=_admin_header()).json()
     assert after["payments"]["total_paid"] == paid_before + 1
-    assert after["payments"]["total_paid_xof"] == xof_before + fare_xof
+    assert after["payments"]["total_paid_cents"] == xof_before + fare_cents

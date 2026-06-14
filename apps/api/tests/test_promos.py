@@ -218,7 +218,7 @@ def test_customer_validate_promo_unknown():
 # ---------------------------------------------------------------------------
 
 def test_trip_with_valid_promo_discounts_fare():
-    """Booking a trip with a 10% promo code reduces fare_xof."""
+    """Booking a trip with a 10% promo code reduces fare_cents."""
     ta = _get_token("admin@ziza.dev")
     tc = _get_token("customer@ziza.dev")
     client.post("/v1/auth/register", headers=_headers(ta))
@@ -233,7 +233,7 @@ def test_trip_with_valid_promo_discounts_fare():
         json={"origin_lat": 5.3207, "origin_lng": -4.0175, "dest_lat": 5.3600, "dest_lng": -3.9801},
         headers=_headers(tc),
     )
-    base_fare = est_r.json()["fare_xof"]
+    base_fare = est_r.json()["fare_cents"]
     est_id = est_r.json()["estimate_id"]
 
     trip_r = client.post(
@@ -245,10 +245,10 @@ def test_trip_with_valid_promo_discounts_fare():
     body = trip_r.json()
     assert body["promo_code"] == p["code"]
     assert body["discount_pct"] == 10
-    assert body["fare_xof"] < base_fare
+    assert body["fare_cents"] < base_fare
     # Verify discount: fare should be ≈ base * 0.9
     expected = max(1, round(base_fare * 0.9))
-    assert body["fare_xof"] == expected
+    assert body["fare_cents"] == expected
 
 
 def test_trip_without_promo_fare_unchanged():
@@ -261,7 +261,7 @@ def test_trip_without_promo_fare_unchanged():
         json={"origin_lat": 5.3207, "origin_lng": -4.0175, "dest_lat": 5.3600, "dest_lng": -3.9801},
         headers=_headers(tc),
     )
-    base_fare = est_r.json()["fare_xof"]
+    base_fare = est_r.json()["fare_cents"]
     est_id = est_r.json()["estimate_id"]
 
     trip_r = client.post("/v1/trips", json={"estimate_id": est_id}, headers=_headers(tc))
@@ -269,7 +269,7 @@ def test_trip_without_promo_fare_unchanged():
     body = trip_r.json()
     assert body["promo_code"] is None
     assert body["discount_pct"] is None
-    assert body["fare_xof"] == base_fare
+    assert body["fare_cents"] == base_fare
 
 
 def test_trip_with_invalid_promo_returns_422():

@@ -43,7 +43,7 @@ class Wallet(Base):
         unique=True,
         index=True,
     )
-    balance_xof: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    balance_cents: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
@@ -67,7 +67,7 @@ class WalletTransaction(Base):
         index=True,
     )
     tx_type: Mapped[str] = mapped_column(String(16), nullable=False)    # credit | debit | refund
-    amount_xof: Mapped[float] = mapped_column(Float, nullable=False)    # always positive
+    amount_cents: Mapped[float] = mapped_column(Float, nullable=False)    # always positive
     reason: Mapped[str] = mapped_column(String(64), nullable=False)     # topup, trip_payment…
     reference_id: Mapped[str | None] = mapped_column(String(128), nullable=True)  # trip_id or payment ref
     note: Mapped[str | None] = mapped_column(Text, nullable=True)

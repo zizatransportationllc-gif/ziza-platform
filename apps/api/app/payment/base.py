@@ -13,7 +13,7 @@ class PaymentAdapter(Protocol):
 
     async def create_checkout(
         self,
-        amount_xof: int,
+        amount_cents: int,
         ref: str,
         return_url: str,
     ) -> dict:
@@ -21,7 +21,7 @@ class PaymentAdapter(Protocol):
 
         Parameters
         ----------
-        amount_xof:
+        amount_cents:
             Amount in XOF (West African CFA Franc).
         ref:
             Unique reference string (typically the intent UUID).

@@ -71,7 +71,7 @@ export default function ActiveTripScreen(): React.ReactElement {
       <Text style={styles.heading}>Trip #{tripId.slice(0, 8)}</Text>
       <Text style={styles.status}>Status: {status}</Text>
       {currentTrip && (
-        <Text style={styles.price}>{formatUSD(currentTrip.price_xof)}</Text>
+        <Text style={styles.price}>{formatUSD(currentTrip.price_cents)}</Text>
       )}
 
       <TouchableOpacity style={styles.navButton} onPress={handleNavigate}>

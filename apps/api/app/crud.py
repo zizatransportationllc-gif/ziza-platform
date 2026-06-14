@@ -431,7 +431,7 @@ async def create_trip(
 
     # 4a. Apply category multiplier to the base economy fare (Sprint 21)
     cat_multiplier = CATEGORY_MULTIPLIERS[category]
-    base_fare = max(1, round(est.fare_xof * cat_multiplier)) if est.fare_xof else est.fare_xof
+    base_fare = max(1, round(est.fare_cents * cat_multiplier)) if est.fare_cents else est.fare_cents
 
     # 4b. Optionally validate and apply a promo code
     applied_promo: PromoCode | None = None
@@ -472,7 +472,7 @@ async def create_trip(
         dest_lat=est.dest_lat,
         dest_lng=est.dest_lng,
         estimate_id=est.id,
-        fare_xof=final_fare,
+        fare_cents=final_fare,
         distance_km=est.distance_km,
         duration_min=est.duration_min,
         promo_code=promo_code.upper().strip() if promo_code else None,
@@ -814,7 +814,7 @@ async def complete_trip(db: AsyncSession, trip_id: str, auth_user_id: str) -> Tr
     await db.commit()
     await db.refresh(trip)
     # Sprint 18: notify the customer
-    fare_str = f" — {trip.fare_xof:,} XOF".replace(",", " ") if trip.fare_xof else ""
+    fare_str = f" — {trip.fare_cents:,} XOF".replace(",", " ") if trip.fare_cents else ""
     await _push_notification(
         db, trip.customer_id,
         "trip_completed",
@@ -1023,32 +1023,32 @@ async def get_driver_earnings(db: AsyncSession, auth_user_id: str) -> dict:
 
     # All-time
     r_total = await db.execute(
-        select(func.sum(Trip.fare_xof), func.count(Trip.id))
+        select(func.sum(Trip.fare_cents), func.count(Trip.id))
         .where(Trip.driver_id == driver.id, Trip.status == "completed")
     )
-    total_xof, total_trips = _sum_count(r_total.one())
+    total_cents, total_trips = _sum_count(r_total.one())
 
     # Today
     r_today = await db.execute(
-        select(func.sum(Trip.fare_xof), func.count(Trip.id))
+        select(func.sum(Trip.fare_cents), func.count(Trip.id))
         .where(
             Trip.driver_id == driver.id,
             Trip.status == "completed",
             Trip.updated_at >= today_start,
         )
     )
-    today_xof, today_trips = _sum_count(r_today.one())
+    today_cents, today_trips = _sum_count(r_today.one())
 
     # This week
     r_week = await db.execute(
-        select(func.sum(Trip.fare_xof), func.count(Trip.id))
+        select(func.sum(Trip.fare_cents), func.count(Trip.id))
         .where(
             Trip.driver_id == driver.id,
             Trip.status == "completed",
             Trip.updated_at >= week_start,
         )
     )
-    week_xof, week_trips = _sum_count(r_week.one())
+    week_cents, week_trips = _sum_count(r_week.one())
 
     # Last 10 completed trips
     r_hist = await db.execute(
@@ -1060,11 +1060,11 @@ async def get_driver_earnings(db: AsyncSession, auth_user_id: str) -> dict:
     recent = list(r_hist.scalars().all())
 
     return {
-        "total_xof": total_xof,
+        "total_cents": total_cents,
         "total_trips": total_trips,
-        "today_xof": today_xof,
+        "today_cents": today_cents,
         "today_trips": today_trips,
-        "week_xof": week_xof,
+        "week_cents": week_cents,
         "week_trips": week_trips,
         "recent_trips": recent,
     }
@@ -1084,9 +1084,9 @@ async def admin_get_stats(db: AsyncSession) -> dict:
     trips_by_status: dict[str, int] = dict(r_trips.all())
 
     r_rev = await db.execute(
-        select(func.sum(Trip.fare_xof)).where(Trip.status == "completed")
+        select(func.sum(Trip.fare_cents)).where(Trip.status == "completed")
     )
-    total_revenue_xof = int(r_rev.scalar() or 0)
+    total_revenue_cents = int(r_rev.scalar() or 0)
 
     # Driver counts by status
     r_drivers = await db.execute(
@@ -1100,16 +1100,16 @@ async def admin_get_stats(db: AsyncSession) -> dict:
     )
     total_paid_count = int(r_pay_count.scalar() or 0)
 
-    r_pay_xof = await db.execute(
-        select(func.sum(PaymentIntent.amount_xof)).where(PaymentIntent.status == "paid")
+    r_pay_cents = await db.execute(
+        select(func.sum(PaymentIntent.amount_cents)).where(PaymentIntent.status == "paid")
     )
-    total_paid_xof = int(r_pay_xof.scalar() or 0)
+    total_paid_cents = int(r_pay_cents.scalar() or 0)
 
     return {
         "trips": {
             "total": sum(trips_by_status.values()),
             "by_status": trips_by_status,
-            "total_revenue_xof": total_revenue_xof,
+            "total_revenue_cents": total_revenue_cents,
         },
         "drivers": {
             "total": sum(drivers_by_status.values()),
@@ -1117,7 +1117,7 @@ async def admin_get_stats(db: AsyncSession) -> dict:
         },
         "payments": {
             "total_paid": total_paid_count,
-            "total_paid_xof": total_paid_xof,
+            "total_paid_cents": total_paid_cents,
         },
     }
 
@@ -1155,7 +1155,7 @@ async def admin_list_trips(
         out.append({
             "trip_id": str(trip.id),
             "status": trip.status,
-            "fare_xof": trip.fare_xof,
+            "fare_cents": trip.fare_cents,
             "distance_km": trip.distance_km,
             "duration_min": trip.duration_min,
             "customer_email": customer.email,
@@ -1473,28 +1473,28 @@ _VALID_PAYOUT_STATUSES = {"approved", "rejected"}
 async def create_payout_request(
     db: AsyncSession,
     auth_user_id: str,
-    amount_xof: int,
+    amount_cents: int,
 ) -> PayoutRequestModel:
     """Driver creates a payout (withdrawal) request.
 
-    Raises 422 if amount_xof ≤ 0 or exceeds the driver's available balance.
+    Raises 422 if amount_cents ≤ 0 or exceeds the driver's available balance.
     """
     driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
-    if amount_xof <= 0:
+    if amount_cents <= 0:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="amount_xof must be greater than 0",
+            detail="amount_cents must be greater than 0",
         )
     *_, disponible = await _driver_gains_and_payouts(db, driver)
     disponible = max(disponible, 0)
-    if amount_xof > disponible:
+    if amount_cents > disponible:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Amount exceeds available balance ({disponible})",
         )
     req = PayoutRequestModel(
         driver_id=driver.id,
-        amount_xof=amount_xof,
+        amount_cents=amount_cents,
         status="pending",
     )
     db.add(req)
@@ -1534,7 +1534,7 @@ async def admin_list_payout_requests(
             "payout_id": str(req.id),
             "driver_id": str(req.driver_id),
             "driver_email": user.email,
-            "amount_xof": req.amount_xof,
+            "amount_cents": req.amount_cents,
             "status": req.status,
             "note_admin": req.note_admin,
             "created_at": _utc(req.created_at).isoformat(),
@@ -1584,7 +1584,7 @@ async def admin_update_payout_status(
     return {
         "payout_id": str(req.id),
         "driver_id": str(req.driver_id),
-        "amount_xof": req.amount_xof,
+        "amount_cents": req.amount_cents,
         "status": req.status,
         "note_admin": req.note_admin,
         "created_at": _utc(req.created_at).isoformat(),
@@ -2501,7 +2501,7 @@ def _intent_to_dict(intent: PaymentIntent) -> dict:
     return {
         "intent_id": str(intent.id),
         "trip_id": str(intent.trip_id),
-        "amount_xof": intent.amount_xof,
+        "amount_cents": intent.amount_cents,
         "currency": intent.currency,
         "provider": intent.provider,
         "provider_ref": intent.provider_ref,
@@ -2568,10 +2568,10 @@ async def create_payment_intent(
         return _intent_to_dict(existing)
 
     # Create a new intent
-    amount = trip.fare_xof or 0
+    amount = trip.fare_cents or 0
     intent = PaymentIntent(
         trip_id=trip.id,
-        amount_xof=amount,
+        amount_cents=amount,
         provider=getattr(adapter, "_provider_name", "mock"),
     )
     db.add(intent)
@@ -2579,7 +2579,7 @@ async def create_payment_intent(
 
     # Call the payment provider
     checkout = await adapter.create_checkout(
-        amount_xof=amount,
+        amount_cents=amount,
         ref=str(intent.id),
         return_url=return_url,
         notify_url=notify_url or None,
@@ -2639,8 +2639,8 @@ async def confirm_payment(
 
     # Sprint 26: notify the customer when payment is confirmed
     if new_status == "paid" and customer_uuid is not None:
-        amount_xof = intent.amount_xof
-        amount_str = f"${amount_xof / 100:,.2f}" if amount_xof else ""
+        amount_cents = intent.amount_cents
+        amount_str = f"${amount_cents / 100:,.2f}" if amount_cents else ""
         await _push_notification(
             db, customer_uuid,
             "payment_confirmed",
@@ -3057,23 +3057,23 @@ async def _driver_gains_and_payouts(
     ``disponible = gains_bruts - commission - committed`` (not clamped).
     """
     trips_result = await db.execute(
-        select(Trip.fare_xof, Trip.category)
+        select(Trip.fare_cents, Trip.category)
         .where(Trip.driver_id == driver.id, Trip.status == "completed")
     )
     gains_bruts = 0
     commission_total = 0
-    for fare_xof, category in trips_result.all():
-        if fare_xof is None:
+    for fare_cents, category in trips_result.all():
+        if fare_cents is None:
             continue
-        gains_bruts += fare_xof
+        gains_bruts += fare_cents
         rate = await _get_commission_rate(db, category or "economy")
-        commission_total += math.floor(fare_xof * rate / 100)
+        commission_total += math.floor(fare_cents * rate / 100)
 
     payouts_result = await db.execute(
         select(
             PayoutRequestModel.status,
-            PayoutRequestModel.net_amount_xof,
-            PayoutRequestModel.amount_xof,
+            PayoutRequestModel.net_amount_cents,
+            PayoutRequestModel.amount_cents,
         ).where(
             PayoutRequestModel.driver_id == driver.id,
             PayoutRequestModel.status.in_(_ACTIVE_DRIVER_PAYOUT_STATUSES),
@@ -3095,9 +3095,9 @@ async def get_driver_balance(db: AsyncSession, auth_user_id: str) -> dict:
     """Return the net available balance for a driver.
 
     Formula:
-        gains_bruts  = SUM(fare_xof) for completed trips of this driver
-        commission   = SUM(fare_xof × rate_for_category(category))
-        retraits     = SUM(net_amount_xof) for processed payout requests
+        gains_bruts  = SUM(fare_cents) for completed trips of this driver
+        commission   = SUM(fare_cents × rate_for_category(category))
+        retraits     = SUM(net_amount_cents) for processed payout requests
         solde_net    = gains_bruts - commission - retraits
 
     Net balance is informational: it can be negative if old payout requests
@@ -3117,11 +3117,11 @@ async def get_driver_balance(db: AsyncSession, auth_user_id: str) -> dict:
 
     return {
         "driver_id": str(driver.id),
-        "gains_bruts_xof": gains_bruts,
-        "commission_xof": commission_total,
-        "retraits_xof": retraits,
-        "solde_net_xof": solde_net,
-        "disponible_xof": max(disponible, 0),
+        "gains_bruts_cents": gains_bruts,
+        "commission_cents": commission_total,
+        "retraits_cents": retraits,
+        "solde_net_cents": solde_net,
+        "disponible_cents": max(disponible, 0),
     }
 
 
@@ -3129,12 +3129,12 @@ async def run_payout_batch(db: AsyncSession) -> dict:
     """Process all approved payout requests via the configured PayoutAdapter.
 
     For each approved request:
-      1. Compute commission_xof and net_amount_xof.
+      1. Compute commission_cents and net_amount_cents.
       2. Call PayoutAdapter.send_payout().
       3. On success  → status = "processed", processed_at = now, provider_ref set.
       4. On failure  → status = "failed"  (logged, does not abort the batch).
 
-    Returns a summary dict: { processed, failed, total_net_xof, total_commission_xof }.
+    Returns a summary dict: { processed, failed, total_net_cents, total_commission_cents }.
     """
     from app.config import settings as _settings  # noqa: PLC0415
     from app.payment.payout_adapter import get_payout_adapter  # noqa: PLC0415
@@ -3153,29 +3153,29 @@ async def run_payout_batch(db: AsyncSession) -> dict:
 
     processed = 0
     failed = 0
-    total_net_xof = 0
-    total_commission_xof = 0
+    total_net_cents = 0
+    total_commission_cents = 0
     now = datetime.now(timezone.utc)
 
     for req, driver, user in rows:
         # Compute commission for this request
         # Use a flat default rate applied to the full amount (simplified for batch)
         rate = await _get_commission_rate(db, "default")
-        commission_xof = math.floor(req.amount_xof * rate / 100)
-        net_amount_xof = req.amount_xof - commission_xof
+        commission_cents = math.floor(req.amount_cents * rate / 100)
+        net_amount_cents = req.amount_cents - commission_cents
 
         phone = user.phone or ""
         try:
-            ref = await adapter.send_payout(phone, net_amount_xof, str(req.id))
+            ref = await adapter.send_payout(phone, net_amount_cents, str(req.id))
             req.status = "processed"
             req.provider_ref = ref
             req.processed_at = now
-            req.commission_xof = commission_xof
-            req.net_amount_xof = net_amount_xof
+            req.commission_cents = commission_cents
+            req.net_amount_cents = net_amount_cents
             req.updated_at = now
             processed += 1
-            total_net_xof += net_amount_xof
-            total_commission_xof += commission_xof
+            total_net_cents += net_amount_cents
+            total_commission_cents += commission_cents
         except Exception as exc:
             req.status = "failed"
             req.updated_at = now
@@ -3187,7 +3187,7 @@ async def run_payout_batch(db: AsyncSession) -> dict:
                     user.id,
                     "payout_failed",
                     "Payout failed",
-                    f"Your payout of ${req.amount_xof / 100:,.2f} failed. ({exc})",
+                    f"Your payout of ${req.amount_cents / 100:,.2f} failed. ({exc})",
                 )
             except Exception:
                 pass
@@ -3197,8 +3197,8 @@ async def run_payout_batch(db: AsyncSession) -> dict:
     return {
         "processed": processed,
         "failed": failed,
-        "total_net_xof": total_net_xof,
-        "total_commission_xof": total_commission_xof,
+        "total_net_cents": total_net_cents,
+        "total_commission_cents": total_commission_cents,
     }
 
 
@@ -3863,7 +3863,7 @@ def _wallet_to_dict(wallet: Wallet) -> dict:
     return {
         "wallet_id": str(wallet.id),
         "user_id": str(wallet.user_id),
-        "balance_xof": wallet.balance_xof,
+        "balance_cents": wallet.balance_cents,
         "created_at": wallet.created_at.isoformat(),
         "updated_at": wallet.updated_at.isoformat(),
     }
@@ -3874,7 +3874,7 @@ def _tx_to_dict(tx: WalletTransaction) -> dict:
         "tx_id": str(tx.id),
         "wallet_id": str(tx.wallet_id),
         "tx_type": tx.tx_type,
-        "amount_xof": tx.amount_xof,
+        "amount_cents": tx.amount_cents,
         "reason": tx.reason,
         "reference_id": tx.reference_id,
         "note": tx.note,
@@ -3887,7 +3887,7 @@ async def _get_or_create_wallet(db: AsyncSession, user_id: uuid.UUID) -> Wallet:
     """Return existing wallet or create a new one with 0 balance."""
     wallet = await db.scalar(select(Wallet).where(Wallet.user_id == user_id))
     if wallet is None:
-        wallet = Wallet(user_id=user_id, balance_xof=0.0)
+        wallet = Wallet(user_id=user_id, balance_cents=0.0)
         db.add(wallet)
         await db.commit()
         await db.refresh(wallet)
@@ -3906,12 +3906,12 @@ async def get_wallet(db: AsyncSession, auth_id: str) -> dict:
 async def wallet_topup(
     db: AsyncSession,
     auth_id: str,
-    amount_xof: float,
+    amount_cents: float,
     reference_id: str | None = None,
     note: str | None = None,
 ) -> dict:
     """Credit the wallet (top-up via mobile money or admin)."""
-    if amount_xof <= 0:
+    if amount_cents <= 0:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Top-up amount must be positive.",
@@ -3920,16 +3920,16 @@ async def wallet_topup(
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
     wallet = await _get_or_create_wallet(db, user.id)
-    wallet.balance_xof += amount_xof
+    wallet.balance_cents += amount_cents
     wallet.updated_at = _dt.now(_tz.utc)
     tx = WalletTransaction(
         wallet_id=wallet.id,
         tx_type="credit",
-        amount_xof=amount_xof,
+        amount_cents=amount_cents,
         reason="topup",
         reference_id=reference_id,
         note=note,
-        balance_after=wallet.balance_xof,
+        balance_after=wallet.balance_cents,
     )
     db.add(tx)
     await db.commit()
@@ -3942,10 +3942,10 @@ async def wallet_pay_trip(
     db: AsyncSession,
     auth_id: str,
     trip_id: uuid.UUID,
-    amount_xof: float,
+    amount_cents: float,
 ) -> dict:
     """Debit wallet for a trip payment. 402 if insufficient balance."""
-    if amount_xof <= 0:
+    if amount_cents <= 0:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Payment amount must be positive.",
@@ -3954,20 +3954,20 @@ async def wallet_pay_trip(
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
     wallet = await _get_or_create_wallet(db, user.id)
-    if wallet.balance_xof < amount_xof:
+    if wallet.balance_cents < amount_cents:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail=f"Insufficient balance: {wallet.balance_xof:.0f} available, {amount_xof:.0f} required.",
+            detail=f"Insufficient balance: {wallet.balance_cents:.0f} available, {amount_cents:.0f} required.",
         )
-    wallet.balance_xof -= amount_xof
+    wallet.balance_cents -= amount_cents
     wallet.updated_at = _dt.now(_tz.utc)
     tx = WalletTransaction(
         wallet_id=wallet.id,
         tx_type="debit",
-        amount_xof=amount_xof,
+        amount_cents=amount_cents,
         reason="trip_payment",
         reference_id=str(trip_id),
-        balance_after=wallet.balance_xof,
+        balance_after=wallet.balance_cents,
     )
     db.add(tx)
     await db.commit()
@@ -3979,28 +3979,28 @@ async def wallet_pay_trip(
 async def wallet_refund(
     db: AsyncSession,
     user_id: uuid.UUID,
-    amount_xof: float,
+    amount_cents: float,
     reason: str = "trip_refund",
     reference_id: str | None = None,
     note: str | None = None,
 ) -> dict:
     """Credit wallet with a refund (e.g. cancelled trip)."""
-    if amount_xof <= 0:
+    if amount_cents <= 0:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Refund amount must be positive.",
         )
     wallet = await _get_or_create_wallet(db, user_id)
-    wallet.balance_xof += amount_xof
+    wallet.balance_cents += amount_cents
     wallet.updated_at = _dt.now(_tz.utc)
     tx = WalletTransaction(
         wallet_id=wallet.id,
         tx_type="refund",
-        amount_xof=amount_xof,
+        amount_cents=amount_cents,
         reason=reason,
         reference_id=reference_id,
         note=note,
-        balance_after=wallet.balance_xof,
+        balance_after=wallet.balance_cents,
     )
     db.add(tx)
     await db.commit()
@@ -4034,27 +4034,27 @@ async def get_wallet_transactions(
 async def admin_adjust_wallet(
     db: AsyncSession,
     target_user_id: uuid.UUID,
-    amount_xof: float,
+    amount_cents: float,
     note: str | None = None,
 ) -> dict:
     """Admin manual credit (positive) or debit (negative) to a wallet."""
     wallet = await _get_or_create_wallet(db, target_user_id)
-    new_balance = wallet.balance_xof + amount_xof
+    new_balance = wallet.balance_cents + amount_cents
     if new_balance < 0:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Adjustment cannot bring the balance below zero (current balance: {wallet.balance_xof:.0f}).",
+            detail=f"Adjustment cannot bring the balance below zero (current balance: {wallet.balance_cents:.0f}).",
         )
-    wallet.balance_xof = new_balance
+    wallet.balance_cents = new_balance
     wallet.updated_at = _dt.now(_tz.utc)
-    tx_type = "credit" if amount_xof >= 0 else "debit"
+    tx_type = "credit" if amount_cents >= 0 else "debit"
     tx = WalletTransaction(
         wallet_id=wallet.id,
         tx_type=tx_type,
-        amount_xof=abs(amount_xof),
-        reason="admin_debit" if amount_xof < 0 else "topup",
+        amount_cents=abs(amount_cents),
+        reason="admin_debit" if amount_cents < 0 else "topup",
         note=note,
-        balance_after=wallet.balance_xof,
+        balance_after=wallet.balance_cents,
     )
     db.add(tx)
     await db.commit()
@@ -4080,11 +4080,11 @@ async def get_revenue_by_period(
     stmt = (
         select(
             Trip.created_at,
-            Trip.fare_xof,
+            Trip.fare_cents,
             Trip.category,
         )
         .where(Trip.status == "completed")
-        .where(Trip.fare_xof.isnot(None))
+        .where(Trip.fare_cents.isnot(None))
         .order_by(Trip.created_at.desc())
         .limit(limit * 100)  # fetch more to group
     )
@@ -4104,8 +4104,8 @@ async def get_revenue_by_period(
     for created_at, fare, category in rows:
         key = _period_key(created_at)
         if key not in groups:
-            groups[key] = {"period": key, "revenue_xof": 0.0, "trip_count": 0}
-        groups[key]["revenue_xof"] += fare or 0.0
+            groups[key] = {"period": key, "revenue_cents": 0.0, "trip_count": 0}
+        groups[key]["revenue_cents"] += fare or 0.0
         groups[key]["trip_count"] += 1
 
     result = sorted(groups.values(), key=lambda x: x["period"], reverse=True)
@@ -4125,7 +4125,7 @@ async def get_driver_performance(
             Driver.id,
             User.email,
             func.count(Trip.id).label("trip_count"),
-            func.coalesce(func.sum(Trip.fare_xof), 0).label("total_revenue_xof"),
+            func.coalesce(func.sum(Trip.fare_cents), 0).label("total_revenue_cents"),
             func.coalesce(func.avg(Rating.stars), 0).label("avg_rating"),
         )
         .join(User, Driver.user_id == User.id)
@@ -4141,7 +4141,7 @@ async def get_driver_performance(
             "driver_id": str(r.id),
             "email": r.email,
             "trip_count": r.trip_count or 0,
-            "total_revenue_xof": float(r.total_revenue_xof or 0),
+            "total_revenue_cents": float(r.total_revenue_cents or 0),
             "avg_rating": round(float(r.avg_rating or 0), 2),
         }
         for r in rows
@@ -4156,8 +4156,8 @@ async def get_category_breakdown(db: AsyncSession) -> list[dict]:
         select(
             Trip.category,
             func.count(Trip.id).label("trip_count"),
-            func.coalesce(func.sum(Trip.fare_xof), 0).label("total_revenue_xof"),
-            func.coalesce(func.avg(Trip.fare_xof), 0).label("avg_fare_xof"),
+            func.coalesce(func.sum(Trip.fare_cents), 0).label("total_revenue_cents"),
+            func.coalesce(func.avg(Trip.fare_cents), 0).label("avg_fare_cents"),
         )
         .where(Trip.status == "completed")
         .group_by(Trip.category)
@@ -4168,8 +4168,8 @@ async def get_category_breakdown(db: AsyncSession) -> list[dict]:
         {
             "category": r.category or "unknown",
             "trip_count": r.trip_count or 0,
-            "total_revenue_xof": float(r.total_revenue_xof or 0),
-            "avg_fare_xof": round(float(r.avg_fare_xof or 0), 0),
+            "total_revenue_cents": float(r.total_revenue_cents or 0),
+            "avg_fare_cents": round(float(r.avg_fare_cents or 0), 0),
         }
         for r in rows
     ]
@@ -4205,7 +4205,7 @@ async def get_top_customers(db: AsyncSession, limit: int = 10) -> list[dict]:
             User.id,
             User.email,
             func.count(Trip.id).label("trip_count"),
-            func.coalesce(func.sum(Trip.fare_xof), 0).label("total_spent_xof"),
+            func.coalesce(func.sum(Trip.fare_cents), 0).label("total_spent_cents"),
         )
         .join(Trip, Trip.customer_id == User.id)
         .where(Trip.status == "completed")
@@ -4219,7 +4219,7 @@ async def get_top_customers(db: AsyncSession, limit: int = 10) -> list[dict]:
             "user_id": str(r.id),
             "email": r.email,
             "trip_count": r.trip_count or 0,
-            "total_spent_xof": float(r.total_spent_xof or 0),
+            "total_spent_cents": float(r.total_spent_cents or 0),
         }
         for r in rows
     ]
@@ -4240,7 +4240,7 @@ async def get_platform_kpis(db: AsyncSession) -> dict:
         select(func.count()).select_from(Trip).where(Trip.status == "completed")
     ) or 0
     total_revenue = await db.scalar(
-        select(func.coalesce(func.sum(Trip.fare_xof), 0))
+        select(func.coalesce(func.sum(Trip.fare_cents), 0))
         .where(Trip.status == "completed")
     ) or 0.0
     avg_rating = await db.scalar(
@@ -4256,7 +4256,7 @@ async def get_platform_kpis(db: AsyncSession) -> dict:
         "completion_rate_pct": round(
             (completed_trips / total_trips * 100) if total_trips > 0 else 0, 1
         ),
-        "total_revenue_xof": float(total_revenue),
+        "total_revenue_cents": float(total_revenue),
         "avg_rating": round(float(avg_rating), 2),
     }
 

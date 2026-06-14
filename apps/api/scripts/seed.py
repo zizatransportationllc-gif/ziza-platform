@@ -524,7 +524,7 @@ async def _seed_customers(session: AsyncSession) -> list[User]:
         wallet = Wallet(
             id=uuid.uuid4(),
             user_id=user.id,
-            balance_xof=amount,
+            balance_cents=amount,
             created_at=wallet_created,
             updated_at=wallet_created,
         )
@@ -535,7 +535,7 @@ async def _seed_customers(session: AsyncSession) -> list[User]:
             id=uuid.uuid4(),
             wallet_id=wallet.id,
             tx_type="credit",
-            amount_xof=amount,
+            amount_cents=amount,
             reason="topup",
             note="Initial wallet top-up",
             balance_after=amount,
@@ -595,7 +595,7 @@ def _trip_events(
             completed_at = started_at + timedelta(minutes=dur_min)
             events.append(ev("status_changed", completed_at, "driver",
                              {"from": "in_progress", "to": "completed",
-                              "fare_xof": trip.fare_xof}))
+                              "fare_cents": trip.fare_cents}))
     return events
 
 
@@ -677,7 +677,7 @@ async def _seed_trips(
                 origin_lng=origin_lng,
                 dest_lat=dest_lat,
                 dest_lng=dest_lng,
-                fare_xof=fare if status == "completed" else None,
+                fare_cents=fare if status == "completed" else None,
                 distance_km=dist_km,
                 duration_min=dur_min,
                 category=category,
@@ -712,7 +712,7 @@ async def _seed_trips(
                 related_to_add.append(PaymentIntent(
                     id=uuid.uuid4(),
                     trip_id=trip.id,
-                    amount_xof=fare,
+                    amount_cents=fare,
                     currency="USD",
                     provider="mock",
                     provider_ref=f"mock_{trip.id.hex[:12]}",
@@ -744,7 +744,7 @@ async def _seed_trips(
             origin_lng=origin_lng,
             dest_lat=dest_lat,
             dest_lng=dest_lng,
-            fare_xof=None,
+            fare_cents=None,
             distance_km=dist_km,
             duration_min=dur_min,
             category=vehicle.category,
@@ -793,10 +793,10 @@ async def _seed_payouts(
             session.add(PayoutRequest(
                 id=uuid.uuid4(),
                 driver_id=driver.id,
-                amount_xof=amount,
+                amount_cents=amount,
                 status=status,
-                commission_xof=commission if status in ("approved", "processed") else None,
-                net_amount_xof=net if status in ("approved", "processed") else None,
+                commission_cents=commission if status in ("approved", "processed") else None,
+                net_amount_cents=net if status in ("approved", "processed") else None,
                 provider_ref=(
                     f"PAYOUT-{driver.id.hex[:8]}-{j:02d}"
                     if status == "processed" else None
@@ -835,7 +835,7 @@ async def _ensure_demo_wallet(session: AsyncSession, demo_customer: User) -> Non
     wallet = Wallet(
         id=uuid.uuid4(),
         user_id=demo_customer.id,
-        balance_xof=5000.0,  # $50.00 in USD cents
+        balance_cents=5000.0,  # $50.00 in USD cents
         created_at=wallet_at,
         updated_at=wallet_at,
     )
@@ -846,7 +846,7 @@ async def _ensure_demo_wallet(session: AsyncSession, demo_customer: User) -> Non
         id=uuid.uuid4(),
         wallet_id=wallet.id,
         tx_type="credit",
-        amount_xof=5000.0,
+        amount_cents=5000.0,
         reason="topup",
         note="Initial demo top-up",
         balance_after=5000.0,

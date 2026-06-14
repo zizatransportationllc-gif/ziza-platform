@@ -89,7 +89,7 @@ test("getTripStatus() exposes eta_minutes once trip is in_progress", async () =>
       origin_lng: -4.02,
       dest_lat: 5.36,
       dest_lng: -3.98,
-      price_xof: 1500,
+      price_cents: 1500,
       eta_minutes: 4,
       created_at: new Date().toISOString(),
     }),

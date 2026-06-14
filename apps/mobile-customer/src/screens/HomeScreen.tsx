@@ -309,7 +309,7 @@ export default function HomeScreen(): React.ReactElement {
 
       {estimate && (
         <View style={styles.estimateBox}>
-          <Text style={styles.price}>{formatUSD(estimate.price_xof)}</Text>
+          <Text style={styles.price}>{formatUSD(estimate.price_cents)}</Text>
           <Text style={styles.detail}>
             {estimate.distance_km} km · ~{estimate.duration_min} min
           </Text>

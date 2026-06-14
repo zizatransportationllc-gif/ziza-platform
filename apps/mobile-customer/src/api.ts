@@ -57,13 +57,13 @@ export interface CategoryInfo {
   category_id: string;
   name: string;
   description: string;
-  base_fare_xof: number;
-  per_km_xof: number;
+  base_fare_cents: number;
+  per_km_cents: number;
 }
 
 export interface EstimateResponse {
   estimate_id: string;
-  price_xof: number;
+  price_cents: number;
   distance_km: number;
   duration_min: number;
   category_id: string;
@@ -78,7 +78,7 @@ export interface TripResponse {
   origin_lng: number;
   dest_lat: number;
   dest_lng: number;
-  price_xof: number;
+  price_cents: number;
   eta_minutes: number | null;
   paid_at: string | null;  // Sprint 42: set when payment is confirmed
   created_at: string;
@@ -94,7 +94,7 @@ export interface DriverPosition {
 export interface PaymentIntentResponse {
   intent_id: string;
   trip_id: string;
-  amount_xof: number;
+  amount_cents: number;
   provider: string;
   provider_ref: string;
   checkout_url: string;
@@ -105,8 +105,8 @@ export interface PaymentIntentResponse {
 
 export interface PromoResponse {
   promo_code: string;
-  discount_xof: number;
-  final_price_xof: number;
+  discount_cents: number;
+  final_price_cents: number;
 }
 
 
@@ -729,14 +729,14 @@ export async function sendRequestMessage(token: string, requestId: string, body:
 
 export interface Wallet {
   wallet_id: string;
-  balance_xof: number;
+  balance_cents: number;
 }
 
 export interface WalletTransaction {
   tx_id: string;
   wallet_id: string;
   tx_type: string; // credit | debit | refund
-  amount_xof: number;
+  amount_cents: number;
   reason: string;
   reference_id: string | null;
   balance_after: number;
@@ -755,7 +755,7 @@ export async function topupWallet(
   const res = await fetch(`${API_BASE}/v1/wallet/topup`, {
     method: "POST",
     headers: { ..._auth(token), "Content-Type": "application/json" },
-    body: JSON.stringify({ amount_xof: amountXof }),
+    body: JSON.stringify({ amount_cents: amountXof }),
   });
   return _json<{ wallet: Wallet; transaction: WalletTransaction }>(res);
 }

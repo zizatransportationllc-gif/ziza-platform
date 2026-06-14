@@ -67,7 +67,7 @@ def test_platform_kpis_returns_all_fields():
     expected_fields = [
         "total_users", "total_drivers", "online_drivers",
         "total_trips", "completed_trips", "completion_rate_pct",
-        "total_revenue_xof", "avg_rating",
+        "total_revenue_cents", "avg_rating",
     ]
     for field in expected_fields:
         assert field in data, f"Missing field: {field}"

@@ -106,7 +106,7 @@ export async function adminGetStats(token) {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
   });
   return _json(res);
-  // { trips: { total, by_status, total_revenue_xof }, assistance: { total, by_status }, drivers: { total, by_status } }
+  // { trips: { total, by_status, total_revenue_cents }, assistance: { total, by_status }, drivers: { total, by_status } }
 }
 
 /**
@@ -347,7 +347,7 @@ export async function runPayoutBatch(token) {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
   });
-  return _json(res); // { processed, failed, total_net_xof, total_commission_xof }
+  return _json(res); // { processed, failed, total_net_cents, total_commission_cents }
 }
 
 // ---------------------------------------------------------------------------

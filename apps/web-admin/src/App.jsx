@@ -268,7 +268,7 @@ function StatsPanel({ token }) {
         />
         <StatCard
           label="Revenue"
-          value={formatUSD(trips.total_revenue_xof)}
+          value={formatUSD(trips.total_revenue_cents)}
           sub="Completed trips"
         />
         <StatCard
@@ -280,7 +280,7 @@ function StatsPanel({ token }) {
           <StatCard
             label="💳 Confirmed Payments"
             value={payments.total_paid}
-            sub={formatUSD(payments.total_paid_xof)}
+            sub={formatUSD(payments.total_paid_cents)}
           />
         )}
       </div>
@@ -300,7 +300,7 @@ function TripRow({ trip }) {
           {STATUS_LABELS[trip.status] ?? trip.status}
         </span>
         <span className="trip-customer">{trip.customer_email}</span>
-        {trip.fare_xof && <span className="trip-fare">{formatUSD(trip.fare_xof)}</span>}
+        {trip.fare_cents && <span className="trip-fare">{formatUSD(trip.fare_cents)}</span>}
         {trip.paid_at && (
           <span className="trip-paid-badge">💳 Paid</span>
         )}
@@ -839,7 +839,7 @@ function PayoutsPanel({ token }) {
       {payouts.map((p) => (
         <div key={p.payout_id} className={`payout-row payout-row-${p.status}`}>
           <div className="payout-row-main">
-            <span className="payout-row-amount">{formatUSD(p.amount_xof)}</span>
+            <span className="payout-row-amount">{formatUSD(p.amount_cents)}</span>
             <span className={`payout-row-status status-${p.status}`}>
               {PAYOUT_STATUS_LABELS[p.status] ?? p.status}
             </span>
@@ -1052,11 +1052,11 @@ function CommissionPanel({ token }) {
             </div>
             <div className="batch-result-row">
               <span className="batch-result-label">Total net amount</span>
-              <span className="batch-result-value">{formatUSD(batchResult.total_net_xof)}</span>
+              <span className="batch-result-value">{formatUSD(batchResult.total_net_cents)}</span>
             </div>
             <div className="batch-result-row">
               <span className="batch-result-label">Total commission</span>
-              <span className="batch-result-value">{formatUSD(batchResult.total_commission_xof)}</span>
+              <span className="batch-result-value">{formatUSD(batchResult.total_commission_cents)}</span>
             </div>
           </div>
         )}
@@ -2091,7 +2091,7 @@ function AnalyticsPanel({ token }) {
           <KPICard icon="🟢" label="Online" value={kpis.online_drivers} />
           <KPICard icon="🚕" label="Total Trips" value={kpis.total_trips} />
           <KPICard icon="✅" label="Completion Rate" value={kpis.completion_rate_pct} unit="%" />
-          <KPICard icon="💰" label="Total Revenue" value={formatUSD(kpis.total_revenue_xof)} />
+          <KPICard icon="💰" label="Total Revenue" value={formatUSD(kpis.total_revenue_cents)} />
           <KPICard icon="⭐" label="Avg Rating" value={kpis.avg_rating} />
         </div>
       )}
@@ -2115,7 +2115,7 @@ function AnalyticsPanel({ token }) {
           <div key={r.period} className="analytics-bar-row">
             <span className="analytics-bar-label">{r.period}</span>
             <span className="analytics-bar-trips">{r.trip_count} trips</span>
-            <span className="analytics-bar-revenue">{formatUSD(r.revenue_xof)}</span>
+            <span className="analytics-bar-revenue">{formatUSD(r.revenue_cents)}</span>
           </div>
         ))}
       </div>
@@ -2128,7 +2128,7 @@ function AnalyticsPanel({ token }) {
           <div key={c.category} className="analytics-bar-row">
             <span className="analytics-bar-label" style={{ textTransform: "capitalize" }}>{c.category}</span>
             <span className="analytics-bar-trips">{c.trip_count} trips</span>
-            <span className="analytics-bar-revenue">avg. {formatUSD(c.avg_fare_xof)}</span>
+            <span className="analytics-bar-revenue">avg. {formatUSD(c.avg_fare_cents)}</span>
           </div>
         ))}
       </div>
@@ -2159,7 +2159,7 @@ function AnalyticsPanel({ token }) {
               <span className="analytics-rank">#{i + 1}</span>
               <span className="analytics-bar-label">{c.email}</span>
               <span className="analytics-bar-trips">{c.trip_count} trips</span>
-              <span className="analytics-bar-revenue">{formatUSD(c.total_spent_xof)}</span>
+              <span className="analytics-bar-revenue">{formatUSD(c.total_spent_cents)}</span>
             </div>
           ))}
         </div>
@@ -2613,9 +2613,9 @@ function HistoryEarningsSection({ token, entityId, entityType }) {
     return (
       <div>
         <div style={stats}>
-          <div><div style={lbl}>Total earned</div><div style={{ ...cell, fontWeight: 700, fontSize: 20 }}>{formatUSD(e.total_xof ?? 0)}</div></div>
+          <div><div style={lbl}>Total earned</div><div style={{ ...cell, fontWeight: 700, fontSize: 20 }}>{formatUSD(e.total_cents ?? 0)}</div></div>
           <div><div style={lbl}>Trips</div><div style={cell}>{e.total_trips ?? 0}</div></div>
-          <div><div style={lbl}>This week</div><div style={cell}>{formatUSD(e.week_xof ?? 0)}</div></div>
+          <div><div style={lbl}>This week</div><div style={cell}>{formatUSD(e.week_cents ?? 0)}</div></div>
         </div>
         {hist.length === 0
           ? <p style={{ color: "#9CA3AF" }}>No trips yet.</p>
@@ -2629,7 +2629,7 @@ function HistoryEarningsSection({ token, entityId, entityType }) {
                     title="View conversation"
                   >
                     <span style={cell}>{open ? "▾" : "▸"} {t.status} · {Number(t.distance_km).toFixed(1)} mi · {t.duration_min} min</span>
-                    <span style={{ ...cell, fontWeight: 600 }}>{formatUSD(t.fare_xof)}</span>
+                    <span style={{ ...cell, fontWeight: 600 }}>{formatUSD(t.fare_cents)}</span>
                   </div>
                   {open && <AdminConversation token={token} scope="trip" id={t.trip_id} />}
                 </div>

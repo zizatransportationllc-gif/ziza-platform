@@ -91,10 +91,10 @@ def test_driver_earnings_zero_state():
     r = client.get("/v1/drivers/me/earnings", headers=_headers(td))
     assert r.status_code == 200
     body = r.json()
-    assert "total_xof" in body
+    assert "total_cents" in body
     assert "total_trips" in body
-    assert "today_xof" in body
-    assert "week_xof" in body
+    assert "today_cents" in body
+    assert "week_cents" in body
     assert "recent_trips" in body
     assert isinstance(body["recent_trips"], list)
 
@@ -117,12 +117,12 @@ def test_driver_earnings_after_completed_trip():
     after = r1.json()
 
     assert after["total_trips"] >= before["total_trips"] + 1
-    assert after["total_xof"] > before["total_xof"]
+    assert after["total_cents"] > before["total_cents"]
     assert len(after["recent_trips"]) >= 1
 
     trip = after["recent_trips"][0]
     assert "trip_id" in trip
-    assert "fare_xof" in trip
+    assert "fare_cents" in trip
     assert "completed_at" in trip
 
 
@@ -136,7 +136,7 @@ def test_driver_earnings_recent_trips_shape():
     trips = r.json()["recent_trips"]
     for t in trips:
         assert "trip_id" in t
-        assert "fare_xof" in t
+        assert "fare_cents" in t
         assert "distance_km" in t
         assert "duration_min" in t
         assert "completed_at" in t
@@ -174,9 +174,9 @@ def test_admin_stats_shape():
     trips = body["trips"]
     assert "total" in trips
     assert "by_status" in trips
-    assert "total_revenue_xof" in trips
+    assert "total_revenue_cents" in trips
     assert isinstance(trips["total"], int)
-    assert isinstance(trips["total_revenue_xof"], int)
+    assert isinstance(trips["total_revenue_cents"], int)
 
     assert "total" in body["drivers"]
 
@@ -188,12 +188,12 @@ def test_admin_stats_reflects_completed_trip():
     td = _get_token("driver@ziza.dev")
 
     r0 = client.get("/v1/admin/stats", headers=_headers(ta))
-    before_rev = r0.json()["trips"]["total_revenue_xof"]
+    before_rev = r0.json()["trips"]["total_revenue_cents"]
 
     _complete_a_trip(tc, td)
 
     r1 = client.get("/v1/admin/stats", headers=_headers(ta))
-    after_rev = r1.json()["trips"]["total_revenue_xof"]
+    after_rev = r1.json()["trips"]["total_revenue_cents"]
 
     assert after_rev > before_rev
 

@@ -414,7 +414,7 @@ export async function sendTripMessage(token, tripId, body) {
 
 /**
  * Create a PaymentIntent for a completed trip.
- * Returns { intent_id, trip_id, amount_xof, status, checkout_url, provider_ref, … }
+ * Returns { intent_id, trip_id, amount_cents, status, checkout_url, provider_ref, … }
  */
 export async function createPaymentIntent(token, tripId) {
   const res = await fetch(`${API_BASE}/v1/payments/intent`, {
@@ -532,7 +532,7 @@ export async function getWallet(token) {
 
 /** Top-up the wallet with a given amount (XOF). */
 export async function topupWallet(token, amountXof, referenceId = null) {
-  const body = { amount_xof: amountXof };
+  const body = { amount_cents: amountXof };
   if (referenceId) body.reference_id = referenceId;
   const res = await fetch(`${API_BASE}/v1/wallet/topup`, {
     method: "POST",

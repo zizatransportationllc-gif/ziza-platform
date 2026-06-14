@@ -74,7 +74,7 @@ export default function PaymentScreen(): React.ReactElement {
       try {
         const intent = await getTripPayment(token, tripId);
         if (intent) {
-          setAmountXof(intent.amount_xof);
+          setAmountXof(intent.amount_cents);
           if (intent.status === "paid") {
             stopPolling();
             setPayState("paid");

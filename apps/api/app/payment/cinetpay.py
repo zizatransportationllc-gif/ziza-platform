@@ -28,7 +28,7 @@ class CinetPayAdapter:
 
     async def create_checkout(
         self,
-        amount_xof: int,
+        amount_cents: int,
         ref: str,
         return_url: str,
         notify_url: str | None = None,
@@ -51,7 +51,7 @@ class CinetPayAdapter:
             "apikey": self._api_key,
             "site_id": self._site_id,
             "transaction_id": ref,
-            "amount": amount_xof,
+            "amount": amount_cents,
             "currency": "XOF",
             "description": f"Ziza — ride {ref[:8]}",
             "return_url": return_url,

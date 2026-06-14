@@ -2,7 +2,7 @@
  * Sprint 28 — Dispatch tests (5 tests)
  *
  * Covers: trip listing, trip acceptance, 409 conflict on concurrent accept,
- * trip card badge fields (category_id + price_xof), and proximity sorting
+ * trip card badge fields (category_id + price_cents), and proximity sorting
  * with calculateDistanceKm().
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -35,7 +35,7 @@ function makeTripResponse(overrides: Partial<TripResponse> = {}): TripResponse {
     origin_lng: -17.4467,
     dest_lat: 14.7028,
     dest_lng: -17.4367,
-    price_xof: 2500,
+    price_cents: 2500,
     category_id: "comfort",
     eta_minutes: 5,
     created_at: "2026-05-26T10:00:00Z",
@@ -49,8 +49,8 @@ function makeTripResponse(overrides: Partial<TripResponse> = {}): TripResponse {
 
 test("listAvailableTrips() returns an array of pending trip offers", async () => {
   const trips = [
-    makeTripResponse({ trip_id: "trip-001", price_xof: 2500 }),
-    makeTripResponse({ trip_id: "trip-002", price_xof: 3000, category_id: "premium" }),
+    makeTripResponse({ trip_id: "trip-001", price_cents: 2500 }),
+    makeTripResponse({ trip_id: "trip-002", price_cents: 3000, category_id: "premium" }),
   ];
 
   mockFetch.mockResolvedValueOnce({
@@ -93,20 +93,20 @@ test("acceptTrip() throws an error when the trip was already taken (HTTP 409)", 
   );
 });
 
-test("trip dispatch card has category_id and price_xof fields for badge rendering", async () => {
+test("trip dispatch card has category_id and price_cents fields for badge rendering", async () => {
   const trips = [
-    makeTripResponse({ category_id: "economy", price_xof: 1500 }),
-    makeTripResponse({ category_id: "comfort", price_xof: 2500 }),
-    makeTripResponse({ category_id: "premium", price_xof: 4000 }),
+    makeTripResponse({ category_id: "economy", price_cents: 1500 }),
+    makeTripResponse({ category_id: "comfort", price_cents: 2500 }),
+    makeTripResponse({ category_id: "premium", price_cents: 4000 }),
   ];
 
   mockFetch.mockResolvedValueOnce({ ok: true, json: async () => trips });
 
   const result = await listAvailableTrips("drv_tok_abc");
   expect(result[0].category_id).toBe("economy");
-  expect(result[0].price_xof).toBe(1500);
+  expect(result[0].price_cents).toBe(1500);
   expect(result[2].category_id).toBe("premium");
-  expect(result[2].price_xof).toBe(4000);
+  expect(result[2].price_cents).toBe(4000);
 });
 
 test("calculateDistanceKm() sorts trips by proximity to driver position", () => {

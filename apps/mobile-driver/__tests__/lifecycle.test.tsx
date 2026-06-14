@@ -35,7 +35,7 @@ function makeTripResponse(overrides: Partial<TripResponse> = {}): TripResponse {
     origin_lng: -17.4467,
     dest_lat: 14.7128,
     dest_lng: -17.4267,
-    price_xof: 3500,
+    price_cents: 3500,
     category_id: "comfort",
     eta_minutes: 8,
     created_at: "2026-05-26T10:00:00Z",

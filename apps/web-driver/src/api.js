@@ -135,7 +135,7 @@ export async function getMyEarnings(token) {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
   });
   return _json(res);
-  // { total_xof, total_trips, today_xof, today_trips, week_xof, week_trips, recent_trips }
+  // { total_cents, total_trips, today_cents, today_trips, week_cents, week_trips, recent_trips }
 }
 
 // ---------------------------------------------------------------------------
@@ -258,7 +258,7 @@ export async function createPayoutRequest(token, amountXof) {
       "Content-Type": "application/json",
       Accept: "application/json",
     },
-    body: JSON.stringify({ amount_xof: Number(amountXof) }),
+    body: JSON.stringify({ amount_cents: Number(amountXof) }),
   });
   return _json(res); // PayoutResponse
 }
@@ -369,7 +369,7 @@ export async function deregisterDeviceToken(token, deviceToken) {
 
 /**
  * Return the driver's net available balance after commission deduction.
- * { driver_id, gains_bruts_xof, commission_xof, retraits_xof, solde_net_xof }
+ * { driver_id, gains_bruts_cents, commission_cents, retraits_cents, solde_net_cents }
  */
 export async function getDriverBalance(token) {
   const res = await fetch(`${API_BASE}/v1/drivers/me/balance`, {
