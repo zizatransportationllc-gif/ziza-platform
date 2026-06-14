@@ -3170,9 +3170,13 @@ async def run_payout_batch(db: AsyncSession) -> dict:
         commission_cents = math.floor(req.amount_cents * rate / 100)
         net_amount_cents = req.amount_cents - commission_cents
 
-        phone = user.phone or ""
+        account_id = driver.stripe_account_id
         try:
-            ref = await adapter.send_payout(phone, net_amount_cents, str(req.id))
+            if not account_id:
+                raise RuntimeError("Driver has not set up payouts (no connected account)")
+            ref = await adapter.send_payout(
+                account_id=account_id, amount_cents=net_amount_cents, ref=str(req.id)
+            )
             req.status = "processed"
             req.provider_ref = ref
             req.processed_at = now
@@ -3206,6 +3210,159 @@ async def run_payout_batch(db: AsyncSession) -> dict:
         "total_net_cents": total_net_cents,
         "total_commission_cents": total_commission_cents,
     }
+
+
+# ---------------------------------------------------------------------------
+# WS3 (Sprint 68) — Stripe Connect onboarding + professional payout processing
+# ---------------------------------------------------------------------------
+
+_CONNECT_RETURN_URL = "https://app.ziza.ci/payouts/return"
+_CONNECT_REFRESH_URL = "https://app.ziza.ci/payouts/refresh"
+
+
+async def _payout_entity(db: AsyncSession, auth_id: str, role: str):
+    """Resolve the payable entity (driver or professional) for the caller."""
+    if role == "driver":
+        return _require_driver(await _get_driver_by_auth_id(db, auth_id))
+    if role == "professional":
+        return await _require_professional(db, auth_id)
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Only drivers and professionals have payout accounts",
+    )
+
+
+async def start_connect_onboarding(db: AsyncSession, auth_id: str, role: str) -> dict:
+    """Ensure a Stripe Connect account exists and return a hosted onboarding link."""
+    from app.payment import stripe_connect  # noqa: PLC0415
+
+    user = await _get_user_by_auth_id(db, auth_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    entity = await _payout_entity(db, auth_id, role)
+
+    if not entity.stripe_account_id:
+        entity.stripe_account_id = stripe_connect.create_express_account(user.email)
+        await db.commit()
+        await db.refresh(entity)
+
+    url = stripe_connect.create_account_link(
+        entity.stripe_account_id, _CONNECT_RETURN_URL, _CONNECT_REFRESH_URL
+    )
+    return {"account_id": entity.stripe_account_id, "onboarding_url": url}
+
+
+async def get_connect_status(db: AsyncSession, auth_id: str, role: str) -> dict:
+    """Return the payee's Stripe Connect onboarding/payout status."""
+    from app.payment import stripe_connect  # noqa: PLC0415
+
+    entity = await _payout_entity(db, auth_id, role)
+    if not entity.stripe_account_id:
+        return {"account_id": None, "onboarded": False, "payouts_enabled": False}
+    st = stripe_connect.get_account_status(entity.stripe_account_id)
+    return {
+        "account_id": entity.stripe_account_id,
+        "onboarded": st["details_submitted"],
+        "payouts_enabled": st["payouts_enabled"],
+    }
+
+
+def _pro_payout_admin_dict(req, email: str) -> dict:
+    return {
+        "payout_id": str(req.id),
+        "professional_id": str(req.professional_id),
+        "professional_email": email,
+        "amount_cents": req.amount_cents,
+        "status": req.status,
+        "note_admin": req.note_admin,
+        "created_at": _utc(req.created_at).isoformat(),
+        "updated_at": _utc(req.updated_at).isoformat(),
+    }
+
+
+async def admin_list_professional_payouts(
+    db: AsyncSession, limit: int = 50, offset: int = 0
+) -> list[dict]:
+    """Admin: list all professional payout requests (newest first)."""
+    result = await db.execute(
+        select(ProPayoutModel, Professional, User)
+        .join(Professional, ProPayoutModel.professional_id == Professional.id)
+        .join(User, Professional.user_id == User.id)
+        .order_by(ProPayoutModel.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return [_pro_payout_admin_dict(req, user.email) for req, prof, user in result.all()]
+
+
+async def admin_update_professional_payout_status(
+    db: AsyncSession, payout_id_str: str, new_status: str, note_admin: str | None = None
+) -> dict:
+    """Admin: approve or reject a professional payout request."""
+    if new_status not in {"approved", "rejected"}:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="status must be 'approved' or 'rejected'",
+        )
+    try:
+        pid = uuid.UUID(payout_id_str)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid payout_id"
+        )
+    req = await db.scalar(select(ProPayoutModel).where(ProPayoutModel.id == pid))
+    if req is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payout request not found")
+    req.status = new_status
+    if note_admin is not None:
+        req.note_admin = note_admin
+    req.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(req)
+    prof = await db.scalar(select(Professional).where(Professional.id == req.professional_id))
+    user = await db.scalar(select(User).where(User.id == prof.user_id)) if prof else None
+    return _pro_payout_admin_dict(req, user.email if user else "")
+
+
+async def run_professional_payout_batch(db: AsyncSession) -> dict:
+    """Process all approved professional payouts via the configured adapter."""
+    from app.config import settings as _settings  # noqa: PLC0415
+    from app.payment.payout_adapter import get_payout_adapter  # noqa: PLC0415
+
+    adapter = get_payout_adapter(_settings.payout_provider)
+    result = await db.execute(
+        select(ProPayoutModel, Professional)
+        .join(Professional, ProPayoutModel.professional_id == Professional.id)
+        .where(ProPayoutModel.status == "approved")
+        .order_by(ProPayoutModel.created_at.asc())
+    )
+    rows = result.all()
+
+    processed = 0
+    failed = 0
+    total_net_cents = 0
+    now = datetime.now(timezone.utc)
+    for req, prof in rows:
+        account_id = prof.stripe_account_id
+        try:
+            if not account_id:
+                raise RuntimeError("Professional has not set up payouts (no connected account)")
+            ref = await adapter.send_payout(
+                account_id=account_id, amount_cents=req.amount_cents, ref=str(req.id)
+            )
+            req.status = "processed"
+            req.provider_ref = ref
+            req.processed_at = now
+            req.updated_at = now
+            processed += 1
+            total_net_cents += req.amount_cents
+        except Exception:
+            req.status = "failed"
+            req.updated_at = now
+            failed += 1
+        await db.commit()
+
+    return {"processed": processed, "failed": failed, "total_net_cents": total_net_cents}
 
 
 # ---------------------------------------------------------------------------

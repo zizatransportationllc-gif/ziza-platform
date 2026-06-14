@@ -184,6 +184,8 @@ def test_balance_retraits_after_processed_payout():
     c_tok = _setup_customer()
     d_tok = _setup_driver()
     a_tok = _setup_admin()
+    # WS3: the batch transfers to a connected account — onboard (mock) first.
+    client.post("/v1/payouts/connect/onboard", headers=_h(d_tok))
 
     _create_completed_trip(c_tok, d_tok, category="economy")
 

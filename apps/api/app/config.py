@@ -137,7 +137,7 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     # Payout batch — Sprint 29
     # ------------------------------------------------------------------
-    # Which payout backend to use: "mock" | "orange_money"
+    # Which payout backend to use: "mock" | "stripe" (Stripe Connect transfers)
     payout_provider: str = "mock"
     # Default platform commission percentage (integer, e.g. 15 = 15%).
     # Overridden per category via POST /v1/admin/commission.

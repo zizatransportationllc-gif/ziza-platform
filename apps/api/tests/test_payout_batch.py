@@ -61,6 +61,8 @@ def _create_completed_trip(customer_tok: str, driver_tok: str) -> None:
 def _setup_driver_with_earnings() -> str:
     """Driver with one completed trip → enough balance for small withdrawals."""
     d_tok = _setup_driver()
+    # WS3: payouts require a connected Stripe account (mock-onboarded in tests).
+    client.post("/v1/payouts/connect/onboard", headers=_h(d_tok))
     c_tok = _tok("customer@ziza.dev")
     client.post("/v1/auth/register", headers=_h(c_tok))
     _create_completed_trip(c_tok, d_tok)

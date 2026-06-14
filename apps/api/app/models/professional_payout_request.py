@@ -38,6 +38,8 @@ class ProfessionalPayoutRequest(Base):
         String(16), nullable=False, default="pending", server_default="pending"
     )
     note_admin: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # WS3 (Sprint 68) — opaque reference of the executed Stripe transfer.
+    provider_ref: Mapped[str | None] = mapped_column(String(128), nullable=True)
     processed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
