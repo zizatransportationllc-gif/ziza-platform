@@ -102,7 +102,7 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     # Payment — Sprint 24
     # ------------------------------------------------------------------
-    # Which payment backend to use: "mock" | "cinetpay" | "stripe"
+    # Which payment backend to use: "mock" | "cinetpay" | "stripe" | "wellsfargo"
     payment_provider: str = "mock"
 
     # CinetPay (West Africa / Ivory Coast)
@@ -112,6 +112,12 @@ class Settings(BaseSettings):
     # Stripe (international credit/debit cards)
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
+
+    # Wells Fargo Merchant Services payment gateway (US card acquiring)
+    wellsfargo_api_base: str = "https://api.wellsfargo.com/merchant-services/v1"
+    wellsfargo_api_key: str = ""
+    wellsfargo_merchant_id: str = ""
+    wellsfargo_webhook_secret: str = ""
 
     # Default return URL after payment (override in production)
     payment_return_url: str = "https://app.ziza.ci/payment/return"
