@@ -4,4 +4,5 @@
    works in every environment (local, staging, production). */
 window.ZIZA_DRIVER_URL   = "${ZIZA_DRIVER_URL}";
 window.ZIZA_CUSTOMER_URL = "${ZIZA_CUSTOMER_URL}";
+window.ZIZA_CRAFT_URL    = "${ZIZA_CRAFT_URL}";
 window.ZIZA_API_URL      = "${ZIZA_API_URL}";

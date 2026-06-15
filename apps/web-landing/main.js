@@ -12,12 +12,14 @@
  * App URLs come from env-config.js (generated at container startup):
  *   window.ZIZA_DRIVER_URL   — web-driver app  (e.g. http://localhost:3002)
  *   window.ZIZA_CUSTOMER_URL — web-customer app (e.g. http://localhost:3001)
+ *   window.ZIZA_CRAFT_URL    — web-craft app   (e.g. http://localhost:3004)
  *   window.ZIZA_API_URL      — API base URL
  */
 
 const API_BASE      = window.ZIZA_API_URL      || "http://localhost:8000";
 const DRIVER_URL    = window.ZIZA_DRIVER_URL   || "http://localhost:3002";
 const CUSTOMER_URL  = window.ZIZA_CUSTOMER_URL || "http://localhost:3001";
+const CRAFT_URL     = window.ZIZA_CRAFT_URL    || "http://localhost:3004";
 
 // URL for the driver sign-up form: ?signup=1 makes web-driver open the
 // "Create Account" tab directly instead of the sign-in form.
@@ -137,6 +139,9 @@ function initAppLinks() {
   setLink("nav-take-ride",    CUSTOMER_URL);
   setLink("hero-take-ride",   CUSTOMER_URL);
   setLink("footer-take-ride", CUSTOMER_URL);
+
+  // "Join our road-side assistance team" → web-craft app (Ziza Craft)
+  setLink("footer-join-craft", CRAFT_URL);
 }
 
 // ---------------------------------------------------------------------------

@@ -211,7 +211,7 @@ jobs:
           # env vars (envsubst -> env-config.js). Without these it falls back to
           # localhost, so the "Take a ride" / "Become a driver" links break.
           if [ "${{ matrix.app }}" = "web-landing" ]; then
-            FLAGS+=("--set-env-vars=^|^ZIZA_API_URL=${{ vars.ZIZA_API_URL_PROD }}|ZIZA_CUSTOMER_URL=${{ vars.ZIZA_CUSTOMER_URL_PROD }}|ZIZA_DRIVER_URL=${{ vars.ZIZA_DRIVER_URL_PROD }}")
+            FLAGS+=("--set-env-vars=^|^ZIZA_API_URL=${{ vars.ZIZA_API_URL_PROD }}|ZIZA_CUSTOMER_URL=${{ vars.ZIZA_CUSTOMER_URL_PROD }}|ZIZA_DRIVER_URL=${{ vars.ZIZA_DRIVER_URL_PROD }}|ZIZA_CRAFT_URL=${{ vars.ZIZA_CRAFT_URL_PROD }}")
           fi
 
           gcloud run deploy "$SERVICE" "${FLAGS[@]}"
