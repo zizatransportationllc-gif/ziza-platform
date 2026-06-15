@@ -8,6 +8,7 @@ FROM nginx:1.27-alpine
 # Default app URLs (overridden by docker-compose env or Cloud Run env vars)
 ENV ZIZA_DRIVER_URL=http://localhost:3002 \
     ZIZA_CUSTOMER_URL=http://localhost:3001 \
+    ZIZA_CRAFT_URL=http://localhost:3004 \
     ZIZA_API_URL=http://localhost:8000
 
 # Copy static files
@@ -47,7 +48,7 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
 # Generate env-config.js from template (substituting the three URL vars),
 # then hand off to nginx.  Using exec so nginx gets PID 1.
 CMD ["/bin/sh", "-c", \
-  "envsubst '$ZIZA_DRIVER_URL $ZIZA_CUSTOMER_URL $ZIZA_API_URL' \
+  "envsubst '$ZIZA_DRIVER_URL $ZIZA_CUSTOMER_URL $ZIZA_CRAFT_URL $ZIZA_API_URL' \
    < /etc/nginx/env-config.js.template \
    > /usr/share/nginx/html/env-config.js \
    && exec nginx -g 'daemon off;'"]
