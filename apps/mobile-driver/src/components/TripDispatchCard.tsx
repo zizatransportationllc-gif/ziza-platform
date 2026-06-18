@@ -20,28 +20,36 @@ const CATEGORY_COLORS: Record<string, string> = {
   premium: "#7C3AED",
 };
 
+function formatUSD(n: number | null | undefined): string {
+  if (n == null) return "—";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n / 100);
+}
+
 export default function TripDispatchCard({
   trip,
   onAccept,
   disabled,
 }: Props): React.ReactElement {
-  const badgeColor = CATEGORY_COLORS[trip.category_id] ?? "#6B7280";
+  const category = trip.category ?? "economy";
+  const badgeColor = CATEGORY_COLORS[category] ?? "#6B7280";
 
   return (
     <View style={styles.card}>
       <View style={styles.header}>
         <Text style={[styles.badge, { backgroundColor: badgeColor }]}>
-          {trip.category_id.toUpperCase()}
+          {category.toUpperCase()}
         </Text>
-        <Text style={styles.price}>{trip.price_cents} XOF</Text>
+        <Text style={styles.price}>{formatUSD(trip.fare_cents)}</Text>
       </View>
       <Text style={styles.route}>
         ({trip.origin_lat.toFixed(3)}, {trip.origin_lng.toFixed(3)}) →{" "}
         ({trip.dest_lat.toFixed(3)}, {trip.dest_lng.toFixed(3)})
       </Text>
-      {trip.eta_minutes != null && (
-        <Text style={styles.eta}>ETA client : {trip.eta_minutes} min</Text>
-      )}
+      <Text style={styles.eta}>
+        {trip.distance_km != null ? `${trip.distance_km.toFixed(1)} mi` : ""}
+        {trip.distance_km != null && trip.duration_min != null ? " · " : ""}
+        {trip.duration_min != null ? `~${trip.duration_min} min` : ""}
+      </Text>
       <TouchableOpacity
         style={[styles.acceptButton, disabled && styles.disabled]}
         onPress={onAccept}

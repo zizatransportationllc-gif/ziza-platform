@@ -61,18 +61,18 @@ export interface DriverProfile {
   registered_at: string;
 }
 
+// Mirrors the backend TripResponse (app/main.py). Fares are USD cents.
 export interface TripResponse {
   trip_id: string;
   status: string;
-  customer_id: string;
-  driver_id: string | null;
+  fare_cents: number | null;
+  distance_km: number | null;
+  duration_min: number | null;
   origin_lat: number;
   origin_lng: number;
   dest_lat: number;
   dest_lng: number;
-  price_cents: number;
-  category_id: string;
-  eta_minutes: number | null;
+  category: string;
   created_at: string;
 }
 

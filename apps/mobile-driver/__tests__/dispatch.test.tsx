@@ -29,15 +29,14 @@ function makeTripResponse(overrides: Partial<TripResponse> = {}): TripResponse {
   return {
     trip_id: "trip-001",
     status: "pending",
-    customer_id: "cust-001",
-    driver_id: null,
     origin_lat: 14.6928,
     origin_lng: -17.4467,
     dest_lat: 14.7028,
     dest_lng: -17.4367,
-    price_cents: 2500,
-    category_id: "comfort",
-    eta_minutes: 5,
+    fare_cents: 2500,
+    distance_km: 1.6,
+    duration_min: 5,
+    category: "comfort",
     created_at: "2026-05-26T10:00:00Z",
     ...overrides,
   };
@@ -49,8 +48,8 @@ function makeTripResponse(overrides: Partial<TripResponse> = {}): TripResponse {
 
 test("listAvailableTrips() returns an array of pending trip offers", async () => {
   const trips = [
-    makeTripResponse({ trip_id: "trip-001", price_cents: 2500 }),
-    makeTripResponse({ trip_id: "trip-002", price_cents: 3000, category_id: "premium" }),
+    makeTripResponse({ trip_id: "trip-001", fare_cents: 2500 }),
+    makeTripResponse({ trip_id: "trip-002", fare_cents: 3000, category: "premium" }),
   ];
 
   mockFetch.mockResolvedValueOnce({
@@ -61,14 +60,13 @@ test("listAvailableTrips() returns an array of pending trip offers", async () =>
   const result = await listAvailableTrips("drv_tok_abc");
   expect(result).toHaveLength(2);
   expect(result[0].trip_id).toBe("trip-001");
-  expect(result[1].category_id).toBe("premium");
+  expect(result[1].category).toBe("premium");
 });
 
-test("acceptTrip() returns the trip with status 'accepted' and driver_id set", async () => {
+test("acceptTrip() returns the trip with status 'accepted'", async () => {
   const accepted = makeTripResponse({
     trip_id: "trip-001",
     status: "accepted",
-    driver_id: "drv-001",
   });
 
   mockFetch.mockResolvedValueOnce({
@@ -78,7 +76,6 @@ test("acceptTrip() returns the trip with status 'accepted' and driver_id set", a
 
   const result = await acceptTrip("drv_tok_abc", "trip-001");
   expect(result.status).toBe("accepted");
-  expect(result.driver_id).toBe("drv-001");
 });
 
 test("acceptTrip() throws an error when the trip was already taken (HTTP 409)", async () => {
@@ -93,20 +90,20 @@ test("acceptTrip() throws an error when the trip was already taken (HTTP 409)", 
   );
 });
 
-test("trip dispatch card has category_id and price_cents fields for badge rendering", async () => {
+test("trip dispatch card has category and fare_cents fields for badge rendering", async () => {
   const trips = [
-    makeTripResponse({ category_id: "economy", price_cents: 1500 }),
-    makeTripResponse({ category_id: "comfort", price_cents: 2500 }),
-    makeTripResponse({ category_id: "premium", price_cents: 4000 }),
+    makeTripResponse({ category: "economy", fare_cents: 1500 }),
+    makeTripResponse({ category: "comfort", fare_cents: 2500 }),
+    makeTripResponse({ category: "premium", fare_cents: 4000 }),
   ];
 
   mockFetch.mockResolvedValueOnce({ ok: true, json: async () => trips });
 
   const result = await listAvailableTrips("drv_tok_abc");
-  expect(result[0].category_id).toBe("economy");
-  expect(result[0].price_cents).toBe(1500);
-  expect(result[2].category_id).toBe("premium");
-  expect(result[2].price_cents).toBe(4000);
+  expect(result[0].category).toBe("economy");
+  expect(result[0].fare_cents).toBe(1500);
+  expect(result[2].category).toBe("premium");
+  expect(result[2].fare_cents).toBe(4000);
 });
 
 test("calculateDistanceKm() sorts trips by proximity to driver position", () => {
