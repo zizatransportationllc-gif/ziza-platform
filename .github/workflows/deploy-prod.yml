@@ -101,6 +101,11 @@ jobs:
             BUILD_ARGS=""
           fi
 
+          # web-customer's "Become a Driver" link points at the web-driver app.
+          if [ "${{ matrix.app }}" = "web-customer" ]; then
+            BUILD_ARGS="$BUILD_ARGS --build-arg VITE_DRIVER_URL=${{ vars.ZIZA_DRIVER_URL_PROD }}"
+          fi
+
           docker build $BUILD_ARGS -t "$IMAGE" -t "$IMAGE_PROD" apps/${{ matrix.app }}
           docker push "$IMAGE"
           docker push "$IMAGE_PROD"

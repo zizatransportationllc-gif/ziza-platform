@@ -5,6 +5,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, TextInput, ActivityIndicator,
+  Linking, Platform, Alert,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
@@ -19,6 +20,27 @@ import {
 type ProfileNav = NativeStackNavigationProp<RootStackParamList, "Profile">;
 
 const ACCENT = "#F97316";
+const DRIVER_BLUE = "#1D4ED8"; // Ziza Driver brand color
+
+// "Become a Driver" sends the user to the standalone Ziza Driver app's store
+// page. Store IDs are configurable via env (the apps may not be published yet);
+// defaults point at the Play Store listing (Android package known) and an App
+// Store search fallback until the numeric App Store ID is provided.
+const DRIVER_ANDROID_URL =
+  process.env.EXPO_PUBLIC_DRIVER_ANDROID_URL ||
+  "https://play.google.com/store/apps/details?id=com.zizatransportation.driver";
+const DRIVER_IOS_URL =
+  process.env.EXPO_PUBLIC_DRIVER_IOS_URL ||
+  "https://apps.apple.com/search?term=ziza%20driver";
+
+async function openDriverStore(): Promise<void> {
+  const url = Platform.OS === "ios" ? DRIVER_IOS_URL : DRIVER_ANDROID_URL;
+  try {
+    await Linking.openURL(url);
+  } catch {
+    Alert.alert("Unable to open the store", "Please search for “Ziza Driver” in your app store.");
+  }
+}
 
 function AccountSection({ token }: { token: string }): React.ReactElement {
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -116,6 +138,11 @@ export default function ProfileScreen(): React.ReactElement {
         <Text style={styles.docsText}>📄 My Documents</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity style={styles.becomeDriverButton} onPress={openDriverStore}>
+        <Text style={styles.becomeDriverText}>🧑‍✈️ Become a Driver</Text>
+      </TouchableOpacity>
+      <Text style={styles.becomeDriverHint}>Opens the Ziza Driver app in your store.</Text>
+
       <TouchableOpacity style={styles.logoutButton} onPress={logout}>
         <Text style={styles.logoutText}>Sign Out</Text>
       </TouchableOpacity>
@@ -145,6 +172,9 @@ const styles = StyleSheet.create({
 
   docsButton: { backgroundColor: ACCENT, borderRadius: 8, padding: 14, alignItems: "center", marginTop: 16, marginBottom: 12 },
   docsText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  becomeDriverButton: { backgroundColor: DRIVER_BLUE, borderRadius: 8, padding: 14, alignItems: "center", marginBottom: 4 },
+  becomeDriverText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  becomeDriverHint: { color: "#6B7280", fontSize: 12, textAlign: "center", marginBottom: 12 },
   logoutButton: { backgroundColor: "#EF4444", borderRadius: 8, padding: 14, alignItems: "center" },
   logoutText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
 });

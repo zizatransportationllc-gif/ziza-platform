@@ -5,6 +5,9 @@ WORKDIR /app
 # Build-time vars (baked into the JS bundle by Vite)
 ARG VITE_API_URL=http://localhost:8000
 ENV VITE_API_URL=${VITE_API_URL}
+# Target of the "Become a Driver" link → standalone web-driver app
+ARG VITE_DRIVER_URL=http://localhost:3002
+ENV VITE_DRIVER_URL=${VITE_DRIVER_URL}
 ARG VITE_FIREBASE_API_KEY=
 ARG VITE_FIREBASE_AUTH_DOMAIN=
 ARG VITE_FIREBASE_PROJECT_ID=

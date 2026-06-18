@@ -10,7 +10,6 @@ import {
   listTripMessages, sendTripMessage,
   createPaymentIntent, getTripPayment, simulatePayment,
   registerDeviceToken,
-  submitApplication, getApplicationStatus, // Sprint 30
   getWallet, topupWallet, getWalletTransactions, // Sprint 33
   searchPlaces, // Sprint 43
   checkPointInService, // Sprint 45
@@ -23,6 +22,10 @@ import { EstimateMap, TripMap } from "./TripMap";
 
 const REQUIRED_ROLE = "customer";
 const TOKEN_KEY = "ziza_token";
+
+// "Become a Driver" now redirects to the standalone web-driver app (sign-up tab).
+// Baked at build time like VITE_API_URL; falls back to the local dev port.
+const DRIVER_APP_URL = import.meta.env.VITE_DRIVER_URL || "http://localhost:3002";
 
 // Sprint 20 — saved places constants
 const PLACE_LABEL_ICONS = { home: "🏠", work: "💼", other: "📍" };
@@ -1496,164 +1499,6 @@ function SavedPlacesSection({ token }) {
 }
 
 // ---------------------------------------------------------------------------
-// Application Section — Sprint 30
-// ---------------------------------------------------------------------------
-
-const APPLICATION_STATUS_LABELS = {
-  submitted:    "📤 Submitted — pending review",
-  under_review: "🔍 Under review",
-  approved:     "✅ Approved — welcome to Ziza!",
-  rejected:     "✗ Rejected",
-};
-
-const VEHICLE_CATEGORIES_APP = [
-  { value: "economy", label: "🚗 Economy" },
-  { value: "comfort", label: "🚙 Comfort" },
-  { value: "premium", label: "🏎️ Premium" },
-];
-
-function ApplicationSection({ token }) {
-  const [application, setApplication] = useState(undefined); // undefined = loading
-  const [step, setStep] = useState("status"); // "status" | "form"
-  const [formData, setFormData] = useState({
-    full_name: "", phone: "", license_number: "",
-    vehicle_make: "", vehicle_model: "", vehicle_plate: "",
-    vehicle_year: new Date().getFullYear() - 2, vehicle_category: "economy",
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(null);
-
-  const load = useCallback(async () => {
-    try {
-      const data = await getApplicationStatus(token);
-      setApplication(data);
-    } catch {
-      setApplication(null);
-    }
-  }, [token]);
-
-  useEffect(() => { load(); }, [load]);
-
-  function updateField(key, value) {
-    setFormData((prev) => ({ ...prev, [key]: value }));
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setSubmitting(true); setError(null);
-    try {
-      const result = await submitApplication(token, {
-        ...formData,
-        vehicle_year: parseInt(formData.vehicle_year, 10),
-      });
-      setApplication(result);
-      setStep("status");
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  if (application === undefined) return <div className="status loading">⏳ Loading…</div>;
-
-  // Existing application — show status
-  if (application && step === "status") {
-    return (
-      <div className="application-section">
-        <h2 className="application-title">🧑‍✈️ Driver Application</h2>
-        <div className={`application-status application-status-${application.status}`}>
-          <span>{APPLICATION_STATUS_LABELS[application.status] ?? application.status}</span>
-        </div>
-        <div className="application-info">
-          <div className="application-row"><span>Name</span><strong>{application.full_name}</strong></div>
-          <div className="application-row"><span>Phone</span><strong>{application.phone}</strong></div>
-          <div className="application-row"><span>Vehicle</span><strong>{application.vehicle_make} {application.vehicle_model} ({application.vehicle_year})</strong></div>
-          <div className="application-row"><span>Plate</span><strong>{application.vehicle_plate}</strong></div>
-          <div className="application-row"><span>Category</span><strong>{application.vehicle_category}</strong></div>
-        </div>
-        {application.notes_admin && (
-          <div className="application-note">💬 Admin note: {application.notes_admin}</div>
-        )}
-        {application.status === "approved" && (
-          <p className="application-hint">Your account will be set up as a driver on your next login.</p>
-        )}
-      </div>
-    );
-  }
-
-  // No application yet — show form
-  return (
-    <div className="application-section">
-      <h2 className="application-title">🧑‍✈️ Become a Ziza Driver</h2>
-      <p className="application-subtitle">Fill out the form to submit your application.</p>
-      <form className="application-form" onSubmit={handleSubmit}>
-        <fieldset className="application-fieldset">
-          <legend>Personal Information</legend>
-          <label className="application-label">
-            Full Name
-            <input className="application-input" type="text" value={formData.full_name}
-              onChange={(e) => updateField("full_name", e.target.value)} required minLength={2} />
-          </label>
-          <label className="application-label">
-            Phone
-            <input className="application-input" type="tel" value={formData.phone}
-              onChange={(e) => updateField("phone", e.target.value)} required placeholder="+12015550000" />
-          </label>
-          <label className="application-label">
-            Driver&apos;s License Number
-            <input className="application-input" type="text" value={formData.license_number}
-              onChange={(e) => updateField("license_number", e.target.value)} required />
-          </label>
-        </fieldset>
-
-        <fieldset className="application-fieldset">
-          <legend>Vehicle</legend>
-          <div className="application-grid2">
-            <label className="application-label">
-              Make
-              <input className="application-input" type="text" value={formData.vehicle_make}
-                onChange={(e) => updateField("vehicle_make", e.target.value)} required placeholder="Toyota" />
-            </label>
-            <label className="application-label">
-              Model
-              <input className="application-input" type="text" value={formData.vehicle_model}
-                onChange={(e) => updateField("vehicle_model", e.target.value)} required placeholder="Camry" />
-            </label>
-          </div>
-          <div className="application-grid2">
-            <label className="application-label">
-              License Plate
-              <input className="application-input" type="text" value={formData.vehicle_plate}
-                onChange={(e) => updateField("vehicle_plate", e.target.value)} required placeholder="ABC 1234" />
-            </label>
-            <label className="application-label">
-              Year
-              <input className="application-input" type="number" value={formData.vehicle_year}
-                onChange={(e) => updateField("vehicle_year", e.target.value)} required min={1990} max={2030} />
-            </label>
-          </div>
-          <label className="application-label">
-            Category
-            <select className="application-select" value={formData.vehicle_category}
-              onChange={(e) => updateField("vehicle_category", e.target.value)}>
-              {VEHICLE_CATEGORIES_APP.map((c) => (
-                <option key={c.value} value={c.value}>{c.label}</option>
-              ))}
-            </select>
-          </label>
-        </fieldset>
-
-        {error && <p className="form-error">{error}</p>}
-        <button className="application-submit-btn" type="submit" disabled={submitting}>
-          {submitting ? "Submitting…" : "Submit Application"}
-        </button>
-      </form>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // WalletSection — Sprint 33
 // ---------------------------------------------------------------------------
 
@@ -2310,7 +2155,7 @@ function DocumentsSection({ token }) {
 
 function Dashboard({ user, token, onLogout }) {
   const [activeTrip, setActiveTrip] = useState(null);
-  const [mode, setMode] = useState("ride"); // "ride" | "craft" | "trips" | "profile" | "notifications" | "places" | "apply" | "wallet" | "docs"
+  const [mode, setMode] = useState("ride"); // "ride" | "craft" | "trips" | "profile" | "notifications" | "places" | "wallet" | "docs"
   const [unreadCount, setUnreadCount] = useState(0);
 
   const refreshUnread = useCallback(() => {
@@ -2391,8 +2236,8 @@ function Dashboard({ user, token, onLogout }) {
               📍 Places
             </button>
             <button
-              className={`mode-tab ${mode === "apply" ? "active" : ""}`}
-              onClick={() => setMode("apply")}
+              className="mode-tab"
+              onClick={() => window.open(`${DRIVER_APP_URL}?signup=1`, "_blank", "noopener")}
             >
               🧑‍✈️ Become a Driver
             </button>
@@ -2424,7 +2269,6 @@ function Dashboard({ user, token, onLogout }) {
             <NotificationsSection token={token} onRead={refreshUnread} />
           )}
           {mode === "places" && <SavedPlacesSection token={token} />}
-          {mode === "apply" && <ApplicationSection token={token} />}
           {mode === "wallet" && <WalletSection token={token} />}
           {mode === "docs"   && <DocumentsSection token={token} />}
         </>
