@@ -20,11 +20,6 @@ const CATEGORY_COLORS: Record<string, string> = {
   premium: "#7C3AED",
 };
 
-function formatUSD(n: number | null | undefined): string {
-  if (n == null) return "—";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n / 100);
-}
-
 export default function TripDispatchCard({
   trip,
   onAccept,
@@ -39,7 +34,6 @@ export default function TripDispatchCard({
         <Text style={[styles.badge, { backgroundColor: badgeColor }]}>
           {category.toUpperCase()}
         </Text>
-        <Text style={styles.price}>{formatUSD(trip.fare_cents)}</Text>
       </View>
       <Text style={styles.route}>
         ({trip.origin_lat.toFixed(3)}, {trip.origin_lng.toFixed(3)}) →{" "}

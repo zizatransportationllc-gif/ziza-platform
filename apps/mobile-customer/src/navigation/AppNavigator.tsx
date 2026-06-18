@@ -62,12 +62,12 @@ export default function AppNavigator({
             <Stack.Screen
               name="CraftRequest"
               component={CraftRequestScreen}
-              options={{ title: "Request a Professional" }}
+              options={{ title: "Request Assistance" }}
             />
             <Stack.Screen
               name="MyCraftRequests"
               component={MyCraftRequestsScreen}
-              options={{ title: "My Craft Requests" }}
+              options={{ title: "My Assistance Requests" }}
             />
             <Stack.Screen
               name="Bids"

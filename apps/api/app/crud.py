@@ -242,6 +242,32 @@ async def mark_all_notifications_read(db: AsyncSession, auth_user_id: str) -> in
     return len(result.all())
 
 
+async def delete_notification(
+    db: AsyncSession, auth_user_id: str, notification_id: str
+) -> bool:
+    """Delete one of the user's notifications. Returns True if a row was removed.
+
+    Scoped to the authenticated user so a caller can only delete their own.
+    """
+    user = await _get_user_by_auth_id(db, auth_user_id)
+    if user is None:
+        return False
+    try:
+        notif_uuid = uuid.UUID(notification_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid notification_id format",
+        )
+    result = await db.execute(
+        sa.delete(Notification)
+        .where(Notification.id == notif_uuid, Notification.user_id == user.id)
+        .returning(Notification.id)
+    )
+    await db.commit()
+    return result.first() is not None
+
+
 # ---------------------------------------------------------------------------
 # Users
 # ---------------------------------------------------------------------------

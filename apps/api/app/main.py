@@ -119,7 +119,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated, Literal
 
 import sqlalchemy as _sa
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -2737,6 +2737,22 @@ async def mark_all_notifications_read(
     """Mark all of the authenticated user's unread notifications as read."""
     marked = await crud.mark_all_notifications_read(db, claims.user_id)
     return MarkReadResponse(marked=marked)
+
+
+@app.delete("/v1/notifications/{notification_id}", status_code=204, tags=["notifications"])
+async def delete_notification(
+    notification_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Delete one of the authenticated user's notifications (404 if not theirs)."""
+    deleted = await crud.delete_notification(db, claims.user_id, notification_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Notification not found",
+        )
+    return Response(status_code=204)
 
 
 # ---------------------------------------------------------------------------

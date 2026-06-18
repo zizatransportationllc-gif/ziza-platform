@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useAuth } from "../context/AuthContext";
-import { listNotifications, markAllNotificationsRead, NotificationRecord } from "../api";
+import { listNotifications, markAllNotificationsRead, deleteNotification, NotificationRecord } from "../api";
 
 export default function NotificationsScreen(): React.ReactElement {
   const { token } = useAuth();
@@ -39,6 +39,17 @@ export default function NotificationsScreen(): React.ReactElement {
     load();
   };
 
+  const handleDelete = async (id: string) => {
+    if (!token) return;
+    const prev = notifications;
+    setNotifications((cur) => cur.filter((n) => n.notification_id !== id)); // optimistic
+    try {
+      await deleteNotification(token, id);
+    } catch {
+      setNotifications(prev); // restore on failure
+    }
+  };
+
   if (loading) {
     return <View style={styles.center}><ActivityIndicator color="#1D4ED8" /></View>;
   }
@@ -56,8 +67,16 @@ export default function NotificationsScreen(): React.ReactElement {
         keyExtractor={(item) => item.notification_id}
         renderItem={({ item }) => (
           <View style={[styles.item, !item.read && styles.unread]}>
-            <Text style={styles.itemTitle}>{item.title}</Text>
-            <Text style={styles.itemBody}>{item.body}</Text>
+            <View style={styles.itemContent}>
+              <Text style={styles.itemTitle}>{item.title}</Text>
+              <Text style={styles.itemBody}>{item.body}</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => handleDelete(item.notification_id)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={styles.deleteBtn}>✕</Text>
+            </TouchableOpacity>
           </View>
         )}
         ListEmptyComponent={<Text style={styles.empty}>Aucune notification.</Text>}
@@ -77,9 +96,11 @@ const styles = StyleSheet.create({
   },
   heading: { fontSize: 22, fontWeight: "bold" },
   markRead: { color: "#1D4ED8", fontWeight: "600" },
-  item: { borderBottomWidth: 1, borderBottomColor: "#F3F4F6", paddingVertical: 12 },
+  item: { borderBottomWidth: 1, borderBottomColor: "#F3F4F6", paddingVertical: 12, flexDirection: "row", alignItems: "center" },
+  itemContent: { flex: 1 },
   unread: { backgroundColor: "#EFF6FF" },
   itemTitle: { fontWeight: "bold", fontSize: 15 },
   itemBody: { color: "#374151", marginTop: 2 },
+  deleteBtn: { color: "#9CA3AF", fontSize: 18, paddingHorizontal: 8 },
   empty: { color: "#9CA3AF", textAlign: "center", marginTop: 32 },
 });

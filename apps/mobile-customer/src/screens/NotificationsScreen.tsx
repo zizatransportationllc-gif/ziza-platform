@@ -14,6 +14,7 @@ import {
 import {
   listNotifications,
   markAllNotificationsRead,
+  deleteNotification,
   NotificationRecord,
 } from "../api";
 import { useAuth } from "../context/AuthContext";
@@ -43,6 +44,17 @@ export default function NotificationsScreen(): React.ReactElement {
     load();
   };
 
+  const handleDelete = async (id: string) => {
+    if (!token) return;
+    const prev = notifications;
+    setNotifications((cur) => cur.filter((n) => n.notification_id !== id)); // optimistic
+    try {
+      await deleteNotification(token, id);
+    } catch {
+      setNotifications(prev); // restore on failure
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -64,8 +76,16 @@ export default function NotificationsScreen(): React.ReactElement {
         keyExtractor={(item) => item.notification_id}
         renderItem={({ item }) => (
           <View style={[styles.item, !item.read && styles.unread]}>
-            <Text style={styles.itemTitle}>{item.title}</Text>
-            <Text style={styles.itemBody}>{item.body}</Text>
+            <View style={styles.itemContent}>
+              <Text style={styles.itemTitle}>{item.title}</Text>
+              <Text style={styles.itemBody}>{item.body}</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => handleDelete(item.notification_id)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={styles.deleteBtn}>✕</Text>
+            </TouchableOpacity>
           </View>
         )}
         ListEmptyComponent={
@@ -87,9 +107,11 @@ const styles = StyleSheet.create({
   },
   heading: { fontSize: 22, fontWeight: "bold" },
   markRead: { color: "#F97316", fontWeight: "600" },
-  item: { borderBottomWidth: 1, borderBottomColor: "#f3f4f6", paddingVertical: 12 },
+  item: { borderBottomWidth: 1, borderBottomColor: "#f3f4f6", paddingVertical: 12, flexDirection: "row", alignItems: "center" },
+  itemContent: { flex: 1 },
   unread: { backgroundColor: "#FFF7ED" },
   itemTitle: { fontWeight: "bold", fontSize: 15 },
   itemBody: { color: "#374151", marginTop: 2 },
+  deleteBtn: { color: "#9CA3AF", fontSize: 18, paddingHorizontal: 8 },
   empty: { color: "#9CA3AF", textAlign: "center", marginTop: 24 },
 });

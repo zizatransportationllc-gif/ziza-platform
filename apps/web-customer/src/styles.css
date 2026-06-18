@@ -321,6 +321,8 @@ html, body {
 .notif-icon { font-size: 1.1rem; flex-shrink: 0; }
 .notif-title { font-weight: 700; font-size: 0.9rem; flex: 1; }
 .notif-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-accent); flex-shrink: 0; }
+.notif-delete-btn { background: transparent; border: none; color: var(--color-muted); font-size: 0.95rem; line-height: 1; padding: 2px 4px; cursor: pointer; flex-shrink: 0; }
+.notif-delete-btn:hover { color: var(--color-error); }
 .notif-body { font-size: 0.85rem; color: var(--color-muted); margin: 0 0 var(--space-1); }
 .notif-date { font-size: 0.75rem; color: var(--color-muted); }
 
