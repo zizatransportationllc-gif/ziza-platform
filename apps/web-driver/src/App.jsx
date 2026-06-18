@@ -276,13 +276,9 @@ function ActiveTripCard({ token, trip, onUpdate }) {
         )}
       </div>
 
-      {navTarget && (
-        <button className="action-btn nav-btn" onClick={openNavigation}>
-          🧭 {trip.status === "in_progress" ? "Navigate to destination" : "Navigate to pickup"}
-        </button>
-      )}
-
       {error && <p className="form-error">{error}</p>}
+
+      {/* Primary action — keep the driver on the in-app trip workflow */}
       {trip.status === "accepted" && (
         <button className="action-btn start-btn" onClick={() => handleAction(startTrip)} disabled={busy}>
           {busy ? "…" : "🚦 Start Ride"}
@@ -293,6 +289,18 @@ function ActiveTripCard({ token, trip, onUpdate }) {
           {busy ? "…" : "🏁 Complete Ride"}
         </button>
       )}
+
+      {/* Optional external navigation — does not change the trip; the Start/
+          Complete steps above stay in the app. */}
+      {navTarget && (
+        <>
+          <button className="action-btn nav-btn-secondary" onClick={openNavigation}>
+            🧭 Open {trip.status === "in_progress" ? "destination" : "pickup"} in Maps
+          </button>
+          <p className="nav-hint">Optional — opens an external maps app. Your trip steps stay here.</p>
+        </>
+      )}
+
       {(trip.status === "accepted" || trip.status === "in_progress") && (
         <ChatPanel token={token} tripId={trip.trip_id} accent="#1D4ED8" />
       )}

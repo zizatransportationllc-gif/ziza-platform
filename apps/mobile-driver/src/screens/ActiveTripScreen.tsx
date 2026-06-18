@@ -164,18 +164,22 @@ export default function ActiveTripScreen(): React.ReactElement {
         </>
       )}
 
-      <TouchableOpacity style={styles.navButton} onPress={handleNavigate}>
-        <Text style={styles.navText}>
-          🧭 {status === "in_progress" ? "Navigate to destination" : "Navigate to pickup"}
-        </Text>
-      </TouchableOpacity>
-
+      {/* Primary action — keep the driver on the in-app trip workflow */}
       <ActiveTripActions
         status={status}
         onStart={handleStart}
         onComplete={handleComplete}
         loading={loading}
       />
+
+      {/* Optional external navigation — does not change the trip; the steps
+          above stay in the app. */}
+      <TouchableOpacity style={styles.navButton} onPress={handleNavigate}>
+        <Text style={styles.navText}>
+          🧭 Open {status === "in_progress" ? "destination" : "pickup"} in Maps
+        </Text>
+      </TouchableOpacity>
+      <Text style={styles.navHint}>Optional — opens an external maps app. Your trip steps stay here.</Text>
 
       {token && (status === "accepted" || status === "in_progress") && (
         <ChatPanel token={token} tripId={tripId} accent="#2563EB" />
@@ -202,7 +206,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 14,
     alignItems: "center",
-    marginBottom: 16,
+    marginTop: 12,
+    marginBottom: 4,
   },
   navText: { color: "#1D4ED8", fontWeight: "600", fontSize: 15 },
+  navHint: { color: "#9CA3AF", fontSize: 12, textAlign: "center", marginBottom: 16 },
 });
