@@ -67,8 +67,12 @@ class Settings(BaseSettings):
     fare_surge_multiplier: float = 1.0  # 1.0 = no surge; set > 1 during peak
     fare_estimate_ttl_minutes: int = 15  # how long an estimate is valid
 
-    # Optional: Google Maps Distance Matrix API key for real road distances.
-    # Leave empty to use the Haversine straight-line fallback.
+    # Real road routing for fare estimates (distance + duration).
+    # Priority: Mapbox Directions → Google Maps Distance Matrix → Haversine.
+    # Mapbox is the project's primary map/routing provider; a public token
+    # (pk.*) works for the Directions API. Leave all empty to use the
+    # Haversine straight-line fallback.
+    mapbox_access_token: str = ""
     google_maps_api_key: str = ""
 
     # ------------------------------------------------------------------
