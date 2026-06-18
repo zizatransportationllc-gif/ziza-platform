@@ -8,6 +8,7 @@ import { StatusBar } from "expo-status-bar";
 import * as Notifications from "expo-notifications";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { useNotifications } from "./src/hooks/useNotifications";
+import { useBackgroundLocation } from "./src/hooks/useBackgroundLocation";
 import AppNavigator from "./src/navigation/AppNavigator";
 import LoginScreen from "./src/screens/LoginScreen";
 
@@ -26,8 +27,11 @@ Notifications.setNotificationHandler({
 });
 
 function AppInner(): React.ReactElement {
-  const { token, ready } = useAuth();
+  const { token, ready, isOnline } = useAuth();
   useNotifications(token);
+  // Share GPS continuously while online, regardless of the current screen, so
+  // the customer can track the driver in real time during a trip.
+  useBackgroundLocation(token, isOnline);
 
   if (!ready) return <></>;
   if (!token) return <LoginScreen />;

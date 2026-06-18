@@ -1424,6 +1424,27 @@ function Dashboard({ user, token, onLogout }) {
     return () => clearInterval(id);
   }, [activeTrip?.trip_id, activeTrip?.status]);
 
+  // Continuously share GPS with the backend while online or on an active trip,
+  // so the customer can track the driver live. (The manual map-tap push in the
+  // Location tab is hidden once a trip is active, so without this the driver's
+  // position would never update mid-trip.)
+  useEffect(() => {
+    const tripActive = activeTrip && !["completed", "cancelled"].includes(activeTrip.status);
+    if (!(isOnline || tripActive) || !("geolocation" in navigator)) return;
+    let lastPush = 0;
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const now = Date.now();
+        if (now - lastPush < POLL_MS) return; // throttle to ~one push per POLL_MS
+        lastPush = now;
+        updateDriverLocation(token, pos.coords.latitude, pos.coords.longitude).catch(() => {});
+      },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [token, isOnline, activeTrip?.trip_id, activeTrip?.status]);
+
   function refreshStats() {
     getMyRating(token).then(setRatingStats).catch(() => {});
     getMyEarnings(token).then(setEarnings).catch(() => {});

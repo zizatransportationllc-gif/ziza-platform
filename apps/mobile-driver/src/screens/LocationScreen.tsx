@@ -4,16 +4,15 @@
  */
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
-import { useBackgroundLocation } from "../hooks/useBackgroundLocation";
 import { useAuth } from "../context/AuthContext";
 import { getDriverLocation, LocationResponse } from "../api";
 
+// Background GPS sharing is started globally in App.tsx (so it runs on every
+// screen while online); this screen only displays the last reported position.
 export default function LocationScreen(): React.ReactElement {
   const { token, isOnline } = useAuth();
   const [location, setLocation] = useState<LocationResponse | null>(null);
   const [loading, setLoading] = useState(true);
-
-  useBackgroundLocation(token, isOnline);
 
   useEffect(() => {
     if (!token) return;
