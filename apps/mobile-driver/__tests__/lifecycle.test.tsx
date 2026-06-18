@@ -29,15 +29,14 @@ function makeTripResponse(overrides: Partial<TripResponse> = {}): TripResponse {
   return {
     trip_id: "trip-999",
     status: "pending",
-    customer_id: "cust-001",
-    driver_id: null,
     origin_lat: 14.6928,
     origin_lng: -17.4467,
     dest_lat: 14.7128,
     dest_lng: -17.4267,
-    price_cents: 3500,
-    category_id: "comfort",
-    eta_minutes: 8,
+    fare_cents: 3500,
+    distance_km: 2.4,
+    duration_min: 8,
+    category: "comfort",
     created_at: "2026-05-26T10:00:00Z",
     ...overrides,
   };
@@ -51,19 +50,18 @@ test("startTrip() transitions trip status from 'accepted' to 'in_progress'", asy
   mockFetch.mockResolvedValueOnce({
     ok: true,
     json: async () =>
-      makeTripResponse({ status: "in_progress", driver_id: "drv-001" }),
+      makeTripResponse({ status: "in_progress" }),
   });
 
   const result = await startTrip("drv_tok_abc", "trip-999");
   expect(result.status).toBe("in_progress");
-  expect(result.driver_id).toBe("drv-001");
 });
 
 test("completeTrip() transitions trip status from 'in_progress' to 'completed'", async () => {
   mockFetch.mockResolvedValueOnce({
     ok: true,
     json: async () =>
-      makeTripResponse({ status: "completed", driver_id: "drv-001" }),
+      makeTripResponse({ status: "completed" }),
   });
 
   const result = await completeTrip("drv_tok_abc", "trip-999");
@@ -75,19 +73,19 @@ test("sequential accept→start→complete returns correct statuses at each step
   mockFetch.mockResolvedValueOnce({
     ok: true,
     json: async () =>
-      makeTripResponse({ status: "accepted", driver_id: "drv-001" }),
+      makeTripResponse({ status: "accepted" }),
   });
   // Step 2: start
   mockFetch.mockResolvedValueOnce({
     ok: true,
     json: async () =>
-      makeTripResponse({ status: "in_progress", driver_id: "drv-001" }),
+      makeTripResponse({ status: "in_progress" }),
   });
   // Step 3: complete
   mockFetch.mockResolvedValueOnce({
     ok: true,
     json: async () =>
-      makeTripResponse({ status: "completed", driver_id: "drv-001" }),
+      makeTripResponse({ status: "completed" }),
   });
 
   const accepted = await acceptTrip("drv_tok_abc", "trip-999");
