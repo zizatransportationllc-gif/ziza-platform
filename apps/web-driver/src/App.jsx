@@ -18,7 +18,7 @@ import {
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, firebaseSignOut } from "./auth";
 import DriverMap from "./DriverMap";
-import ActiveTripMap from "./ActiveTripMap";
+import NavigationView from "./NavigationView";
 import { reverseGeocode } from "./geo";
 
 const REQUIRED_ROLE = "driver";
@@ -195,7 +195,6 @@ function ActiveTripCard({ token, trip, onUpdate }) {
   const [error, setError] = useState(null);
   const [pickupAddr, setPickupAddr] = useState(null);
   const [destAddr, setDestAddr] = useState(null);
-  const [driverLoc, setDriverLoc] = useState(null);
 
   const hasPickup = trip.origin_lat != null && trip.origin_lng != null;
   const hasDest   = trip.dest_lat != null && trip.dest_lng != null;
@@ -207,13 +206,6 @@ function ActiveTripCard({ token, trip, onUpdate }) {
     if (hasDest)   reverseGeocode(trip.dest_lng,   trip.dest_lat).then((a) => { if (active) setDestAddr(a); });
     return () => { active = false; };
   }, [trip.origin_lat, trip.origin_lng, trip.dest_lat, trip.dest_lng]);
-
-  // Driver's last known position (for the map dot + driver→pickup context)
-  useEffect(() => {
-    let active = true;
-    getDriverLocation(token).then((loc) => { if (active && loc) setDriverLoc({ lat: loc.lat, lng: loc.lng }); }).catch(() => {});
-    return () => { active = false; };
-  }, [token]);
 
   // Navigate in the device's map app: to pickup while heading there, to the
   // destination once the ride is in progress.
@@ -241,12 +233,11 @@ function ActiveTripCard({ token, trip, onUpdate }) {
         {trip.duration_min != null && <span>⏱️ ~{trip.duration_min} min</span>}
       </div>
 
-      {/* Trip route — pickup + destination on the map */}
-      {hasPickup && hasDest && (
-        <ActiveTripMap
-          origin={{ lat: trip.origin_lat, lng: trip.origin_lng }}
-          dest={{ lat: trip.dest_lat, lng: trip.dest_lng }}
-          driver={driverLoc}
+      {/* In-app navigation — follows the driver to the current target */}
+      {navTarget && (
+        <NavigationView
+          target={navTarget}
+          label={trip.status === "in_progress" ? "Destination" : "Pickup"}
         />
       )}
 
@@ -276,13 +267,9 @@ function ActiveTripCard({ token, trip, onUpdate }) {
         )}
       </div>
 
-      {navTarget && (
-        <button className="action-btn nav-btn" onClick={openNavigation}>
-          🧭 {trip.status === "in_progress" ? "Navigate to destination" : "Navigate to pickup"}
-        </button>
-      )}
-
       {error && <p className="form-error">{error}</p>}
+
+      {/* Primary action — keep the driver on the in-app trip workflow */}
       {trip.status === "accepted" && (
         <button className="action-btn start-btn" onClick={() => handleAction(startTrip)} disabled={busy}>
           {busy ? "…" : "🚦 Start Ride"}
@@ -293,6 +280,18 @@ function ActiveTripCard({ token, trip, onUpdate }) {
           {busy ? "…" : "🏁 Complete Ride"}
         </button>
       )}
+
+      {/* Optional external navigation — does not change the trip; the Start/
+          Complete steps above stay in the app. */}
+      {navTarget && (
+        <>
+          <button className="action-btn nav-btn-secondary" onClick={openNavigation}>
+            🧭 Open {trip.status === "in_progress" ? "destination" : "pickup"} in Maps
+          </button>
+          <p className="nav-hint">Optional — opens an external maps app. Your trip steps stay here.</p>
+        </>
+      )}
+
       {(trip.status === "accepted" || trip.status === "in_progress") && (
         <ChatPanel token={token} tripId={trip.trip_id} accent="#1D4ED8" />
       )}

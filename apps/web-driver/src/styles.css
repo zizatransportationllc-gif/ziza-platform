@@ -45,6 +45,13 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .active-cancelled  .active-status { color: var(--color-error); }
 .fare-meta { display: flex; justify-content: center; gap: var(--space-4); color: var(--color-muted); font-size: 0.9rem; margin-bottom: var(--space-2); flex-wrap: wrap; }
 
+/* In-app navigation view (follow map + ETA banner) */
+.nav-view { margin: var(--space-3) 0; }
+.nav-banner { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); background: var(--color-accent-strong); color: #fff; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md) var(--radius-md) 0 0; font-size: 0.92rem; }
+.nav-banner-label { font-weight: 700; }
+.nav-banner-eta { font-weight: 600; opacity: 0.95; }
+.nav-view .mapboxgl-map { border-radius: 0 0 var(--radius-md) var(--radius-md); }
+
 /* Active trip — route map + pickup/destination addresses */
 .active-trip-map { margin: var(--space-3) 0; }
 .trip-locations { display: flex; flex-direction: column; gap: var(--space-2); text-align: left; margin-bottom: var(--space-2); }
@@ -60,7 +67,9 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .accept-btn   { background: var(--color-accent-strong); }
 .start-btn    { background: #3b82f6; }
 .complete-btn { background: var(--color-success); }
-.nav-btn      { background: #0ea5e9; }
+.nav-btn-secondary { background: transparent; color: var(--color-accent); border: 1px solid var(--color-border); }
+.nav-btn-secondary:hover { border-color: var(--color-accent); }
+.nav-hint { color: var(--color-muted); font-size: 0.78rem; text-align: center; margin-top: var(--space-2); }
 
 /* Available trips section */
 .available-section { margin-top: var(--space-6); text-align: left; }

@@ -27,6 +27,16 @@ export async function reverseGeocode(lng, lat) {
  * (caller falls back to a straight line).
  */
 export async function fetchRouteCoords(originLng, originLat, destLng, destLat) {
+  const route = await fetchRoute(originLng, originLat, destLng, destLat);
+  return route?.coords ?? null;
+}
+
+/**
+ * Like fetchRouteCoords but also returns the route distance (metres) and
+ * duration (seconds), used by the in-app navigation view for live ETA.
+ * Returns { coords, distanceM, durationS } or null on error.
+ */
+export async function fetchRoute(originLng, originLat, destLng, destLat) {
   if (!TOKEN || originLng == null || destLng == null) return null;
   try {
     const url =
@@ -36,7 +46,13 @@ export async function fetchRouteCoords(originLng, originLat, destLng, destLat) {
     const res = await fetch(url);
     if (!res.ok) return null;
     const data = await res.json();
-    return data.routes?.[0]?.geometry?.coordinates ?? null;
+    const route = data.routes?.[0];
+    if (!route?.geometry?.coordinates) return null;
+    return {
+      coords: route.geometry.coordinates,
+      distanceM: route.distance ?? null,
+      durationS: route.duration ?? null,
+    };
   } catch {
     return null;
   }
