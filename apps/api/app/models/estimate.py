@@ -36,7 +36,7 @@ class Estimate(Base):
     duration_min: Mapped[int] = mapped_column(Integer, nullable=False)
     fare_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     surge_multiplier: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
-    # "google_maps" | "haversine"
+    # "mapbox" | "google_maps" | "haversine"
     distance_source: Mapped[str] = mapped_column(String(32), nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(

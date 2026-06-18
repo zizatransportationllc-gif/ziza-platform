@@ -33,6 +33,63 @@ def test_haversine_route_applies_road_factor() -> None:
     assert route.duration_min >= 1
 
 
+class _FakeMapboxResp:
+    def __init__(self, payload: dict) -> None:
+        self._payload = payload
+
+    def raise_for_status(self) -> None:  # noqa: D401
+        pass
+
+    def json(self) -> dict:
+        return self._payload
+
+
+def _fake_client_factory(payload=None, error: Exception | None = None):
+    class _FakeClient:
+        def __init__(self, *a, **k) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def get(self, url, params=None):
+            if error is not None:
+                raise error
+            return _FakeMapboxResp(payload)
+
+    return _FakeClient
+
+
+def test_mapbox_route_parses_distance_and_duration(monkeypatch) -> None:
+    import asyncio
+
+    from app import pricing
+
+    payload = {"code": "Ok", "routes": [{"distance": 7185.7, "duration": 627.3}]}
+    monkeypatch.setattr(pricing.settings, "mapbox_access_token", "pk.test")
+    monkeypatch.setattr(pricing.httpx, "AsyncClient", _fake_client_factory(payload=payload))
+
+    route = asyncio.run(pricing.get_route_info(40.7357, -74.1645, 40.6895, -74.1745))
+    assert route.source == "mapbox"
+    assert route.distance_km == 7.19          # 7185.7 m → km, 2 dp
+    assert route.duration_min == 10           # round(627.3 / 60)
+
+
+def test_route_falls_back_to_haversine_when_mapbox_fails(monkeypatch) -> None:
+    import asyncio
+
+    from app import pricing
+
+    monkeypatch.setattr(pricing.settings, "mapbox_access_token", "pk.test")
+    monkeypatch.setattr(pricing.httpx, "AsyncClient", _fake_client_factory(error=RuntimeError("boom")))
+
+    route = asyncio.run(pricing.get_route_info(5.3207, -4.0175, 5.3600, -3.9801))
+    assert route.source == "haversine"
+
+
 def test_calculate_fare_minimum() -> None:
     # Very short distance → minimum (base) fare applies. USD cents.
     fare = calculate_fare(0.0, 250, 175, surge=1.0)

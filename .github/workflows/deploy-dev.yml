@@ -201,7 +201,7 @@ jobs:
 
             # Use ^|^ as separator so commas inside CORS_ORIGINS_RAW are preserved
             FLAGS+=(
-              "--set-env-vars=^|^ENVIRONMENT=dev|AUTH_DEV_SECRET=${{ secrets.AUTH_DEV_SECRET }}|AUTH_DEV_PASSWORD=${{ vars.AUTH_DEV_PASSWORD }}|CORS_ORIGINS_RAW=${{ vars.ZIZA_CORS_ORIGINS }}|DATABASE_URL=${{ secrets.DATABASE_URL }}"
+              "--set-env-vars=^|^ENVIRONMENT=dev|AUTH_DEV_SECRET=${{ secrets.AUTH_DEV_SECRET }}|AUTH_DEV_PASSWORD=${{ vars.AUTH_DEV_PASSWORD }}|CORS_ORIGINS_RAW=${{ vars.ZIZA_CORS_ORIGINS }}|DATABASE_URL=${{ secrets.DATABASE_URL }}|MAPBOX_ACCESS_TOKEN=${{ vars.VITE_MAPBOX_TOKEN }}"
             )
 
             # Attach Cloud SQL unix socket proxy (requires cloudsql.client on SA)

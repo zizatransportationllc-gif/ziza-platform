@@ -13,7 +13,7 @@ import {
   registerDeviceToken,
   formatUSD,
 } from "./api";
-import { firebaseEnabled, signUpEmail, signInEmail, firebaseSignOut } from "./auth";
+import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, firebaseSignOut } from "./auth";
 
 const REQUIRED_ROLE = "professional";
 const TOKEN_KEY = "ziza_craft_token";
@@ -69,7 +69,7 @@ const DOCUMENT_STATUS_LABELS = {
 // Login form
 // ---------------------------------------------------------------------------
 
-function LoginForm({ onLogin, onSignup, error, loading }) {
+function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
   const [tab, setTab] = useState("signin");
   // Sign-in fields
   const [email, setEmail] = useState("professional@ziza.dev");
@@ -105,11 +105,16 @@ function LoginForm({ onLogin, onSignup, error, loading }) {
       </div>
       {tab === "signin" ? (
         <>
-          <form className="login-form" onSubmit={(e) => { e.preventDefault(); onLogin(email, password); }}>
+          <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
             <button type="submit" disabled={loading}>{loading ? "Signing in…" : "Sign In"}</button>
           </form>
+          {firebaseEnabled && (
+            <button className="google-btn" onClick={onGoogleLogin} disabled={loading}>
+              <span>G</span> Continue with Google
+            </button>
+          )}
           {error && <p className="form-error">{error}</p>}
           <p className="hint">Dev: professional@ziza.dev / ziza2024</p>
         </>
@@ -1429,6 +1434,17 @@ export default function App() {
     finally { setLoginLoading(false); }
   }
 
+  async function handleGoogleLogin() {
+    setLoginLoading(true); setLoginError(null);
+    try {
+      const idToken = await signInWithGoogle();
+      const { access_token } = await exchangeFirebaseToken(idToken);
+      localStorage.setItem(TOKEN_KEY, access_token);
+      setToken(access_token);
+    } catch (e) { setLoginError(e.message); }
+    finally { setLoginLoading(false); }
+  }
+
   async function handleSignup(email, password, firstName, lastName, birthDate, phone) {
     setLoginLoading(true); setLoginError(null);
     try {
@@ -1448,7 +1464,7 @@ export default function App() {
     setUser(null);
   }
 
-  if (!token) return <LoginForm onLogin={handleLogin} onSignup={handleSignup} error={loginError} loading={loginLoading} />;
+  if (!token) return <LoginForm onEmailLogin={handleLogin} onGoogleLogin={handleGoogleLogin} onSignup={handleSignup} error={loginError} loading={loginLoading} />;
   if (!user)  return <div className="app"><div className="status loading">⏳ Loading…</div></div>;
   if (user.role !== REQUIRED_ROLE) return <AccessDenied role={user.role} onLogout={handleLogout} />;
   return <Dashboard user={user} token={token} onLogout={handleLogout} />;

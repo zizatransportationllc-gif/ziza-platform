@@ -23,6 +23,14 @@ async function getFirebaseAuth() {
   return _auth;
 }
 
+/** Sign in with Google via a Firebase popup. Returns the Firebase ID token. */
+export async function signInWithGoogle() {
+  const { GoogleAuthProvider, signInWithPopup } = await import("firebase/auth");
+  const auth = await getFirebaseAuth();
+  const result = await signInWithPopup(auth, new GoogleAuthProvider());
+  return result.user.getIdToken();
+}
+
 /** Create a Firebase account with email/password. Returns the Firebase ID token. */
 export async function signUpEmail(email, password) {
   const { createUserWithEmailAndPassword } = await import("firebase/auth");

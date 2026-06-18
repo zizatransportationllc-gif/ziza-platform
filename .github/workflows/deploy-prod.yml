@@ -101,6 +101,11 @@ jobs:
             BUILD_ARGS=""
           fi
 
+          # web-customer's "Become a Driver" link points at the web-driver app.
+          if [ "${{ matrix.app }}" = "web-customer" ]; then
+            BUILD_ARGS="$BUILD_ARGS --build-arg VITE_DRIVER_URL=${{ vars.ZIZA_DRIVER_URL_PROD }}"
+          fi
+
           docker build $BUILD_ARGS -t "$IMAGE" -t "$IMAGE_PROD" apps/${{ matrix.app }}
           docker push "$IMAGE"
           docker push "$IMAGE_PROD"
@@ -184,7 +189,7 @@ jobs:
             FLAGS+=("--service-account=${{ vars.GCP_SERVICE_ACCOUNT }}")
             # ENVIRONMENT=prod -> Firebase identity + own-JWT sessions; password
             # endpoints are 404. Secrets come from Secret Manager, not env vars.
-            ENVVARS="ENVIRONMENT=prod|FIREBASE_PROJECT_ID=${{ vars.FIREBASE_PROJECT_ID_PROD }}|CORS_ORIGINS_RAW=${{ vars.ZIZA_CORS_ORIGINS_PROD }}|RATE_LIMIT_ENABLED=true|GCS_BUCKET_NAME=${{ vars.ZIZA_KYC_BUCKET_PROD }}|PAYMENT_PROVIDER=${{ vars.PAYMENT_PROVIDER_PROD }}|PAYOUT_PROVIDER=${{ vars.PAYOUT_PROVIDER_PROD }}"
+            ENVVARS="ENVIRONMENT=prod|FIREBASE_PROJECT_ID=${{ vars.FIREBASE_PROJECT_ID_PROD }}|CORS_ORIGINS_RAW=${{ vars.ZIZA_CORS_ORIGINS_PROD }}|RATE_LIMIT_ENABLED=true|GCS_BUCKET_NAME=${{ vars.ZIZA_KYC_BUCKET_PROD }}|PAYMENT_PROVIDER=${{ vars.PAYMENT_PROVIDER_PROD }}|PAYOUT_PROVIDER=${{ vars.PAYOUT_PROVIDER_PROD }}|MAPBOX_ACCESS_TOKEN=${{ vars.VITE_MAPBOX_TOKEN }}"
             # BANK_ENCRYPTION_KEY is required so bank numbers are never stored in
             # cleartext in production (the API refuses otherwise).
             SECRETS="JWT_SECRET=ziza-prod-jwt-secret:latest|ADMIN_SIGNUP_CODE=ziza-prod-admin-code:latest|DATABASE_URL=ziza-prod-database-url:latest|BANK_ENCRYPTION_KEY=ziza-prod-bank-encryption-key:latest"

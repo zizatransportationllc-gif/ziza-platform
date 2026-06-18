@@ -730,7 +730,7 @@ class EstimateResponse(BaseModel):
     fare_cents: int          # economy fare (backward compat)
     currency: str = "USD"
     surge_multiplier: float
-    distance_source: str   # "google_maps" | "haversine"
+    distance_source: str   # "mapbox" | "google_maps" | "haversine"
     expires_at: str        # ISO-8601 UTC
     # Sprint 21: per-category fare options
     categories: dict[str, CategoryFareOption]
