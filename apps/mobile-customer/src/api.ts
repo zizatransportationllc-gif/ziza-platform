@@ -492,6 +492,14 @@ export async function markAllNotificationsRead(token: string): Promise<void> {
   });
 }
 
+export async function deleteNotification(token: string, notificationId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/v1/notifications/${notificationId}`, {
+    method: "DELETE",
+    headers: _auth(token),
+  });
+  if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`);
+}
+
 // ---------------------------------------------------------------------------
 // Device tokens (push notifications)
 // ---------------------------------------------------------------------------

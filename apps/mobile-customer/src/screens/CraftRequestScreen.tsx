@@ -112,7 +112,7 @@ export default function CraftRequestScreen(): React.ReactElement {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Request Roadside Help</Text>
-      <Text style={styles.subtitle}>Sprint 48 — Ziza Craft</Text>
+      <Text style={styles.subtitle}>Roadside assistance</Text>
 
       {/* Category picker */}
       <Text style={styles.label}>Type of Problem</Text>

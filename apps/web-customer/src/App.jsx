@@ -4,7 +4,7 @@ import {
   listMyTrips,
   validatePromo, getProfile, updateProfile,
   avatarUploadUrl, getBankAccount, setBankAccount,
-  listNotifications, getUnreadCount, markAllRead,
+  listNotifications, getUnreadCount, markAllRead, deleteNotification,
   listPlaces, createPlace, updatePlace, deletePlace,
   listCategories, getTripEta, getTripTracking,
   listTripMessages, sendTripMessage,
@@ -1267,6 +1267,17 @@ function NotificationsSection({ token, onRead }) {
     finally { setMarking(false); }
   }
 
+  async function handleDelete(id) {
+    const prev = notifs;
+    setNotifs((cur) => cur.filter((n) => n.notification_id !== id)); // optimistic
+    try {
+      await deleteNotification(token, id);
+      onRead();
+    } catch (_) {
+      setNotifs(prev); // restore on failure
+    }
+  }
+
   const unreadCount = notifs.filter((n) => !n.read).length;
 
   return (
@@ -1291,6 +1302,11 @@ function NotificationsSection({ token, onRead }) {
               <span className="notif-icon">{NOTIF_TYPE_ICONS[n.type] ?? "🔔"}</span>
               <span className="notif-title">{n.title}</span>
               {!n.read && <span className="notif-dot" />}
+              <button
+                className="notif-delete-btn"
+                title="Delete notification"
+                onClick={() => handleDelete(n.notification_id)}
+              >✕</button>
             </div>
             <p className="notif-body">{n.body}</p>
             <span className="notif-date">
@@ -1949,7 +1965,7 @@ function CraftSection({ token }) {
   return (
     <div className="craft-section">
       <div className="craft-list-header">
-        <h2 className="estimate-title">🔧 Maintenance</h2>
+        <h2 className="estimate-title">🔧 Assistance</h2>
         <button className="craft-new-btn" onClick={() => setView("new")}>
           + New Request
         </button>
@@ -1960,7 +1976,7 @@ function CraftSection({ token }) {
 
       {!loading && requests.length === 0 && (
         <div className="craft-empty">
-          <p>No maintenance requests yet.</p>
+          <p>No assistance requests yet.</p>
           <button className="craft-submit-btn" onClick={() => setView("new")}>
             Post Your First Request
           </button>
@@ -2209,7 +2225,7 @@ function Dashboard({ user, token, onLogout }) {
               className={`mode-tab ${mode === "craft" ? "active" : ""}`}
               onClick={() => setMode("craft")}
             >
-              🔧 Maintenance
+              🔧 Assistance
             </button>
             <button
               className={`mode-tab ${mode === "trips" ? "active" : ""}`}

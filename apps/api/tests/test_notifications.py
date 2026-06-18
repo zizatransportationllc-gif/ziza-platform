@@ -253,3 +253,52 @@ def test_notifications_are_user_isolated():
     # Driver's notifications should NOT contain trip_accepted
     d_notifs = client.get("/v1/notifications", headers=_h(d_tok)).json()
     assert not any(n["type"] == "trip_accepted" for n in d_notifs)
+
+
+# ---------------------------------------------------------------------------
+# DELETE /v1/notifications/{id}
+# ---------------------------------------------------------------------------
+
+def test_delete_notification_requires_auth():
+    """No token → 401."""
+    import uuid
+    r = client.delete(f"/v1/notifications/{uuid.uuid4()}")
+    assert r.status_code == 401, r.text
+
+
+def test_delete_notification_removes_it():
+    """Deleting a notification removes it from the list (204)."""
+    c_tok = _setup_customer()
+    d_tok = _setup_driver()
+
+    trip_id = _book_trip(c_tok)
+    client.patch(f"/v1/trips/{trip_id}/accept", headers=_h(d_tok))
+
+    notifs = client.get("/v1/notifications", headers=_h(c_tok)).json()
+    assert len(notifs) >= 1
+    target_id = notifs[0]["notification_id"]
+
+    r = client.delete(f"/v1/notifications/{target_id}", headers=_h(c_tok))
+    assert r.status_code == 204, r.text
+
+    remaining = client.get("/v1/notifications", headers=_h(c_tok)).json()
+    assert all(n["notification_id"] != target_id for n in remaining)
+
+
+def test_delete_notification_not_owned_returns_404():
+    """Deleting another user's (or a non-existent) notification → 404."""
+    import uuid
+    c_tok = _setup_customer()
+    d_tok = _setup_driver()
+
+    trip_id = _book_trip(c_tok)
+    client.patch(f"/v1/trips/{trip_id}/accept", headers=_h(d_tok))
+    target_id = client.get("/v1/notifications", headers=_h(c_tok)).json()[0]["notification_id"]
+
+    # Driver cannot delete the customer's notification
+    r = client.delete(f"/v1/notifications/{target_id}", headers=_h(d_tok))
+    assert r.status_code == 404, r.text
+
+    # Random id → 404
+    r2 = client.delete(f"/v1/notifications/{uuid.uuid4()}", headers=_h(c_tok))
+    assert r2.status_code == 404, r2.text

@@ -25,11 +25,6 @@ import { startTrip, completeTrip, getActiveTrip, buildNavigationUrl, TripRespons
 
 type ActiveTripRouteProp = RouteProp<RootStackParamList, "ActiveTrip">;
 
-function formatUSD(n: number | null | undefined): string {
-  if (n == null) return "—";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format((n ?? 0) / 100);
-}
-
 async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
   try {
     const results = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
@@ -122,7 +117,6 @@ export default function ActiveTripScreen(): React.ReactElement {
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
       <Text style={styles.heading}>Trip #{tripId.slice(0, 8)}</Text>
       <Text style={styles.status}>Status: {status}</Text>
-      {currentTrip && <Text style={styles.price}>{formatUSD(currentTrip.fare_cents)}</Text>}
 
       {currentTrip && (
         <>

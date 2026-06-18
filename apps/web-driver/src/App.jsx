@@ -11,7 +11,7 @@ import {
   createPayoutRequest, listPayoutRequests,
   getConnectStatus, connectOnboard,
   submitDocument, listMyDocuments,
-  listNotifications, getUnreadCount, markAllRead,
+  listNotifications, getUnreadCount, markAllRead, deleteNotification,
   listCategories,
   updateDriverLocation, getDriverLocation,
   registerDeviceToken,
@@ -227,7 +227,6 @@ function ActiveTripCard({ token, trip, onUpdate }) {
   return (
     <div className={`active-trip-card active-${trip.status}`}>
       <div className="active-status">{STATUS_LABELS[trip.status] ?? trip.status}</div>
-      {trip.fare_cents && <div className="active-fare">{formatUSD(trip.fare_cents)}</div>}
       <div className="fare-meta">
         {trip.distance_km != null && <span>🛣️ {trip.distance_km.toFixed(1)} mi</span>}
         {trip.duration_min != null && <span>⏱️ ~{trip.duration_min} min</span>}
@@ -553,7 +552,6 @@ function AvailableTripsSection({ token, onTripAccepted }) {
                 {VEHICLE_CATEGORIES.find((c) => c.value === t.category)?.label ?? t.category}
               </div>
             )}
-            <div className="trip-card-fare">{t.fare_cents ? formatUSD(t.fare_cents) : "—"}</div>
             <div className="trip-card-meta">
               {t.distance_km != null && <span>🛣️ {t.distance_km.toFixed(1)} mi</span>}
               {t.duration_min != null && <span>⏱️ ~{t.duration_min} min</span>}
@@ -1025,6 +1023,17 @@ function DriverNotificationsSection({ token, onRead }) {
     finally { setMarking(false); }
   }
 
+  async function handleDelete(id) {
+    const prev = notifs;
+    setNotifs((cur) => cur.filter((n) => n.notification_id !== id)); // optimistic
+    try {
+      await deleteNotification(token, id);
+      onRead();
+    } catch (_) {
+      setNotifs(prev); // restore on failure
+    }
+  }
+
   const unreadCount = notifs.filter((n) => !n.read).length;
 
   return (
@@ -1046,6 +1055,11 @@ function DriverNotificationsSection({ token, onRead }) {
               <span className="notif-icon">{DRIVER_NOTIF_ICONS[n.type] ?? "🔔"}</span>
               <span className="notif-title">{n.title}</span>
               {!n.read && <span className="notif-dot" />}
+              <button
+                className="notif-delete-btn"
+                title="Delete notification"
+                onClick={() => handleDelete(n.notification_id)}
+              >✕</button>
             </div>
             <p className="notif-body">{n.body}</p>
             <span className="notif-date">

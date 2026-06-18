@@ -9,7 +9,7 @@ import {
   getConnectStatus, connectOnboard,
   listRequestMessages, sendRequestMessage,
   submitDocument, listMyDocuments,
-  listNotifications, getUnreadCount, markAllRead,
+  listNotifications, getUnreadCount, markAllRead, deleteNotification,
   registerDeviceToken,
   formatUSD,
 } from "./api";
@@ -1168,6 +1168,17 @@ function NotificationsSection({ token, onRead }) {
     finally { setMarking(false); }
   }
 
+  async function handleDelete(id) {
+    const prev = notifs;
+    setNotifs((cur) => cur.filter((n) => n.notification_id !== id)); // optimistic
+    try {
+      await deleteNotification(token, id);
+      onRead();
+    } catch (_) {
+      setNotifs(prev); // restore on failure
+    }
+  }
+
   const unreadCount = notifs.filter((n) => !n.read).length;
 
   return (
@@ -1191,6 +1202,11 @@ function NotificationsSection({ token, onRead }) {
               <span className="notif-icon">{NOTIF_ICONS[n.type] ?? "🔔"}</span>
               <span className="notif-title">{n.title}</span>
               {!n.read && <span className="notif-dot" />}
+              <button
+                className="notif-delete-btn"
+                title="Delete notification"
+                onClick={() => handleDelete(n.notification_id)}
+              >✕</button>
             </div>
             <p className="notif-body">{n.body}</p>
             <span className="notif-date">
