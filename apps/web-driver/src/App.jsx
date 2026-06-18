@@ -18,6 +18,8 @@ import {
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, firebaseSignOut } from "./auth";
 import DriverMap from "./DriverMap";
+import ActiveTripMap from "./ActiveTripMap";
+import { reverseGeocode } from "./geo";
 
 const REQUIRED_ROLE = "driver";
 const TOKEN_KEY = "ziza_token";
@@ -191,6 +193,37 @@ function ChatPanel({ token, tripId, accent = "#1D4ED8" }) {
 function ActiveTripCard({ token, trip, onUpdate }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [pickupAddr, setPickupAddr] = useState(null);
+  const [destAddr, setDestAddr] = useState(null);
+  const [driverLoc, setDriverLoc] = useState(null);
+
+  const hasPickup = trip.origin_lat != null && trip.origin_lng != null;
+  const hasDest   = trip.dest_lat != null && trip.dest_lng != null;
+
+  // Reverse-geocode pickup + destination to readable addresses
+  useEffect(() => {
+    let active = true;
+    if (hasPickup) reverseGeocode(trip.origin_lng, trip.origin_lat).then((a) => { if (active) setPickupAddr(a); });
+    if (hasDest)   reverseGeocode(trip.dest_lng,   trip.dest_lat).then((a) => { if (active) setDestAddr(a); });
+    return () => { active = false; };
+  }, [trip.origin_lat, trip.origin_lng, trip.dest_lat, trip.dest_lng]);
+
+  // Driver's last known position (for the map dot + driver→pickup context)
+  useEffect(() => {
+    let active = true;
+    getDriverLocation(token).then((loc) => { if (active && loc) setDriverLoc({ lat: loc.lat, lng: loc.lng }); }).catch(() => {});
+    return () => { active = false; };
+  }, [token]);
+
+  // Navigate in the device's map app: to pickup while heading there, to the
+  // destination once the ride is in progress.
+  const navTarget = trip.status === "in_progress"
+    ? (hasDest ? { lat: trip.dest_lat, lng: trip.dest_lng } : null)
+    : (hasPickup ? { lat: trip.origin_lat, lng: trip.origin_lng } : null);
+  function openNavigation() {
+    if (!navTarget) return;
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${navTarget.lat},${navTarget.lng}`, "_blank", "noopener");
+  }
 
   async function handleAction(fn) {
     setBusy(true); setError(null);
@@ -207,6 +240,48 @@ function ActiveTripCard({ token, trip, onUpdate }) {
         {trip.distance_km != null && <span>🛣️ {trip.distance_km.toFixed(1)} mi</span>}
         {trip.duration_min != null && <span>⏱️ ~{trip.duration_min} min</span>}
       </div>
+
+      {/* Trip route — pickup + destination on the map */}
+      {hasPickup && hasDest && (
+        <ActiveTripMap
+          origin={{ lat: trip.origin_lat, lng: trip.origin_lng }}
+          dest={{ lat: trip.dest_lat, lng: trip.dest_lng }}
+          driver={driverLoc}
+        />
+      )}
+
+      {/* Readable pickup / destination addresses */}
+      <div className="trip-locations">
+        {hasPickup && (
+          <div className="trip-loc">
+            <span className="trip-loc-icon">📍</span>
+            <div className="trip-loc-text">
+              <span className="trip-loc-label">Pickup</span>
+              <span className="trip-loc-addr">
+                {pickupAddr ?? `${trip.origin_lat.toFixed(5)}, ${trip.origin_lng.toFixed(5)}`}
+              </span>
+            </div>
+          </div>
+        )}
+        {hasDest && (
+          <div className="trip-loc">
+            <span className="trip-loc-icon">🏁</span>
+            <div className="trip-loc-text">
+              <span className="trip-loc-label">Destination</span>
+              <span className="trip-loc-addr">
+                {destAddr ?? `${trip.dest_lat.toFixed(5)}, ${trip.dest_lng.toFixed(5)}`}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {navTarget && (
+        <button className="action-btn nav-btn" onClick={openNavigation}>
+          🧭 {trip.status === "in_progress" ? "Navigate to destination" : "Navigate to pickup"}
+        </button>
+      )}
+
       {error && <p className="form-error">{error}</p>}
       {trip.status === "accepted" && (
         <button className="action-btn start-btn" onClick={() => handleAction(startTrip)} disabled={busy}>
