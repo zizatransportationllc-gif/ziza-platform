@@ -18,7 +18,7 @@ import {
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, firebaseSignOut } from "./auth";
 import DriverMap from "./DriverMap";
-import ActiveTripMap from "./ActiveTripMap";
+import NavigationView from "./NavigationView";
 import { reverseGeocode } from "./geo";
 
 const REQUIRED_ROLE = "driver";
@@ -195,7 +195,6 @@ function ActiveTripCard({ token, trip, onUpdate }) {
   const [error, setError] = useState(null);
   const [pickupAddr, setPickupAddr] = useState(null);
   const [destAddr, setDestAddr] = useState(null);
-  const [driverLoc, setDriverLoc] = useState(null);
 
   const hasPickup = trip.origin_lat != null && trip.origin_lng != null;
   const hasDest   = trip.dest_lat != null && trip.dest_lng != null;
@@ -207,13 +206,6 @@ function ActiveTripCard({ token, trip, onUpdate }) {
     if (hasDest)   reverseGeocode(trip.dest_lng,   trip.dest_lat).then((a) => { if (active) setDestAddr(a); });
     return () => { active = false; };
   }, [trip.origin_lat, trip.origin_lng, trip.dest_lat, trip.dest_lng]);
-
-  // Driver's last known position (for the map dot + driver→pickup context)
-  useEffect(() => {
-    let active = true;
-    getDriverLocation(token).then((loc) => { if (active && loc) setDriverLoc({ lat: loc.lat, lng: loc.lng }); }).catch(() => {});
-    return () => { active = false; };
-  }, [token]);
 
   // Navigate in the device's map app: to pickup while heading there, to the
   // destination once the ride is in progress.
@@ -241,12 +233,11 @@ function ActiveTripCard({ token, trip, onUpdate }) {
         {trip.duration_min != null && <span>⏱️ ~{trip.duration_min} min</span>}
       </div>
 
-      {/* Trip route — pickup + destination on the map */}
-      {hasPickup && hasDest && (
-        <ActiveTripMap
-          origin={{ lat: trip.origin_lat, lng: trip.origin_lng }}
-          dest={{ lat: trip.dest_lat, lng: trip.dest_lng }}
-          driver={driverLoc}
+      {/* In-app navigation — follows the driver to the current target */}
+      {navTarget && (
+        <NavigationView
+          target={navTarget}
+          label={trip.status === "in_progress" ? "Destination" : "Pickup"}
         />
       )}
 

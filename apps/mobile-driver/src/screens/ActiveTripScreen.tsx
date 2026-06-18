@@ -20,7 +20,7 @@ import { RootStackParamList } from "../navigation/AppNavigator";
 import { useAuth } from "../context/AuthContext";
 import ActiveTripActions from "../components/ActiveTripActions";
 import ChatPanel from "../components/ChatPanel";
-import TripMap from "../components/TripMap";
+import NavigationView from "../components/NavigationView";
 import { startTrip, completeTrip, getActiveTrip, buildNavigationUrl, TripResponse } from "../api";
 
 type ActiveTripRouteProp = RouteProp<RootStackParamList, "ActiveTrip">;
@@ -127,11 +127,10 @@ export default function ActiveTripScreen(): React.ReactElement {
       {currentTrip && (
         <>
           <View style={styles.mapWrap}>
-            <TripMap
-              originLat={currentTrip.origin_lat}
-              originLng={currentTrip.origin_lng}
-              destLat={currentTrip.dest_lat}
-              destLng={currentTrip.dest_lng}
+            <NavigationView
+              targetLat={status === "in_progress" ? currentTrip.dest_lat : currentTrip.origin_lat}
+              targetLng={status === "in_progress" ? currentTrip.dest_lng : currentTrip.origin_lng}
+              label={status === "in_progress" ? "Destination" : "Pickup"}
             />
           </View>
 
