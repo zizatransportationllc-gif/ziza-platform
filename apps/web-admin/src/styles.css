@@ -434,15 +434,3 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .zone-onboarding-actions { display: flex; flex-direction: column; gap: var(--space-4); align-items: center; margin-top: var(--space-4); }
 .zone-onboarding-option { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); max-width: 400px; width: 100%; text-align: left; }
 .zone-onboarding-divider { color: var(--color-muted); font-size: .85rem; }
-
-/* ── Sprint 51 — Landing page editor ── */
-.landing-hint { font-size: 0.85rem; color: var(--color-muted); margin: 0 0 var(--space-4); line-height: 1.5; }
-.landing-section { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-4); }
-.landing-section-title { font-size: 0.95rem; font-weight: 700; margin: 0 0 var(--space-3); color: var(--color-accent); }
-.landing-field { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-3); }
-.landing-label { font-size: 0.8rem; font-weight: 600; color: var(--color-muted); }
-.landing-input { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--color-fg); font-size: 0.9rem; font-family: inherit; outline: none; resize: vertical; }
-.landing-input:focus { border-color: var(--color-accent); }
-.landing-actions { position: sticky; bottom: 0; padding: var(--space-3) 0; background: var(--color-bg); }
-.landing-actions .btn-primary { background: var(--color-accent-strong); color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-3) var(--space-5); font-size: 0.95rem; font-weight: 600; cursor: pointer; }
-.landing-actions .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }

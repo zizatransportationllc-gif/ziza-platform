@@ -21,6 +21,16 @@ const DRIVER_URL    = window.ZIZA_DRIVER_URL   || "http://localhost:3002";
 const CUSTOMER_URL  = window.ZIZA_CUSTOMER_URL || "http://localhost:3001";
 const CRAFT_URL     = window.ZIZA_CRAFT_URL    || "http://localhost:3004";
 
+// Firebase web config (public by design). When ZIZA_FIREBASE_API_KEY is set
+// (prod), the admin editor signs in via Firebase — Google popup or email /
+// password — and exchanges the ID token for a Ziza admin JWT. POST /v1/token
+// is 404 in prod, so the DEV email+password flow is the fallback only when no
+// Firebase key is present (local dev).
+const FIREBASE_API_KEY     = window.ZIZA_FIREBASE_API_KEY     || "";
+const FIREBASE_AUTH_DOMAIN = window.ZIZA_FIREBASE_AUTH_DOMAIN || "";
+const FIREBASE_PROJECT_ID  = window.ZIZA_FIREBASE_PROJECT_ID  || "";
+const firebaseEnabled      = !!FIREBASE_API_KEY;
+
 // URL for the driver sign-up form: ?signup=1 makes web-driver open the
 // "Create Account" tab directly instead of the sign-in form.
 const DRIVER_SIGNUP_URL  = `${DRIVER_URL}?signup=1`;
@@ -252,6 +262,123 @@ function hideAdminModal() {
   if (modal) modal.hidden = true;
 }
 
+// --- Firebase (lazy-loaded compat SDK) ---------------------------------------
+
+const FIREBASE_SDK_VERSION = "10.12.2";
+let _firebaseReady = null;
+
+/** Inject a <script> and resolve once it has loaded. */
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error(`Failed to load ${src}`));
+    document.head.appendChild(s);
+  });
+}
+
+/** Load + initialize the Firebase compat SDK once. Returns firebase.auth(). */
+async function ensureFirebaseAuth() {
+  if (!firebaseEnabled) throw new Error("Firebase is not configured");
+  if (!_firebaseReady) {
+    _firebaseReady = (async () => {
+      if (!window.firebase?.auth) {
+        await loadScript(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-app-compat.js`);
+        await loadScript(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-auth-compat.js`);
+      }
+      if (!window.firebase.apps.length) {
+        window.firebase.initializeApp({
+          apiKey: FIREBASE_API_KEY,
+          authDomain: FIREBASE_AUTH_DOMAIN,
+          projectId: FIREBASE_PROJECT_ID,
+        });
+      }
+    })();
+  }
+  await _firebaseReady;
+  return window.firebase.auth();
+}
+
+/** Exchange a Firebase ID token for a Ziza admin JWT (role resolved from DB). */
+async function exchangeFirebaseIdToken(idToken) {
+  const res = await fetch(`${API_BASE}/v1/auth/firebase`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({ id_token: idToken, role: "admin" }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Sign-in failed");
+  }
+  const { access_token } = await res.json();
+  return access_token;
+}
+
+function friendlyFirebaseError(code) {
+  if (/wrong-password|user-not-found|invalid-credential|invalid-email/.test(code || "")) {
+    return "Invalid credentials";
+  }
+  if (/popup-closed-by-user|cancelled-popup-request/.test(code || "")) {
+    return "Sign-in cancelled";
+  }
+  if (/unauthorized-domain/.test(code || "")) {
+    return "This domain is not authorized for Google sign-in (Firebase settings).";
+  }
+  return null;
+}
+
+/** Email + password sign-in. Firebase in prod, DEV /v1/token fallback locally. */
+async function loginWithEmail(email, password) {
+  if (firebaseEnabled) {
+    const auth = await ensureFirebaseAuth();
+    let cred;
+    try {
+      cred = await auth.signInWithEmailAndPassword(email, password);
+    } catch (e) {
+      throw new Error(friendlyFirebaseError(e.code) || e.message || "Sign-in failed");
+    }
+    const idToken = await cred.user.getIdToken();
+    return exchangeFirebaseIdToken(idToken);
+  }
+  // DEV fallback (POST /v1/token is 404 in prod).
+  const res = await fetch(`${API_BASE}/v1/token`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Invalid credentials");
+  }
+  const { access_token } = await res.json();
+  return access_token;
+}
+
+/** Google popup sign-in (Firebase only). */
+async function loginWithGoogle() {
+  const auth = await ensureFirebaseAuth();
+  const provider = new window.firebase.auth.GoogleAuthProvider();
+  let cred;
+  try {
+    cred = await auth.signInWithPopup(provider);
+  } catch (e) {
+    throw new Error(friendlyFirebaseError(e.code) || e.message || "Sign-in failed");
+  }
+  const idToken = await cred.user.getIdToken();
+  return exchangeFirebaseIdToken(idToken);
+}
+
+/** Validate the admin token, store it, and reveal the editor toolbar. */
+function onAdminAuthenticated(accessToken) {
+  if (!isAdminToken(accessToken)) {
+    throw new Error("This account does not have admin access.");
+  }
+  localStorage.setItem(ADMIN_TOKEN_KEY, accessToken);
+  hideAdminModal();
+  activateAdminBar();
+}
+
 async function handleAdminLogin() {
   const email    = document.getElementById("admin-email")?.value.trim();
   const password = document.getElementById("admin-password")?.value;
@@ -262,25 +389,26 @@ async function handleAdminLogin() {
     if (errEl) { errEl.textContent = "Please enter your email and password."; errEl.hidden = false; }
     return;
   }
+  if (errEl) errEl.hidden = true;
   if (btn) btn.disabled = true;
 
   try {
-    const res = await fetch(`${API_BASE}/v1/token`, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ email, password }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || "Invalid credentials");
-    }
-    const { access_token } = await res.json();
-    if (!isAdminToken(access_token)) {
-      throw new Error("This account does not have admin access.");
-    }
-    localStorage.setItem(ADMIN_TOKEN_KEY, access_token);
-    hideAdminModal();
-    activateAdminBar();
+    onAdminAuthenticated(await loginWithEmail(email, password));
+  } catch (err) {
+    if (errEl) { errEl.textContent = err.message; errEl.hidden = false; }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function handleGoogleLogin() {
+  const errEl = document.getElementById("admin-login-error");
+  const btn   = document.getElementById("admin-google-btn");
+  if (errEl) errEl.hidden = true;
+  if (btn) btn.disabled = true;
+
+  try {
+    onAdminAuthenticated(await loginWithGoogle());
   } catch (err) {
     if (errEl) { errEl.textContent = err.message; errEl.hidden = false; }
   } finally {
@@ -387,6 +515,14 @@ function initAdminMode() {
       showAdminModal();
     }
   });
+
+  // Reveal Google sign-in (+ divider) when Firebase is configured (prod).
+  if (firebaseEnabled) {
+    const gBtn = document.getElementById("admin-google-btn");
+    const divider = document.getElementById("admin-login-divider");
+    if (gBtn) { gBtn.hidden = false; gBtn.addEventListener("click", handleGoogleLogin); }
+    if (divider) divider.hidden = false;
+  }
 
   // Modal buttons
   document.getElementById("admin-login-submit")?.addEventListener("click", handleAdminLogin);

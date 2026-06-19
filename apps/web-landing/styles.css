@@ -321,6 +321,45 @@ a { text-decoration: none; color: inherit; }
 .admin-error[hidden] { display: none; }
 .admin-modal-actions { display: flex; gap: 10px; margin-top: 4px; }
 
+/* ── Admin login: Google button + divider ── */
+.admin-google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: #3c4043;
+  font-size: .95rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--trans), box-shadow var(--trans);
+}
+.admin-google-btn:hover { background: #f7f8f8; box-shadow: 0 1px 4px rgba(15,23,42,.12); }
+.admin-google-btn:disabled { opacity: .6; cursor: not-allowed; }
+.admin-google-btn[hidden] { display: none; }
+.admin-login-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: var(--muted, #94a3b8);
+  font-size: .8rem;
+  margin: 4px 0 12px;
+}
+.admin-login-divider::before,
+.admin-login-divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--border);
+}
+.admin-login-divider span { padding: 0 10px; }
+.admin-login-divider[hidden] { display: none; }
+
 /* ── Admin toolbar (fixed bottom-right) ── */
 .admin-toolbar {
   position: fixed;
