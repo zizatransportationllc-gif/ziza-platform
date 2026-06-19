@@ -22,6 +22,7 @@ import {
   adminListTripMessages, adminListRequestMessages, // Sprint 66 — read conversations
   adminFinanceMetrics, adminFinanceAlerts, adminFinanceTransactions, // WS6 — finance
   adminSetProfessionalStatus, // Sprint 54 (used in Sprint 57 review panel)
+  adminGetLandingContent, adminSetLandingContent, // Sprint 51 — landing editor
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, firebaseSignOut } from "./auth";
 import LiveMap from "./LiveMap";
@@ -3207,6 +3208,156 @@ function FinancePanel({ token }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Sprint 51 — LandingPanel: edit the public landing page (web-landing) content.
+// Each field maps to a [data-editable="<key>"] element in apps/web-landing.
+// ---------------------------------------------------------------------------
+
+const LANDING_SECTIONS = [
+  {
+    title: "Hero",
+    fields: [
+      { key: "hero-title", label: "Hero title", multiline: true },
+      { key: "hero-sub", label: "Hero subtitle", multiline: true },
+    ],
+  },
+  {
+    title: "Features",
+    fields: [
+      { key: "feat-0-title", label: "Feature 1 — title" },
+      { key: "feat-0-desc", label: "Feature 1 — description", multiline: true },
+      { key: "feat-1-title", label: "Feature 2 — title" },
+      { key: "feat-1-desc", label: "Feature 2 — description", multiline: true },
+      { key: "feat-2-title", label: "Feature 3 — title" },
+      { key: "feat-2-desc", label: "Feature 3 — description", multiline: true },
+      { key: "feat-3-title", label: "Feature 4 — title" },
+      { key: "feat-3-desc", label: "Feature 4 — description", multiline: true },
+      { key: "feat-4-title", label: "Feature 5 — title" },
+      { key: "feat-4-desc", label: "Feature 5 — description", multiline: true },
+      { key: "feat-5-title", label: "Feature 6 — title" },
+      { key: "feat-5-desc", label: "Feature 6 — description", multiline: true },
+    ],
+  },
+  {
+    title: "Driver section",
+    fields: [
+      { key: "driver-title", label: "Driver title" },
+      { key: "driver-sub", label: "Driver subtitle", multiline: true },
+    ],
+  },
+  {
+    title: "Download section",
+    fields: [
+      { key: "download-title", label: "Download title" },
+      { key: "download-sub", label: "Download subtitle", multiline: true },
+    ],
+  },
+];
+
+const LANDING_KEYS = LANDING_SECTIONS.flatMap((s) => s.fields.map((f) => f.key));
+
+function LandingPanel({ token }) {
+  const [values, setValues] = useState(null); // { key: html }
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [saved, setSaved] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true); setError(null); setSaved(false);
+    adminGetLandingContent(token)
+      .then((res) => {
+        const content = res?.content || {};
+        const next = {};
+        LANDING_KEYS.forEach((k) => { next[k] = content[k] || ""; });
+        setValues(next);
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  function update(key, val) {
+    setSaved(false);
+    setValues((prev) => ({ ...prev, [key]: val }));
+  }
+
+  async function handleSave() {
+    setSaving(true); setError(null); setSaved(false);
+    // Only send non-empty fields so blanks fall back to the page's built-in default.
+    const payload = {};
+    LANDING_KEYS.forEach((k) => {
+      const v = (values[k] || "").trim();
+      if (v) payload[k] = v;
+    });
+    try {
+      const res = await adminSetLandingContent(token, payload);
+      const content = res?.content || {};
+      const next = {};
+      LANDING_KEYS.forEach((k) => { next[k] = content[k] || ""; });
+      setValues(next);
+      setSaved(true);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="landing-panel">
+      <div className="panel-header">
+        <h2 className="panel-title">🖥️ Landing Page Editor</h2>
+        <button className="refresh-btn" onClick={load} disabled={loading || saving}>↻</button>
+      </div>
+      <p className="landing-hint">
+        Edit the public homepage text. Leave a field blank to keep the page’s
+        built-in default. Changes go live on the landing site after saving.
+      </p>
+      {error && <p className="form-error">{error}</p>}
+      {saved && <div className="status ok">✓ Saved — changes are now live.</div>}
+      {loading && <div className="status loading">⏳ Loading…</div>}
+      {values && (
+        <>
+          {LANDING_SECTIONS.map((section) => (
+            <div key={section.title} className="landing-section">
+              <h3 className="landing-section-title">{section.title}</h3>
+              {section.fields.map((f) => (
+                <div key={f.key} className="landing-field">
+                  <label className="landing-label">{f.label}</label>
+                  {f.multiline ? (
+                    <textarea
+                      className="landing-input"
+                      rows={2}
+                      value={values[f.key]}
+                      placeholder="(default)"
+                      onChange={(e) => update(f.key, e.target.value)}
+                    />
+                  ) : (
+                    <input
+                      className="landing-input"
+                      type="text"
+                      value={values[f.key]}
+                      placeholder="(default)"
+                      onChange={(e) => update(f.key, e.target.value)}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          ))}
+          <div className="landing-actions">
+            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+              {saving ? "Saving…" : "💾 Save changes"}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 const TABS = [
   { id: "stats",        label: "📊 Stats" },
   { id: "trips",        label: "🚕 Trips" },
@@ -3227,6 +3378,7 @@ const TABS = [
   { id: "settings",     label: "⚙️ Settings" },
   { id: "users",        label: "👥 Users" },
   { id: "craft",        label: "🛠️ Craft" },
+  { id: "landing",      label: "🖥️ Landing" },
 ];
 
 function Dashboard({ user, token, onLogout }) {
@@ -3283,6 +3435,7 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "settings"     && <SurgePanel          token={token} />}
       {activeTab === "users"        && <UsersPanel          token={token} />}
       {activeTab === "craft"        && <CraftPanel          token={token} />}
+      {activeTab === "landing"      && <LandingPanel        token={token} />}
 
       <p className="footer">App: <strong>web-admin</strong> · Sprint 65 — User Identity Fields</p>
     </div>
