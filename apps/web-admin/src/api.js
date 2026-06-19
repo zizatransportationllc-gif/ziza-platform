@@ -415,32 +415,6 @@ export async function adminSetFlag(token, flagName, updates) {
 }
 
 // ---------------------------------------------------------------------------
-// Landing page content editor (Sprint 51) — admin edits the public homepage
-// ---------------------------------------------------------------------------
-
-/** Get the current landing page content blocks ({ content: { key: html } }). */
-export async function adminGetLandingContent(token) {
-  const res = await fetch(`${API_BASE}/v1/landing/content`, {
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-  });
-  return _json(res); // { content: { [key]: string } }
-}
-
-/** Upsert landing page content blocks. `content` maps data-editable keys → HTML. */
-export async function adminSetLandingContent(token, content) {
-  const res = await fetch(`${API_BASE}/v1/landing/content`, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({ content }),
-  });
-  return _json(res); // { content: { [key]: string } }
-}
-
-// ---------------------------------------------------------------------------
 // Sprint 31 — Live Drivers
 // ---------------------------------------------------------------------------
 

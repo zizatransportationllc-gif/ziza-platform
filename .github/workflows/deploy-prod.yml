@@ -214,9 +214,13 @@ jobs:
 
           # The landing page is static Nginx: it reads app URLs at runtime from
           # env vars (envsubst -> env-config.js). Without these it falls back to
-          # localhost, so the "Take a ride" / "Become a driver" links break.
+          # localhost, so the "Request a Ride" / "Become a driver" links break.
+          # The ZIZA_FIREBASE_* vars enable the admin inline editor to sign in
+          # via Firebase (Google or email) — POST /v1/token is 404 in prod. The
+          # web Firebase config is PUBLIC by design (same value as the other web
+          # apps; project ziza-platform).
           if [ "${{ matrix.app }}" = "web-landing" ]; then
-            FLAGS+=("--set-env-vars=^|^ZIZA_API_URL=${{ vars.ZIZA_API_URL_PROD }}|ZIZA_CUSTOMER_URL=${{ vars.ZIZA_CUSTOMER_URL_PROD }}|ZIZA_DRIVER_URL=${{ vars.ZIZA_DRIVER_URL_PROD }}|ZIZA_CRAFT_URL=${{ vars.ZIZA_CRAFT_URL_PROD }}")
+            FLAGS+=("--set-env-vars=^|^ZIZA_API_URL=${{ vars.ZIZA_API_URL_PROD }}|ZIZA_CUSTOMER_URL=${{ vars.ZIZA_CUSTOMER_URL_PROD }}|ZIZA_DRIVER_URL=${{ vars.ZIZA_DRIVER_URL_PROD }}|ZIZA_CRAFT_URL=${{ vars.ZIZA_CRAFT_URL_PROD }}|ZIZA_FIREBASE_API_KEY=AIzaSyCv2PZ03w-zBqQ4p2D2b6oVwBga06WG69c|ZIZA_FIREBASE_AUTH_DOMAIN=ziza-platform.firebaseapp.com|ZIZA_FIREBASE_PROJECT_ID=ziza-platform")
           fi
 
           gcloud run deploy "$SERVICE" "${FLAGS[@]}"
