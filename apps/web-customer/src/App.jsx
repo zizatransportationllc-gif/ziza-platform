@@ -17,7 +17,7 @@ import {
   listRequestMessages, sendRequestMessage, // Sprint 66
   submitDocument, listMyDocuments, // Sprint 53
 } from "./api";
-import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, firebaseSignOut } from "./auth";
+import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, sendPasswordReset, firebaseSignOut } from "./auth";
 import { EstimateMap, TripMap } from "./TripMap";
 
 const REQUIRED_ROLE = "customer";
@@ -68,6 +68,16 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
   const [suBirthDate, setSuBirthDate] = useState("");
   const [suPhone, setSuPhone] = useState("");
   const [suError, setSuError] = useState(null);
+  const [resetMsg, setResetMsg] = useState(null);
+
+  async function handleForgot() {
+    setResetMsg(null);
+    if (!email.trim()) { setResetMsg("Enter your email above, then tap again."); return; }
+    try {
+      await sendPasswordReset(email.trim());
+      setResetMsg("Password reset email sent — check your inbox.");
+    } catch (e) { setResetMsg(e.message || "Could not send reset email."); }
+  }
 
   function handleSignup(e) {
     e.preventDefault();
@@ -100,6 +110,10 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
               <span>G</span> Continue with Google
             </button>
           )}
+          {firebaseEnabled && (
+            <button type="button" className="link-btn" onClick={handleForgot}>Forgot password?</button>
+          )}
+          {resetMsg && <p className="hint">{resetMsg}</p>}
           {error && <p className="form-error">{error}</p>}
           <p className="hint">Dev: customer@ziza.dev / ziza2024</p>
         </>
@@ -838,6 +852,14 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
         {trip.category && (
           <div className={`booking-category booking-category-${trip.category}`}>
             {CATEGORY_ICONS[trip.category] ?? "🚗"} {trip.category.charAt(0).toUpperCase() + trip.category.slice(1)}
+          </div>
+        )}
+        {/* Per-trip verification code — share with the driver to confirm pickup */}
+        {trip.verification_code && ["accepted", "in_progress"].includes(trip.status) && (
+          <div className="verify-code-card">
+            <span className="verify-code-label">🔐 Verification code</span>
+            <span className="verify-code-value">{trip.verification_code}</span>
+            <span className="verify-code-hint">Share this with your driver to confirm your ride.</span>
           </div>
         )}
         {/* Sprint 22: ETA card */}

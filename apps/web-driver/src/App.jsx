@@ -16,7 +16,7 @@ import {
   updateDriverLocation, getDriverLocation,
   registerDeviceToken,
 } from "./api";
-import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, firebaseSignOut } from "./auth";
+import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, sendPasswordReset, firebaseSignOut } from "./auth";
 import DriverMap from "./DriverMap";
 import NavigationView from "./NavigationView";
 import { reverseGeocode } from "./geo";
@@ -80,6 +80,16 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
   const [suBirthDate, setSuBirthDate] = useState("");
   const [suPhone, setSuPhone] = useState("");
   const [suError, setSuError] = useState(null);
+  const [resetMsg, setResetMsg] = useState(null);
+
+  async function handleForgot() {
+    setResetMsg(null);
+    if (!email.trim()) { setResetMsg("Enter your email above, then tap again."); return; }
+    try {
+      await sendPasswordReset(email.trim());
+      setResetMsg("Password reset email sent — check your inbox.");
+    } catch (e) { setResetMsg(e.message || "Could not send reset email."); }
+  }
 
   function handleSignup(e) {
     e.preventDefault();
@@ -112,6 +122,10 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
               <span>G</span> Continue with Google
             </button>
           )}
+          {firebaseEnabled && (
+            <button type="button" className="link-btn" onClick={handleForgot}>Forgot password?</button>
+          )}
+          {resetMsg && <p className="hint">{resetMsg}</p>}
           {error && <p className="form-error">{error}</p>}
           <p className="hint">Dev: driver@ziza.dev / ziza2024</p>
         </>
@@ -233,6 +247,14 @@ function ActiveTripCard({ token, trip, onUpdate }) {
       </div>
 
       {/* In-app navigation — follows the driver to the current target */}
+      {trip.verification_code && (
+        <div className="verify-code-card">
+          <span className="verify-code-label">🔐 Verification code</span>
+          <span className="verify-code-value">{trip.verification_code}</span>
+          <span className="verify-code-hint">Ask the customer to confirm this code before the ride.</span>
+        </div>
+      )}
+
       {navTarget && (
         <NavigationView
           target={navTarget}

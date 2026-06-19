@@ -13,7 +13,7 @@ import {
   registerDeviceToken,
   formatUSD,
 } from "./api";
-import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, firebaseSignOut } from "./auth";
+import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, sendPasswordReset, firebaseSignOut } from "./auth";
 
 const REQUIRED_ROLE = "professional";
 const TOKEN_KEY = "ziza_craft_token";
@@ -83,6 +83,16 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
   const [suBirthDate, setSuBirthDate] = useState("");
   const [suPhone, setSuPhone] = useState("");
   const [suError, setSuError] = useState(null);
+  const [resetMsg, setResetMsg] = useState(null);
+
+  async function handleForgot() {
+    setResetMsg(null);
+    if (!email.trim()) { setResetMsg("Enter your email above, then tap again."); return; }
+    try {
+      await sendPasswordReset(email.trim());
+      setResetMsg("Password reset email sent — check your inbox.");
+    } catch (e) { setResetMsg(e.message || "Could not send reset email."); }
+  }
 
   function handleSignup(e) {
     e.preventDefault();
@@ -115,6 +125,10 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
               <span>G</span> Continue with Google
             </button>
           )}
+          {firebaseEnabled && (
+            <button type="button" className="link-btn" onClick={handleForgot}>Forgot password?</button>
+          )}
+          {resetMsg && <p className="hint">{resetMsg}</p>}
           {error && <p className="form-error">{error}</p>}
           <p className="hint">Dev: professional@ziza.dev / ziza2024</p>
         </>

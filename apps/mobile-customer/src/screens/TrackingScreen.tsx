@@ -60,6 +60,13 @@ export default function TrackingScreen(): React.ReactElement {
       />
       <View style={styles.info}>
         <Text style={styles.status}>Status: {trip?.status ?? "…"}</Text>
+        {trip?.verification_code && (trip.status === "accepted" || trip.status === "in_progress") && (
+          <View style={styles.codeCard}>
+            <Text style={styles.codeLabel}>🔐 VERIFICATION CODE</Text>
+            <Text style={styles.codeValue}>{trip.verification_code}</Text>
+            <Text style={styles.codeHint}>Share this with your driver to confirm your ride.</Text>
+          </View>
+        )}
         {trip?.eta_minutes != null && (
           <EtaCard etaMinutes={trip.eta_minutes} />
         )}
@@ -88,6 +95,10 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   info: { padding: 16 },
   status: { fontSize: 16, fontWeight: "600", marginBottom: 8 },
+  codeCard: { alignItems: "center", backgroundColor: "#FFF7ED", borderWidth: 1, borderColor: "#F97316", borderStyle: "dashed", borderRadius: 10, paddingVertical: 12, marginBottom: 10 },
+  codeLabel: { fontSize: 11, fontWeight: "700", color: "#9A3412", letterSpacing: 1 },
+  codeValue: { fontSize: 30, fontWeight: "800", letterSpacing: 8, color: "#111827" },
+  codeHint: { fontSize: 12, color: "#6B7280" },
   payButton: {
     backgroundColor: "#16A34A",
     borderRadius: 8,

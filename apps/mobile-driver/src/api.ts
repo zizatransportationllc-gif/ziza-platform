@@ -68,6 +68,7 @@ export interface TripResponse {
   fare_cents: number | null;
   distance_km: number | null;
   duration_min: number | null;
+  verification_code: string | null;
   origin_lat: number;
   origin_lng: number;
   dest_lat: number;

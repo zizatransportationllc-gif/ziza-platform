@@ -36,6 +36,7 @@ function makeTripResponse(overrides: Partial<TripResponse> = {}): TripResponse {
     fare_cents: 3500,
     distance_km: 2.4,
     duration_min: 8,
+    verification_code: "1234",
     category: "comfort",
     created_at: "2026-05-26T10:00:00Z",
     ...overrides,

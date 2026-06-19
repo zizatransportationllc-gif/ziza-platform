@@ -45,6 +45,9 @@ class Trip(Base):
     fare_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
     distance_km: Mapped[float | None] = mapped_column(Float, nullable=True)
     duration_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Short code generated at booking, shown to both the customer and the
+    # assigned driver so they can confirm they're meeting the right person.
+    verification_code: Mapped[str | None] = mapped_column(String(8), nullable=True)
     # Sprint 14: optional promo code applied at booking
     promo_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     discount_pct: Mapped[int | None] = mapped_column(Integer, nullable=True)
