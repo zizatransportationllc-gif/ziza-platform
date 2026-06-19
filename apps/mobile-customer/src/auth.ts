@@ -47,3 +47,10 @@ export async function signInEmail(email: string, password: string): Promise<stri
   const cred = await fb.signInWithEmailAndPassword(auth, email, password);
   return cred.user.getIdToken();
 }
+
+/** Send a Firebase password-reset email to the given address. */
+export async function sendPasswordReset(email: string): Promise<void> {
+  const fb: any = await import("firebase/auth");
+  const auth = await getFirebaseAuth();
+  await fb.sendPasswordResetEmail(auth, email);
+}

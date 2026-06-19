@@ -80,6 +80,7 @@ export interface TripResponse {
   dest_lng: number;
   price_cents: number;
   eta_minutes: number | null;
+  verification_code: string | null;  // shared pickup code (customer ↔ driver)
   paid_at: string | null;  // Sprint 42: set when payment is confirmed
   created_at: string;
 }

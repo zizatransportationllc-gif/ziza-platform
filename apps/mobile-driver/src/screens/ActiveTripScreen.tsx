@@ -118,6 +118,14 @@ export default function ActiveTripScreen(): React.ReactElement {
       <Text style={styles.heading}>Trip #{tripId.slice(0, 8)}</Text>
       <Text style={styles.status}>Status: {status}</Text>
 
+      {currentTrip?.verification_code && (
+        <View style={styles.codeCard}>
+          <Text style={styles.codeLabel}>🔐 VERIFICATION CODE</Text>
+          <Text style={styles.codeValue}>{currentTrip.verification_code}</Text>
+          <Text style={styles.codeHint}>Ask the customer to confirm this code.</Text>
+        </View>
+      )}
+
       {currentTrip && (
         <>
           <View style={styles.mapWrap}>
@@ -186,6 +194,10 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   heading: { fontSize: 22, fontWeight: "bold", marginBottom: 8 },
   status: { fontSize: 16, color: "#374151", marginBottom: 4 },
+  codeCard: { alignItems: "center", backgroundColor: "#EFF6FF", borderWidth: 1, borderColor: "#1D4ED8", borderStyle: "dashed", borderRadius: 10, paddingVertical: 12, marginVertical: 10 },
+  codeLabel: { fontSize: 11, fontWeight: "700", color: "#6B7280", letterSpacing: 1 },
+  codeValue: { fontSize: 30, fontWeight: "800", letterSpacing: 8, color: "#111827" },
+  codeHint: { fontSize: 12, color: "#6B7280" },
   price: { fontSize: 24, fontWeight: "bold", color: "#1D4ED8", marginBottom: 16 },
   mapWrap: { borderRadius: 10, overflow: "hidden", marginBottom: 12 },
   locRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 8 },

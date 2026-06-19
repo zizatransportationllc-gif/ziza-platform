@@ -76,6 +76,19 @@ def test_create_trip_from_estimate() -> None:
     assert body["fare_cents"] >= 500
 
 
+def test_create_trip_has_verification_code() -> None:
+    """A booked trip gets a stable 4-digit verification code shared with the driver."""
+    token = _get_token()
+    _register(token)
+    estimate_id = _get_estimate(token)
+    trip = _create_trip(token, estimate_id).json()
+    code = trip["verification_code"]
+    assert isinstance(code, str) and len(code) == 4 and code.isdigit()
+    # Stable: re-fetching the trip returns the same code
+    again = client.get(f"/v1/trips/{trip['trip_id']}", headers={"Authorization": f"Bearer {token}"})
+    assert again.json()["verification_code"] == code
+
+
 def test_create_trip_copies_fare_and_route() -> None:
     token = _get_token()
     _register(token)

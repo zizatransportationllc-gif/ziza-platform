@@ -13,9 +13,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Alert,
 } from "react-native";
 import { login as apiLogin, signup as apiSignup, exchangeFirebaseToken as apiExchangeFirebase } from "../api";
-import { firebaseEnabled, signInEmail, signUpEmail } from "../auth";
+import { firebaseEnabled, signInEmail, signUpEmail, sendPasswordReset } from "../auth";
 import { useAuth } from "../context/AuthContext";
 import ZizaCustomerLogo from "../components/ZizaCustomerLogo";
 
@@ -53,6 +54,16 @@ export default function LoginScreen(): React.ReactElement {
       setError(e.message || "Login failed");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgot = async () => {
+    if (!email.trim()) { Alert.alert("Forgot password", "Enter your email above first."); return; }
+    try {
+      await sendPasswordReset(email.trim());
+      Alert.alert("Password reset", "A reset email has been sent — check your inbox.");
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Could not send reset email.");
     }
   };
 
@@ -113,6 +124,11 @@ export default function LoginScreen(): React.ReactElement {
             <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
               {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign In</Text>}
             </TouchableOpacity>
+            {firebaseEnabled && (
+              <TouchableOpacity onPress={handleForgot}>
+                <Text style={styles.forgot}>Forgot password?</Text>
+              </TouchableOpacity>
+            )}
             <Text style={styles.hint}>Dev: customer@ziza.dev / ziza2024</Text>
           </>
         ) : (
@@ -162,4 +178,5 @@ const styles = StyleSheet.create({
   buttonText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
   error: { color: "red", textAlign: "center", marginBottom: 12, fontSize: 14 },
   hint: { fontSize: 12, color: "#aaa", textAlign: "center", marginTop: 12 },
+  forgot: { fontSize: 13, color: "#F97316", textAlign: "center", marginTop: 12, textDecorationLine: "underline" },
 });

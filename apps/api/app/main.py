@@ -842,6 +842,7 @@ class TripResponse(BaseModel):
     fare_cents: int | None = None
     distance_km: float | None = None
     duration_min: int | None = None
+    verification_code: str | None = None  # shared pickup code (customer ↔ driver)
     estimate_id: str | None = None
     origin_lat: float | None = None
     origin_lng: float | None = None
@@ -874,6 +875,7 @@ def _trip_response(trip, events=None, vehicle=None) -> TripResponse:
         fare_cents=trip.fare_cents,
         distance_km=trip.distance_km,
         duration_min=trip.duration_min,
+        verification_code=getattr(trip, "verification_code", None),
         estimate_id=str(trip.estimate_id) if trip.estimate_id else None,
         origin_lat=trip.origin_lat,
         origin_lng=trip.origin_lng,

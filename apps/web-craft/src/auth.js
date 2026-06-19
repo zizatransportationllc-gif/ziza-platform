@@ -47,6 +47,13 @@ export async function signInEmail(email, password) {
   return cred.user.getIdToken();
 }
 
+/** Send a Firebase password-reset email to the given address. */
+export async function sendPasswordReset(email) {
+  const { sendPasswordResetEmail } = await import("firebase/auth");
+  const auth = await getFirebaseAuth();
+  await sendPasswordResetEmail(auth, email);
+}
+
 /** Sign out of Firebase. */
 export async function firebaseSignOut() {
   if (!_auth) return;

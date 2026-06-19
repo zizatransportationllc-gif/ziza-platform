@@ -8,6 +8,7 @@ from __future__ import annotations
 import base64
 import io
 import math
+import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -507,6 +508,8 @@ async def create_trip(
         promo_code=promo_code.upper().strip() if promo_code else None,
         discount_pct=applied_discount_pct,
         category=category,
+        # 4-digit code the customer shares with the driver to confirm the pickup
+        verification_code=f"{secrets.randbelow(10000):04d}",
     )
     db.add(trip)
     await db.flush()  # populate trip.id without committing yet
