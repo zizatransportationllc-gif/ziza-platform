@@ -761,8 +761,16 @@ async def estimate(
         body.dest_lat, body.dest_lng,
     )
     surge = await crud.get_surge_multiplier(db)  # Sprint 16: read from DB (falls back to config)
-    base_cents, per_mile_cents = await crud.get_pricing(db)  # Sprint 66: admin-configurable USD pricing
-    fare = calculate_fare(route.distance_km, base_cents, per_mile_cents, surge)
+    cfg = await crud.get_pricing_config(db)  # admin-configurable fare formula (USD cents)
+    fare = calculate_fare(
+        route.distance_km,
+        cfg["base_fare_cents"],
+        cfg["per_mile_cents"],
+        surge,
+        per_minute_cents=cfg["per_minute_cents"],
+        duration_min=route.duration_min,
+        min_fare_cents=cfg["min_fare_cents"],
+    )
 
     now = datetime.now(timezone.utc)
     expires = now + timedelta(minutes=settings.fare_estimate_ttl_minutes)
@@ -785,7 +793,8 @@ async def estimate(
     await db.commit()
     await db.refresh(est)
 
-    # Sprint 21: compute per-category fares
+    # Sprint 21: compute per-category fares using the configurable multipliers
+    cat_multipliers = await crud.get_category_multipliers(db)
     category_options = {
         cat: CategoryFareOption(
             fare_cents=max(1, round(est.fare_cents * mult)),
@@ -793,7 +802,7 @@ async def estimate(
             description=crud.CATEGORY_DESCRIPTIONS[cat],
             multiplier=mult,
         )
-        for cat, mult in crud.CATEGORY_MULTIPLIERS.items()
+        for cat, mult in cat_multipliers.items()
     }
 
     return EstimateResponse(
@@ -2154,6 +2163,9 @@ async def admin_set_surge(
 class PricingResponse(BaseModel):
     base_fare_cents: int       # base fare in USD cents (e.g. 250 = $2.50)
     per_mile_cents: int        # rate per mile in USD cents (e.g. 175 = $1.75)
+    per_minute_cents: int      # rate per minute in USD cents (0 = time component off)
+    min_fare_cents: int        # minimum fare floor in USD cents
+    category_multipliers: dict[str, float]  # economy / comfort / premium
     currency: str = "USD"
 
 
@@ -2164,6 +2176,19 @@ class PricingUpdateRequest(BaseModel):
     per_mile_cents: Annotated[
         int, Field(ge=1, le=100_000, description="Rate per mile in USD cents")
     ]
+    per_minute_cents: Annotated[
+        int, Field(ge=0, le=100_000, description="Rate per minute in USD cents")
+    ] = 0
+    min_fare_cents: Annotated[
+        int | None, Field(default=None, ge=1, le=100_000, description="Minimum fare floor in USD cents")
+    ] = None
+    category_multipliers: dict[str, float] | None = None
+
+
+async def _pricing_response(db: AsyncSession) -> PricingResponse:
+    cfg = await crud.get_pricing_config(db)
+    mults = await crud.get_category_multipliers(db)
+    return PricingResponse(**cfg, category_multipliers=mults)
 
 
 @app.get("/v1/admin/settings/pricing", tags=["admin"])
@@ -2171,14 +2196,14 @@ async def admin_get_pricing(
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PricingResponse:
-    """Admin: return the current base fare and per-mile rate (USD cents)."""
+    """Admin: return the full fare formula (base, per-mile, per-minute, minimum,
+    and per-category multipliers)."""
     if claims.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",
         )
-    base_cents, per_mile_cents = await crud.get_pricing(db)
-    return PricingResponse(base_fare_cents=base_cents, per_mile_cents=per_mile_cents)
+    return await _pricing_response(db)
 
 
 @app.patch("/v1/admin/settings/pricing", tags=["admin"])
@@ -2187,19 +2212,23 @@ async def admin_set_pricing(
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PricingResponse:
-    """Admin: set the base fare and per-mile rate (USD cents).
-
-    Takes effect immediately on subsequent calls to POST /v1/estimate.
+    """Admin: set the fare formula coefficients (USD cents) + per-category
+    multipliers. Takes effect immediately on subsequent POST /v1/estimate calls.
     """
     if claims.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",
         )
-    base_cents, per_mile_cents = await crud.set_pricing(
-        db, body.base_fare_cents, body.per_mile_cents
+    await crud.set_pricing_config(
+        db,
+        body.base_fare_cents,
+        body.per_mile_cents,
+        per_minute_cents=body.per_minute_cents,
+        min_fare_cents=body.min_fare_cents,
+        category_multipliers=body.category_multipliers,
     )
-    return PricingResponse(base_fare_cents=base_cents, per_mile_cents=per_mile_cents)
+    return await _pricing_response(db)
 
 
 # ---------------------------------------------------------------------------

@@ -169,16 +169,25 @@ def calculate_fare(
     base_fare_cents: int,
     per_mile_cents: int,
     surge: float = 1.0,
+    per_minute_cents: int = 0,
+    duration_min: float = 0.0,
+    min_fare_cents: int | None = None,
 ) -> int:
     """Return the fare in USD cents (integer).
 
-    ``base_fare_cents`` and ``per_mile_cents`` are supplied by the caller (read
-    from the admin-configurable platform settings; see crud.get_pricing).
+    All coefficients are admin-configurable platform settings
+    (see crud.get_pricing_config).
 
     Formula::
         miles = distance_km / 1.609344
-        fare  = max(base_fare_cents, round((base_fare_cents + miles × per_mile_cents) × surge))
+        raw   = (base_fare_cents + miles × per_mile_cents
+                                 + duration_min × per_minute_cents) × surge
+        fare  = max(min_fare_cents, round(raw))
+
+    ``min_fare_cents`` defaults to ``base_fare_cents`` when not supplied (keeps
+    the historical "fare never below the base" behaviour).
     """
     miles = distance_km / _KM_PER_MILE
-    raw = (base_fare_cents + miles * per_mile_cents) * surge
-    return max(base_fare_cents, round(raw))
+    raw = (base_fare_cents + miles * per_mile_cents + duration_min * per_minute_cents) * surge
+    floor = base_fare_cents if min_fare_cents is None else min_fare_cents
+    return max(floor, round(raw))

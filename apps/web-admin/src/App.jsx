@@ -6,6 +6,7 @@ import {
   adminCreatePromo, adminListPromos, adminDeactivatePromo, adminSetDriverStatus,
   adminListPayouts, adminUpdatePayoutStatus, adminListRatings,
   adminGetSurge, adminSetSurge,
+  adminGetPricing, adminSetPricing, // configurable fare formula
   adminListDocuments, adminUpdateDocumentStatus, adminGetPendingCounts,
   getCommissionSettings, setCommission, runPayoutBatch, // Sprint 29
   adminListApplications, adminReviewApplication, // Sprint 30
@@ -1154,6 +1155,105 @@ function RatingsPanel({ token }) {
 // ---------------------------------------------------------------------------
 // Surge Pricing Panel — Sprint 16
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Fare Formula Panel — admin-configurable pricing coefficients
+// ---------------------------------------------------------------------------
+
+function _pricingForm(d) {
+  return {
+    base: (d.base_fare_cents / 100).toFixed(2),
+    perMile: (d.per_mile_cents / 100).toFixed(2),
+    perMinute: (d.per_minute_cents / 100).toFixed(2),
+    minFare: (d.min_fare_cents / 100).toFixed(2),
+    economy: String(d.category_multipliers?.economy ?? 1),
+    comfort: String(d.category_multipliers?.comfort ?? 1.4),
+    premium: String(d.category_multipliers?.premium ?? 2),
+  };
+}
+
+function PricingPanel({ token }) {
+  const [form, setForm] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [saved, setSaved] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true); setError(null); setSaved(false);
+    adminGetPricing(token)
+      .then((d) => setForm(_pricingForm(d)))
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  function upd(k, v) { setSaved(false); setForm((f) => ({ ...f, [k]: v })); }
+
+  async function handleSave(e) {
+    e.preventDefault();
+    const toCents = (v) => Math.round(parseFloat(v) * 100);
+    setSaving(true); setError(null); setSaved(false);
+    try {
+      const d = await adminSetPricing(token, {
+        base_fare_cents: toCents(form.base),
+        per_mile_cents: toCents(form.perMile),
+        per_minute_cents: toCents(form.perMinute),
+        min_fare_cents: toCents(form.minFare),
+        category_multipliers: {
+          economy: parseFloat(form.economy),
+          comfort: parseFloat(form.comfort),
+          premium: parseFloat(form.premium),
+        },
+      });
+      setForm(_pricingForm(d));
+      setSaved(true); setTimeout(() => setSaved(false), 3000);
+    } catch (err) { setError(err.message); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <div className="pricing-panel">
+      <div className="panel-header">
+        <h2 className="panel-title">💵 Fare Formula</h2>
+        <button className="refresh-btn" onClick={load} disabled={loading || saving}>↻</button>
+      </div>
+      <p className="pricing-formula">
+        fare = max(<strong>min</strong>, (<strong>base</strong> + miles×<strong>per-mile</strong> + minutes×<strong>per-minute</strong>) × surge) × <strong>category</strong>
+      </p>
+      {error && <p className="form-error">{error}</p>}
+      {saved && <div className="status ok">✓ Saved — applies to new estimates immediately.</div>}
+      {loading && <div className="status loading">⏳ Loading…</div>}
+      {form && (
+        <form className="pricing-form" onSubmit={handleSave}>
+          <div className="pricing-grid">
+            <label className="pricing-field"><span>Base fare ($)</span>
+              <input type="number" step="0.01" min="0.01" value={form.base} onChange={(e) => upd("base", e.target.value)} required /></label>
+            <label className="pricing-field"><span>Per mile ($)</span>
+              <input type="number" step="0.01" min="0.01" value={form.perMile} onChange={(e) => upd("perMile", e.target.value)} required /></label>
+            <label className="pricing-field"><span>Per minute ($)</span>
+              <input type="number" step="0.01" min="0" value={form.perMinute} onChange={(e) => upd("perMinute", e.target.value)} required /></label>
+            <label className="pricing-field"><span>Minimum fare ($)</span>
+              <input type="number" step="0.01" min="0.01" value={form.minFare} onChange={(e) => upd("minFare", e.target.value)} required /></label>
+          </div>
+          <h3 className="pricing-subtitle">Category multipliers</h3>
+          <div className="pricing-grid">
+            <label className="pricing-field"><span>Economy ×</span>
+              <input type="number" step="0.05" min="0.1" value={form.economy} onChange={(e) => upd("economy", e.target.value)} required /></label>
+            <label className="pricing-field"><span>Comfort ×</span>
+              <input type="number" step="0.05" min="0.1" value={form.comfort} onChange={(e) => upd("comfort", e.target.value)} required /></label>
+            <label className="pricing-field"><span>Premium ×</span>
+              <input type="number" step="0.05" min="0.1" value={form.premium} onChange={(e) => upd("premium", e.target.value)} required /></label>
+          </div>
+          <button type="submit" className="pricing-save-btn" disabled={saving}>
+            {saving ? "Saving…" : "💾 Save fare formula"}
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
 
 function SurgePanel({ token }) {
   const [current, setCurrent] = useState(null);
@@ -3248,6 +3348,7 @@ const TABS = [
   { id: "applications", label: "📝 Applications" },
   { id: "flags",        label: "🚩 Feature Flags" },
   { id: "services",     label: "🔧 Services" },
+  { id: "pricing",      label: "💵 Fares" },
   { id: "settings",     label: "⚙️ Settings" },
   { id: "users",        label: "👥 Users" },
   { id: "craft",        label: "🛠️ Craft" },
@@ -3304,6 +3405,7 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "analytics"    && <AnalyticsPanel       token={token} />}
       {activeTab === "flags"        && <FlagsPanel          token={token} />}
       {activeTab === "services"     && <ServicesPanel       token={token} />}
+      {activeTab === "pricing"      && <PricingPanel        token={token} />}
       {activeTab === "settings"     && <SurgePanel          token={token} />}
       {activeTab === "users"        && <UsersPanel          token={token} />}
       {activeTab === "craft"        && <CraftPanel          token={token} />}
