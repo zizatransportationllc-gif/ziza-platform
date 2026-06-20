@@ -524,6 +524,12 @@ function initAdminMode() {
     if (divider) divider.hidden = false;
   }
 
+  // Show / hide the password field
+  document.getElementById("admin-show-pw")?.addEventListener("change", (e) => {
+    const pw = document.getElementById("admin-password");
+    if (pw) pw.type = e.target.checked ? "text" : "password";
+  });
+
   // Modal buttons
   document.getElementById("admin-login-submit")?.addEventListener("click", handleAdminLogin);
   document.getElementById("admin-login-cancel")?.addEventListener("click", hideAdminModal);

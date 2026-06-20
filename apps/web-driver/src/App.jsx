@@ -62,6 +62,26 @@ function formatUSD(n) {
 // Login form
 // ---------------------------------------------------------------------------
 
+// Password input with a "Show password" checkbox (toggles visibility).
+function PasswordInput({ value, onChange, placeholder, required }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="password-field">
+      <input
+        type={show ? "text" : "password"}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        required={required}
+      />
+      <label className="password-toggle">
+        <input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} />
+        Show password
+      </label>
+    </div>
+  );
+}
+
 function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
   // Open the sign-up tab directly when the landing page links with ?signup=1
   const initTab = new URLSearchParams(window.location.search).get("signup") === "1"
@@ -114,7 +134,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
         <>
           <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
+            <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
             <button type="submit" disabled={loading}>{loading ? "Signing in…" : "Sign In"}</button>
           </form>
           {firebaseEnabled && (
@@ -136,8 +156,8 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
             <input type="text" value={suLastName} onChange={(e) => setSuLastName(e.target.value)} placeholder="Last name" required />
             <input type="date" value={suBirthDate} onChange={(e) => setSuBirthDate(e.target.value)} placeholder="Date of birth" required />
             <input type="email" value={suEmail} onChange={(e) => setSuEmail(e.target.value)} placeholder="Email address" required />
-            <input type="password" value={suPassword} onChange={(e) => setSuPassword(e.target.value)} placeholder="Password (min. 6 characters)" required />
-            <input type="password" value={suConfirm} onChange={(e) => setSuConfirm(e.target.value)} placeholder="Confirm password" required />
+            <PasswordInput value={suPassword} onChange={(e) => setSuPassword(e.target.value)} placeholder="Password (min. 6 characters)" required />
+            <PasswordInput value={suConfirm} onChange={(e) => setSuConfirm(e.target.value)} placeholder="Confirm password" required />
             <input type="tel" value={suPhone} onChange={(e) => setSuPhone(e.target.value)} placeholder="Phone number" />
             <button type="submit" disabled={loading}>{loading ? "Creating account…" : "Apply as Driver"}</button>
           </form>

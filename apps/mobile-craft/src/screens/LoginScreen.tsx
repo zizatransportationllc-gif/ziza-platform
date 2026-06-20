@@ -19,6 +19,37 @@ import { login as apiLogin, signup as apiSignup, exchangeFirebaseToken as apiExc
 import { firebaseEnabled, signInEmail, signUpEmail, sendPasswordReset } from "../auth";
 import { useAuth } from "../context/AuthContext";
 
+// Password field with a "Show password" checkbox (toggles visibility).
+function PasswordField({
+  value,
+  onChangeText,
+  placeholder,
+}: {
+  value: string;
+  onChangeText: (t: string) => void;
+  placeholder: string;
+}): React.ReactElement {
+  const [show, setShow] = useState(false);
+  return (
+    <View style={styles.pwField}>
+      <TextInput
+        style={[styles.input, styles.pwInputTight]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        secureTextEntry={!show}
+        autoCapitalize="none"
+      />
+      <TouchableOpacity style={styles.pwToggle} onPress={() => setShow((s) => !s)} activeOpacity={0.7}>
+        <View style={[styles.pwCheckbox, show && styles.pwCheckboxOn]}>
+          {show ? <Text style={styles.pwCheckmark}>✓</Text> : null}
+        </View>
+        <Text style={styles.pwToggleLabel}>Show password</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 export default function LoginScreen(): React.ReactElement {
   const { login } = useAuth();
 
@@ -117,7 +148,7 @@ export default function LoginScreen(): React.ReactElement {
         {tab === "signin" ? (
           <>
             <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder="Email" keyboardType="email-address" autoCapitalize="none" />
-            <TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry />
+            <PasswordField value={password} onChangeText={setPassword} placeholder="Password" />
             <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
               {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign In</Text>}
             </TouchableOpacity>
@@ -134,8 +165,8 @@ export default function LoginScreen(): React.ReactElement {
             <TextInput style={styles.input} value={suLastName} onChangeText={setSuLastName} placeholder="Last name" autoCapitalize="words" />
             <TextInput style={styles.input} value={suBirthDate} onChangeText={setSuBirthDate} placeholder="Date of birth (YYYY-MM-DD)" keyboardType="numbers-and-punctuation" />
             <TextInput style={styles.input} value={suEmail} onChangeText={setSuEmail} placeholder="Email address" keyboardType="email-address" autoCapitalize="none" />
-            <TextInput style={styles.input} value={suPassword} onChangeText={setSuPassword} placeholder="Password (min. 6 characters)" secureTextEntry />
-            <TextInput style={styles.input} value={suConfirm} onChangeText={setSuConfirm} placeholder="Confirm password" secureTextEntry />
+            <PasswordField value={suPassword} onChangeText={setSuPassword} placeholder="Password (min. 6 characters)" />
+            <PasswordField value={suConfirm} onChangeText={setSuConfirm} placeholder="Confirm password" />
             <TextInput style={styles.input} value={suPhone} onChangeText={setSuPhone} placeholder="Phone number (optional)" keyboardType="phone-pad" />
             <TouchableOpacity style={styles.button} onPress={handleSignup} disabled={loading}>
               {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Join as Professional</Text>}
@@ -172,6 +203,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     fontSize: 16,
   },
+  pwField: { marginBottom: 12 },
+  pwInputTight: { marginBottom: 6 },
+  pwToggle: { flexDirection: "row", alignItems: "center" },
+  pwCheckbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: "#bbb", alignItems: "center", justifyContent: "center", marginRight: 8 },
+  pwCheckboxOn: { backgroundColor: "#059669", borderColor: "#059669" },
+  pwCheckmark: { color: "#fff", fontSize: 12, fontWeight: "bold", lineHeight: 14 },
+  pwToggleLabel: { fontSize: 13, color: "#666" },
   button: {
     backgroundColor: "#059669",
     borderRadius: 8,

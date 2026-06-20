@@ -319,6 +319,8 @@ a { text-decoration: none; color: inherit; }
   margin-bottom: 12px;
 }
 .admin-error[hidden] { display: none; }
+.admin-show-pw { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted, #64748b); margin: -4px 0 12px; cursor: pointer; }
+.admin-show-pw input { width: auto; margin: 0; cursor: pointer; }
 .admin-modal-actions { display: flex; gap: 10px; margin-top: 4px; }
 
 /* ── Admin login: Google button + divider ── */
