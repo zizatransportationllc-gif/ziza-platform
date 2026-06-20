@@ -124,6 +124,7 @@ async function _patch(token, url) {
 
 export const acceptTrip  = (token, id) => _patch(token, `${API_BASE}/v1/trips/${id}/accept`);
 export const startTrip   = (token, id) => _patch(token, `${API_BASE}/v1/trips/${id}/start`);
+export const markArrived = (token, id) => _patch(token, `${API_BASE}/v1/trips/${id}/arrived`);
 export const completeTrip = (token, id) => _patch(token, `${API_BASE}/v1/trips/${id}/complete`);
 
 // ---------------------------------------------------------------------------

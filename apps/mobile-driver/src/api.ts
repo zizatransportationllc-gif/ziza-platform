@@ -345,6 +345,18 @@ export async function startTrip(
   return _json<TripResponse>(res);
 }
 
+// Driver confirms arrival at the pickup (end of leg 1) → status "arrived".
+export async function markArrived(
+  token: string,
+  tripId: string
+): Promise<TripResponse> {
+  const res = await fetch(`${API_BASE}/v1/trips/${tripId}/arrived`, {
+    method: "PATCH",
+    headers: _auth(token),
+  });
+  return _json<TripResponse>(res);
+}
+
 export async function completeTrip(
   token: string,
   tripId: string

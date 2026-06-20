@@ -1168,6 +1168,41 @@ async def start_trip(
     return _trip_response(trip)
 
 
+@app.patch("/v1/trips/{trip_id}/arrived", tags=["drivers"])
+async def mark_trip_arrived(
+    trip_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TripResponse:
+    """Driver confirms arrival at the pickup point → arrived (end of leg 1).
+
+    The trip then waits for the customer to confirm they are on board before
+    leg 2 (pickup → destination) can begin.
+    """
+    if claims.role != "driver":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers can confirm arrival",
+        )
+    trip = await crud.mark_trip_arrived(db, trip_id, claims.user_id)
+    return _trip_response(trip)
+
+
+@app.patch("/v1/trips/{trip_id}/board", tags=["rides"])
+async def confirm_trip_onboard(
+    trip_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TripResponse:
+    """Customer confirms they are in the car → in_progress (starts leg 2).
+
+    Only allowed once the driver has marked arrival. This is the gate: leg 2
+    cannot start until the customer confirms pickup.
+    """
+    trip = await crud.confirm_trip_onboard(db, trip_id, claims.user_id)
+    return _trip_response(trip)
+
+
 @app.patch("/v1/trips/{trip_id}/complete", tags=["drivers"])
 async def complete_trip(
     trip_id: str,

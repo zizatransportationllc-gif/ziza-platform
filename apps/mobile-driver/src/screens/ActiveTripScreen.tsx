@@ -21,7 +21,7 @@ import { useAuth } from "../context/AuthContext";
 import ActiveTripActions from "../components/ActiveTripActions";
 import ChatPanel from "../components/ChatPanel";
 import NavigationView from "../components/NavigationView";
-import { startTrip, completeTrip, getActiveTrip, buildNavigationUrl, TripResponse } from "../api";
+import { markArrived, completeTrip, getActiveTrip, buildNavigationUrl, TripResponse } from "../api";
 
 type ActiveTripRouteProp = RouteProp<RootStackParamList, "ActiveTrip">;
 
@@ -73,11 +73,11 @@ export default function ActiveTripScreen(): React.ReactElement {
     return () => { active = false; };
   }, [currentTrip?.origin_lat, currentTrip?.origin_lng, currentTrip?.dest_lat, currentTrip?.dest_lng]);
 
-  const handleStart = async () => {
+  const handleArrived = async () => {
     if (!token) return;
     setLoading(true);
     try {
-      setCurrentTrip(await startTrip(token, tripId));
+      setCurrentTrip(await markArrived(token, tripId));
     } catch (e: any) {
       Alert.alert("Error", e.message);
     } finally {
@@ -171,7 +171,7 @@ export default function ActiveTripScreen(): React.ReactElement {
       {/* Primary action — keep the driver on the in-app trip workflow */}
       <ActiveTripActions
         status={status}
-        onStart={handleStart}
+        onArrived={handleArrived}
         onComplete={handleComplete}
         loading={loading}
       />
@@ -180,12 +180,12 @@ export default function ActiveTripScreen(): React.ReactElement {
           above stay in the app. */}
       <TouchableOpacity style={styles.navButton} onPress={handleNavigate}>
         <Text style={styles.navText}>
-          🧭 Open {status === "in_progress" ? "destination" : "pickup"} in Maps
+          🧭 {status === "in_progress" ? "Navigate to destination" : "Navigate to customer"}
         </Text>
       </TouchableOpacity>
       <Text style={styles.navHint}>Optional — opens an external maps app. Your trip steps stay here.</Text>
 
-      {token && (status === "accepted" || status === "in_progress") && (
+      {token && (status === "accepted" || status === "arrived" || status === "in_progress") && (
         <ChatPanel token={token} tripId={tripId} accent="#2563EB" />
       )}
     </ScrollView>

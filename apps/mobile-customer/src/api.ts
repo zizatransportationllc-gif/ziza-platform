@@ -356,6 +356,18 @@ export async function cancelTrip(
   await _json<unknown>(res);
 }
 
+// Customer confirms they are in the car → starts leg 2 (pickup → destination).
+export async function confirmOnboard(
+  token: string,
+  tripId: string
+): Promise<TripResponse> {
+  const res = await fetch(`${API_BASE}/v1/trips/${tripId}/board`, {
+    method: "PATCH",
+    headers: _auth(token),
+  });
+  return _json<TripResponse>(res);
+}
+
 export async function listTripHistory(
   token: string,
   limit = 20,
