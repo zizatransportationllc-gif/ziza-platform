@@ -62,8 +62,10 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     # These are DEFAULTS only — admins override them at runtime via
     # PATCH /v1/admin/settings/pricing (persisted in platform_settings).
-    fare_base_cents: int = 250        # minimum / base fare ($2.50)
+    fare_base_cents: int = 250        # base fare / pickup fee ($2.50)
     fare_per_mile_cents: int = 175    # rate per mile ($1.75)
+    fare_per_minute_cents: int = 0    # rate per minute ($0.00 = time component off)
+    fare_min_cents: int = 250         # minimum fare floor (defaults to base)
     fare_surge_multiplier: float = 1.0  # 1.0 = no surge; set > 1 during peak
     fare_estimate_ttl_minutes: int = 15  # how long an estimate is valid
 

@@ -254,6 +254,27 @@ export async function adminSetSurge(token, surgeMultiplier) {
   return _json(res); // { surge_multiplier: float }
 }
 
+// Admin — full fare formula (base, per-mile, per-minute, minimum, category mult)
+export async function adminGetPricing(token) {
+  const res = await fetch(`${API_BASE}/v1/admin/settings/pricing`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // PricingResponse
+}
+
+export async function adminSetPricing(token, payload) {
+  const res = await fetch(`${API_BASE}/v1/admin/settings/pricing`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  return _json(res); // PricingResponse
+}
+
 // ---------------------------------------------------------------------------
 // Admin — driver documents — Sprint 17
 // ---------------------------------------------------------------------------

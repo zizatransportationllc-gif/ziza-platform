@@ -439,3 +439,14 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .zone-onboarding-actions { display: flex; flex-direction: column; gap: var(--space-4); align-items: center; margin-top: var(--space-4); }
 .zone-onboarding-option { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); max-width: 400px; width: 100%; text-align: left; }
 .zone-onboarding-divider { color: var(--color-muted); font-size: .85rem; }
+
+/* ── Fare formula panel ── */
+.pricing-formula { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); font-size: 0.85rem; color: var(--color-muted); margin-bottom: var(--space-4); line-height: 1.5; }
+.pricing-formula strong { color: var(--color-accent); }
+.pricing-subtitle { font-size: 0.9rem; font-weight: 700; margin: var(--space-4) 0 var(--space-2); }
+.pricing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.pricing-field { display: flex; flex-direction: column; gap: var(--space-1); font-size: 0.8rem; font-weight: 600; color: var(--color-muted); }
+.pricing-field input { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--color-fg); font-size: 0.95rem; outline: none; }
+.pricing-field input:focus { border-color: var(--color-accent); }
+.pricing-save-btn { margin-top: var(--space-4); width: 100%; background: var(--color-accent-strong); color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); font-size: 0.95rem; font-weight: 600; cursor: pointer; }
+.pricing-save-btn:disabled { opacity: 0.6; cursor: not-allowed; }

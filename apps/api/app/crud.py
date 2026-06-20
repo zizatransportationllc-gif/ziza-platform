@@ -461,8 +461,9 @@ async def create_trip(
             detail="Estimate has expired — request a new one",
         )
 
-    # 4a. Apply category multiplier to the base economy fare (Sprint 21)
-    cat_multiplier = CATEGORY_MULTIPLIERS[category]
+    # 4a. Apply the (admin-configurable) category multiplier to the economy fare
+    cat_multipliers = await get_category_multipliers(db)
+    cat_multiplier = cat_multipliers.get(category, CATEGORY_MULTIPLIERS.get(category, 1.0))
     base_fare = max(1, round(est.fare_cents * cat_multiplier)) if est.fare_cents else est.fare_cents
 
     # 4b. Optionally validate and apply a promo code
@@ -1986,6 +1987,27 @@ async def set_surge_multiplier(db: AsyncSession, value: float) -> float:
 
 _PRICING_BASE_KEY = "base_fare_cents"
 _PRICING_PER_MILE_KEY = "per_mile_cents"
+_PRICING_PER_MINUTE_KEY = "per_minute_cents"
+_PRICING_MIN_KEY = "min_fare_cents"
+# Per-category fare multipliers (configurable; defaults from CATEGORY_MULTIPLIERS)
+_CATEGORY_MULT_KEYS = {
+    "economy": "cat_mult_economy",
+    "comfort": "cat_mult_comfort",
+    "premium": "cat_mult_premium",
+}
+
+
+async def _get_setting_float(db: AsyncSession, key: str, default: float) -> float:
+    result = await db.execute(
+        select(PlatformSetting).where(PlatformSetting.key == key)
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        return default
+    try:
+        return float(row.value)
+    except (ValueError, TypeError):
+        return default
 
 
 async def _get_setting_int(db: AsyncSession, key: str, default: int) -> int:
@@ -2043,6 +2065,80 @@ async def set_pricing(
     await _upsert_setting(db, _PRICING_PER_MILE_KEY, str(per_mile_cents))
     await db.commit()
     return base_fare_cents, per_mile_cents
+
+
+async def get_pricing_config(db: AsyncSession) -> dict:
+    """Return the full fare-formula config (USD cents), with admin overrides
+    falling back to the config defaults.
+
+    Keys: base_fare_cents, per_mile_cents, per_minute_cents, min_fare_cents.
+    """
+    from app.config import settings as _settings  # noqa: PLC0415
+
+    base = await _get_setting_int(db, _PRICING_BASE_KEY, _settings.fare_base_cents)
+    per_mile = await _get_setting_int(db, _PRICING_PER_MILE_KEY, _settings.fare_per_mile_cents)
+    per_minute = await _get_setting_int(db, _PRICING_PER_MINUTE_KEY, _settings.fare_per_minute_cents)
+    # Minimum fare defaults to the base fare when never set.
+    min_fare = await _get_setting_int(db, _PRICING_MIN_KEY, base)
+    return {
+        "base_fare_cents": base,
+        "per_mile_cents": per_mile,
+        "per_minute_cents": per_minute,
+        "min_fare_cents": min_fare,
+    }
+
+
+async def get_category_multipliers(db: AsyncSession) -> dict[str, float]:
+    """Return the per-category fare multipliers (admin overrides → defaults)."""
+    out: dict[str, float] = {}
+    for cat, key in _CATEGORY_MULT_KEYS.items():
+        out[cat] = await _get_setting_float(db, key, CATEGORY_MULTIPLIERS[cat])
+    return out
+
+
+async def set_pricing_config(
+    db: AsyncSession,
+    base_fare_cents: int,
+    per_mile_cents: int,
+    per_minute_cents: int = 0,
+    min_fare_cents: int | None = None,
+    category_multipliers: dict[str, float] | None = None,
+) -> None:
+    """Upsert the full fare formula. Validates ranges; commits once.
+
+    ``min_fare_cents`` defaults to ``base_fare_cents`` when not supplied.
+    """
+    floor = base_fare_cents if min_fare_cents is None else min_fare_cents
+    if not (0 < base_fare_cents <= 100_000) or not (0 < per_mile_cents <= 100_000):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="base_fare_cents and per_mile_cents must be between 1 and 100000",
+        )
+    if not (0 <= per_minute_cents <= 100_000):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="per_minute_cents must be between 0 and 100000",
+        )
+    if not (0 < floor <= 100_000):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="min_fare_cents must be between 1 and 100000",
+        )
+    await _upsert_setting(db, _PRICING_BASE_KEY, str(base_fare_cents))
+    await _upsert_setting(db, _PRICING_PER_MILE_KEY, str(per_mile_cents))
+    await _upsert_setting(db, _PRICING_PER_MINUTE_KEY, str(per_minute_cents))
+    await _upsert_setting(db, _PRICING_MIN_KEY, str(floor))
+    if category_multipliers:
+        for cat, key in _CATEGORY_MULT_KEYS.items():
+            if cat in category_multipliers:
+                mult = float(category_multipliers[cat])
+                if not (0 < mult <= 100):
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"category multiplier for '{cat}' must be between 0 and 100",
+                    )
+                await _upsert_setting(db, key, str(mult))
+    await db.commit()
 
 
 # ---------------------------------------------------------------------------
