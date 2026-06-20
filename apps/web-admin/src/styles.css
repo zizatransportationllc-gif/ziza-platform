@@ -11,6 +11,11 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .login-form input:focus { border-color: var(--color-accent); }
 .login-form button { background: var(--color-accent-strong); color: #fff; border: none; border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); font-size: 1rem; cursor: pointer; font-weight: 600; }
 .login-form button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Show-password toggle */
+.password-field { display: flex; flex-direction: column; gap: var(--space-2); }
+.password-toggle { display: flex; align-items: center; gap: var(--space-2); font-size: 0.85rem; color: var(--color-muted); cursor: pointer; user-select: none; }
+.password-toggle input[type="checkbox"] { width: auto; min-width: 0; padding: 0; margin: 0; border-radius: 0; flex: 0 0 auto; cursor: pointer; accent-color: var(--color-accent); }
 .form-error { color: var(--color-error); font-size: 0.9rem; margin: var(--space-2) 0; }
 .google-btn { display: flex; align-items: center; justify-content: center; gap: var(--space-2); width: 100%; background: #fff; color: #333; border: 1px solid #dadce0; border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); font-size: 1rem; cursor: pointer; font-weight: 500; margin-top: var(--space-2); }
 .google-btn span { font-weight: 700; color: #4285f4; font-size: 1.1rem; }
