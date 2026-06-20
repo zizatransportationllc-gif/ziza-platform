@@ -22,6 +22,9 @@ const STATUS_COLORS: Record<string, string> = {
   rejected: "#EF4444",
 };
 
+// Distances are stored in km; display in miles (US). 1 mi = 1.609344 km.
+const fmtMiles = (km: number): string => (km / 1.609344).toFixed(1);
+
 export default function MyBidsScreen(): React.ReactElement {
   const { token } = useAuth();
   const [bids, setBids] = useState<CraftBid[]>([]);
@@ -62,7 +65,7 @@ export default function MyBidsScreen(): React.ReactElement {
       <View style={styles.metaRow}>
         <Text style={styles.metaItem}>⏱ ETA: {item.eta_min} min</Text>
         {item.distance_km != null && (
-          <Text style={styles.metaItem}>📏 {item.distance_km.toFixed(1)} km</Text>
+          <Text style={styles.metaItem}>📏 {fmtMiles(item.distance_km)} mi</Text>
         )}
       </View>
 

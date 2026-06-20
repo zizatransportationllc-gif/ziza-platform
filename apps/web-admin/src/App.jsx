@@ -47,6 +47,10 @@ function formatUSD(n) {
 // Login form
 // ---------------------------------------------------------------------------
 
+// Distances are stored in km; display in miles (US). 1 mi = 1.609344 km.
+const KM_TO_MI = 1 / 1.609344;
+function fmtMiles(km) { return (km * KM_TO_MI).toFixed(1); }
+
 // Password input with a "Show password" checkbox (toggles visibility).
 function PasswordInput({ value, onChange, placeholder, required }) {
   const [show, setShow] = useState(false);
@@ -327,7 +331,7 @@ function TripRow({ trip }) {
         )}
       </div>
       <div className="trip-row-meta">
-        {trip.distance_km != null && <span>🛣️ {trip.distance_km.toFixed(1)} mi</span>}
+        {trip.distance_km != null && <span>🛣️ {fmtMiles(trip.distance_km)} mi</span>}
         {trip.duration_min != null && <span>⏱️ {trip.duration_min} min</span>}
         <span className="trip-date">{new Date(trip.created_at).toLocaleString("en-US", { dateStyle: "short", timeStyle: "short" })}</span>
       </div>
@@ -2438,7 +2442,7 @@ function CraftPanel({ token }) {
                         </div>
                         <p style={{ margin: "4px 0 0", fontSize: 12, color: "#6B7280" }}>
                           ⏱ ETA: {b.eta_min} min
-                          {b.distance_km != null ? ` · 📏 ${b.distance_km.toFixed(1)} km` : ""}
+                          {b.distance_km != null ? ` · 📏 ${fmtMiles(b.distance_km)} mi` : ""}
                         </p>
                         {b.note && <p style={{ margin: "4px 0 0", fontSize: 12, fontStyle: "italic" }}>{b.note}</p>}
                       </div>
@@ -2649,7 +2653,7 @@ function HistoryEarningsSection({ token, entityId, entityType }) {
                     onClick={() => toggleConv("trip", t.trip_id)}
                     title="View conversation"
                   >
-                    <span style={cell}>{open ? "▾" : "▸"} {t.status} · {Number(t.distance_km).toFixed(1)} mi · {t.duration_min} min</span>
+                    <span style={cell}>{open ? "▾" : "▸"} {t.status} · {fmtMiles(Number(t.distance_km))} mi · {t.duration_min} min</span>
                     <span style={{ ...cell, fontWeight: 600 }}>{formatUSD(t.fare_cents)}</span>
                   </div>
                   {open && <AdminConversation token={token} scope="trip" id={t.trip_id} />}

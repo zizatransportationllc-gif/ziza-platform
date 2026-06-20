@@ -69,6 +69,10 @@ const DOCUMENT_STATUS_LABELS = {
 // Login form
 // ---------------------------------------------------------------------------
 
+// Distances are stored in km; display in miles (US). 1 mi = 1.609344 km.
+const KM_TO_MI = 1 / 1.609344;
+function fmtMiles(km) { return (km * KM_TO_MI).toFixed(1); }
+
 // Password input with a "Show password" checkbox (toggles visibility).
 function PasswordInput({ value, onChange, placeholder, required }) {
   const [show, setShow] = useState(false);
@@ -286,7 +290,7 @@ function RequestDetail({ token, requestId, onBack }) {
         <div className="detail-meta">
           {request.address && <span>📍 {request.address}</span>}
           {request.distance_km != null && (
-            <span>🛣️ {request.distance_km.toFixed(1)} km away</span>
+            <span>🛣️ {fmtMiles(request.distance_km)} mi away</span>
           )}
           {request.bid_deadline && (
             <span style={{ color: "var(--color-warning)" }}>
@@ -419,7 +423,7 @@ function OpenRequestsSection({ token, isOnline }) {
             <div className="request-card-header">
               <span className="category-chip">{CATEGORY_LABELS[req.category] ?? req.category}</span>
               {req.distance_km != null && (
-                <span className="distance-label">{req.distance_km.toFixed(1)} km</span>
+                <span className="distance-label">{fmtMiles(req.distance_km)} mi</span>
               )}
             </div>
             <p className="request-description">{req.description}</p>

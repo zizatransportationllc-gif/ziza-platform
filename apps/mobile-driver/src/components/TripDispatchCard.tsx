@@ -14,6 +14,9 @@ interface Props {
   driverLng?: number;
 }
 
+// Distances are stored in km; display in miles (US). 1 mi = 1.609344 km.
+const fmtMiles = (km: number): string => (km / 1.609344).toFixed(1);
+
 const CATEGORY_COLORS: Record<string, string> = {
   economy: "#6B7280",
   comfort: "#1D4ED8",
@@ -40,7 +43,7 @@ export default function TripDispatchCard({
         ({trip.dest_lat.toFixed(3)}, {trip.dest_lng.toFixed(3)})
       </Text>
       <Text style={styles.eta}>
-        {trip.distance_km != null ? `${trip.distance_km.toFixed(1)} mi` : ""}
+        {trip.distance_km != null ? `${fmtMiles(trip.distance_km)} mi` : ""}
         {trip.distance_km != null && trip.duration_min != null ? " · " : ""}
         {trip.duration_min != null ? `~${trip.duration_min} min` : ""}
       </Text>
