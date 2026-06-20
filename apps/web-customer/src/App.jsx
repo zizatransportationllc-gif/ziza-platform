@@ -243,8 +243,12 @@ function AddressInput({ icon, placeholder, value, onSelect, token, onGps, zoneWa
               className="address-suggestion-item"
               onMouseDown={() => handleSelectSuggestion(s)}
             >
-              <span className="address-suggestion-name">
-                {s.name.length > 55 ? s.name.slice(0, 55) + "…" : s.name}
+              <span className="address-suggestion-pin">📍</span>
+              <span className="address-suggestion-text">
+                <span className="address-suggestion-primary">{s.primary ?? s.name}</span>
+                {s.secondary && (
+                  <span className="address-suggestion-secondary">{s.secondary}</span>
+                )}
               </span>
             </button>
           ))}

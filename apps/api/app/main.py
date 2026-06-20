@@ -2893,10 +2893,49 @@ async def delete_place(
 
 class PlaceSearchResult(BaseModel):
     place_id: str
-    name: str
-    address: str
+    name: str           # clean label (primary line), used as the trip location name
+    address: str        # full address string
+    primary: str        # main line, e.g. "123 Main Street" (Google-style)
+    secondary: str      # context line, e.g. "Newark, New Jersey"
     lat: float
     lng: float
+
+
+# New Jersey bounding box for Nominatim (lon_left, lat_top, lon_right, lat_bottom)
+_NJ_VIEWBOX = "-75.60,41.36,-73.89,38.93"
+
+
+def _format_place(item: dict) -> PlaceSearchResult:
+    """Build a Google-Maps-style result (primary + secondary lines) from a
+    Nominatim row with addressdetails."""
+    addr = item.get("address", {}) or {}
+    full = item.get("display_name", "")
+    parts = [p.strip() for p in full.split(",") if p.strip()]
+
+    road = addr.get("road")
+    house = addr.get("house_number")
+    if road:
+        primary = f"{house} {road}".strip() if house else road
+    elif item.get("name"):
+        primary = item["name"]
+    else:
+        primary = parts[0] if parts else full
+
+    city = (
+        addr.get("city") or addr.get("town") or addr.get("village")
+        or addr.get("hamlet") or addr.get("suburb") or addr.get("county")
+    )
+    secondary = ", ".join(p for p in (city, addr.get("state")) if p)
+
+    return PlaceSearchResult(
+        place_id=str(item["place_id"]),
+        name=primary if not secondary else f"{primary}, {secondary}",
+        address=full,
+        primary=primary,
+        secondary=secondary,
+        lat=float(item["lat"]),
+        lng=float(item["lon"]),
+    )
 
 
 @app.get("/v1/places/autocomplete", tags=["places"])
@@ -2906,31 +2945,40 @@ async def search_places_autocomplete(
 ) -> list[PlaceSearchResult]:
     """Geocode a free-text address query via Nominatim (OpenStreetMap).
 
-    Returns up to 5 results sorted by relevance.  Requires at least 3 characters.
+    Results are restricted to the state of New Jersey, USA. Returns up to 5
+    matches sorted by relevance. Requires at least 3 characters.
     """
     if len(q.strip()) < 3:
         return []
     import httpx  # noqa: PLC0415
     async with httpx.AsyncClient(
         timeout=6.0,
-        headers={"User-Agent": "ZizaPlatform/1.0 (support@ziza.ci)"},
+        headers={"User-Agent": "ZizaPlatform/1.0 (team@ziza.live)"},
     ) as client:
         resp = await client.get(
             "https://nominatim.openstreetmap.org/search",
-            params={"q": q, "format": "json", "limit": 5, "addressdetails": 0},
+            params={
+                "q": q,
+                "format": "json",
+                "limit": 10,
+                "addressdetails": 1,
+                "countrycodes": "us",
+                "viewbox": _NJ_VIEWBOX,
+                "bounded": 1,          # restrict results to the NJ viewbox
+            },
         )
         resp.raise_for_status()
         data = resp.json()
-    return [
-        PlaceSearchResult(
-            place_id=str(item["place_id"]),
-            name=item.get("display_name", "")[:80],
-            address=item.get("display_name", ""),
-            lat=float(item["lat"]),
-            lng=float(item["lon"]),
-        )
-        for item in data
-    ]
+
+    results: list[PlaceSearchResult] = []
+    for item in data:
+        # Keep only New Jersey results (the bounded box can clip border areas)
+        if (item.get("address", {}) or {}).get("state") != "New Jersey":
+            continue
+        results.append(_format_place(item))
+        if len(results) >= 5:
+            break
+    return results
 
 
 # ---------------------------------------------------------------------------

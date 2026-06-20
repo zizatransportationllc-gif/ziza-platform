@@ -115,6 +115,8 @@ export interface PlaceResult {
   place_id: string;
   name: string;
   address: string;
+  primary?: string;    // Google-style main line (e.g. "123 Main Street")
+  secondary?: string;  // context line (e.g. "Newark, New Jersey")
   lat: number;
   lng: number;
 }

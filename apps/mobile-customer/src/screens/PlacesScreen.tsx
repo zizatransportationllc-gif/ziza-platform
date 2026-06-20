@@ -64,8 +64,13 @@ export default function PlacesScreen(): React.ReactElement {
         keyExtractor={(item) => item.place_id}
         renderItem={({ item }) => (
           <TouchableOpacity style={styles.result} onPress={() => handleSelect(item)}>
-            <Text style={styles.resultName}>{item.name}</Text>
-            <Text style={styles.resultAddress}>{item.address}</Text>
+            <Text style={styles.resultPin}>📍</Text>
+            <View style={styles.resultText}>
+              <Text style={styles.resultName} numberOfLines={1}>{item.primary ?? item.name}</Text>
+              {!!item.secondary && (
+                <Text style={styles.resultAddress} numberOfLines={1}>{item.secondary}</Text>
+              )}
+            </View>
           </TouchableOpacity>
         )}
       />
@@ -83,7 +88,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 8,
   },
-  result: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#f3f4f6" },
+  result: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: "#f3f4f6" },
+  resultPin: { fontSize: 16, opacity: 0.7 },
+  resultText: { flex: 1, minWidth: 0 },
   resultName: { fontSize: 15, fontWeight: "600" },
-  resultAddress: { fontSize: 13, color: "#6B7280" },
+  resultAddress: { fontSize: 13, color: "#6B7280", marginTop: 1 },
 });
