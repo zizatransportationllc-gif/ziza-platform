@@ -54,6 +54,10 @@ function formatUSD(n) {
 // Login form
 // ---------------------------------------------------------------------------
 
+// Distances are stored in km; display in miles (US). 1 mi = 1.609344 km.
+const KM_TO_MI = 1 / 1.609344;
+function fmtMiles(km) { return (km * KM_TO_MI).toFixed(1); }
+
 // Password input with a "Show password" checkbox (toggles visibility).
 function PasswordInput({ value, onChange, placeholder, required }) {
   const [show, setShow] = useState(false);
@@ -449,7 +453,7 @@ function EstimateSection({ token, onTripCreated }) {
             {formatUSD(displayFare)}
           </div>
           <div className="fare-meta">
-            <span>🛣️ {result.distance_km.toFixed(1)} mi</span>
+            <span>🛣️ {fmtMiles(result.distance_km)} mi</span>
             <span>⏱️ ~{result.duration_min} min</span>
             {result.surge_multiplier > 1 && (
               <span className="surge">🔥 ×{result.surge_multiplier} surge</span>
@@ -866,7 +870,7 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
           <div className="booking-fare">{formatUSD(trip.fare_cents)}</div>
         )}
         <div className="fare-meta">
-          {trip.distance_km != null && <span>🛣️ {trip.distance_km.toFixed(1)} mi</span>}
+          {trip.distance_km != null && <span>🛣️ {fmtMiles(trip.distance_km)} mi</span>}
           {trip.duration_min != null && <span>⏱️ ~{trip.duration_min} min</span>}
         </div>
         {trip.category && (
@@ -888,7 +892,7 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
             <span className="eta-icon">🚗</span>
             <div className="eta-info">
               <span className="eta-time">~{eta.eta_min} min</span>
-              <span className="eta-dist">{eta.distance_km.toFixed(1)} mi</span>
+              <span className="eta-dist">{fmtMiles(eta.distance_km)} mi</span>
             </div>
             <span className="eta-label">
               {trip.status === "accepted" ? "until pickup" : "until arrival"}
@@ -1022,7 +1026,7 @@ function TripHistory({ token }) {
                 <div className="history-fare">{formatUSD(t.fare_cents)}</div>
               )}
               <div className="history-meta">
-                {t.distance_km != null && <span>🛣️ {t.distance_km.toFixed(1)} mi</span>}
+                {t.distance_km != null && <span>🛣️ {fmtMiles(t.distance_km)} mi</span>}
                 {t.duration_min != null && <span>⏱️ {t.duration_min} min</span>}
               </div>
               <div className="history-date">
@@ -1799,7 +1803,7 @@ function CraftBidsView({ token, request, onBack }) {
             </div>
             {b.note && <p className="craft-bid-note">💬 {b.note}</p>}
             {b.distance_km != null && (
-              <p className="craft-bid-dist">📍 {b.distance_km.toFixed(1)} km away</p>
+              <p className="craft-bid-dist">📍 {fmtMiles(b.distance_km)} mi away</p>
             )}
             {canSelect && b.status === "pending" && !success && (
               <button

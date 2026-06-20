@@ -30,6 +30,9 @@ import { useAuth } from "../context/AuthContext";
 
 type HomeNavProp = NativeStackNavigationProp<RootStackParamList, "Home">;
 
+// Distances are stored in km; display in miles (US). 1 mi = 1.609344 km.
+const fmtMiles = (km: number): string => (km / 1.609344).toFixed(1);
+
 export default function HomeScreen(): React.ReactElement {
   const { token, profile, refreshProfile } = useAuth();
   const navigation = useNavigation<HomeNavProp>();
@@ -93,7 +96,7 @@ export default function HomeScreen(): React.ReactElement {
       <View style={styles.cardHeader}>
         <Text style={styles.category}>{item.category.toUpperCase()}</Text>
         {item.distance_km != null && (
-          <Text style={styles.distance}>{item.distance_km.toFixed(1)} km away</Text>
+          <Text style={styles.distance}>{fmtMiles(item.distance_km)} mi away</Text>
         )}
       </View>
       <Text style={styles.description} numberOfLines={2}>{item.description}</Text>

@@ -44,6 +44,9 @@ function formatUSD(n: number | null | undefined): string {
   );
 }
 
+// Distances are stored in km; display in miles (US). 1 mi = 1.609344 km.
+const fmtMiles = (km: number): string => (km / 1.609344).toFixed(1);
+
 export default function HomeScreen(): React.ReactElement {
   const { token } = useAuth();
   const navigation = useNavigation<HomeNavProp>();
@@ -311,7 +314,7 @@ export default function HomeScreen(): React.ReactElement {
         <View style={styles.estimateBox}>
           <Text style={styles.price}>{formatUSD(estimate.price_cents)}</Text>
           <Text style={styles.detail}>
-            {estimate.distance_km} km · ~{estimate.duration_min} min
+            {fmtMiles(estimate.distance_km)} mi · ~{estimate.duration_min} min
           </Text>
           <PromoInput token={token!} estimateId={estimate.estimate_id} />
           <TouchableOpacity

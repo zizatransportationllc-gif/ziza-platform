@@ -25,6 +25,9 @@ import { startTrip, completeTrip, getActiveTrip, buildNavigationUrl, TripRespons
 
 type ActiveTripRouteProp = RouteProp<RootStackParamList, "ActiveTrip">;
 
+// Distances are stored in km; display in miles (US). 1 mi = 1.609344 km.
+const fmtMiles = (km: number): string => (km / 1.609344).toFixed(1);
+
 async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
   try {
     const results = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
@@ -157,7 +160,7 @@ export default function ActiveTripScreen(): React.ReactElement {
 
           {(currentTrip.distance_km != null || currentTrip.duration_min != null) && (
             <Text style={styles.meta}>
-              {currentTrip.distance_km != null ? `🛣️ ${currentTrip.distance_km.toFixed(1)} mi` : ""}
+              {currentTrip.distance_km != null ? `🛣️ ${fmtMiles(currentTrip.distance_km)} mi` : ""}
               {currentTrip.distance_km != null && currentTrip.duration_min != null ? "   " : ""}
               {currentTrip.duration_min != null ? `⏱️ ~${currentTrip.duration_min} min` : ""}
             </Text>

@@ -34,6 +34,9 @@ import ChatPanel from "../components/ChatPanel";
 type RouteProps = RouteProp<RootStackParamList, "RequestDetail">;
 type NavProp = NativeStackNavigationProp<RootStackParamList, "RequestDetail">;
 
+// Distances are stored in km; display in miles (US). 1 mi = 1.609344 km.
+const fmtMiles = (km: number): string => (km / 1.609344).toFixed(1);
+
 export default function RequestDetailScreen(): React.ReactElement {
   const { token } = useAuth();
   const route = useRoute<RouteProps>();
@@ -157,7 +160,7 @@ export default function RequestDetailScreen(): React.ReactElement {
       )}
 
       {request.distance_km != null && (
-        <Text style={styles.meta}>📏 {request.distance_km.toFixed(1)} km from you</Text>
+        <Text style={styles.meta}>📏 {fmtMiles(request.distance_km)} mi from you</Text>
       )}
 
       {request.bid_deadline && (

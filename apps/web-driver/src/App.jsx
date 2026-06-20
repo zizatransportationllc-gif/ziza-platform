@@ -62,6 +62,10 @@ function formatUSD(n) {
 // Login form
 // ---------------------------------------------------------------------------
 
+// Distances are stored in km; display in miles (US). 1 mi = 1.609344 km.
+const KM_TO_MI = 1 / 1.609344;
+function fmtMiles(km) { return (km * KM_TO_MI).toFixed(1); }
+
 // Password input with a "Show password" checkbox (toggles visibility).
 function PasswordInput({ value, onChange, placeholder, required }) {
   const [show, setShow] = useState(false);
@@ -262,7 +266,7 @@ function ActiveTripCard({ token, trip, onUpdate }) {
     <div className={`active-trip-card active-${trip.status}`}>
       <div className="active-status">{STATUS_LABELS[trip.status] ?? trip.status}</div>
       <div className="fare-meta">
-        {trip.distance_km != null && <span>🛣️ {trip.distance_km.toFixed(1)} mi</span>}
+        {trip.distance_km != null && <span>🛣️ {fmtMiles(trip.distance_km)} mi</span>}
         {trip.duration_min != null && <span>⏱️ ~{trip.duration_min} min</span>}
       </div>
 
@@ -436,7 +440,7 @@ function EarningsCard({ earnings, balance }) {
                     {t.fare_cents != null ? formatUSD(t.fare_cents) : "—"}
                   </span>
                   <span className="earnings-recent-meta">
-                    {t.distance_km != null && `🛣️ ${t.distance_km.toFixed(1)} mi`}
+                    {t.distance_km != null && `🛣️ ${fmtMiles(t.distance_km)} mi`}
                     {t.duration_min != null && ` · ⏱️ ${t.duration_min} min`}
                   </span>
                 </div>
@@ -595,7 +599,7 @@ function AvailableTripsSection({ token, onTripAccepted }) {
               </div>
             )}
             <div className="trip-card-meta">
-              {t.distance_km != null && <span>🛣️ {t.distance_km.toFixed(1)} mi</span>}
+              {t.distance_km != null && <span>🛣️ {fmtMiles(t.distance_km)} mi</span>}
               {t.duration_min != null && <span>⏱️ ~{t.duration_min} min</span>}
             </div>
             <button
@@ -656,7 +660,7 @@ function DriverTripHistory({ token }) {
             </div>
             {t.fare_cents && <div className="trip-card-fare">{formatUSD(t.fare_cents)}</div>}
             <div className="trip-card-meta">
-              {t.distance_km != null && <span>🛣️ {t.distance_km.toFixed(1)} mi</span>}
+              {t.distance_km != null && <span>🛣️ {fmtMiles(t.distance_km)} mi</span>}
               {t.duration_min != null && <span>⏱️ {t.duration_min} min</span>}
               <span>{new Date(t.updated_at).toLocaleDateString("en-US", { day: "2-digit", month: "short" })}</span>
             </div>

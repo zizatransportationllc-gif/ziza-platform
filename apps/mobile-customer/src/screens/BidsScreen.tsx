@@ -44,6 +44,9 @@ function formatUSD(cents: number): string {
   }).format(cents / 100);
 }
 
+// Distances are stored in km; display in miles (US). 1 mi = 1.609344 km.
+const fmtMiles = (km: number): string => (km / 1.609344).toFixed(1);
+
 export default function BidsScreen(): React.ReactElement {
   const { token } = useAuth();
   const route = useRoute<RouteProps>();
@@ -83,7 +86,7 @@ export default function BidsScreen(): React.ReactElement {
   const handleSelect = (bid: CraftBid) => {
     Alert.alert(
       "Select Professional",
-      `Confirm selecting this professional for ${formatUSD(bid.price_cents)}?\nETA: ${bid.eta_min} min${bid.distance_km != null ? ` · ${bid.distance_km.toFixed(1)} km away` : ""}`,
+      `Confirm selecting this professional for ${formatUSD(bid.price_cents)}?\nETA: ${bid.eta_min} min${bid.distance_km != null ? ` · ${fmtMiles(bid.distance_km)} mi away` : ""}`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -131,7 +134,7 @@ export default function BidsScreen(): React.ReactElement {
 
         {/* Distance */}
         {item.distance_km != null && (
-          <Text style={styles.distance}>📏 {item.distance_km.toFixed(1)} km from you</Text>
+          <Text style={styles.distance}>📏 {fmtMiles(item.distance_km)} mi from you</Text>
         )}
 
         {/* Note */}
