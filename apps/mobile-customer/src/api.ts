@@ -78,6 +78,8 @@ export interface TripResponse {
   origin_lng: number;
   dest_lat: number;
   dest_lng: number;
+  origin_address?: string | null;
+  dest_address?: string | null;
   price_cents: number;
   eta_minutes: number | null;
   verification_code: string | null;  // shared pickup code (customer ↔ driver)
@@ -327,12 +329,16 @@ export async function applyPromo(
 
 export async function createTrip(
   token: string,
-  estimateId: string
+  estimateId: string,
+  opts: { originAddress?: string | null; destAddress?: string | null } = {}
 ): Promise<TripResponse> {
+  const body: Record<string, unknown> = { estimate_id: estimateId };
+  if (opts.originAddress) body.origin_address = opts.originAddress;
+  if (opts.destAddress) body.dest_address = opts.destAddress;
   const res = await fetch(`${API_BASE}/v1/trips`, {
     method: "POST",
     headers: { ..._auth(token), "Content-Type": "application/json" },
-    body: JSON.stringify({ estimate_id: estimateId }),
+    body: JSON.stringify(body),
   });
   return _json<TripResponse>(res);
 }

@@ -73,6 +73,8 @@ export interface TripResponse {
   origin_lng: number;
   dest_lat: number;
   dest_lng: number;
+  origin_address?: string | null;
+  dest_address?: string | null;
   category: string;
   created_at: string;
 }

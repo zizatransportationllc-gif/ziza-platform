@@ -359,7 +359,10 @@ function EstimateSection({ token, onTripCreated }) {
   async function handleBook() {
     setBooking(true); setError(null);
     try {
-      const trip = await createTrip(token, result.estimate_id, promoApplied?.code ?? null, selectedCategory);
+      const trip = await createTrip(token, result.estimate_id, promoApplied?.code ?? null, selectedCategory, {
+        originAddress: origin?.name ?? null,
+        destAddress: dest?.name ?? null,
+      });
       onTripCreated(trip);
     } catch (err) { setError(err.message); }
     finally { setBooking(false); }

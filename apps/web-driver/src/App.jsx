@@ -238,13 +238,14 @@ function ActiveTripCard({ token, trip, onUpdate }) {
   const hasPickup = trip.origin_lat != null && trip.origin_lng != null;
   const hasDest   = trip.dest_lat != null && trip.dest_lng != null;
 
-  // Reverse-geocode pickup + destination to readable addresses
+  // Reverse-geocode pickup + destination only when the customer didn't supply
+  // an address label (older trips). The customer's entered address is preferred.
   useEffect(() => {
     let active = true;
-    if (hasPickup) reverseGeocode(trip.origin_lng, trip.origin_lat).then((a) => { if (active) setPickupAddr(a); });
-    if (hasDest)   reverseGeocode(trip.dest_lng,   trip.dest_lat).then((a) => { if (active) setDestAddr(a); });
+    if (hasPickup && !trip.origin_address) reverseGeocode(trip.origin_lng, trip.origin_lat).then((a) => { if (active) setPickupAddr(a); });
+    if (hasDest && !trip.dest_address) reverseGeocode(trip.dest_lng, trip.dest_lat).then((a) => { if (active) setDestAddr(a); });
     return () => { active = false; };
-  }, [trip.origin_lat, trip.origin_lng, trip.dest_lat, trip.dest_lng]);
+  }, [trip.origin_lat, trip.origin_lng, trip.dest_lat, trip.dest_lng, trip.origin_address, trip.dest_address]);
 
   // Navigate in the device's map app: to pickup while heading there, to the
   // destination once the ride is in progress.
@@ -295,7 +296,7 @@ function ActiveTripCard({ token, trip, onUpdate }) {
             <div className="trip-loc-text">
               <span className="trip-loc-label">Pickup</span>
               <span className="trip-loc-addr">
-                {pickupAddr ?? `${trip.origin_lat.toFixed(5)}, ${trip.origin_lng.toFixed(5)}`}
+                {trip.origin_address ?? pickupAddr ?? `${trip.origin_lat.toFixed(5)}, ${trip.origin_lng.toFixed(5)}`}
               </span>
             </div>
           </div>
@@ -306,7 +307,7 @@ function ActiveTripCard({ token, trip, onUpdate }) {
             <div className="trip-loc-text">
               <span className="trip-loc-label">Destination</span>
               <span className="trip-loc-addr">
-                {destAddr ?? `${trip.dest_lat.toFixed(5)}, ${trip.dest_lng.toFixed(5)}`}
+                {trip.dest_address ?? destAddr ?? `${trip.dest_lat.toFixed(5)}, ${trip.dest_lng.toFixed(5)}`}
               </span>
             </div>
           </div>
