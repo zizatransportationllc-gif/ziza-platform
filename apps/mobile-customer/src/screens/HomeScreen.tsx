@@ -166,7 +166,10 @@ export default function HomeScreen(): React.ReactElement {
     if (!token || !estimate) return;
     setLoading(true);
     try {
-      const trip = await createTrip(token, estimate.estimate_id);
+      const trip = await createTrip(token, estimate.estimate_id, {
+        originAddress: origin?.name ?? null,
+        destAddress: destination?.name ?? null,
+      });
       navigation.navigate("Tracking", { tripId: trip.trip_id });
     } catch (e: any) {
       setError(e.message);

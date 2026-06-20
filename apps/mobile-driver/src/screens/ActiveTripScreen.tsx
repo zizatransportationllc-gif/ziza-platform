@@ -64,14 +64,15 @@ export default function ActiveTripScreen(): React.ReactElement {
 
   useEffect(() => { loadTrip(); }, [loadTrip]);
 
-  // Reverse-geocode pickup + destination to readable addresses.
+  // Reverse-geocode pickup + destination only when the customer didn't supply
+  // an address label (older trips). The customer's entered address is preferred.
   useEffect(() => {
     if (!currentTrip) return;
     let active = true;
-    reverseGeocode(currentTrip.origin_lat, currentTrip.origin_lng).then((a) => { if (active) setPickupAddr(a); });
-    reverseGeocode(currentTrip.dest_lat, currentTrip.dest_lng).then((a) => { if (active) setDestAddr(a); });
+    if (!currentTrip.origin_address) reverseGeocode(currentTrip.origin_lat, currentTrip.origin_lng).then((a) => { if (active) setPickupAddr(a); });
+    if (!currentTrip.dest_address) reverseGeocode(currentTrip.dest_lat, currentTrip.dest_lng).then((a) => { if (active) setDestAddr(a); });
     return () => { active = false; };
-  }, [currentTrip?.origin_lat, currentTrip?.origin_lng, currentTrip?.dest_lat, currentTrip?.dest_lng]);
+  }, [currentTrip?.origin_lat, currentTrip?.origin_lng, currentTrip?.dest_lat, currentTrip?.dest_lng, currentTrip?.origin_address, currentTrip?.dest_address]);
 
   const handleArrived = async () => {
     if (!token) return;
@@ -144,7 +145,7 @@ export default function ActiveTripScreen(): React.ReactElement {
             <View style={styles.locText}>
               <Text style={styles.locLabel}>PICKUP</Text>
               <Text style={styles.locAddr}>
-                {pickupAddr ?? `${currentTrip.origin_lat.toFixed(5)}, ${currentTrip.origin_lng.toFixed(5)}`}
+                {currentTrip.origin_address ?? pickupAddr ?? `${currentTrip.origin_lat.toFixed(5)}, ${currentTrip.origin_lng.toFixed(5)}`}
               </Text>
             </View>
           </View>
@@ -153,7 +154,7 @@ export default function ActiveTripScreen(): React.ReactElement {
             <View style={styles.locText}>
               <Text style={styles.locLabel}>DESTINATION</Text>
               <Text style={styles.locAddr}>
-                {destAddr ?? `${currentTrip.dest_lat.toFixed(5)}, ${currentTrip.dest_lng.toFixed(5)}`}
+                {currentTrip.dest_address ?? destAddr ?? `${currentTrip.dest_lat.toFixed(5)}, ${currentTrip.dest_lng.toFixed(5)}`}
               </Text>
             </View>
           </View>

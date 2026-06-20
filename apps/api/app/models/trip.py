@@ -40,6 +40,10 @@ class Trip(Base):
     origin_lng: Mapped[float | None] = mapped_column(Float, nullable=True)
     dest_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
     dest_lng: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # The address text the customer actually entered/selected at booking, so the
+    # driver sees the same pickup/drop-off label (not a reverse-geocoded guess).
+    origin_address: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    dest_address: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Sprint 6: fare snapshot copied from the Estimate at booking time
     estimate_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
     fare_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)

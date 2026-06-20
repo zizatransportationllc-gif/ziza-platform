@@ -817,6 +817,9 @@ class TripRequest(BaseModel):
     estimate_id: str
     promo_code: str | None = None  # Sprint 14: optional promo discount
     category: str = "economy"      # Sprint 21: vehicle category
+    # The address text the customer selected, so the driver sees the same label
+    origin_address: str | None = None
+    dest_address: str | None = None
 
 
 class TripEventOut(BaseModel):
@@ -848,6 +851,8 @@ class TripResponse(BaseModel):
     origin_lng: float | None = None
     dest_lat: float | None = None
     dest_lng: float | None = None
+    origin_address: str | None = None   # customer-entered pickup label
+    dest_address: str | None = None     # customer-entered drop-off label
     vehicle: VehicleInfo | None = None  # populated once driver accepts — Sprint 12
     promo_code: str | None = None       # Sprint 14: applied promo code
     discount_pct: int | None = None     # Sprint 14: discount applied
@@ -881,6 +886,8 @@ def _trip_response(trip, events=None, vehicle=None) -> TripResponse:
         origin_lng=trip.origin_lng,
         dest_lat=trip.dest_lat,
         dest_lng=trip.dest_lng,
+        origin_address=getattr(trip, "origin_address", None),
+        dest_address=getattr(trip, "dest_address", None),
         vehicle=_vehicle_info(vehicle),
         promo_code=trip.promo_code,
         discount_pct=trip.discount_pct,
@@ -921,6 +928,8 @@ async def create_trip(
         db, claims, body.estimate_id,
         promo_code=body.promo_code,
         category=body.category,
+        origin_address=body.origin_address,
+        dest_address=body.dest_address,
     )
     return _trip_response(trip)
 

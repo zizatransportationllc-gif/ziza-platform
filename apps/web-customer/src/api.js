@@ -102,9 +102,11 @@ export async function fetchEstimate(token, originLat, originLng, destLat, destLn
   return res.json();
 }
 
-export async function createTrip(token, estimateId, promoCode = null, category = "economy") {
+export async function createTrip(token, estimateId, promoCode = null, category = "economy", addresses = {}) {
   const body = { estimate_id: estimateId, category };
   if (promoCode) body.promo_code = promoCode;
+  if (addresses.originAddress) body.origin_address = addresses.originAddress;
+  if (addresses.destAddress) body.dest_address = addresses.destAddress;
   const res = await fetch(`${API_BASE}/v1/trips`, {
     method: "POST",
     headers: {

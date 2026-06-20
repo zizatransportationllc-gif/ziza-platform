@@ -410,6 +410,8 @@ async def create_trip(
     estimate_id: str,
     promo_code: str | None = None,
     category: str = "economy",
+    origin_address: str | None = None,
+    dest_address: str | None = None,
 ) -> Trip:
     """Create a new Trip from a valid, unexpired Estimate.
 
@@ -501,6 +503,8 @@ async def create_trip(
         origin_lng=est.origin_lng,
         dest_lat=est.dest_lat,
         dest_lng=est.dest_lng,
+        origin_address=(origin_address or None),
+        dest_address=(dest_address or None),
         estimate_id=est.id,
         fare_cents=final_fare,
         distance_km=est.distance_km,
