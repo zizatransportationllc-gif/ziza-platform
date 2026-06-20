@@ -77,24 +77,26 @@ async function loadStats() {
   }
 }
 
-function initStats() {
+async function initStats() {
   const statNums = document.querySelectorAll(".stat-num");
   if (statNums.length === 0) return;
 
-  loadStats().then((stats) => {
-    const targets = [stats.trips, stats.drivers, stats.cities];
-    statNums.forEach((el, i) => {
-      el.dataset.target = targets[i] ?? 0;
-    });
+  // Load the real numbers BEFORE wiring the scroll animation. The stats are
+  // above the fold, so the observer fires on load — if we set up the animation
+  // first, the counters animate to the initial "0" before /v1/stats responds
+  // and never update. Awaiting here guarantees the real targets are in place.
+  const stats = await loadStats();
+  const targets = [stats.trips, stats.drivers, stats.cities];
+  statNums.forEach((el, i) => {
+    el.dataset.target = String(targets[i] ?? 0);
   });
 
   const observer = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
         if (!entry.isIntersecting) return;
-        const el     = entry.target;
-        const target = parseInt(el.dataset.target || "0", 10);
-        animateCounter(el, target);
+        const el = entry.target;
+        animateCounter(el, parseInt(el.dataset.target || "0", 10));
         observer.unobserve(el);
       });
     },
