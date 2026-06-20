@@ -4954,8 +4954,9 @@ async def admin_list_professionals(
 # ---------------------------------------------------------------------------
 
 class PublicStatsResponse(BaseModel):
-    total_trips: int
-    total_drivers: int
+    total_trips: int    # completed trips ("Trips completed")
+    total_drivers: int  # active drivers ("Active drivers")
+    total_cities: int   # active service cities ("Cities served")
 
 
 @app.get("/v1/stats", tags=["public"], summary="Public platform statistics (Sprint 51)")
@@ -4964,11 +4965,12 @@ async def public_stats(
 ) -> PublicStatsResponse:
     """Return aggregated counts for the landing page.  No auth required."""
     if db is None:
-        return PublicStatsResponse(total_trips=0, total_drivers=0)
-    stats = await crud.admin_get_stats(db)
+        return PublicStatsResponse(total_trips=0, total_drivers=0, total_cities=0)
+    stats = await crud.get_public_stats(db)
     return PublicStatsResponse(
-        total_trips=stats.get("total_trips", 0),
-        total_drivers=stats.get("total_drivers", 0),
+        total_trips=stats["total_trips"],
+        total_drivers=stats["total_drivers"],
+        total_cities=stats["total_cities"],
     )
 
 

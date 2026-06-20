@@ -70,7 +70,7 @@ async function loadStats() {
     return {
       trips:   data.total_trips   ?? FALLBACK_STATS.trips,
       drivers: data.total_drivers ?? FALLBACK_STATS.drivers,
-      cities:  1,
+      cities:  data.total_cities  ?? FALLBACK_STATS.cities,
     };
   } catch {
     return FALLBACK_STATS;
