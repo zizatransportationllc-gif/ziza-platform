@@ -456,6 +456,24 @@ export async function searchPlaces(
   return _json<PlaceResult[]>(res);
 }
 
+// Reverse-geocode a GPS point to a readable address (or null if unresolved).
+export async function reverseGeocode(
+  token: string,
+  lat: number,
+  lng: number
+): Promise<PlaceResult | null> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/v1/places/reverse?lat=${lat}&lng=${lng}`,
+      { headers: _auth(token) }
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as PlaceResult | null;
+  } catch {
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Geo — Sprint 45: zone coverage check
 // ---------------------------------------------------------------------------

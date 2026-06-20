@@ -11,7 +11,7 @@ import {
   createPaymentIntent, getTripPayment, simulatePayment,
   registerDeviceToken,
   getWallet, topupWallet, getWalletTransactions, // Sprint 33
-  searchPlaces, // Sprint 43
+  searchPlaces, reverseGeocode, // Sprint 43
   checkPointInService, // Sprint 45
   createCraftRequest, getMyCraftRequests, getCraftRequestBids, selectCraftBid, cancelCraftRequest, // Sprint 48
   listRequestMessages, sendRequestMessage, // Sprint 66
@@ -315,7 +315,11 @@ function EstimateSection({ token, onTripCreated }) {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords;
-        const place = { lat, lng, name: `My location (${lat.toFixed(4)}, ${lng.toFixed(4)})` };
+        // Reverse-geocode to a real street address so the driver sees the same
+        // pickup label (fall back to coordinates if it can't be resolved).
+        const resolved = await reverseGeocode(token, lat, lng);
+        const name = resolved?.name || `My location (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+        const place = { lat, lng, name };
         setOrigin(place);
         setResult(null);
         setGpsLoading(false);

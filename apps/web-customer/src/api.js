@@ -632,6 +632,20 @@ export async function searchPlaces(token, query) {
   return res.json(); // PlaceSearchResult[]
 }
 
+// Reverse-geocode a GPS point to a readable address (PlaceSearchResult | null).
+export async function reverseGeocode(token, lat, lng) {
+  try {
+    const res = await fetch(
+      `${API_BASE}/v1/places/reverse?lat=${lat}&lng=${lng}`,
+      { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+    );
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Sprint 45 — Check if a lat/lng is within any active service zone.
  * Public endpoint — no token required.

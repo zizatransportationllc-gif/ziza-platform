@@ -2990,6 +2990,34 @@ async def search_places_autocomplete(
     return results
 
 
+@app.get("/v1/places/reverse", tags=["places"])
+async def reverse_geocode_place(
+    lat: float,
+    lng: float,
+    _: Claims = Depends(get_current_user),
+) -> PlaceSearchResult | None:
+    """Reverse-geocode a GPS point to a human-readable address (Nominatim).
+
+    Used so a GPS-picked pickup shows a real street address (the same label the
+    driver sees) instead of raw coordinates. Returns null if not resolvable.
+    """
+    import httpx  # noqa: PLC0415
+    async with httpx.AsyncClient(
+        timeout=6.0,
+        headers={"User-Agent": "ZizaPlatform/1.0 (team@ziza.live)"},
+    ) as client:
+        resp = await client.get(
+            "https://nominatim.openstreetmap.org/reverse",
+            params={"lat": lat, "lon": lng, "format": "json", "addressdetails": 1},
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+    if not data or "error" in data or "place_id" not in data:
+        return None
+    return _format_place(data)
+
+
 # ---------------------------------------------------------------------------
 # Vehicle categories — Sprint 21
 # ---------------------------------------------------------------------------

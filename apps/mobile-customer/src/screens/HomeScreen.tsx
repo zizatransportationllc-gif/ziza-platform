@@ -21,6 +21,7 @@ import {
   getEstimate,
   createTrip,
   checkPointInService,
+  reverseGeocode,
   CategoryInfo,
   EstimateResponse,
 } from "../api";
@@ -91,10 +92,13 @@ export default function HomeScreen(): React.ReactElement {
         accuracy: Location.Accuracy.Balanced,
       });
       const { latitude, longitude } = pos.coords;
+      // Reverse-geocode to a real street address so the driver sees the same
+      // pickup label (fall back to coordinates if it can't be resolved).
+      const resolved = token ? await reverseGeocode(token, latitude, longitude) : null;
       const place: LocationPoint = {
         lat: latitude,
         lng: longitude,
-        name: `My location (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`,
+        name: resolved?.name || `My location (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`,
       };
       setOrigin(place);
       setEstimate(null);
