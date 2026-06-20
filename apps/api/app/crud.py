@@ -1154,6 +1154,32 @@ async def admin_get_stats(db: AsyncSession) -> dict:
     }
 
 
+async def get_public_stats(db: AsyncSession) -> dict:
+    """Public landing-page counters (Sprint 51).
+
+    Matches the labels shown on the landing page:
+      - total_trips   → trips with status "completed"
+      - total_drivers → drivers with status "active"
+      - total_cities  → active service cities ("Cities served")
+    """
+    from app.models.city import City  # noqa: PLC0415
+
+    completed = await db.scalar(
+        select(func.count()).select_from(Trip).where(Trip.status == "completed")
+    )
+    active_drivers = await db.scalar(
+        select(func.count()).select_from(Driver).where(Driver.status == "active")
+    )
+    active_cities = await db.scalar(
+        select(func.count()).select_from(City).where(City.active.is_(True))
+    )
+    return {
+        "total_trips": int(completed or 0),
+        "total_drivers": int(active_drivers or 0),
+        "total_cities": int(active_cities or 0),
+    }
+
+
 async def admin_list_trips(
     db: AsyncSession,
     limit: int = 50,
