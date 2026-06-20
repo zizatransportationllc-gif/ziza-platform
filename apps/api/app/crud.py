@@ -401,7 +401,7 @@ async def list_local_users(db: AsyncSession) -> list[User]:
 # ---------------------------------------------------------------------------
 
 # Statuses from which a customer can cancel
-_CANCELLABLE_STATUSES = frozenset({"pending", "accepted"})
+_CANCELLABLE_STATUSES = frozenset({"pending", "accepted", "arrived"})
 
 
 async def create_trip(
@@ -822,6 +822,79 @@ async def start_trip(db: AsyncSession, trip_id: str, auth_user_id: str) -> Trip:
     ))
     await db.commit()
     await db.refresh(trip)
+    return trip
+
+
+async def mark_trip_arrived(db: AsyncSession, trip_id: str, auth_user_id: str) -> Trip:
+    """Driver confirms arrival at the pickup point → arrived (leg 1 done).
+
+    The trip cannot move to leg 2 until the customer confirms they are on
+    board (see ``confirm_trip_onboard``).
+    """
+    driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
+    trip = await _load_trip_for_driver(db, trip_id, driver)
+    if trip.status != "accepted":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot mark arrival on a trip in '{trip.status}' status",
+        )
+
+    trip.status = "arrived"
+    trip.updated_at = datetime.now(timezone.utc)
+    db.add(TripEvent(
+        trip_id=trip.id,
+        event_type="status_changed",
+        data={"from": "accepted", "to": "arrived"},
+        actor="driver",
+    ))
+    await db.commit()
+    await db.refresh(trip)
+    # Notify the customer so they can confirm they are in the car
+    await _push_notification(
+        db, trip.customer_id,
+        "driver_arrived",
+        "📍 Your driver has arrived",
+        "Your driver is at the pickup point. Confirm once you are in the car.",
+    )
+    return trip
+
+
+async def confirm_trip_onboard(db: AsyncSession, trip_id: str, auth_user_id: str) -> Trip:
+    """Customer confirms they are in the car → in_progress (leg 2 starts).
+
+    Only the customer who owns the trip may confirm, and only once the driver
+    has marked arrival (status == "arrived").
+    """
+    trip, _ = await get_trip(db, trip_id, auth_user_id)
+    if trip.status != "arrived":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "You can only confirm pickup once the driver has arrived "
+                f"(current status: {trip.status})"
+            ),
+        )
+
+    trip.status = "in_progress"
+    trip.updated_at = datetime.now(timezone.utc)
+    db.add(TripEvent(
+        trip_id=trip.id,
+        event_type="status_changed",
+        data={"from": "arrived", "to": "in_progress"},
+        actor="customer",
+    ))
+    await db.commit()
+    await db.refresh(trip)
+    # Notify the driver that the customer is on board → drive to destination
+    if trip.driver_id is not None:
+        driver = await db.get(Driver, trip.driver_id)
+        if driver is not None:
+            await _push_notification(
+                db, driver.user_id,
+                "trip_started",
+                "🚗 Customer on board",
+                "The customer confirmed pickup. Navigate to the destination.",
+            )
     return trip
 
 
@@ -2522,7 +2595,7 @@ async def get_trip_eta(
     if trip is None or trip.customer_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
 
-    if trip.status not in ("accepted", "in_progress"):
+    if trip.status not in ("accepted", "arrived", "in_progress"):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No driver assigned to this trip yet",
@@ -2545,8 +2618,8 @@ async def get_trip_eta(
             detail="Driver location not available yet",
         )
 
-    # Determine reference point: pickup for accepted, dest for in_progress
-    if trip.status == "accepted":
+    # Determine reference point: pickup for accepted/arrived, dest for in_progress
+    if trip.status in ("accepted", "arrived"):
         ref_lat = trip.origin_lat
         ref_lng = trip.origin_lng
     else:
@@ -2601,7 +2674,7 @@ async def get_trip_tracking(
     if trip is None or trip.customer_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
 
-    if trip.status not in ("accepted", "in_progress"):
+    if trip.status not in ("accepted", "arrived", "in_progress"):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Trip is not active",
@@ -2638,7 +2711,7 @@ async def get_trip_tracking(
         updated_at_val = loc.updated_at
 
     # Compute ETA toward pickup (accepted) or destination (in_progress)
-    if trip.status == "accepted":
+    if trip.status in ("accepted", "arrived"):
         ref_lat, ref_lng = trip.origin_lat, trip.origin_lng
     else:
         ref_lat, ref_lng = trip.dest_lat, trip.dest_lng

@@ -209,6 +209,9 @@ html, body {
 .cancel-btn { display: block; width: 100%; margin-top: var(--space-4); background: transparent; border: 1px solid var(--color-error); color: var(--color-error); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); font-size: 1rem; cursor: pointer; font-weight: 600; transition: background 0.15s, color 0.15s; }
 .cancel-btn:hover { background: var(--color-error); color: #fff; }
 .cancel-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.board-btn { display: block; width: 100%; margin-top: var(--space-4); background: var(--color-accent-strong); border: none; color: #fff; border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); font-size: 1.05rem; cursor: pointer; font-weight: 700; transition: opacity 0.15s; }
+.board-btn:hover { opacity: 0.92; }
+.board-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ── Sprint 9: Assistance ────────────────────────────────────────────── */
 .mode-tabs { display: flex; gap: var(--space-2); margin-top: var(--space-4); margin-bottom: var(--space-2); }

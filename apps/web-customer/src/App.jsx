@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
-  login, signup, exchangeFirebaseToken, fetchMe, fetchDemo, registerUser, fetchEstimate, createTrip, getTrip, cancelTrip, rateTrip,
+  login, signup, exchangeFirebaseToken, fetchMe, fetchDemo, registerUser, fetchEstimate, createTrip, getTrip, cancelTrip, confirmOnboard, rateTrip,
   listMyTrips,
   validatePromo, getProfile, updateProfile,
   avatarUploadUrl, getBankAccount, setBankAccount,
@@ -38,6 +38,7 @@ const CATEGORY_ORDER  = ["economy", "comfort", "premium"];
 const STATUS_LABELS = {
   pending:     "⏳ Waiting for a driver",
   accepted:    "✓ Driver on the way",
+  arrived:     "📍 Your driver has arrived — confirm when you're in the car",
   in_progress: "🚗 Ride in progress",
   completed:   "✅ Ride completed",
   cancelled:   "✗ Ride cancelled",
@@ -804,6 +805,7 @@ function ChatPanel({ token, tripId, accent = "#F97316" }) {
 
 function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
   const [cancelling, setCancelling] = useState(false);
+  const [boarding, setBoarding] = useState(false);
   const [error, setError] = useState(null);
   const [eta, setEta] = useState(null); // { distance_km, eta_min } | null — Sprint 22
   const [driverLocation, setDriverLocation] = useState(null); // Sprint 23 — live driver position
@@ -822,7 +824,7 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
 
   // Sprint 22: Poll ETA every 15 s when driver is assigned
   useEffect(() => {
-    if (!["accepted", "in_progress"].includes(trip.status)) { setEta(null); return; }
+    if (!["accepted", "arrived", "in_progress"].includes(trip.status)) { setEta(null); return; }
     async function fetchEta() {
       try {
         const data = await getTripEta(token, trip.trip_id);
@@ -836,7 +838,7 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
 
   // Sprint 23: Poll driver's live position every 5 s when trip is active
   useEffect(() => {
-    if (!["accepted", "in_progress"].includes(trip.status)) { setDriverLocation(null); return; }
+    if (!["accepted", "arrived", "in_progress"].includes(trip.status)) { setDriverLocation(null); return; }
     async function fetchTracking() {
       try {
         const data = await getTripTracking(token, trip.trip_id);
@@ -857,7 +859,17 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
     finally { setCancelling(false); }
   }
 
-  const canCancel = ["pending", "accepted"].includes(trip.status);
+  // Customer confirms they are aboard → starts leg 2 (pickup → destination).
+  async function handleBoard() {
+    setBoarding(true); setError(null);
+    try {
+      const updated = await confirmOnboard(token, trip.trip_id);
+      onTripUpdate(updated);
+    } catch (err) { setError(err.message); }
+    finally { setBoarding(false); }
+  }
+
+  const canCancel = ["pending", "accepted", "arrived"].includes(trip.status);
 
   return (
     <div className="booking-section">
@@ -879,7 +891,7 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
           </div>
         )}
         {/* Per-trip verification code — share with the driver to confirm pickup */}
-        {trip.verification_code && ["accepted", "in_progress"].includes(trip.status) && (
+        {trip.verification_code && ["accepted", "arrived", "in_progress"].includes(trip.status) && (
           <div className="verify-code-card">
             <span className="verify-code-label">🔐 Verification code</span>
             <span className="verify-code-value">{trip.verification_code}</span>
@@ -895,7 +907,7 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
               <span className="eta-dist">{fmtMiles(eta.distance_km)} mi</span>
             </div>
             <span className="eta-label">
-              {trip.status === "accepted" ? "until pickup" : "until arrival"}
+              {["accepted", "arrived"].includes(trip.status) ? "until pickup" : "until arrival"}
             </span>
           </div>
         )}
@@ -921,7 +933,7 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
 
         {/* Live map — driver position + route */}
         <TripMap trip={trip} driverLocation={driverLocation} />
-        {trip.vehicle && (trip.status === "accepted" || trip.status === "in_progress") && (
+        {trip.vehicle && (trip.status === "accepted" || trip.status === "arrived" || trip.status === "in_progress") && (
           <div className="vehicle-badge">
             <span className="vehicle-badge-plate">🚗 {trip.vehicle.plate}</span>
             {(trip.vehicle.color || trip.vehicle.make || trip.vehicle.model) && (
@@ -933,7 +945,13 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
           </div>
         )}
       </div>
-      {(trip.status === "accepted" || trip.status === "in_progress") && (
+      {/* Gate: confirm pickup to start the ride (driver → destination) */}
+      {trip.status === "arrived" && (
+        <button className="board-btn" onClick={handleBoard} disabled={boarding}>
+          {boarding ? "Confirming…" : "✅ I'm in the car"}
+        </button>
+      )}
+      {(trip.status === "accepted" || trip.status === "arrived" || trip.status === "in_progress") && (
         <ChatPanel token={token} tripId={trip.trip_id} accent="#F97316" />
       )}
       {error && <p className="form-error">{error}</p>}

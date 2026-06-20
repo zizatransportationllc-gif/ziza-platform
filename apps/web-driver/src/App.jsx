@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import {
   login, signup, exchangeFirebaseToken, fetchMe, registerUser, registerDriver,
   listAvailableTrips, getActiveTrip,
-  acceptTrip, startTrip, completeTrip,
+  acceptTrip, markArrived, completeTrip,
   getMyRating, getMyEarnings, getDriverBalance,
   getMyVehicle, registerVehicle,
   getDriverProfile, getProfile, updateProfile, setDriverOnline, listDriverTripHistory,
@@ -47,6 +47,7 @@ const LOCATION_NAMES = Object.keys(NJ_LOCATIONS);
 
 const STATUS_LABELS = {
   accepted:    "✓ Ride accepted — heading to customer",
+  arrived:     "📍 Arrived — waiting for customer to confirm pickup",
   in_progress: "🚗 Ride in progress",
   completed:   "✅ Ride completed",
   cancelled:   "✗ Ride cancelled by customer",
@@ -249,7 +250,7 @@ function ActiveTripCard({ token, trip, onUpdate }) {
   // destination once the ride is in progress.
   const navTarget = trip.status === "in_progress"
     ? (hasDest ? { lat: trip.dest_lat, lng: trip.dest_lng } : null)
-    : (hasPickup ? { lat: trip.origin_lat, lng: trip.origin_lng } : null);
+    : (trip.status === "accepted" && hasPickup ? { lat: trip.origin_lat, lng: trip.origin_lng } : null);
   function openNavigation() {
     if (!navTarget) return;
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${navTarget.lat},${navTarget.lng}`, "_blank", "noopener");
@@ -314,30 +315,37 @@ function ActiveTripCard({ token, trip, onUpdate }) {
 
       {error && <p className="form-error">{error}</p>}
 
-      {/* Primary action — keep the driver on the in-app trip workflow */}
+      {/* Leg 1 (drive to customer): confirm arrival at the pickup point */}
       {trip.status === "accepted" && (
-        <button className="action-btn start-btn" onClick={() => handleAction(startTrip)} disabled={busy}>
-          {busy ? "…" : "🚦 Start Ride"}
+        <button className="action-btn start-btn" onClick={() => handleAction(markArrived)} disabled={busy}>
+          {busy ? "…" : "📍 I've arrived at the pickup"}
         </button>
       )}
+      {/* Gate: leg 2 cannot start until the customer confirms they are aboard */}
+      {trip.status === "arrived" && (
+        <div className="waiting-onboard">
+          ⏳ Waiting for the customer to confirm they are in the car…
+        </div>
+      )}
+      {/* Leg 2 (drive to destination): complete the ride */}
       {trip.status === "in_progress" && (
         <button className="action-btn complete-btn" onClick={() => handleAction(completeTrip)} disabled={busy}>
           {busy ? "…" : "🏁 Complete Ride"}
         </button>
       )}
 
-      {/* Optional external navigation — does not change the trip; the Start/
-          Complete steps above stay in the app. */}
+      {/* Optional external navigation — does not change the trip; the in-app
+          steps above stay here. */}
       {navTarget && (
         <>
           <button className="action-btn nav-btn-secondary" onClick={openNavigation}>
-            🧭 Open {trip.status === "in_progress" ? "destination" : "pickup"} in Maps
+            🧭 {trip.status === "in_progress" ? "Navigate to destination" : "Navigate to customer"}
           </button>
           <p className="nav-hint">Optional — opens an external maps app. Your trip steps stay here.</p>
         </>
       )}
 
-      {(trip.status === "accepted" || trip.status === "in_progress") && (
+      {(trip.status === "accepted" || trip.status === "arrived" || trip.status === "in_progress") && (
         <ChatPanel token={token} tripId={trip.trip_id} accent="#1D4ED8" />
       )}
     </div>

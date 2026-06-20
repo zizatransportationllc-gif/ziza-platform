@@ -11,7 +11,7 @@ import { RootStackParamList } from "../navigation/AppNavigator";
 import { useAuth } from "../context/AuthContext";
 import { useTrip } from "../hooks/useTrip";
 import { useTracking } from "../hooks/useTracking";
-import { createPaymentIntent } from "../api";
+import { createPaymentIntent, confirmOnboard } from "../api";
 import TrackingMap from "../components/TrackingMap";
 import EtaCard from "../components/EtaCard";
 import ChatPanel from "../components/ChatPanel";
@@ -25,9 +25,23 @@ export default function TrackingScreen(): React.ReactElement {
   const navigation = useNavigation<TrackingNavProp>();
   const { tripId } = route.params;
 
-  const { trip } = useTrip(token, tripId);
+  const { trip, refresh } = useTrip(token, tripId);
   const { position } = useTracking(token, trip?.driver_id ?? null, trip?.status ?? null);
   const [payLoading, setPayLoading] = useState(false);
+  const [boarding, setBoarding] = useState(false);
+
+  const handleBoard = async () => {
+    if (!trip || !token) return;
+    setBoarding(true);
+    try {
+      await confirmOnboard(token, trip.trip_id);
+      await refresh();
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Could not confirm pickup. Please try again.");
+    } finally {
+      setBoarding(false);
+    }
+  };
 
   const handlePay = async () => {
     if (!trip || !token) return;
@@ -60,7 +74,7 @@ export default function TrackingScreen(): React.ReactElement {
       />
       <View style={styles.info}>
         <Text style={styles.status}>Status: {trip?.status ?? "…"}</Text>
-        {trip?.verification_code && (trip.status === "accepted" || trip.status === "in_progress") && (
+        {trip?.verification_code && (trip.status === "accepted" || trip.status === "arrived" || trip.status === "in_progress") && (
           <View style={styles.codeCard}>
             <Text style={styles.codeLabel}>🔐 VERIFICATION CODE</Text>
             <Text style={styles.codeValue}>{trip.verification_code}</Text>
@@ -70,7 +84,21 @@ export default function TrackingScreen(): React.ReactElement {
         {trip?.eta_minutes != null && (
           <EtaCard etaMinutes={trip.eta_minutes} />
         )}
-        {token && (trip?.status === "accepted" || trip?.status === "in_progress") && (
+        {/* Gate: confirm pickup to start the ride (driver → destination) */}
+        {trip?.status === "arrived" && (
+          <TouchableOpacity
+            style={[styles.boardButton, boarding && styles.payButtonDisabled]}
+            onPress={handleBoard}
+            disabled={boarding}
+          >
+            {boarding ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.payText}>✅ I'm in the car</Text>
+            )}
+          </TouchableOpacity>
+        )}
+        {token && (trip?.status === "accepted" || trip?.status === "arrived" || trip?.status === "in_progress") && (
           <ChatPanel token={token} scope="trip" id={tripId} accent="#F97316" />
         )}
         {trip?.status === "completed" && (
@@ -108,4 +136,11 @@ const styles = StyleSheet.create({
   },
   payButtonDisabled: { opacity: 0.6 },
   payText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  boardButton: {
+    backgroundColor: "#F97316",
+    borderRadius: 8,
+    padding: 16,
+    alignItems: "center",
+    marginTop: 12,
+  },
 });

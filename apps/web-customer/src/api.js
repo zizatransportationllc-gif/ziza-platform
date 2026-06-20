@@ -150,6 +150,22 @@ export async function cancelTrip(token, tripId) {
   return res.json();
 }
 
+// Customer confirms they are in the car → starts leg 2 (pickup → destination).
+export async function confirmOnboard(token, tripId) {
+  const res = await fetch(`${API_BASE}/v1/trips/${tripId}/board`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Confirm pickup error (${res.status})`);
+  }
+  return res.json();
+}
+
 export async function rateTrip(token, tripId, stars, comment) {
   const body = { stars };
   if (comment) body.comment = comment;
