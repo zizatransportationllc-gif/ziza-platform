@@ -14,7 +14,7 @@ import {
   searchPlaces, reverseGeocode, // Sprint 43
   checkPointInService, // Sprint 45
   createCraftRequest, getMyCraftRequests, getCraftRequestBids, selectCraftBid, cancelCraftRequest, // Sprint 48
-  getCraftRequest, craftConfirmArrival, craftComplete, // craft lifecycle
+  getCraftRequest, craftConfirmArrival, craftComplete, listCraftPhotos, // craft lifecycle
   listRequestMessages, sendRequestMessage, // Sprint 66
   submitDocument, listMyDocuments, // Sprint 53
 } from "./api";
@@ -1788,6 +1788,7 @@ function CraftBidsView({ token, request: initialRequest, onBack }) {
   const [loading, setLoading] = useState(true);
   const [selecting, setSelecting] = useState(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [photos, setPhotos] = useState([]);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
@@ -1809,6 +1810,12 @@ function CraftBidsView({ token, request: initialRequest, onBack }) {
     const id = setInterval(reloadRequest, 5000);
     return () => clearInterval(id);
   }, [request.status, reloadRequest]);
+
+  // Load the pro's before/after photos once a pro is assigned.
+  useEffect(() => {
+    if (!["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status)) return;
+    listCraftPhotos(token, request.request_id).then(setPhotos).catch(() => {});
+  }, [token, request.request_id, request.status]);
 
   async function handleSelect(bidId) {
     setSelecting(bidId); setError(null);
@@ -1859,6 +1866,29 @@ function CraftBidsView({ token, request: initialRequest, onBack }) {
         <button className="board-btn" disabled={actionBusy} onClick={() => runAction(craftComplete)}>
           {actionBusy ? "Confirming…" : "✅ Confirm the work is finished"}
         </button>
+      )}
+
+      {/* Before/after photos from the professional (read-only) */}
+      {photos.length > 0 && (
+        <div className="craft-photos-ro">
+          <h4 className="craft-photos-ro-title">📷 Photos from your professional</h4>
+          {["before", "after"].map((k) => {
+            const items = photos.filter((p) => p.kind === k);
+            if (items.length === 0) return null;
+            return (
+              <div key={k} className="craft-photo-group">
+                <span className="craft-photo-kind">{k === "before" ? "Before" : "After"}</span>
+                <div className="craft-photo-thumbs">
+                  {items.map((p) => p.url && (
+                    <a key={p.photo_id} href={p.url} target="_blank" rel="noopener noreferrer">
+                      <img src={p.url} alt={k} className="craft-photo-thumb" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
 
       <h3 className="craft-bids-title">

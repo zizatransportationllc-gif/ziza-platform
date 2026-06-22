@@ -5133,7 +5133,7 @@ async def set_service_flags(db: AsyncSession, updates: dict[str, bool]) -> dict[
 # Sprint 47 — Ziza Craft marketplace
 # ===========================================================================
 
-from app.models.craft import CraftBid, CraftRequest, Professional  # noqa: E402
+from app.models.craft import CraftBid, CraftRequest, CraftPhoto, Professional  # noqa: E402
 from app.models.professional_payout_request import (  # noqa: E402
     ProfessionalPayoutRequest as ProPayoutModel,
 )
@@ -5833,6 +5833,45 @@ async def customer_complete_craft(db: AsyncSession, request_id: uuid.UUID, custo
             "The customer confirmed completion. Payment will follow.",
         )
     return _craft_request_to_dict(req)
+
+
+# ---------------------------------------------------------------------------
+# Craft photos (before / after)
+# ---------------------------------------------------------------------------
+
+def _craft_photo_to_dict(p: CraftPhoto) -> dict:
+    return {
+        "photo_id": str(p.id),
+        "request_id": str(p.request_id),
+        "kind": p.kind,
+        "url": signed_read_url(p.url),
+        "created_at": p.created_at.isoformat(),
+    }
+
+
+async def add_craft_photo(
+    db: AsyncSession, request_id: uuid.UUID, kind: str, url: str, uploaded_by: uuid.UUID
+) -> dict:
+    if kind not in ("before", "after"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="kind must be 'before' or 'after'.",
+        )
+    photo = CraftPhoto(
+        request_id=request_id, kind=kind, url=url,
+        uploaded_by=uploaded_by, created_at=datetime.now(timezone.utc),
+    )
+    db.add(photo)
+    await db.commit()
+    await db.refresh(photo)
+    return _craft_photo_to_dict(photo)
+
+
+async def list_craft_photos(db: AsyncSession, request_id: uuid.UUID) -> list[dict]:
+    result = await db.execute(
+        select(CraftPhoto).where(CraftPhoto.request_id == request_id).order_by(CraftPhoto.created_at)
+    )
+    return [_craft_photo_to_dict(p) for p in result.scalars()]
 
 
 # ---------------------------------------------------------------------------

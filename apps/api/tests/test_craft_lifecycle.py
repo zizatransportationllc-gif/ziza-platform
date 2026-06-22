@@ -93,3 +93,28 @@ def test_only_assigned_pro_can_mark_arrived():
     # The customer (not a professional) cannot mark arrival
     r = client.patch(f"/v1/craft/requests/{rid}/arrived", headers=_h(tc))
     assert r.status_code in (403, 404), r.text
+
+
+def test_before_after_photos_flow():
+    tc, tp, rid, _ = _assigned_request()
+    # Pro requests a signed upload URL
+    u = client.post(f"/v1/craft/requests/{rid}/photos/upload-url", headers=_h(tp),
+                    json={"kind": "before", "content_type": "image/jpeg", "filename": "x.jpg"})
+    assert u.status_code == 200, u.text
+    final_url = u.json()["final_url"]
+    # Pro records the uploaded photo
+    rec = client.post(f"/v1/craft/requests/{rid}/photos", headers=_h(tp),
+                      json={"kind": "before", "url": final_url})
+    assert rec.status_code == 201, rec.text
+    assert rec.json()["kind"] == "before"
+    # Customer can view it
+    lst = client.get(f"/v1/craft/requests/{rid}/photos", headers=_h(tc))
+    assert lst.status_code == 200, lst.text
+    assert any(p["kind"] == "before" for p in lst.json())
+
+
+def test_customer_cannot_upload_photo():
+    tc, tp, rid, _ = _assigned_request()
+    r = client.post(f"/v1/craft/requests/{rid}/photos", headers=_h(tc),
+                    json={"kind": "after", "url": "http://x/y"})
+    assert r.status_code in (403, 404), r.text

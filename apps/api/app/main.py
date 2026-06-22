@@ -5105,6 +5105,104 @@ async def craft_complete(
 
 
 # ---------------------------------------------------------------------------
+# Craft photos — before / after (professional uploads, both parties view)
+# ---------------------------------------------------------------------------
+
+_ALLOWED_CRAFT_PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp"}
+
+
+class CraftPhotoUploadUrlBody(BaseModel):
+    kind: str                 # "before" | "after"
+    content_type: str
+    filename: str = "photo.jpg"
+
+
+class CraftPhotoUploadUrlResponse(BaseModel):
+    upload_url: str
+    final_url: str
+
+
+class CraftPhotoRecordBody(BaseModel):
+    kind: str
+    url: str
+
+
+class CraftPhotoResponse(BaseModel):
+    photo_id: str
+    request_id: str
+    kind: str
+    url: str | None
+    created_at: str
+
+
+@app.post(
+    "/v1/craft/requests/{request_id}/photos/upload-url",
+    response_model=CraftPhotoUploadUrlResponse,
+    summary="Pro: signed URL to upload a before/after photo",
+)
+async def craft_photo_upload_url(
+    request_id: str,
+    body: CraftPhotoUploadUrlBody,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CraftPhotoUploadUrlResponse:
+    if body.kind not in ("before", "after"):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="kind must be 'before' or 'after'.")
+    if body.content_type not in _ALLOWED_CRAFT_PHOTO_TYPES:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"content_type must be one of {sorted(_ALLOWED_CRAFT_PHOTO_TYPES)}")
+    rid = _craft_rid(request_id)
+    req = await crud.get_craft_request(db, rid)
+    await crud._require_assigned_pro(db, req, claims.user_id)  # only the assigned pro
+    import uuid as _uuid  # noqa: PLC0415
+    safe_name = body.filename.replace("/", "_").replace("\\", "_")
+    key = f"craft/{request_id}/{body.kind}/{_uuid.uuid4()}/{safe_name}"
+    from app.storage import signed_upload_url  # noqa: PLC0415
+    upload_url, object_ref = signed_upload_url(key, body.content_type)
+    return CraftPhotoUploadUrlResponse(upload_url=upload_url, final_url=object_ref)
+
+
+@app.post(
+    "/v1/craft/requests/{request_id}/photos",
+    response_model=CraftPhotoResponse,
+    status_code=201,
+    summary="Pro: record an uploaded before/after photo",
+)
+async def craft_photo_record(
+    request_id: str,
+    body: CraftPhotoRecordBody,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CraftPhotoResponse:
+    rid = _craft_rid(request_id)
+    req = await crud.get_craft_request(db, rid)
+    await crud._require_assigned_pro(db, req, claims.user_id)
+    uploader = await crud.get_user_db_id(db, claims.user_id)
+    data = await crud.add_craft_photo(db, rid, body.kind, body.url, uploader)
+    return CraftPhotoResponse(**data)
+
+
+@app.get(
+    "/v1/craft/requests/{request_id}/photos",
+    response_model=list[CraftPhotoResponse],
+    summary="List before/after photos for a craft request",
+)
+async def craft_photo_list(
+    request_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[CraftPhotoResponse]:
+    rid = _craft_rid(request_id)
+    req = await crud.get_craft_request(db, rid)
+    # Visible to the request's customer, the assigned pro, or an admin.
+    if claims.role != "admin":
+        user_db_id = await crud.get_user_db_id(db, claims.user_id)
+        if req.customer_id != user_db_id:
+            await crud._require_assigned_pro(db, req, claims.user_id)
+    items = await crud.list_craft_photos(db, rid)
+    return [CraftPhotoResponse(**d) for d in items]
+
+
+# ---------------------------------------------------------------------------
 # Professional bids history
 # ---------------------------------------------------------------------------
 
