@@ -24,7 +24,7 @@ import * as Location from "expo-location";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
-import { createCraftRequest, CRAFT_CATEGORIES } from "../api";
+import { createCraftRequest, reverseGeocode, CRAFT_CATEGORIES } from "../api";
 
 const CAT_LABELS: Record<string, string> = {
   breakdown:   "🔧 Breakdown",
@@ -55,23 +55,34 @@ export default function CraftRequestScreen(): React.ReactElement {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleGPS = async () => {
+  const handleGPS = async (silent = false) => {
     setLocating(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("Permission denied", "Location permission is required.");
+        if (!silent) Alert.alert("Permission denied", "Location permission is required.");
         return;
       }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       setLat(loc.coords.latitude.toFixed(5));
       setLng(loc.coords.longitude.toFixed(5));
+      // Auto-fill the address from the GPS position.
+      if (token) {
+        const r = await reverseGeocode(token, loc.coords.latitude, loc.coords.longitude);
+        if (r?.name) setAddress((prev) => (silent ? prev || r.name! : r.name!));
+      }
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Failed to get location");
+      if (!silent) Alert.alert("Error", e.message || "Failed to get location");
     } finally {
       setLocating(false);
     }
   };
+
+  // Auto-detect location + address on first load (silent).
+  useEffect(() => {
+    if (!lat) handleGPS(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const canSubmit =
     category !== "" &&
@@ -143,7 +154,7 @@ export default function CraftRequestScreen(): React.ReactElement {
 
       {/* Location */}
       <Text style={styles.label}>Your location</Text>
-      <TouchableOpacity style={styles.gpsBtn} onPress={handleGPS} disabled={locating}>
+      <TouchableOpacity style={styles.gpsBtn} onPress={() => handleGPS(false)} disabled={locating}>
         {locating ? (
           <ActivityIndicator color="#F97316" />
         ) : (

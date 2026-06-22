@@ -311,9 +311,9 @@ function EstimateSection({ token, onTripCreated }) {
     } catch { setDestInZone(true); }
   }
 
-  async function handleGps() {
-    if (!navigator.geolocation) { setError("GPS not supported by your browser."); return; }
-    setGpsLoading(true); setError(null);
+  async function handleGps(silent = false) {
+    if (!navigator.geolocation) { if (!silent) setError("GPS not supported by your browser."); return; }
+    setGpsLoading(true); if (!silent) setError(null);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords;
@@ -328,12 +328,21 @@ function EstimateSection({ token, onTripCreated }) {
         await checkOriginZone(place);
       },
       (err) => {
-        setError(`GPS error: ${err.message}`);
+        if (!silent) setError(`GPS error: ${err.message}`);
         setGpsLoading(false);
       },
       { enableHighAccuracy: true, timeout: 10000 },
     );
   }
+
+  // Auto-detect the pickup from GPS on first load (silent; user can change it).
+  const autoGpsRef = useRef(false);
+  useEffect(() => {
+    if (autoGpsRef.current || origin) return;
+    autoGpsRef.current = true;
+    handleGps(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -432,7 +441,7 @@ function EstimateSection({ token, onTripCreated }) {
           value={origin}
           onSelect={(v) => { setOrigin(v); setResult(null); checkOriginZone(v); }}
           token={token}
-          onGps={gpsLoading ? null : handleGps}
+          onGps={gpsLoading ? null : () => handleGps(false)}
           zoneWarning={originInZone === false ? "⚠️ This pickup is outside our service area." : null}
         />
         {gpsLoading && <p className="address-gps-hint">📡 Detecting your location…</p>}
@@ -2012,10 +2021,15 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
         setLng(coords.longitude.toFixed(5));
         setGpsLabel("✓ GPS position detected");
         setLocating(false);
+        // Auto-fill the address from the GPS position (don't clobber typing).
+        reverseGeocode(token, coords.latitude, coords.longitude)
+          .then((r) => { if (r?.name) setAddress((prev) => prev || r.name); })
+          .catch(() => {});
       },
       () => { setLocating(false); }, // silent failure — defaults used
       { timeout: 8000 },
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function handleGPS() {
@@ -2027,6 +2041,9 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
         setLng(coords.longitude.toFixed(5));
         setGpsLabel("✓ GPS position updated");
         setLocating(false);
+        reverseGeocode(token, coords.latitude, coords.longitude)
+          .then((r) => { if (r?.name) setAddress(r.name); })
+          .catch(() => {});
       },
       () => { setError("Unable to get GPS position. You can still submit — a default location will be used."); setLocating(false); },
       { timeout: 10000 },

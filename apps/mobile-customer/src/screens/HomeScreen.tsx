@@ -76,16 +76,18 @@ export default function HomeScreen(): React.ReactElement {
   };
 
   // ── GPS: auto-detect origin ────────────────────────────────────────────────
-  const handleGPS = async () => {
+  const handleGPS = async (silent = false) => {
     setLoading(true);
     setError(null);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert(
-          "Location required",
-          "Please enable location access in your device settings.",
-        );
+        if (!silent) {
+          Alert.alert(
+            "Location required",
+            "Please enable location access in your device settings.",
+          );
+        }
         return;
       }
       const pos = await Location.getCurrentPositionAsync({
@@ -106,11 +108,17 @@ export default function HomeScreen(): React.ReactElement {
       const inZone = await checkZone(place);
       setOriginInZone(inZone);
     } catch (e: any) {
-      setError(e.message);
+      if (!silent) setError(e.message);
     } finally {
       setLoading(false);
     }
   };
+
+  // Auto-detect the pickup from GPS on first load (silent; user can change it).
+  useEffect(() => {
+    if (!origin) handleGPS(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Open address search screen ─────────────────────────────────────────────
   const openSearch = (role: "origin" | "destination") => {
@@ -228,7 +236,7 @@ export default function HomeScreen(): React.ReactElement {
         <View style={styles.locationActions}>
           <TouchableOpacity
             style={styles.gpsBtn}
-            onPress={handleGPS}
+            onPress={() => handleGPS(false)}
             disabled={loading}
           >
             <Text style={styles.gpsBtnText}>📡 GPS</Text>
