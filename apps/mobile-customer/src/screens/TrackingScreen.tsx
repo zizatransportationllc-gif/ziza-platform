@@ -3,7 +3,7 @@
  * Sprint 41 — "Payer" button creates a real payment intent before navigating
  *             to PaymentScreen (was a hardcoded fake URL in Sprint 35).
  */
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -11,7 +11,7 @@ import { RootStackParamList } from "../navigation/AppNavigator";
 import { useAuth } from "../context/AuthContext";
 import { useTrip } from "../hooks/useTrip";
 import { useTracking } from "../hooks/useTracking";
-import { createPaymentIntent, confirmOnboard } from "../api";
+import { createPaymentIntent, confirmOnboard, reverseGeocode } from "../api";
 import TrackingMap from "../components/TrackingMap";
 import EtaCard from "../components/EtaCard";
 import ChatPanel from "../components/ChatPanel";
@@ -29,6 +29,19 @@ export default function TrackingScreen(): React.ReactElement {
   const { position } = useTracking(token, trip?.driver_id ?? null, trip?.status ?? null);
   const [payLoading, setPayLoading] = useState(false);
   const [boarding, setBoarding] = useState(false);
+  const [driverAddr, setDriverAddr] = useState<string | null>(null);
+
+  // Reverse-geocode the driver's live position (only when it moves ~10 m).
+  const driverGeoKey = position ? `${position.lat.toFixed(4)},${position.lng.toFixed(4)}` : null;
+  useEffect(() => {
+    if (!token || !position) { setDriverAddr(null); return; }
+    let active = true;
+    reverseGeocode(token, position.lat, position.lng)
+      .then((r) => { if (active && r?.name) setDriverAddr(r.name); })
+      .catch(() => {});
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, driverGeoKey]);
 
   const handleBoard = async () => {
     if (!trip || !token) return;
@@ -74,6 +87,9 @@ export default function TrackingScreen(): React.ReactElement {
       />
       <View style={styles.info}>
         <Text style={styles.status}>Status: {trip?.status ?? "…"}</Text>
+        {driverAddr && (trip?.status === "accepted" || trip?.status === "arrived" || trip?.status === "in_progress") && (
+          <Text style={styles.driverAddr}>📍 Driver: {driverAddr}</Text>
+        )}
         {trip?.verification_code && (trip.status === "accepted" || trip.status === "arrived" || trip.status === "in_progress") && (
           <View style={styles.codeCard}>
             <Text style={styles.codeLabel}>🔐 VERIFICATION CODE</Text>
@@ -123,6 +139,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   info: { padding: 16 },
   status: { fontSize: 16, fontWeight: "600", marginBottom: 8 },
+  driverAddr: { fontSize: 13, color: "#374151", marginBottom: 8 },
   codeCard: { alignItems: "center", backgroundColor: "#FFF7ED", borderWidth: 1, borderColor: "#F97316", borderStyle: "dashed", borderRadius: 10, paddingVertical: 12, marginBottom: 10 },
   codeLabel: { fontSize: 11, fontWeight: "700", color: "#9A3412", letterSpacing: 1 },
   codeValue: { fontSize: 30, fontWeight: "800", letterSpacing: 8, color: "#111827" },

@@ -831,6 +831,7 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
   const [error, setError] = useState(null);
   const [eta, setEta] = useState(null); // { distance_km, eta_min } | null — Sprint 22
   const [driverLocation, setDriverLocation] = useState(null); // Sprint 23 — live driver position
+  const [driverAddr, setDriverAddr] = useState(null); // reverse-geocoded driver address
 
   // Poll trip status every 5 s until terminal state
   useEffect(() => {
@@ -871,6 +872,20 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
     const id = setInterval(fetchTracking, 5000);
     return () => clearInterval(id);
   }, [trip.trip_id, trip.status]);
+
+  // Reverse-geocode the driver's live position to an address (only when the
+  // position changes by ~10 m, to limit lookups).
+  const driverGeoKey = driverLocation
+    ? `${driverLocation.driver_lat.toFixed(4)},${driverLocation.driver_lng.toFixed(4)}` : null;
+  useEffect(() => {
+    if (!driverLocation) { setDriverAddr(null); return; }
+    let active = true;
+    reverseGeocode(token, driverLocation.driver_lat, driverLocation.driver_lng)
+      .then((r) => { if (active && r?.name) setDriverAddr(r.name); })
+      .catch(() => {});
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, driverGeoKey]);
 
   async function handleCancel() {
     setCancelling(true); setError(null);
@@ -939,7 +954,7 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
             <span className="tracking-icon">📍</span>
             <div className="tracking-info">
               <div className="tracking-coords">
-                {driverLocation.driver_lat.toFixed(5)}, {driverLocation.driver_lng.toFixed(5)}
+                {driverAddr ?? `${driverLocation.driver_lat.toFixed(5)}, ${driverLocation.driver_lng.toFixed(5)}`}
               </div>
               {driverLocation.eta_min != null && (
                 <div className="tracking-eta">ETA: ~{driverLocation.eta_min} min</div>
