@@ -15,6 +15,7 @@ import {
   checkPointInService, // Sprint 45
   createCraftRequest, getMyCraftRequests, getCraftRequestBids, selectCraftBid, cancelCraftRequest, // Sprint 48
   getCraftRequest, craftConfirmArrival, craftComplete, listCraftPhotos, // craft lifecycle
+  createCraftPaymentIntent, getCraftPayment, // craft payment
   listRequestMessages, sendRequestMessage, // Sprint 66
   submitDocument, listMyDocuments, // Sprint 53
 } from "./api";
@@ -1781,6 +1782,58 @@ function RequestChatPanel({ token, requestId, accent = "#F97316" }) {
   );
 }
 
+// Payment for a completed assistance job (reuses the trip payment infra)
+function CraftPayment({ token, requestId, paid }) {
+  const [intent, setIntent] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [simulating, setSimulating] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    getCraftPayment(token, requestId).then((d) => { if (d) setIntent(d); }).catch(() => {});
+  }, [token, requestId]);
+
+  async function handlePay() {
+    setLoading(true); setError(null);
+    try { setIntent(await createCraftPaymentIntent(token, requestId)); }
+    catch (e) { setError(e.message); } finally { setLoading(false); }
+  }
+  async function handleSimulate() {
+    if (!intent) return;
+    setSimulating(true); setError(null);
+    try {
+      await simulatePayment(intent.provider_ref);
+      const d = await getCraftPayment(token, requestId);
+      if (d) setIntent(d);
+    } catch (e) { setError(e.message); } finally { setSimulating(false); }
+  }
+
+  if (paid || intent?.status === "paid") {
+    return <p className="craft-success">✅ Payment confirmed{intent ? ` — ${formatUSD(intent.amount_cents)}` : ""}</p>;
+  }
+  const isMock = intent?.checkout_url?.includes("localhost");
+  return (
+    <div>
+      {error && <p className="form-error">{error}</p>}
+      {!intent && (
+        <button className="board-btn" onClick={handlePay} disabled={loading}>
+          {loading ? "Loading…" : "💳 Pay for the assistance"}
+        </button>
+      )}
+      {intent && intent.status === "pending" && (isMock ? (
+        <button className="board-btn" onClick={handleSimulate} disabled={simulating}>
+          {simulating ? "Processing…" : `✅ Simulate payment (${formatUSD(intent.amount_cents)})`}
+        </button>
+      ) : (
+        <a className="board-btn" href={intent.checkout_url} target="_blank" rel="noopener noreferrer"
+           style={{ display: "block", textAlign: "center", textDecoration: "none" }}>
+          💳 Pay {formatUSD(intent.amount_cents)}
+        </a>
+      ))}
+    </div>
+  );
+}
+
 // Bids view for a single craft request
 function CraftBidsView({ token, request: initialRequest, onBack }) {
   const [request, setRequest] = useState(initialRequest);
@@ -1925,6 +1978,11 @@ function CraftBidsView({ token, request: initialRequest, onBack }) {
           </div>
         ))}
       </div>
+      {/* Payment once the job is completed */}
+      {request.status === "completed" && (
+        <CraftPayment token={token} requestId={request.request_id} paid={!!request.paid_at} />
+      )}
+
       {(isActive || success || bids.some((b) => b.status === "accepted")) && (
         <RequestChatPanel token={token} requestId={request.request_id} accent="#F97316" />
       )}

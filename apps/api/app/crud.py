@@ -2841,7 +2841,8 @@ def _intent_to_dict(intent: PaymentIntent) -> dict:
     """Serialise a PaymentIntent row to a plain dict."""
     return {
         "intent_id": str(intent.id),
-        "trip_id": str(intent.trip_id),
+        "trip_id": str(intent.trip_id) if intent.trip_id else None,
+        "craft_request_id": str(intent.craft_request_id) if getattr(intent, "craft_request_id", None) else None,
         "amount_cents": intent.amount_cents,
         "currency": intent.currency,
         "provider": intent.provider,
@@ -2972,13 +2973,20 @@ async def confirm_payment(
 
     customer_uuid: uuid.UUID | None = None
     if new_status == "paid":
-        # Stamp the trip
         now = datetime.now(timezone.utc)
-        trip_result = await db.execute(select(Trip).where(Trip.id == intent.trip_id))
-        trip: Trip | None = trip_result.scalar_one_or_none()
-        if trip is not None:
-            trip.paid_at = now
-            customer_uuid = trip.customer_id
+        if intent.trip_id is not None:
+            # Stamp the trip
+            trip_result = await db.execute(select(Trip).where(Trip.id == intent.trip_id))
+            trip: Trip | None = trip_result.scalar_one_or_none()
+            if trip is not None:
+                trip.paid_at = now
+                customer_uuid = trip.customer_id
+        elif intent.craft_request_id is not None:
+            # Stamp the assistance (craft) request
+            req = await db.get(CraftRequest, intent.craft_request_id)
+            if req is not None:
+                req.paid_at = now
+                customer_uuid = req.customer_id
 
     await db.commit()
     await db.refresh(intent)
@@ -5181,6 +5189,7 @@ def _craft_request_to_dict(r: CraftRequest, distance_km: float | None = None) ->
         "bid_deadline": r.bid_deadline.isoformat() if r.bid_deadline else None,
         "selected_bid_id": str(r.selected_bid_id) if r.selected_bid_id else None,
         "verification_code": getattr(r, "verification_code", None),
+        "paid_at": r.paid_at.isoformat() if getattr(r, "paid_at", None) else None,
         "created_at": r.created_at.isoformat(),
         "updated_at": r.updated_at.isoformat(),
         "distance_km": round(distance_km, 2) if distance_km is not None else None,
@@ -5872,6 +5881,85 @@ async def list_craft_photos(db: AsyncSession, request_id: uuid.UUID) -> list[dic
         select(CraftPhoto).where(CraftPhoto.request_id == request_id).order_by(CraftPhoto.created_at)
     )
     return [_craft_photo_to_dict(p) for p in result.scalars()]
+
+
+# ---------------------------------------------------------------------------
+# Craft payments (reuse the trip PaymentIntent / checkout infrastructure)
+# ---------------------------------------------------------------------------
+
+async def create_craft_payment_intent(
+    db: AsyncSession,
+    claims: Claims,
+    request_id: str,
+    adapter,
+    return_url: str = "https://app.ziza.live/payment/return",
+    notify_url: str | None = None,
+) -> dict:
+    """Create (or return existing) PaymentIntent for a completed craft job.
+
+    Amount = the accepted bid's price. Customer-only; idempotent.
+    """
+    user = await _get_user_by_auth_id(db, claims.user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    try:
+        rid = uuid.UUID(request_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid request id")
+    req = await db.get(CraftRequest, rid)
+    if req is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Craft request not found")
+    if req.customer_id != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not own this request")
+    if req.status != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"The job must be completed to pay (current status: {req.status!r})",
+        )
+
+    existing = await db.scalar(
+        select(PaymentIntent).where(PaymentIntent.craft_request_id == rid)
+    )
+    if existing is not None:
+        return _intent_to_dict(existing)
+
+    bid = await _assigned_bid(db, req)
+    amount = bid.price_cents if bid else 0
+    intent = PaymentIntent(
+        craft_request_id=rid,
+        amount_cents=amount,
+        provider=getattr(adapter, "_provider_name", "mock"),
+    )
+    db.add(intent)
+    await db.flush()
+    checkout = await adapter.create_checkout(
+        amount_cents=amount, ref=str(intent.id), return_url=return_url, notify_url=notify_url or None,
+    )
+    intent.provider_ref = checkout["provider_ref"]
+    intent.checkout_url = checkout["checkout_url"]
+    await db.commit()
+    await db.refresh(intent)
+    return _intent_to_dict(intent)
+
+
+async def get_craft_payment_for_request(db: AsyncSession, claims: Claims, request_id: str) -> dict | None:
+    """Return the PaymentIntent for a craft request, or None. Customer-only."""
+    user = await _get_user_by_auth_id(db, claims.user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    try:
+        rid = uuid.UUID(request_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid request id")
+    req = await db.get(CraftRequest, rid)
+    if req is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Craft request not found")
+    if req.customer_id != user.id and claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your request")
+    intent = await db.scalar(
+        select(PaymentIntent).where(PaymentIntent.craft_request_id == rid)
+    )
+    return _intent_to_dict(intent) if intent else None
 
 
 # ---------------------------------------------------------------------------
