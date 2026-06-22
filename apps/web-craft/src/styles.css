@@ -133,6 +133,8 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .craft-code-value { font-size: 1.6rem; font-weight: 800; letter-spacing: 0.3em; color: var(--color-accent); }
 .craft-code-hint { font-size: 0.72rem; color: var(--color-muted); }
 .craft-wait { margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--color-surface); border: 1px dashed var(--color-border); color: var(--color-fg); font-weight: 600; text-align: center; font-size: 0.9rem; }
+.craft-nav-btn { display: block; width: 100%; box-sizing: border-box; text-align: center; text-decoration: none; margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--color-accent-strong); color: #fff; font-weight: 700; font-size: 0.95rem; }
+.craft-nav-btn:hover { opacity: 0.92; }
 
 /* ── My bids ────────────────────────────────────────────────────────────── */
 .bid-list { display: flex; flex-direction: column; gap: var(--space-3); }
