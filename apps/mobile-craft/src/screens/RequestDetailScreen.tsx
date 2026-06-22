@@ -25,6 +25,8 @@ import { RootStackParamList } from "../navigation/AppNavigator";
 import {
   getCraftRequest,
   submitBid,
+  craftMarkArrived,
+  craftWorkDone,
   CraftRequest,
   formatUSD,
 } from "../api";
@@ -49,7 +51,6 @@ export default function RequestDetailScreen(): React.ReactElement {
 
   // Bid form
   const [priceDollars, setPriceDollars] = useState("");
-  const [etaMin, setEtaMin] = useState("");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [bidError, setBidError] = useState<string | null>(null);
@@ -92,20 +93,15 @@ export default function RequestDetailScreen(): React.ReactElement {
   const handleSubmitBid = async () => {
     setBidError(null);
     const priceNum = parseFloat(priceDollars);
-    const etaNum = parseInt(etaMin, 10);
     if (isNaN(priceNum) || priceNum <= 0) {
       setBidError("Enter a valid price (e.g. 85.00)");
       return;
     }
-    if (isNaN(etaNum) || etaNum <= 0) {
-      setBidError("Enter a valid ETA in minutes (e.g. 20)");
-      return;
-    }
     setSubmitting(true);
     try {
+      // ETA is computed by the system from the captured GPS position.
       await submitBid(token!, requestId, {
         price_cents: Math.round(priceNum * 100),
-        eta_min: etaNum,
         note: note.trim() || null,
         professional_lat: myLat,
         professional_lng: myLng,
@@ -118,6 +114,19 @@ export default function RequestDetailScreen(): React.ReactElement {
       setBidError(e.message || "Failed to submit bid");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const [actionBusy, setActionBusy] = useState(false);
+  const runAction = async (fn: (t: string, id: string) => Promise<CraftRequest>) => {
+    if (!token) return;
+    setActionBusy(true);
+    try {
+      setRequest(await fn(token, requestId));
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Action failed");
+    } finally {
+      setActionBusy(false);
     }
   };
 
@@ -187,14 +196,7 @@ export default function RequestDetailScreen(): React.ReactElement {
             keyboardType="decimal-pad"
           />
 
-          <Text style={styles.label}>Estimated arrival time (minutes)</Text>
-          <TextInput
-            style={styles.input}
-            value={etaMin}
-            onChangeText={setEtaMin}
-            placeholder="e.g. 20"
-            keyboardType="number-pad"
-          />
+          <Text style={styles.meta}>⏱ ETA is calculated automatically from your GPS position.</Text>
 
           <Text style={styles.label}>Note (optional)</Text>
           <TextInput
@@ -220,15 +222,40 @@ export default function RequestDetailScreen(): React.ReactElement {
             )}
           </TouchableOpacity>
         </View>
-      ) : !isOpen ? (
-        <View style={styles.closedNote}>
-          <Text style={styles.closedText}>
-            This request is no longer accepting bids (status: {request.status}).
-          </Text>
-        </View>
       ) : null}
 
-      {token && (request.status === "assigned" || request.status === "in_progress") && (
+      {/* Verification code once assigned */}
+      {["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status) &&
+        request.verification_code && (
+          <View style={styles.codeCard}>
+            <Text style={styles.codeLabel}>🔐 VERIFICATION CODE</Text>
+            <Text style={styles.codeValue}>{request.verification_code}</Text>
+            <Text style={styles.codeHint}>Confirm this with the customer on site.</Text>
+          </View>
+        )}
+
+      {/* Pro lifecycle actions */}
+      {request.status === "assigned" && (
+        <TouchableOpacity style={[styles.submitBtn, actionBusy && styles.submitBtnDisabled]} onPress={() => runAction(craftMarkArrived)} disabled={actionBusy}>
+          <Text style={styles.submitBtnText}>📍 I've arrived at the customer</Text>
+        </TouchableOpacity>
+      )}
+      {request.status === "arrived" && (
+        <View style={styles.closedNote}><Text style={styles.closedText}>⏳ Waiting for the customer to confirm your arrival…</Text></View>
+      )}
+      {request.status === "in_progress" && (
+        <TouchableOpacity style={[styles.submitBtn, actionBusy && styles.submitBtnDisabled]} onPress={() => runAction(craftWorkDone)} disabled={actionBusy}>
+          <Text style={styles.submitBtnText}>🔧 Mark work as done</Text>
+        </TouchableOpacity>
+      )}
+      {request.status === "pro_done" && (
+        <View style={styles.closedNote}><Text style={styles.closedText}>⏳ Waiting for the customer to confirm completion…</Text></View>
+      )}
+      {request.status === "completed" && (
+        <View style={styles.closedNote}><Text style={styles.closedText}>🎉 Job completed.</Text></View>
+      )}
+
+      {token && ["assigned", "arrived", "in_progress", "pro_done"].includes(request.status) && (
         <ChatPanel token={token} requestId={requestId} accent="#059669" />
       )}
     </ScrollView>
@@ -308,4 +335,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   closedText: { color: "#6B7280", textAlign: "center", fontSize: 14 },
+  codeCard: {
+    marginTop: 20,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    borderRadius: 10,
+    padding: 16,
+    alignItems: "center",
+  },
+  codeLabel: { fontSize: 12, color: "#047857", fontWeight: "600" },
+  codeValue: { fontSize: 28, fontWeight: "800", letterSpacing: 6, color: "#059669", marginVertical: 4 },
+  codeHint: { fontSize: 12, color: "#6B7280" },
 });

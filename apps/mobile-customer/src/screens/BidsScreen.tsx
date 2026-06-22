@@ -29,6 +29,8 @@ import {
   getBidsForRequest,
   selectCraftBid,
   getCraftRequest,
+  craftConfirmArrival,
+  craftComplete,
   CraftBid,
   CraftRequest,
 } from "../api";
@@ -114,6 +116,15 @@ export default function BidsScreen(): React.ReactElement {
 
   const canSelect = request?.status === "open" || request?.status === "bidding_closed";
 
+  const [actionBusy, setActionBusy] = useState(false);
+  const runAction = async (fn: (t: string, id: string) => Promise<CraftRequest>) => {
+    if (!token) return;
+    setActionBusy(true);
+    try { setRequest(await fn(token, requestId)); }
+    catch (e: any) { Alert.alert("Error", e.message || "Action failed"); }
+    finally { setActionBusy(false); }
+  };
+
   const renderBid = ({ item }: { item: CraftBid }) => {
     const isSelected = item.bid_id === request?.selected_bid_id;
     const isSelecting = selecting === item.bid_id;
@@ -185,6 +196,23 @@ export default function BidsScreen(): React.ReactElement {
         <View style={styles.requestHeader}>
           <Text style={styles.requestCategory}>{request.category.toUpperCase()}</Text>
           <Text style={styles.requestDesc} numberOfLines={2}>{request.description}</Text>
+          {request.verification_code &&
+            ["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status) && (
+              <View style={styles.codeCard}>
+                <Text style={styles.codeLabel}>🔐 VERIFICATION CODE</Text>
+                <Text style={styles.codeValue}>{request.verification_code}</Text>
+              </View>
+            )}
+          {request.status === "arrived" && (
+            <TouchableOpacity style={styles.lifeBtn} onPress={() => runAction(craftConfirmArrival)} disabled={actionBusy}>
+              <Text style={styles.lifeBtnText}>✅ Confirm the professional has arrived</Text>
+            </TouchableOpacity>
+          )}
+          {request.status === "pro_done" && (
+            <TouchableOpacity style={styles.lifeBtn} onPress={() => runAction(craftComplete)} disabled={actionBusy}>
+              <Text style={styles.lifeBtnText}>✅ Confirm the work is finished</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -234,6 +262,11 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   requestDesc: { fontSize: 14, color: "#374151" },
+  codeCard: { marginTop: 10, backgroundColor: "#FFF7ED", borderWidth: 1, borderColor: "#FED7AA", borderRadius: 8, padding: 10, alignItems: "center" },
+  codeLabel: { fontSize: 11, color: "#9A3412", fontWeight: "600" },
+  codeValue: { fontSize: 24, fontWeight: "800", letterSpacing: 6, color: "#F97316" },
+  lifeBtn: { marginTop: 10, backgroundColor: "#F97316", borderRadius: 8, padding: 14, alignItems: "center" },
+  lifeBtnText: { color: "#fff", fontWeight: "bold", fontSize: 15 },
   list: { padding: 12 },
   card: {
     backgroundColor: "#fff",

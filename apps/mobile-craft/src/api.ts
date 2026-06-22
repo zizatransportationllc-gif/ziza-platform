@@ -78,6 +78,7 @@ export interface CraftRequest {
   status: string;
   bid_deadline: string | null;
   selected_bid_id: string | null;
+  verification_code: string | null;
   created_at: string;
   updated_at: string;
   distance_km: number | null;
@@ -300,6 +301,16 @@ export async function getCraftRequest(
   return _json<CraftRequest>(res);
 }
 
+// Pro lifecycle actions on an assigned job.
+async function _craftPatch(token: string, path: string): Promise<CraftRequest> {
+  const res = await fetch(`${API_BASE}${path}`, { method: "PATCH", headers: _auth(token) });
+  return _json<CraftRequest>(res);
+}
+export const craftMarkArrived = (token: string, id: string) =>
+  _craftPatch(token, `/v1/craft/requests/${id}/arrived`);
+export const craftWorkDone = (token: string, id: string) =>
+  _craftPatch(token, `/v1/craft/requests/${id}/work-done`);
+
 // ---------------------------------------------------------------------------
 // Bids
 // ---------------------------------------------------------------------------
@@ -309,7 +320,7 @@ export async function submitBid(
   requestId: string,
   bid: {
     price_cents: number;
-    eta_min: number;
+    eta_min?: number; // computed by the system from the pro's position
     note?: string | null;
     professional_lat?: number | null;
     professional_lng?: number | null;

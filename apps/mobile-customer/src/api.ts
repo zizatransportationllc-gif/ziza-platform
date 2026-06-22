@@ -580,6 +580,7 @@ export interface CraftRequest {
   status: string;
   bid_deadline: string | null;
   selected_bid_id: string | null;
+  verification_code: string | null;
   created_at: string;
   updated_at: string;
   distance_km: number | null;
@@ -653,6 +654,16 @@ export async function getCraftRequest(
   });
   return _json<CraftRequest>(res);
 }
+
+// Customer lifecycle actions on an assigned craft job.
+async function _craftPatch(token: string, path: string): Promise<CraftRequest> {
+  const res = await fetch(`${API_BASE}${path}`, { method: "PATCH", headers: _auth(token) });
+  return _json<CraftRequest>(res);
+}
+export const craftConfirmArrival = (token: string, id: string) =>
+  _craftPatch(token, `/v1/craft/requests/${id}/confirm-arrival`);
+export const craftComplete = (token: string, id: string) =>
+  _craftPatch(token, `/v1/craft/requests/${id}/complete`);
 
 export async function getBidsForRequest(
   token: string,
