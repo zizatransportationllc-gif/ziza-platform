@@ -8,12 +8,13 @@ import {
   Linking, Platform, Alert,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as Location from "expo-location";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "../context/AuthContext";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import {
-  getProfile, updateProfile, avatarUploadUrl, getBankAccount, setBankAccount,
+  getProfile, updateProfile, avatarUploadUrl, getBankAccount, setBankAccount, reverseGeocode,
   UserProfile, BankAccountInfo,
 } from "../api";
 
@@ -52,9 +53,11 @@ function AccountSection({ token }: { token: string }): React.ReactElement {
   const [type, setType] = useState("checking");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [homeAddress, setHomeAddress] = useState("");
+  const [homeBusy, setHomeBusy] = useState(false);
 
   const load = useCallback(() => {
-    getProfile(token).then(setProfile).catch(() => {});
+    getProfile(token).then((p) => { setProfile(p); setHomeAddress(p.home_address || ""); }).catch(() => {});
     getBankAccount(token).then((b) => { setBank(b); if (b) setHolder(b.account_holder_name); }).catch(() => {});
   }, [token]);
   useEffect(() => { load(); }, [load]);
@@ -76,6 +79,26 @@ function AccountSection({ token }: { token: string }): React.ReactElement {
       await fetch(upload_url, { method: "PUT", headers: { "Content-Type": ct }, body: blob });
       setProfile(await updateProfile(token, { avatar_url: final_url }));
     } catch { /* ignore */ } finally { setAvatarBusy(false); }
+  };
+
+  const useMyLocation = async () => {
+    setHomeBusy(true);
+    try {
+      const perm = await Location.requestForegroundPermissionsAsync();
+      if (perm.status !== "granted") { Alert.alert("Permission needed", "Location permission is required."); return; }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const r = await reverseGeocode(token, loc.coords.latitude, loc.coords.longitude);
+      if (r?.name) setHomeAddress(r.name);
+    } catch { /* ignore */ } finally { setHomeBusy(false); }
+  };
+
+  const saveHome = async () => {
+    setHomeBusy(true); setMsg(null);
+    try {
+      setProfile(await updateProfile(token, { home_address: homeAddress || null }));
+      setMsg("✓ Home address saved");
+    } catch (e: any) { setMsg(e?.message || "Save failed"); }
+    finally { setHomeBusy(false); }
   };
 
   const saveBank = async () => {
@@ -100,6 +123,17 @@ function AccountSection({ token }: { token: string }): React.ReactElement {
         </View>
         <TouchableOpacity onPress={pickAvatar} disabled={avatarBusy}>
           <Text style={[styles.changePhoto, { color: ACCENT }]}>{avatarBusy ? "Uploading…" : "📷 Change photo"}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={styles.sectionTitle}>🏠 Home address</Text>
+      <TextInput style={styles.input} value={homeAddress} onChangeText={setHomeAddress} placeholder="Your home address" />
+      <View style={styles.typeRow}>
+        <TouchableOpacity onPress={useMyLocation} disabled={homeBusy}>
+          <Text style={[styles.changePhoto, { color: ACCENT }]}>{homeBusy ? "…" : "📡 Use my current location"}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={saveHome} disabled={homeBusy}>
+          <Text style={[styles.changePhoto, { color: ACCENT }]}>💾 Save</Text>
         </TouchableOpacity>
       </View>
 

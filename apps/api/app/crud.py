@@ -1803,6 +1803,7 @@ async def get_user_profile(db: AsyncSession, auth_user_id: str) -> dict:
         "last_name": user.last_name,
         "date_of_birth": user.date_of_birth,
         "avatar_url": signed_read_url(user.avatar_url),
+        "home_address": user.home_address,
         "created_at": _utc(user.created_at).isoformat(),
     }
 
@@ -1816,6 +1817,7 @@ async def update_user_profile(
     last_name: str | None = None,
     date_of_birth: str | None = None,
     avatar_url: str | None = None,
+    home_address: str | None = None,
 ) -> dict:
     """Update the user's name, phone, and identity fields (Sprint 66).
 
@@ -1841,6 +1843,8 @@ async def update_user_profile(
         user.date_of_birth = date_of_birth if date_of_birth != "" else None
     if avatar_url is not None:
         user.avatar_url = avatar_url if avatar_url != "" else None
+    if home_address is not None:
+        user.home_address = home_address if home_address != "" else None
     user.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(user)
@@ -1854,6 +1858,7 @@ async def update_user_profile(
         "last_name": user.last_name,
         "date_of_birth": user.date_of_birth,
         "avatar_url": signed_read_url(user.avatar_url),
+        "home_address": user.home_address,
         "created_at": _utc(user.created_at).isoformat(),
     }
 
