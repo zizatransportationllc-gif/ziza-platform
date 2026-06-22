@@ -722,6 +722,17 @@ export async function selectCraftBid(token, requestId, bidId) {
   return _json(res);
 }
 
+// Customer lifecycle actions on an assigned craft job.
+async function _craftPatch(token, path) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+export const craftConfirmArrival = (token, id) => _craftPatch(token, `/v1/craft/requests/${id}/confirm-arrival`);
+export const craftComplete       = (token, id) => _craftPatch(token, `/v1/craft/requests/${id}/complete`);
+
 /** Cancel a craft request. */
 export async function cancelCraftRequest(token, requestId) {
   const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/cancel`, {

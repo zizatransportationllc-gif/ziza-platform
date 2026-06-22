@@ -14,6 +14,7 @@ import {
   searchPlaces, reverseGeocode, // Sprint 43
   checkPointInService, // Sprint 45
   createCraftRequest, getMyCraftRequests, getCraftRequestBids, selectCraftBid, cancelCraftRequest, // Sprint 48
+  getCraftRequest, craftConfirmArrival, craftComplete, // craft lifecycle
   listRequestMessages, sendRequestMessage, // Sprint 66
   submitDocument, listMyDocuments, // Sprint 53
 } from "./api";
@@ -1720,8 +1721,10 @@ const CRAFT_CAT_LABELS = {
 const CRAFT_STATUS_LABELS = {
   open:           "🟢 Open — accepting bids",
   bidding_closed: "⏰ Bidding closed",
-  assigned:       "✅ Professional assigned",
-  in_progress:    "🔧 In progress",
+  assigned:       "✅ Professional on the way",
+  arrived:        "📍 Professional has arrived",
+  in_progress:    "🔧 Work in progress",
+  pro_done:       "🔧 Work finished — confirm completion",
   completed:      "✅ Completed",
   cancelled:      "✗ Cancelled",
 };
@@ -1779,12 +1782,18 @@ function RequestChatPanel({ token, requestId, accent = "#F97316" }) {
 }
 
 // Bids view for a single craft request
-function CraftBidsView({ token, request, onBack }) {
+function CraftBidsView({ token, request: initialRequest, onBack }) {
+  const [request, setRequest] = useState(initialRequest);
   const [bids, setBids] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selecting, setSelecting] = useState(null);
+  const [actionBusy, setActionBusy] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+
+  const reloadRequest = useCallback(async () => {
+    try { setRequest(await getCraftRequest(token, initialRequest.request_id)); } catch { /* keep */ }
+  }, [token, initialRequest.request_id]);
 
   useEffect(() => {
     setLoading(true);
@@ -1794,16 +1803,32 @@ function CraftBidsView({ token, request, onBack }) {
       .finally(() => setLoading(false));
   }, [token, request.request_id]);
 
+  // Poll the request status while the job is active so the right buttons show.
+  useEffect(() => {
+    if (["completed", "cancelled"].includes(request.status)) return;
+    const id = setInterval(reloadRequest, 5000);
+    return () => clearInterval(id);
+  }, [request.status, reloadRequest]);
+
   async function handleSelect(bidId) {
     setSelecting(bidId); setError(null);
     try {
-      await selectCraftBid(token, request.request_id, bidId);
-      setSuccess("✅ Professional accepted! They will contact you shortly.");
+      const updated = await selectCraftBid(token, request.request_id, bidId);
+      setRequest(updated);
+      setSuccess("✅ Professional accepted! They are on their way.");
     } catch (e) { setError(e.message); }
     finally { setSelecting(null); }
   }
 
+  async function runAction(fn) {
+    setActionBusy(true); setError(null);
+    try { setRequest(await fn(token, request.request_id)); }
+    catch (e) { setError(e.message); }
+    finally { setActionBusy(false); }
+  }
+
   const canSelect = ["open", "bidding_closed"].includes(request.status);
+  const isActive = ["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status);
 
   return (
     <div className="craft-detail">
@@ -1814,6 +1839,27 @@ function CraftBidsView({ token, request, onBack }) {
       </div>
       <p className="craft-description">{request.description}</p>
       {request.address && <p className="craft-meta">📍 {request.address}</p>}
+
+      {/* Shared verification code once a professional is assigned */}
+      {isActive && request.verification_code && (
+        <div className="verify-code-card">
+          <span className="verify-code-label">🔐 Verification code</span>
+          <span className="verify-code-value">{request.verification_code}</span>
+          <span className="verify-code-hint">Share it with your professional on site.</span>
+        </div>
+      )}
+
+      {/* Customer lifecycle actions */}
+      {request.status === "arrived" && (
+        <button className="board-btn" disabled={actionBusy} onClick={() => runAction(craftConfirmArrival)}>
+          {actionBusy ? "Confirming…" : "✅ Confirm the professional has arrived"}
+        </button>
+      )}
+      {request.status === "pro_done" && (
+        <button className="board-btn" disabled={actionBusy} onClick={() => runAction(craftComplete)}>
+          {actionBusy ? "Confirming…" : "✅ Confirm the work is finished"}
+        </button>
+      )}
 
       <h3 className="craft-bids-title">
         {bids.length > 0 ? `${bids.length} bid${bids.length > 1 ? "s" : ""}` : "No bids yet"}
@@ -1849,7 +1895,7 @@ function CraftBidsView({ token, request, onBack }) {
           </div>
         ))}
       </div>
-      {(success || bids.some((b) => b.status === "accepted")) && (
+      {(isActive || success || bids.some((b) => b.status === "accepted")) && (
         <RequestChatPanel token={token} requestId={request.request_id} accent="#F97316" />
       )}
     </div>
