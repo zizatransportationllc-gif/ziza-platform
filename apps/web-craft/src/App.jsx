@@ -329,6 +329,18 @@ function RequestDetail({ token, requestId, onBack }) {
         </div>
       )}
 
+      {/* Navigation window — directions from the pro to the customer */}
+      {["assigned", "arrived", "in_progress"].includes(request.status) && (
+        <a
+          className="craft-nav-btn"
+          href={`https://www.google.com/maps/dir/?api=1&destination=${request.lat},${request.lng}&travelmode=driving`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          🧭 Navigate to the customer
+        </a>
+      )}
+
       {["assigned", "arrived", "in_progress", "pro_done"].includes(request.status) && (
         <RequestChatPanel token={token} requestId={requestId} accent="#059669" />
       )}

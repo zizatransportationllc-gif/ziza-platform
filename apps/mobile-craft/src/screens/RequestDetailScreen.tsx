@@ -17,6 +17,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Linking,
 } from "react-native";
 import * as Location from "expo-location";
 import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
@@ -234,6 +235,20 @@ export default function RequestDetailScreen(): React.ReactElement {
           </View>
         )}
 
+      {/* Navigation window — directions from the pro to the customer */}
+      {["assigned", "arrived", "in_progress"].includes(request.status) && (
+        <TouchableOpacity
+          style={styles.navBtn}
+          onPress={() =>
+            Linking.openURL(
+              `https://www.google.com/maps/dir/?api=1&destination=${request.lat},${request.lng}&travelmode=driving`
+            ).catch(() => {})
+          }
+        >
+          <Text style={styles.navBtnText}>🧭 Navigate to the customer</Text>
+        </TouchableOpacity>
+      )}
+
       {/* Pro lifecycle actions */}
       {request.status === "assigned" && (
         <TouchableOpacity style={[styles.submitBtn, actionBusy && styles.submitBtnDisabled]} onPress={() => runAction(craftMarkArrived)} disabled={actionBusy}>
@@ -347,4 +362,6 @@ const styles = StyleSheet.create({
   codeLabel: { fontSize: 12, color: "#047857", fontWeight: "600" },
   codeValue: { fontSize: 28, fontWeight: "800", letterSpacing: 6, color: "#059669", marginVertical: 4 },
   codeHint: { fontSize: 12, color: "#6B7280" },
+  navBtn: { marginTop: 16, backgroundColor: "#059669", borderRadius: 10, padding: 16, alignItems: "center" },
+  navBtnText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
 });
