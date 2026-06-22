@@ -223,6 +223,17 @@ export async function getMyBids(token, limit = 20, offset = 0) {
   return _json(res);
 }
 
+// Reverse-geocode a GPS point to a readable address (PlaceSearchResult | null).
+export async function reverseGeocode(token, lat, lng) {
+  try {
+    const res = await fetch(`${API_BASE}/v1/places/reverse?lat=${lat}&lng=${lng}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch { return null; }
+}
+
 // --- Before/after photos -----------------------------------------------------
 export async function listCraftPhotos(token, requestId) {
   const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/photos`, {

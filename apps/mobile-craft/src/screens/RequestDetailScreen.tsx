@@ -30,6 +30,7 @@ import {
   submitBid,
   craftMarkArrived,
   craftWorkDone,
+  reverseGeocode,
   listCraftPhotos,
   uploadCraftPhoto,
   CraftRequest,
@@ -65,6 +66,7 @@ export default function RequestDetailScreen(): React.ReactElement {
   // My GPS position for distance data
   const [myLat, setMyLat] = useState<number | null>(null);
   const [myLng, setMyLng] = useState<number | null>(null);
+  const [myAddr, setMyAddr] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -80,6 +82,9 @@ export default function RequestDetailScreen(): React.ReactElement {
               });
               setMyLat(loc.coords.latitude);
               setMyLng(loc.coords.longitude);
+              reverseGeocode(token, loc.coords.latitude, loc.coords.longitude)
+                .then((r) => { if (r?.name) setMyAddr(r.name); })
+                .catch(() => {});
             }
           } catch {
             // location unavailable — bid still works without it
@@ -220,7 +225,7 @@ export default function RequestDetailScreen(): React.ReactElement {
       )}
 
       {myLat && myLng && (
-        <Text style={styles.meta}>📡 Your position captured for bid</Text>
+        <Text style={styles.meta}>📡 Your position: {myAddr ?? "captured for bid"}</Text>
       )}
 
       {/* Bid form */}

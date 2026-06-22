@@ -4,7 +4,7 @@ import {
   getMyProfile, updateMyProfile, getProfile, updateProfile,
   avatarUploadUrl, getBankAccount, setBankAccount,
   listOpenRequests, getCraftRequest,
-  submitBid, getMyBids, craftMarkArrived, craftWorkDone, uploadCraftPhoto, listCraftPhotos,
+  submitBid, getMyBids, craftMarkArrived, craftWorkDone, uploadCraftPhoto, listCraftPhotos, reverseGeocode,
   getProBalance, createProPayout, listProPayouts,
   getConnectStatus, connectOnboard,
   listRequestMessages, sendRequestMessage,
@@ -303,6 +303,8 @@ function RequestDetail({ token, requestId, onBack }) {
   const [bidSuccess, setBidSuccess] = useState(false);
   const [bidError, setBidError] = useState(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [proPos, setProPos] = useState(null);
+  const [proAddr, setProAddr] = useState(null);
 
   const reload = useCallback(() => {
     setLoading(true);
@@ -313,6 +315,20 @@ function RequestDetail({ token, requestId, onBack }) {
   }, [token, requestId]);
 
   useEffect(() => { reload(); }, [reload]);
+
+  // Auto-capture the pro's GPS + address when the request is open (for the bid).
+  useEffect(() => {
+    if (request?.status !== "open") return;
+    let active = true;
+    getPosition().then(async (p) => {
+      if (!active || !p) return;
+      setProPos(p);
+      const r = await reverseGeocode(token, p.lat, p.lng);
+      if (active && r?.name) setProAddr(r.name);
+    });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request?.status]);
 
   function getPosition() {
     return new Promise((resolve) => {
@@ -330,7 +346,7 @@ function RequestDetail({ token, requestId, onBack }) {
     if (!priceDollars) return;
     setSubmitting(true); setBidError(null); setBidSuccess(false);
     try {
-      const pos = await getPosition();
+      const pos = proPos || await getPosition();
       await submitBid(token, requestId, Math.round(parseFloat(priceDollars) * 100), note.trim() || null, pos);
       setBidSuccess(true);
       setPriceDollars(""); setNote("");
@@ -449,6 +465,7 @@ function RequestDetail({ token, requestId, onBack }) {
               required
             />
             <p className="bid-eta-hint">⏱ ETA is calculated automatically from your GPS position.</p>
+            {proAddr && <p className="bid-eta-hint">📡 Your position: {proAddr}</p>}
             <label>Note (optional)</label>
             <textarea
               placeholder="Any relevant details for the customer…"

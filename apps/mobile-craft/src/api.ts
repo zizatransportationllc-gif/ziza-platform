@@ -311,6 +311,17 @@ export const craftMarkArrived = (token: string, id: string) =>
 export const craftWorkDone = (token: string, id: string) =>
   _craftPatch(token, `/v1/craft/requests/${id}/work-done`);
 
+// Reverse-geocode a GPS point to a readable address.
+export async function reverseGeocode(
+  token: string, lat: number, lng: number
+): Promise<{ name: string | null } | null> {
+  try {
+    const res = await fetch(`${API_BASE}/v1/places/reverse?lat=${lat}&lng=${lng}`, { headers: _auth(token) });
+    if (!res.ok) return null;
+    return (await res.json()) as { name: string | null } | null;
+  } catch { return null; }
+}
+
 // --- Before/after photos -----------------------------------------------------
 export interface CraftPhoto {
   photo_id: string;
