@@ -5180,6 +5180,7 @@ def _craft_request_to_dict(r: CraftRequest, distance_km: float | None = None) ->
         "status": r.status,
         "bid_deadline": r.bid_deadline.isoformat() if r.bid_deadline else None,
         "selected_bid_id": str(r.selected_bid_id) if r.selected_bid_id else None,
+        "verification_code": getattr(r, "verification_code", None),
         "created_at": r.created_at.isoformat(),
         "updated_at": r.updated_at.isoformat(),
         "distance_km": round(distance_km, 2) if distance_km is not None else None,
@@ -5326,21 +5327,29 @@ async def list_open_craft_requests(
     limit: int = 20,
     offset: int = 0,
 ) -> list[dict]:
-    """List open craft requests sorted by proximity to the professional."""
+    """List open craft requests ranked by a blend of proximity + recency.
+
+    The closer the request to the professional AND the more recent it is, the
+    higher it ranks. Score = distance_km + (age_minutes × 0.5) — lower is
+    better; each minute of age costs the equivalent of 0.5 km.
+    """
     result = await db.execute(
         select(CraftRequest)
         .where(CraftRequest.status == "open")
         .order_by(CraftRequest.created_at.desc())
-        .limit(limit)
-        .offset(offset)
+        .limit(200)
     )
     requests = list(result.scalars())
-    out = []
+    now = datetime.now(timezone.utc)
+    scored = []
     for r in requests:
         dist = _haversine_km(lat, lng, r.lat, r.lng)
-        out.append(_craft_request_to_dict(r, dist))
-    out.sort(key=lambda x: x["distance_km"] or 9999)
-    return out
+        age_min = max(0.0, (now - _utc(r.created_at)).total_seconds() / 60.0)
+        score = (dist if dist is not None else 9999) + age_min * 0.5
+        scored.append((score, dist, r))
+    scored.sort(key=lambda x: x[0])
+    page = scored[offset:offset + limit]
+    return [_craft_request_to_dict(r, dist) for _score, dist, r in page]
 
 
 async def list_customer_craft_requests(
@@ -5389,7 +5398,7 @@ async def create_craft_bid(
     request_id: uuid.UUID,
     professional_id: uuid.UUID,
     price_cents: int,
-    eta_min: int,
+    eta_min: int = 0,
     note: str | None = None,
     professional_lat: float | None = None,
     professional_lng: float | None = None,
@@ -5417,16 +5426,25 @@ async def create_craft_bid(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Price must be greater than zero.",
         )
-    if eta_min <= 0:
+    # ETA is computed by the system from the professional's position to the
+    # customer's location. Falls back to the caller-supplied value only when no
+    # professional position is available.
+    final_eta = eta_min
+    if professional_lat is not None and professional_lng is not None:
+        from app.pricing import get_route_info  # noqa: PLC0415
+        route = await get_route_info(professional_lat, professional_lng, req.lat, req.lng)
+        if route.duration_min and route.duration_min > 0:
+            final_eta = route.duration_min
+    if final_eta is None or final_eta <= 0:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="ETA must be greater than zero minutes.",
+            detail="Could not determine an ETA — provide the professional's position.",
         )
     bid = CraftBid(
         request_id=request_id,
         professional_id=professional_id,
         price_cents=price_cents,
-        eta_min=eta_min,
+        eta_min=final_eta,
         note=note,
         professional_lat=professional_lat,
         professional_lng=professional_lng,
@@ -5673,12 +5691,147 @@ async def select_craft_bid(
     )
     for b in all_bids_result.scalars():
         b.status = "accepted" if b.id == bid_id else "rejected"
-    # Update request
+    # Update request — assign + generate the shared pickup verification code
     req.selected_bid_id = bid_id
     req.status = "assigned"
+    req.verification_code = f"{secrets.randbelow(10000):04d}"
     req.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(req)
+    # Notify the selected professional
+    prof = await db.get(Professional, bid.professional_id)
+    if prof is not None:
+        await _push_notification(
+            db, prof.user_id,
+            "craft_bid_accepted",
+            "🛠️ Your bid was accepted",
+            "A customer selected your offer. Open the request to navigate to them.",
+        )
+    return _craft_request_to_dict(req)
+
+
+# ---------------------------------------------------------------------------
+# Craft job lifecycle (after a bid is selected)
+#   assigned → arrived (pro) → in_progress (customer) → pro_done (pro)
+#            → completed (customer)
+# ---------------------------------------------------------------------------
+
+async def _assigned_bid(db: AsyncSession, req: CraftRequest) -> CraftBid | None:
+    if req.selected_bid_id is None:
+        return None
+    return await db.get(CraftBid, req.selected_bid_id)
+
+
+async def _require_assigned_pro(db: AsyncSession, req: CraftRequest, auth_user_id: str) -> Professional:
+    prof = await _require_professional(db, auth_user_id)
+    bid = await _assigned_bid(db, req)
+    if bid is None or bid.professional_id != prof.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This request is not assigned to you.",
+        )
+    return prof
+
+
+async def _craft_pro_user_id(db: AsyncSession, req: CraftRequest) -> uuid.UUID | None:
+    bid = await _assigned_bid(db, req)
+    if bid is None:
+        return None
+    prof = await db.get(Professional, bid.professional_id)
+    return prof.user_id if prof else None
+
+
+async def professional_mark_arrived(db: AsyncSession, request_id: uuid.UUID, auth_user_id: str) -> dict:
+    """Pro confirms arrival at the customer's location → arrived."""
+    req = await get_craft_request(db, request_id)
+    await _require_assigned_pro(db, req, auth_user_id)
+    if req.status != "assigned":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot mark arrival when status is '{req.status}'.",
+        )
+    req.status = "arrived"
+    req.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(req)
+    await _push_notification(
+        db, req.customer_id,
+        "craft_pro_arrived",
+        "📍 Your professional has arrived",
+        "Confirm their arrival so they can start the job.",
+    )
+    return _craft_request_to_dict(req)
+
+
+async def customer_confirm_craft_arrival(db: AsyncSession, request_id: uuid.UUID, customer_id: uuid.UUID) -> dict:
+    """Customer validates the pro has arrived → in_progress (work starts)."""
+    req = await get_craft_request(db, request_id)
+    if req.customer_id != customer_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your request.")
+    if req.status != "arrived":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot confirm arrival when status is '{req.status}'.",
+        )
+    req.status = "in_progress"
+    req.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(req)
+    pro_uid = await _craft_pro_user_id(db, req)
+    if pro_uid is not None:
+        await _push_notification(
+            db, pro_uid,
+            "craft_started",
+            "✅ Customer confirmed your arrival",
+            "You can start the work now.",
+        )
+    return _craft_request_to_dict(req)
+
+
+async def professional_work_done(db: AsyncSession, request_id: uuid.UUID, auth_user_id: str) -> dict:
+    """Pro confirms the work is finished → pro_done (awaiting customer)."""
+    req = await get_craft_request(db, request_id)
+    await _require_assigned_pro(db, req, auth_user_id)
+    if req.status != "in_progress":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot mark work done when status is '{req.status}'.",
+        )
+    req.status = "pro_done"
+    req.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(req)
+    await _push_notification(
+        db, req.customer_id,
+        "craft_work_done",
+        "🔧 Work completed",
+        "Your professional marked the job as done — please confirm.",
+    )
+    return _craft_request_to_dict(req)
+
+
+async def customer_complete_craft(db: AsyncSession, request_id: uuid.UUID, customer_id: uuid.UUID) -> dict:
+    """Customer confirms the work is finished → completed (ready for payment)."""
+    req = await get_craft_request(db, request_id)
+    if req.customer_id != customer_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your request.")
+    if req.status != "pro_done":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot complete when status is '{req.status}'.",
+        )
+    req.status = "completed"
+    req.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(req)
+    pro_uid = await _craft_pro_user_id(db, req)
+    if pro_uid is not None:
+        await _push_notification(
+            db, pro_uid,
+            "craft_completed",
+            "🎉 Job confirmed complete",
+            "The customer confirmed completion. Payment will follow.",
+        )
     return _craft_request_to_dict(req)
 
 

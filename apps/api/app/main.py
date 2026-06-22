@@ -4731,6 +4731,7 @@ class CraftRequestResponse(BaseModel):
     status: str
     bid_deadline: str | None
     selected_bid_id: str | None
+    verification_code: str | None = None  # shared once a bid is selected
     created_at: str
     updated_at: str
     distance_km: float | None = None
@@ -4761,7 +4762,7 @@ class CraftBidResponse(BaseModel):
 
 class CreateBidBody(BaseModel):
     price_cents: int
-    eta_min: int
+    eta_min: int = 0  # computed by the system from the pro's position when known
     note: str | None = None
     professional_lat: float | None = None
     professional_lng: float | None = None
@@ -5031,6 +5032,75 @@ async def craft_select_bid(
     data = await crud.select_craft_bid(
         db, request_id=rid, bid_id=bid_id, customer_id=customer_db_id
     )
+    return CraftRequestResponse(**data)
+
+
+# ---------------------------------------------------------------------------
+# Craft job lifecycle — arrival + completion handshake
+# ---------------------------------------------------------------------------
+
+def _craft_rid(request_id: str) -> uuid.UUID:
+    try:
+        return uuid.UUID(request_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid UUID")
+
+
+@app.patch(
+    "/v1/craft/requests/{request_id}/arrived",
+    response_model=CraftRequestResponse,
+    summary="Professional confirms arrival at the customer (assigned → arrived)",
+)
+async def craft_mark_arrived(
+    request_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CraftRequestResponse:
+    data = await crud.professional_mark_arrived(db, _craft_rid(request_id), claims.user_id)
+    return CraftRequestResponse(**data)
+
+
+@app.patch(
+    "/v1/craft/requests/{request_id}/confirm-arrival",
+    response_model=CraftRequestResponse,
+    summary="Customer validates the pro arrived (arrived → in_progress)",
+)
+async def craft_confirm_arrival(
+    request_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CraftRequestResponse:
+    customer_db_id = await crud.get_user_db_id(db, claims.user_id)
+    data = await crud.customer_confirm_craft_arrival(db, _craft_rid(request_id), customer_db_id)
+    return CraftRequestResponse(**data)
+
+
+@app.patch(
+    "/v1/craft/requests/{request_id}/work-done",
+    response_model=CraftRequestResponse,
+    summary="Professional confirms the work is finished (in_progress → pro_done)",
+)
+async def craft_work_done(
+    request_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CraftRequestResponse:
+    data = await crud.professional_work_done(db, _craft_rid(request_id), claims.user_id)
+    return CraftRequestResponse(**data)
+
+
+@app.patch(
+    "/v1/craft/requests/{request_id}/complete",
+    response_model=CraftRequestResponse,
+    summary="Customer confirms the work is finished (pro_done → completed)",
+)
+async def craft_complete(
+    request_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CraftRequestResponse:
+    customer_db_id = await crud.get_user_db_id(db, claims.user_id)
+    data = await crud.customer_complete_craft(db, _craft_rid(request_id), customer_db_id)
     return CraftRequestResponse(**data)
 
 

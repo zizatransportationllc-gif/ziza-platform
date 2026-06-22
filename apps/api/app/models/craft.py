@@ -100,6 +100,10 @@ class CraftRequest(Base):
     # Stored as plain UUID — no FK constraint to avoid circular dependency
     # with craft_bids (both tables reference each other).
     selected_bid_id: Mapped[Optional[uuid.UUID]] = mapped_column(nullable=True)
+    # Short code generated when a bid is selected, shown to both the customer
+    # and the assigned professional so they can confirm they're meeting the
+    # right person on site.
+    verification_code: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
