@@ -14,6 +14,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
+  Image,
+  ScrollView,
   FlatList,
   StyleSheet,
   TouchableOpacity,
@@ -31,8 +33,10 @@ import {
   getCraftRequest,
   craftConfirmArrival,
   craftComplete,
+  listCraftPhotos,
   CraftBid,
   CraftRequest,
+  CraftPhoto,
 } from "../api";
 import { useAuth } from "../context/AuthContext";
 
@@ -125,6 +129,15 @@ export default function BidsScreen(): React.ReactElement {
     finally { setActionBusy(false); }
   };
 
+  // Before/after photos from the professional (read-only)
+  const [photos, setPhotos] = useState<CraftPhoto[]>([]);
+  useEffect(() => {
+    if (token && request &&
+        ["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status)) {
+      listCraftPhotos(token, requestId).then(setPhotos).catch(() => {});
+    }
+  }, [token, requestId, request?.status]);
+
   const renderBid = ({ item }: { item: CraftBid }) => {
     const isSelected = item.bid_id === request?.selected_bid_id;
     const isSelecting = selecting === item.bid_id;
@@ -213,6 +226,14 @@ export default function BidsScreen(): React.ReactElement {
               <Text style={styles.lifeBtnText}>✅ Confirm the work is finished</Text>
             </TouchableOpacity>
           )}
+          {photos.length > 0 && (
+            <View style={styles.photosBox}>
+              <Text style={styles.photosTitle}>📷 Photos from your professional</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {photos.map((p) => (p.url ? <Image key={p.photo_id} source={{ uri: p.url }} style={styles.photoThumb} /> : null))}
+              </ScrollView>
+            </View>
+          )}
         </View>
       )}
 
@@ -267,6 +288,9 @@ const styles = StyleSheet.create({
   codeValue: { fontSize: 24, fontWeight: "800", letterSpacing: 6, color: "#F97316" },
   lifeBtn: { marginTop: 10, backgroundColor: "#F97316", borderRadius: 8, padding: 14, alignItems: "center" },
   lifeBtnText: { color: "#fff", fontWeight: "bold", fontSize: 15 },
+  photosBox: { marginTop: 12 },
+  photosTitle: { fontSize: 13, fontWeight: "600", color: "#374151", marginBottom: 6 },
+  photoThumb: { width: 84, height: 84, borderRadius: 8, marginRight: 8, backgroundColor: "#E5E7EB" },
   list: { padding: 12 },
   card: {
     backgroundColor: "#fff",

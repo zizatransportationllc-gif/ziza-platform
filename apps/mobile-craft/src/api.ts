@@ -311,6 +311,48 @@ export const craftMarkArrived = (token: string, id: string) =>
 export const craftWorkDone = (token: string, id: string) =>
   _craftPatch(token, `/v1/craft/requests/${id}/work-done`);
 
+// --- Before/after photos -----------------------------------------------------
+export interface CraftPhoto {
+  photo_id: string;
+  request_id: string;
+  kind: string; // "before" | "after"
+  url: string | null;
+  created_at: string;
+}
+
+export async function listCraftPhotos(token: string, requestId: string): Promise<CraftPhoto[]> {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/photos`, { headers: _auth(token) });
+  return _json<CraftPhoto[]>(res);
+}
+
+/** Get a signed URL, PUT the picked image to GCS, then record the photo. */
+export async function uploadCraftPhoto(
+  token: string,
+  requestId: string,
+  kind: "before" | "after",
+  uri: string,
+  contentType = "image/jpeg"
+): Promise<CraftPhoto> {
+  const urlRes = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/photos/upload-url`, {
+    method: "POST",
+    headers: { ..._auth(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ kind, content_type: contentType, filename: "photo.jpg" }),
+  });
+  const { upload_url, final_url } = await _json<{ upload_url: string; final_url: string }>(urlRes);
+  // In dev (mock GCS) there is no bucket to PUT to — skip the upload step.
+  if (!upload_url.includes("/mock-gcs")) {
+    const blob = await (await fetch(uri)).blob();
+    const put = await fetch(upload_url, { method: "PUT", headers: { "Content-Type": contentType }, body: blob });
+    if (!put.ok) throw new Error("Photo upload failed");
+  }
+  const recRes = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/photos`, {
+    method: "POST",
+    headers: { ..._auth(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ kind, url: final_url }),
+  });
+  return _json<CraftPhoto>(recRes);
+}
+
 // ---------------------------------------------------------------------------
 // Bids
 // ---------------------------------------------------------------------------
