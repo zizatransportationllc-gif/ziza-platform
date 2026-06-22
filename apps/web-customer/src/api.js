@@ -741,6 +741,22 @@ export async function listCraftPhotos(token, requestId) {
   return _json(res);
 }
 
+/** Create (or fetch existing) payment intent for a completed assistance job. */
+export async function createCraftPaymentIntent(token, requestId) {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/payment-intent`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
+export async function getCraftPayment(token, requestId) {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/payment`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // PaymentIntent | null
+}
+
 /** Cancel a craft request. */
 export async function cancelCraftRequest(token, requestId) {
   const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/cancel`, {

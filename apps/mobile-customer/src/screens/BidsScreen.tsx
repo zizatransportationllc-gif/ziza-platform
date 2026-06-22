@@ -34,10 +34,14 @@ import {
   craftConfirmArrival,
   craftComplete,
   listCraftPhotos,
+  createCraftPaymentIntent,
+  getCraftPayment,
+  simulateCraftPayment,
   CraftBid,
   CraftRequest,
   CraftPhoto,
 } from "../api";
+import { Linking } from "react-native";
 import { useAuth } from "../context/AuthContext";
 
 type RouteProps = RouteProp<RootStackParamList, "Bids">;
@@ -127,6 +131,27 @@ export default function BidsScreen(): React.ReactElement {
     try { setRequest(await fn(token, requestId)); }
     catch (e: any) { Alert.alert("Error", e.message || "Action failed"); }
     finally { setActionBusy(false); }
+  };
+
+  // Payment once the job is completed
+  const [paying, setPaying] = useState(false);
+  const handlePay = async () => {
+    if (!token) return;
+    setPaying(true);
+    try {
+      const intent = await createCraftPaymentIntent(token, requestId);
+      if (intent.checkout_url && intent.checkout_url.includes("localhost")) {
+        // Dev/mock provider — confirm via the webhook, then refresh.
+        if (intent.provider_ref) await simulateCraftPayment(intent.provider_ref);
+        await loadData(false);
+      } else if (intent.checkout_url) {
+        Linking.openURL(intent.checkout_url).catch(() => {});
+      }
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Payment failed");
+    } finally {
+      setPaying(false);
+    }
   };
 
   // Before/after photos from the professional (read-only)
@@ -234,6 +259,15 @@ export default function BidsScreen(): React.ReactElement {
               </ScrollView>
             </View>
           )}
+          {request.status === "completed" && (
+            request.paid_at ? (
+              <Text style={styles.paidLabel}>✅ Payment confirmed</Text>
+            ) : (
+              <TouchableOpacity style={styles.lifeBtn} onPress={handlePay} disabled={paying}>
+                <Text style={styles.lifeBtnText}>{paying ? "Processing…" : "💳 Pay for the assistance"}</Text>
+              </TouchableOpacity>
+            )
+          )}
         </View>
       )}
 
@@ -291,6 +325,7 @@ const styles = StyleSheet.create({
   photosBox: { marginTop: 12 },
   photosTitle: { fontSize: 13, fontWeight: "600", color: "#374151", marginBottom: 6 },
   photoThumb: { width: 84, height: 84, borderRadius: 8, marginRight: 8, backgroundColor: "#E5E7EB" },
+  paidLabel: { marginTop: 10, color: "#16A34A", fontWeight: "700", fontSize: 14 },
   list: { padding: 12 },
   card: {
     backgroundColor: "#fff",

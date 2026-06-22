@@ -581,6 +581,7 @@ export interface CraftRequest {
   bid_deadline: string | null;
   selected_bid_id: string | null;
   verification_code: string | null;
+  paid_at: string | null;
   created_at: string;
   updated_at: string;
   distance_km: number | null;
@@ -676,6 +677,36 @@ export interface CraftPhoto {
 export async function listCraftPhotos(token: string, requestId: string): Promise<CraftPhoto[]> {
   const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/photos`, { headers: _auth(token) });
   return _json<CraftPhoto[]>(res);
+}
+
+export interface CraftPaymentIntent {
+  intent_id: string;
+  amount_cents: number;
+  status: string;
+  provider_ref: string | null;
+  checkout_url: string | null;
+}
+
+export async function createCraftPaymentIntent(token: string, requestId: string): Promise<CraftPaymentIntent> {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/payment-intent`, {
+    method: "POST", headers: _auth(token),
+  });
+  return _json<CraftPaymentIntent>(res);
+}
+
+export async function getCraftPayment(token: string, requestId: string): Promise<CraftPaymentIntent | null> {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/payment`, { headers: _auth(token) });
+  return _json<CraftPaymentIntent | null>(res);
+}
+
+/** Dev/mock: confirm a mock payment by posting to the webhook. */
+export async function simulateCraftPayment(providerRef: string): Promise<unknown> {
+  const res = await fetch(`${API_BASE}/v1/payments/webhook`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ provider_ref: providerRef, status: "paid" }),
+  });
+  return _json<unknown>(res);
 }
 
 export async function getBidsForRequest(

@@ -104,6 +104,10 @@ class CraftRequest(Base):
     # and the assigned professional so they can confirm they're meeting the
     # right person on site.
     verification_code: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
+    # Set when the customer's payment for the assistance is confirmed.
+    paid_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )

@@ -32,10 +32,18 @@ class PaymentIntent(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
 
-    trip_id: Mapped[uuid.UUID] = mapped_column(
+    # Exactly one of trip_id / craft_request_id is set (a ride vs an assistance
+    # job). Both nullable + unique so the same payment infra serves both.
+    trip_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("trips.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         unique=True,   # one intent per trip
+        index=True,
+    )
+    craft_request_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("craft_requests.id", ondelete="CASCADE"),
+        nullable=True,
+        unique=True,   # one intent per craft request
         index=True,
     )
 

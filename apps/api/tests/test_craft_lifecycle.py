@@ -118,3 +118,34 @@ def test_customer_cannot_upload_photo():
     r = client.post(f"/v1/craft/requests/{rid}/photos", headers=_h(tc),
                     json={"kind": "after", "url": "http://x/y"})
     assert r.status_code in (403, 404), r.text
+
+
+def _drive_to_completed(tc, tp, rid):
+    client.patch(f"/v1/craft/requests/{rid}/arrived", headers=_h(tp))
+    client.patch(f"/v1/craft/requests/{rid}/confirm-arrival", headers=_h(tc))
+    client.patch(f"/v1/craft/requests/{rid}/work-done", headers=_h(tp))
+    client.patch(f"/v1/craft/requests/{rid}/complete", headers=_h(tc))
+
+
+def test_craft_payment_flow():
+    tc, tp, rid, _ = _assigned_request()
+    _drive_to_completed(tc, tp, rid)
+    # Customer creates the payment intent (amount = accepted bid: 8000)
+    pi = client.post(f"/v1/craft/requests/{rid}/payment-intent", headers=_h(tc))
+    assert pi.status_code == 201, pi.text
+    intent = pi.json()
+    assert intent["craft_request_id"] == rid
+    assert intent["amount_cents"] == 8000
+    # Confirm payment via the (mock) webhook
+    wh = client.post("/v1/payments/webhook",
+                     json={"provider_ref": intent["provider_ref"], "status": "paid"})
+    assert wh.status_code == 200, wh.text
+    # The request is now stamped paid
+    req = client.get(f"/v1/craft/requests/{rid}", headers=_h(tc)).json()
+    assert req["paid_at"] is not None
+
+
+def test_craft_payment_requires_completed():
+    tc, tp, rid, _ = _assigned_request()  # status: assigned
+    pi = client.post(f"/v1/craft/requests/{rid}/payment-intent", headers=_h(tc))
+    assert pi.status_code == 422, pi.text

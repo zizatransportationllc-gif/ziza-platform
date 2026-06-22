@@ -3216,7 +3216,8 @@ class PaymentIntentRequest(BaseModel):
 
 class PaymentIntentResponse(BaseModel):
     intent_id: str
-    trip_id: str
+    trip_id: str | None = None
+    craft_request_id: str | None = None
     amount_cents: int
     currency: str = "USD"
     provider: str
@@ -4732,6 +4733,7 @@ class CraftRequestResponse(BaseModel):
     bid_deadline: str | None
     selected_bid_id: str | None
     verification_code: str | None = None  # shared once a bid is selected
+    paid_at: str | None = None            # set when the customer's payment clears
     created_at: str
     updated_at: str
     distance_km: float | None = None
@@ -5200,6 +5202,47 @@ async def craft_photo_list(
             await crud._require_assigned_pro(db, req, claims.user_id)
     items = await crud.list_craft_photos(db, rid)
     return [CraftPhotoResponse(**d) for d in items]
+
+
+# ---------------------------------------------------------------------------
+# Craft payment — customer pays for the assistance (reuses trip PaymentIntent)
+# ---------------------------------------------------------------------------
+
+@app.post(
+    "/v1/craft/requests/{request_id}/payment-intent",
+    response_model=PaymentIntentResponse,
+    status_code=201,
+    summary="Customer: pay for a completed assistance job",
+)
+async def craft_create_payment_intent(
+    request_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PaymentIntentResponse:
+    if claims.role != "customer":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only customers can initiate payment")
+    from app.payment import get_adapter  # noqa: PLC0415
+    adapter = get_adapter()
+    data = await crud.create_craft_payment_intent(
+        db, claims, request_id, adapter,
+        return_url=settings.payment_return_url,
+        notify_url=settings.payment_notify_url or None,
+    )
+    return PaymentIntentResponse(**data)
+
+
+@app.get(
+    "/v1/craft/requests/{request_id}/payment",
+    response_model=PaymentIntentResponse | None,
+    summary="Get the payment intent for a craft request (or null)",
+)
+async def craft_get_payment(
+    request_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PaymentIntentResponse | None:
+    data = await crud.get_craft_payment_for_request(db, claims, request_id)
+    return PaymentIntentResponse(**data) if data else None
 
 
 # ---------------------------------------------------------------------------
