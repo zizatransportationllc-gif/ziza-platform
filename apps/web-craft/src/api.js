@@ -223,6 +223,35 @@ export async function getMyBids(token, limit = 20, offset = 0) {
   return _json(res);
 }
 
+// --- Before/after photos -----------------------------------------------------
+export async function listCraftPhotos(token, requestId) {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/photos`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
+/** Get a signed URL, PUT the file to GCS, then record the photo. */
+export async function uploadCraftPhoto(token, requestId, kind, file) {
+  const urlRes = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/photos/upload-url`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ kind, content_type: file.type, filename: file.name }),
+  });
+  const { upload_url, final_url } = await _json(urlRes);
+  // In dev (mock GCS) there is no bucket to PUT to — skip the upload step.
+  if (!upload_url.includes("/mock-gcs")) {
+    const put = await fetch(upload_url, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+    if (!put.ok) throw new Error("Photo upload failed");
+  }
+  const recRes = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/photos`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ kind, url: final_url }),
+  });
+  return _json(recRes);
+}
+
 // Sprint 66 — in-app messaging on a craft request (professional ↔ customer)
 export async function listRequestMessages(token, requestId) {
   const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/messages`, {

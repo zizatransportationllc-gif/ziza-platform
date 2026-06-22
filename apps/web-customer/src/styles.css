@@ -557,6 +557,12 @@ html, body {
 
 /* Bids detail view */
 .craft-detail { text-align: left; }
+.craft-photos-ro { margin-top: var(--space-4); }
+.craft-photos-ro-title { font-size: 0.95rem; font-weight: 700; margin: 0 0 var(--space-2); }
+.craft-photo-group { margin-bottom: var(--space-2); }
+.craft-photo-kind { font-size: 0.8rem; font-weight: 600; color: var(--color-muted); }
+.craft-photo-thumbs { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-1); }
+.craft-photo-thumb { width: 84px; height: 84px; object-fit: cover; border-radius: var(--radius-md); border: 1px solid var(--color-border); }
 .craft-request-info { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2); flex-wrap: wrap; }
 .craft-status-label { font-size: 0.82rem; color: var(--color-muted); font-weight: 500; }
 .craft-description { font-size: 0.95rem; color: var(--color-fg); margin-bottom: var(--space-2); line-height: 1.5; }

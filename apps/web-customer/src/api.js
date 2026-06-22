@@ -733,6 +733,14 @@ async function _craftPatch(token, path) {
 export const craftConfirmArrival = (token, id) => _craftPatch(token, `/v1/craft/requests/${id}/confirm-arrival`);
 export const craftComplete       = (token, id) => _craftPatch(token, `/v1/craft/requests/${id}/complete`);
 
+/** List before/after photos for a craft request (read-only for the customer). */
+export async function listCraftPhotos(token, requestId) {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/photos`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
 /** Cancel a craft request. */
 export async function cancelCraftRequest(token, requestId) {
   const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/cancel`, {

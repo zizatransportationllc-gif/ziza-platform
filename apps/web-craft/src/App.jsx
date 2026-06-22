@@ -4,7 +4,7 @@ import {
   getMyProfile, updateMyProfile, getProfile, updateProfile,
   avatarUploadUrl, getBankAccount, setBankAccount,
   listOpenRequests, getCraftRequest,
-  submitBid, getMyBids, craftMarkArrived, craftWorkDone,
+  submitBid, getMyBids, craftMarkArrived, craftWorkDone, uploadCraftPhoto, listCraftPhotos,
   getProBalance, createProPayout, listProPayouts,
   getConnectStatus, connectOnboard,
   listRequestMessages, sendRequestMessage,
@@ -232,6 +232,62 @@ function RequestChatPanel({ token, requestId, accent = "#059669" }) {
 }
 
 // ---------------------------------------------------------------------------
+// Before/after photos for a craft job
+// ---------------------------------------------------------------------------
+
+function CraftPhotos({ token, requestId, canUpload }) {
+  const [photos, setPhotos] = useState([]);
+  const [busy, setBusy] = useState(null);
+  const [err, setErr] = useState(null);
+
+  const load = useCallback(() => {
+    listCraftPhotos(token, requestId).then(setPhotos).catch(() => {});
+  }, [token, requestId]);
+  useEffect(() => { load(); }, [load]);
+
+  async function handleFile(kind, e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBusy(kind); setErr(null);
+    try { await uploadCraftPhoto(token, requestId, kind, file); await load(); }
+    catch (x) { setErr(x.message); }
+    finally { setBusy(null); e.target.value = ""; }
+  }
+
+  return (
+    <div className="craft-photos">
+      <h3 className="craft-photos-title">📷 Before / After photos</h3>
+      {err && <p className="form-error">{err}</p>}
+      {["before", "after"].map((k) => {
+        const items = photos.filter((p) => p.kind === k);
+        return (
+          <div key={k} className="craft-photo-group">
+            <div className="craft-photo-head">
+              <span>{k === "before" ? "Before" : "After"}</span>
+              {canUpload && (
+                <label className="craft-photo-add">
+                  {busy === k ? "Uploading…" : "+ Add photo"}
+                  <input type="file" accept="image/*" capture="environment" hidden
+                    onChange={(e) => handleFile(k, e)} disabled={busy !== null} />
+                </label>
+              )}
+            </div>
+            <div className="craft-photo-thumbs">
+              {items.map((p) => p.url && (
+                <a key={p.photo_id} href={p.url} target="_blank" rel="noopener noreferrer">
+                  <img src={p.url} alt={k} className="craft-photo-thumb" />
+                </a>
+              ))}
+              {items.length === 0 && <span className="craft-photo-empty">No photos yet</span>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Request detail + bid form
 // ---------------------------------------------------------------------------
 
@@ -327,6 +383,15 @@ function RequestDetail({ token, requestId, onBack }) {
           <span className="craft-code-value">{request.verification_code}</span>
           <span className="craft-code-hint">Confirm this with the customer on site.</span>
         </div>
+      )}
+
+      {/* Before/after photos (visible once the job is assigned) */}
+      {isWon && (
+        <CraftPhotos
+          token={token}
+          requestId={requestId}
+          canUpload={["assigned", "arrived", "in_progress"].includes(request.status)}
+        />
       )}
 
       {/* Navigation window — directions from the pro to the customer */}

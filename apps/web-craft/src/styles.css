@@ -135,6 +135,14 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .craft-wait { margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--color-surface); border: 1px dashed var(--color-border); color: var(--color-fg); font-weight: 600; text-align: center; font-size: 0.9rem; }
 .craft-nav-btn { display: block; width: 100%; box-sizing: border-box; text-align: center; text-decoration: none; margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--color-accent-strong); color: #fff; font-weight: 700; font-size: 0.95rem; }
 .craft-nav-btn:hover { opacity: 0.92; }
+.craft-photos { margin: var(--space-3) 0; }
+.craft-photos-title { font-size: 0.95rem; font-weight: 700; margin: 0 0 var(--space-2); }
+.craft-photo-group { margin-bottom: var(--space-3); }
+.craft-photo-head { display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem; font-weight: 600; color: var(--color-muted); margin-bottom: var(--space-1); }
+.craft-photo-add { color: var(--color-accent-strong); font-weight: 700; cursor: pointer; font-size: 0.82rem; }
+.craft-photo-thumbs { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.craft-photo-thumb { width: 84px; height: 84px; object-fit: cover; border-radius: var(--radius-md); border: 1px solid var(--color-border); }
+.craft-photo-empty { font-size: 0.78rem; color: var(--color-muted); }
 
 /* ── My bids ────────────────────────────────────────────────────────────── */
 .bid-list { display: flex; flex-direction: column; gap: var(--space-3); }

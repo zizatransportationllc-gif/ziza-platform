@@ -112,6 +112,27 @@ class CraftRequest(Base):
     )
 
 
+class CraftPhoto(Base):
+    """Before/after photo a professional attaches to a craft job."""
+
+    __tablename__ = "craft_photos"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    request_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("craft_requests.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # "before" (initial situation) | "after" (resolution)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    # Canonical GCS object ref (or mock URL in dev) — read via signed_read_url
+    url: Mapped[str] = mapped_column(String(1024), nullable=False)
+    uploaded_by: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+
 class CraftBid(Base):
     """Professional's bid on a CraftRequest — Sprint 47."""
 
