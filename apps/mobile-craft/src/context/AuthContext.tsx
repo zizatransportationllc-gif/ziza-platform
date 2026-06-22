@@ -9,6 +9,8 @@
  *   4. Network errors treated as transient — keep session alive offline.
  */
 import React, { createContext, useContext, useState, useEffect } from "react";
+import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
 
 import {
   getStoredToken,
@@ -18,9 +20,45 @@ import {
   logout as apiLogout,
   refreshAccessToken,
   getMyProfessionalProfile,
+  registerDeviceToken,
+  deregisterDeviceToken,
   ProfessionalProfile,
   ApiError,
 } from "../api";
+
+// ---------------------------------------------------------------------------
+// Push token helpers — register the device so the pro receives notifications
+// (with sound + vibration via the channel configured in useNotifications).
+// ---------------------------------------------------------------------------
+
+async function _getExpoPushToken(): Promise<string | null> {
+  try {
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status !== "granted") return null;
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
+    const tokenData = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
+    return tokenData.data;
+  } catch {
+    return null;
+  }
+}
+
+async function _registerPush(authToken: string): Promise<void> {
+  const pushToken = await _getExpoPushToken();
+  if (pushToken) {
+    await registerDeviceToken(authToken, pushToken, "android").catch(() => {});
+  }
+}
+
+async function _deregisterPush(authToken: string): Promise<void> {
+  try {
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
+    const tokenData = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
+    await deregisterDeviceToken(authToken, tokenData.data).catch(() => {});
+  } catch {
+    // ignore
+  }
+}
 
 interface AuthContextType {
   token: string | null;
@@ -82,6 +120,7 @@ export function AuthProvider({
         }
 
         setToken(activeToken);
+        _registerPush(activeToken).catch(() => {});
       } finally {
         setReady(true);
       }
@@ -94,12 +133,14 @@ export function AuthProvider({
   ) => {
     await storeTokenPair(accessToken, refreshToken);
     setToken(accessToken);
+    _registerPush(accessToken).catch(() => {});
     const p = await _loadProfile(accessToken);
     setProfile(p);
   };
 
   const logout = async () => {
     if (token) {
+      await _deregisterPush(token).catch(() => {});
       await apiLogout(token).catch(() => clearTokenPair());
     } else {
       await clearTokenPair();
