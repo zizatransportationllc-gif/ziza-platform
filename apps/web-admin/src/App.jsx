@@ -1160,7 +1160,7 @@ function RatingsPanel({ token }) {
 // Fare Formula Panel — admin-configurable pricing coefficients
 // ---------------------------------------------------------------------------
 
-function _pricingForm(d) {
+function _pricingForm(d, surge) {
   return {
     base: (d.base_fare_cents / 100).toFixed(2),
     perMile: (d.per_mile_cents / 100).toFixed(2),
@@ -1169,6 +1169,7 @@ function _pricingForm(d) {
     economy: String(d.category_multipliers?.economy ?? 1),
     comfort: String(d.category_multipliers?.comfort ?? 1.4),
     premium: String(d.category_multipliers?.premium ?? 2),
+    surge: String(surge ?? 1),
   };
 }
 
@@ -1181,8 +1182,8 @@ function PricingPanel({ token }) {
 
   const load = useCallback(() => {
     setLoading(true); setError(null); setSaved(false);
-    adminGetPricing(token)
-      .then((d) => setForm(_pricingForm(d)))
+    Promise.all([adminGetPricing(token), adminGetSurge(token)])
+      .then(([p, s]) => setForm(_pricingForm(p, s.surge_multiplier)))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [token]);
@@ -1196,18 +1197,21 @@ function PricingPanel({ token }) {
     const toCents = (v) => Math.round(parseFloat(v) * 100);
     setSaving(true); setError(null); setSaved(false);
     try {
-      const d = await adminSetPricing(token, {
-        base_fare_cents: toCents(form.base),
-        per_mile_cents: toCents(form.perMile),
-        per_minute_cents: toCents(form.perMinute),
-        min_fare_cents: toCents(form.minFare),
-        category_multipliers: {
-          economy: parseFloat(form.economy),
-          comfort: parseFloat(form.comfort),
-          premium: parseFloat(form.premium),
-        },
-      });
-      setForm(_pricingForm(d));
+      const [d, s] = await Promise.all([
+        adminSetPricing(token, {
+          base_fare_cents: toCents(form.base),
+          per_mile_cents: toCents(form.perMile),
+          per_minute_cents: toCents(form.perMinute),
+          min_fare_cents: toCents(form.minFare),
+          category_multipliers: {
+            economy: parseFloat(form.economy),
+            comfort: parseFloat(form.comfort),
+            premium: parseFloat(form.premium),
+          },
+        }),
+        adminSetSurge(token, parseFloat(form.surge)),
+      ]);
+      setForm(_pricingForm(d, s.surge_multiplier));
       setSaved(true); setTimeout(() => setSaved(false), 3000);
     } catch (err) { setError(err.message); }
     finally { setSaving(false); }
@@ -1236,6 +1240,8 @@ function PricingPanel({ token }) {
               <input type="number" step="0.01" min="0" value={form.perMinute} onChange={(e) => upd("perMinute", e.target.value)} required /></label>
             <label className="pricing-field"><span>Minimum fare ($)</span>
               <input type="number" step="0.01" min="0.01" value={form.minFare} onChange={(e) => upd("minFare", e.target.value)} required /></label>
+            <label className="pricing-field"><span>Surge × (1 = off)</span>
+              <input type="number" step="0.1" min="1" max="5" value={form.surge} onChange={(e) => upd("surge", e.target.value)} required /></label>
           </div>
           <h3 className="pricing-subtitle">Category multipliers</h3>
           <div className="pricing-grid">
@@ -1251,87 +1257,6 @@ function PricingPanel({ token }) {
           </button>
         </form>
       )}
-    </div>
-  );
-}
-
-function SurgePanel({ token }) {
-  const [current, setCurrent] = useState(null);
-  const [input, setInput] = useState("1.0");
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(false);
-
-  const load = useCallback(() => {
-    setLoading(true); setError(null);
-    adminGetSurge(token)
-      .then((d) => { setCurrent(d.surge_multiplier); setInput(String(d.surge_multiplier)); })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [token]);
-
-  useEffect(() => { load(); }, [load]);
-
-  async function handleSave(e) {
-    e.preventDefault();
-    const val = parseFloat(input);
-    if (isNaN(val)) { setError("Invalid value."); return; }
-    setSaving(true); setError(null); setSuccess(false);
-    try {
-      const d = await adminSetSurge(token, val);
-      setCurrent(d.surge_multiplier);
-      setInput(String(d.surge_multiplier));
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-    } catch (err) { setError(err.message); }
-    finally { setSaving(false); }
-  }
-
-  const surgeColor = current >= 2 ? "#ef4444" : current >= 1.5 ? "#f59e0b" : "#4ade80";
-
-  return (
-    <div className="surge-panel">
-      <div className="panel-header">
-        <h2 className="panel-title">⚙️ Dynamic Pricing</h2>
-        <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
-      </div>
-      {loading && <div className="status loading">⏳ Loading…</div>}
-      {!loading && current !== null && (
-        <div className="surge-current">
-          <span className="surge-label">Current multiplier:</span>
-          <span className="surge-value" style={{ color: surgeColor }}>×{current}</span>
-          {current === 1.0 && <span className="surge-badge normal">Normal price</span>}
-          {current > 1.0 && current < 2.0 && <span className="surge-badge moderate">Moderate</span>}
-          {current >= 2.0 && <span className="surge-badge high">High demand</span>}
-        </div>
-      )}
-      <form className="surge-form" onSubmit={handleSave}>
-        <label className="surge-form-label">
-          New multiplier (1.0 – 5.0)
-          <div className="surge-input-row">
-            <input
-              className="surge-input"
-              type="number"
-              step="0.1"
-              min="1.0"
-              max="5.0"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              disabled={saving}
-            />
-            <button className="surge-set-btn" type="submit" disabled={saving}>
-              {saving ? "…" : "Apply"}
-            </button>
-          </div>
-        </label>
-        {error && <p className="form-error">{error}</p>}
-        {success && <p className="surge-success">✓ Multiplier updated</p>}
-      </form>
-      <div className="surge-hint">
-        <p>1.0 = base price · 2.0 = double price · max 5.0</p>
-        <p>Takes effect immediately on next estimates.</p>
-      </div>
     </div>
   );
 }
@@ -3349,7 +3274,6 @@ const TABS = [
   { id: "flags",        label: "🚩 Feature Flags" },
   { id: "services",     label: "🔧 Services" },
   { id: "pricing",      label: "💵 Fares" },
-  { id: "settings",     label: "⚙️ Settings" },
   { id: "users",        label: "👥 Users" },
   { id: "craft",        label: "🛠️ Craft" },
 ];
@@ -3406,7 +3330,6 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "flags"        && <FlagsPanel          token={token} />}
       {activeTab === "services"     && <ServicesPanel       token={token} />}
       {activeTab === "pricing"      && <PricingPanel        token={token} />}
-      {activeTab === "settings"     && <SurgePanel          token={token} />}
       {activeTab === "users"        && <UsersPanel          token={token} />}
       {activeTab === "craft"        && <CraftPanel          token={token} />}
 
