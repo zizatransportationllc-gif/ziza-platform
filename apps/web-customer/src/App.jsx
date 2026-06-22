@@ -1184,6 +1184,8 @@ function ProfileSection({ token }) {
   const [birthDate, setBirthDate] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [homeAddress, setHomeAddress] = useState("");
+  const [gpsBusy, setGpsBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
@@ -1200,6 +1202,7 @@ function ProfileSection({ token }) {
         setBirthDate(p.date_of_birth || "");
         setName(p.name || "");
         setPhone(p.phone || "");
+        setHomeAddress(p.home_address || "");
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -1229,12 +1232,27 @@ function ProfileSection({ token }) {
         date_of_birth: birthDate || null,
         name: name || null,
         phone: phone || null,
+        home_address: homeAddress || null,
       });
       setProfile(updated);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) { setError(err.message); }
     finally { setSaving(false); }
+  }
+
+  async function useMyLocation() {
+    if (!navigator.geolocation) return;
+    setGpsBusy(true); setError(null);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const r = await reverseGeocode(token, pos.coords.latitude, pos.coords.longitude);
+        if (r?.name) setHomeAddress(r.name);
+        setGpsBusy(false);
+      },
+      () => setGpsBusy(false),
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
   }
 
   if (loading) return <p className="history-empty">⏳ Loading profile…</p>;
@@ -1314,6 +1332,20 @@ function ProfileSection({ token }) {
             onChange={(e) => setPhone(e.target.value)}
             maxLength={32}
           />
+        </label>
+        <label className="profile-label">
+          <span>Home address</span>
+          <input
+            className="profile-input"
+            type="text"
+            placeholder="Your home address"
+            value={homeAddress}
+            onChange={(e) => setHomeAddress(e.target.value)}
+            maxLength={255}
+          />
+          <button type="button" className="link-btn" onClick={useMyLocation} disabled={gpsBusy}>
+            {gpsBusy ? "Locating…" : "📡 Use my current location"}
+          </button>
         </label>
         {error && <p className="form-error">{error}</p>}
         {success && <p className="profile-success">✓ Profile updated</p>}

@@ -575,6 +575,7 @@ class UserProfileResponse(BaseModel):
     last_name: str | None = None    # Sprint 64
     date_of_birth: str | None = None  # Sprint 64
     avatar_url: str | None = None   # Sprint 69 — signed read URL of the profile photo
+    home_address: str | None = None  # customer's saved home address
     created_at: str
 
 
@@ -585,6 +586,7 @@ class UserProfileUpdateRequest(BaseModel):
     last_name: str | None = Field(None, max_length=64, description="Last name (null = leave unchanged)")
     date_of_birth: str | None = Field(None, max_length=10, description="YYYY-MM-DD (null = leave unchanged)")
     avatar_url: str | None = Field(None, max_length=512, description="Profile photo object URL (null = leave unchanged)")
+    home_address: str | None = Field(None, max_length=255, description="Home address (null = leave unchanged)")
 
 
 @app.get("/v1/profile", tags=["profile"])
@@ -611,7 +613,7 @@ async def update_profile(
     profile = await crud.update_user_profile(
         db, claims.user_id, body.name, body.phone,
         first_name=body.first_name, last_name=body.last_name, date_of_birth=body.date_of_birth,
-        avatar_url=body.avatar_url,
+        avatar_url=body.avatar_url, home_address=body.home_address,
     )
     return UserProfileResponse(**profile)
 

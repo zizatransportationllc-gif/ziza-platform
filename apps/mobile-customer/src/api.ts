@@ -893,6 +893,7 @@ export interface UserProfile {
   phone?: string | null;
   date_of_birth?: string | null;
   avatar_url?: string | null;
+  home_address?: string | null;
 }
 
 export interface BankAccountInfo {
