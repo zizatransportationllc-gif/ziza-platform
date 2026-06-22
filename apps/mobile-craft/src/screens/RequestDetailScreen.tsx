@@ -18,8 +18,10 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Image,
 } from "react-native";
 import * as Location from "expo-location";
+import * as ImagePicker from "expo-image-picker";
 import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
@@ -28,7 +30,10 @@ import {
   submitBid,
   craftMarkArrived,
   craftWorkDone,
+  listCraftPhotos,
+  uploadCraftPhoto,
   CraftRequest,
+  CraftPhoto,
   formatUSD,
 } from "../api";
 import { useAuth } from "../context/AuthContext";
@@ -128,6 +133,41 @@ export default function RequestDetailScreen(): React.ReactElement {
       Alert.alert("Error", e.message || "Action failed");
     } finally {
       setActionBusy(false);
+    }
+  };
+
+  // Before/after photos
+  const [photos, setPhotos] = useState<CraftPhoto[]>([]);
+  const [photoBusy, setPhotoBusy] = useState<string | null>(null);
+  const loadPhotos = () => {
+    if (token) listCraftPhotos(token, requestId).then(setPhotos).catch(() => {});
+  };
+  useEffect(() => {
+    if (request && ["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status)) {
+      loadPhotos();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request?.status]);
+
+  const addPhoto = async (kind: "before" | "after") => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (perm.status !== "granted") {
+      Alert.alert("Permission needed", "Camera permission is required to take a photo.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.6,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    setPhotoBusy(kind);
+    try {
+      await uploadCraftPhoto(token!, requestId, kind, result.assets[0].uri, result.assets[0].mimeType || "image/jpeg");
+      loadPhotos();
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Upload failed");
+    } finally {
+      setPhotoBusy(null);
     }
   };
 
@@ -234,6 +274,33 @@ export default function RequestDetailScreen(): React.ReactElement {
             <Text style={styles.codeHint}>Confirm this with the customer on site.</Text>
           </View>
         )}
+
+      {/* Before/after photos */}
+      {["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status) && (
+        <View style={styles.photoSection}>
+          <Text style={styles.sectionTitle}>📷 Before / After photos</Text>
+          {(["before", "after"] as const).map((k) => {
+            const items = photos.filter((p) => p.kind === k);
+            const canUpload = ["assigned", "arrived", "in_progress"].includes(request.status);
+            return (
+              <View key={k} style={styles.photoGroup}>
+                <View style={styles.photoHead}>
+                  <Text style={styles.photoKind}>{k === "before" ? "Before" : "After"}</Text>
+                  {canUpload && (
+                    <TouchableOpacity onPress={() => addPhoto(k)} disabled={photoBusy !== null}>
+                      <Text style={styles.photoAdd}>{photoBusy === k ? "Uploading…" : "+ Add"}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {items.map((p) => (p.url ? <Image key={p.photo_id} source={{ uri: p.url }} style={styles.photoThumb} /> : null))}
+                  {items.length === 0 && <Text style={styles.photoEmpty}>No photos yet</Text>}
+                </ScrollView>
+              </View>
+            );
+          })}
+        </View>
+      )}
 
       {/* Navigation window — directions from the pro to the customer */}
       {["assigned", "arrived", "in_progress"].includes(request.status) && (
@@ -364,4 +431,11 @@ const styles = StyleSheet.create({
   codeHint: { fontSize: 12, color: "#6B7280" },
   navBtn: { marginTop: 16, backgroundColor: "#059669", borderRadius: 10, padding: 16, alignItems: "center" },
   navBtnText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  photoSection: { marginTop: 16 },
+  photoGroup: { marginTop: 8 },
+  photoHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
+  photoKind: { fontSize: 13, fontWeight: "600", color: "#6B7280" },
+  photoAdd: { fontSize: 13, fontWeight: "700", color: "#059669" },
+  photoThumb: { width: 84, height: 84, borderRadius: 8, marginRight: 8, backgroundColor: "#E5E7EB" },
+  photoEmpty: { fontSize: 12, color: "#9CA3AF" },
 });

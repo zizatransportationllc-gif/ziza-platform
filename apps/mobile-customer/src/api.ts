@@ -665,6 +665,19 @@ export const craftConfirmArrival = (token: string, id: string) =>
 export const craftComplete = (token: string, id: string) =>
   _craftPatch(token, `/v1/craft/requests/${id}/complete`);
 
+export interface CraftPhoto {
+  photo_id: string;
+  request_id: string;
+  kind: string;
+  url: string | null;
+  created_at: string;
+}
+
+export async function listCraftPhotos(token: string, requestId: string): Promise<CraftPhoto[]> {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/photos`, { headers: _auth(token) });
+  return _json<CraftPhoto[]>(res);
+}
+
 export async function getBidsForRequest(
   token: string,
   requestId: string,
