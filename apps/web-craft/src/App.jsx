@@ -4,7 +4,7 @@ import {
   getMyProfile, updateMyProfile, getProfile, updateProfile,
   avatarUploadUrl, getBankAccount, setBankAccount,
   listOpenRequests, getCraftRequest,
-  submitBid, getMyBids,
+  submitBid, getMyBids, craftMarkArrived, craftWorkDone,
   getProBalance, createProPayout, listProPayouts,
   getConnectStatus, connectOnboard,
   listRequestMessages, sendRequestMessage,
@@ -242,13 +242,13 @@ function RequestDetail({ token, requestId, onBack }) {
 
   // Bid form state
   const [priceDollars, setPriceDollars] = useState("");
-  const [etaMin, setEtaMin] = useState("");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [bidSuccess, setBidSuccess] = useState(false);
   const [bidError, setBidError] = useState(null);
+  const [actionBusy, setActionBusy] = useState(false);
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     setLoading(true);
     getCraftRequest(token, requestId)
       .then(setRequest)
@@ -256,27 +256,44 @@ function RequestDetail({ token, requestId, onBack }) {
       .finally(() => setLoading(false));
   }, [token, requestId]);
 
+  useEffect(() => { reload(); }, [reload]);
+
+  function getPosition() {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) { resolve(null); return; }
+      navigator.geolocation.getCurrentPosition(
+        (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+        () => resolve(null),
+        { enableHighAccuracy: true, timeout: 8000 },
+      );
+    });
+  }
+
   async function handleBid(e) {
     e.preventDefault();
-    if (!priceDollars || !etaMin) return;
+    if (!priceDollars) return;
     setSubmitting(true); setBidError(null); setBidSuccess(false);
     try {
-      await submitBid(
-        token,
-        requestId,
-        Math.round(parseFloat(priceDollars) * 100),
-        parseInt(etaMin, 10),
-        note.trim() || null,
-      );
+      const pos = await getPosition();
+      await submitBid(token, requestId, Math.round(parseFloat(priceDollars) * 100), note.trim() || null, pos);
       setBidSuccess(true);
-      setPriceDollars(""); setEtaMin(""); setNote("");
+      setPriceDollars(""); setNote("");
     } catch (err) { setBidError(err.message); }
     finally { setSubmitting(false); }
+  }
+
+  async function runAction(fn) {
+    setActionBusy(true); setError(null);
+    try { setRequest(await fn(token, requestId)); }
+    catch (err) { setError(err.message); }
+    finally { setActionBusy(false); }
   }
 
   if (loading) return <div className="status loading">⏳ Loading request…</div>;
   if (error)   return <p className="form-error">{error}</p>;
   if (!request) return null;
+
+  const isWon = ["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status);
 
   return (
     <div>
@@ -303,11 +320,42 @@ function RequestDetail({ token, requestId, onBack }) {
         </div>
       </div>
 
-      {["assigned", "in_progress"].includes(request.status) && (
+      {/* Shared verification code once a bid is selected */}
+      {isWon && request.verification_code && (
+        <div className="craft-code-card">
+          <span className="craft-code-label">🔐 Verification code</span>
+          <span className="craft-code-value">{request.verification_code}</span>
+          <span className="craft-code-hint">Confirm this with the customer on site.</span>
+        </div>
+      )}
+
+      {["assigned", "arrived", "in_progress", "pro_done"].includes(request.status) && (
         <RequestChatPanel token={token} requestId={requestId} accent="#059669" />
       )}
 
-      {bidSuccess ? (
+      {/* Pro lifecycle actions */}
+      {request.status === "assigned" && (
+        <button className="bid-submit-btn" disabled={actionBusy} onClick={() => runAction(craftMarkArrived)}>
+          {actionBusy ? "…" : "📍 I've arrived at the customer"}
+        </button>
+      )}
+      {request.status === "arrived" && (
+        <div className="craft-wait">⏳ Waiting for the customer to confirm your arrival…</div>
+      )}
+      {request.status === "in_progress" && (
+        <button className="bid-submit-btn" disabled={actionBusy} onClick={() => runAction(craftWorkDone)}>
+          {actionBusy ? "…" : "🔧 Mark work as done"}
+        </button>
+      )}
+      {request.status === "pro_done" && (
+        <div className="craft-wait">⏳ Waiting for the customer to confirm completion…</div>
+      )}
+      {request.status === "completed" && (
+        <p className="bid-success">🎉 Job completed.</p>
+      )}
+
+      {/* Bid form — only while the request is still open */}
+      {request.status === "open" && (bidSuccess ? (
         <p className="bid-success">✅ Bid submitted successfully!</p>
       ) : (
         <div className="bid-form">
@@ -323,16 +371,7 @@ function RequestDetail({ token, requestId, onBack }) {
               onChange={(e) => setPriceDollars(e.target.value)}
               required
             />
-            <label>ETA (minutes)</label>
-            <input
-              type="number"
-              min="1"
-              max="480"
-              placeholder="e.g. 30"
-              value={etaMin}
-              onChange={(e) => setEtaMin(e.target.value)}
-              required
-            />
+            <p className="bid-eta-hint">⏱ ETA is calculated automatically from your GPS position.</p>
             <label>Note (optional)</label>
             <textarea
               placeholder="Any relevant details for the customer…"
@@ -346,7 +385,7 @@ function RequestDetail({ token, requestId, onBack }) {
             </button>
           </form>
         </div>
-      )}
+      ))}
     </div>
   );
 }

@@ -184,7 +184,9 @@ export async function getCraftRequest(token, requestId) {
 // Bids
 // ---------------------------------------------------------------------------
 
-export async function submitBid(token, requestId, priceCents, etaMin, note = null) {
+// ETA is computed by the system from the professional's position to the
+// customer, so we send the pro's GPS instead of asking them for a number.
+export async function submitBid(token, requestId, priceCents, note = null, pos = null) {
   const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/bids`, {
     method: "POST",
     headers: {
@@ -192,10 +194,26 @@ export async function submitBid(token, requestId, priceCents, etaMin, note = nul
       "Content-Type": "application/json",
       Accept: "application/json",
     },
-    body: JSON.stringify({ price_cents: priceCents, eta_min: etaMin, note }),
+    body: JSON.stringify({
+      price_cents: priceCents,
+      note,
+      professional_lat: pos?.lat ?? null,
+      professional_lng: pos?.lng ?? null,
+    }),
   });
   return _json(res);
 }
+
+// Pro lifecycle actions on an assigned job.
+async function _craftPatch(token, path) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+export const craftMarkArrived = (token, id) => _craftPatch(token, `/v1/craft/requests/${id}/arrived`);
+export const craftWorkDone    = (token, id) => _craftPatch(token, `/v1/craft/requests/${id}/work-done`);
 
 export async function getMyBids(token, limit = 20, offset = 0) {
   const res = await fetch(
