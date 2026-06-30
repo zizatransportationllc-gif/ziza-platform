@@ -12,9 +12,15 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  TouchableOpacity,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../navigation/AppNavigator";
 import { getMyBids, CraftBid, formatUSD } from "../api";
 import { useAuth } from "../context/AuthContext";
+
+type MyBidsNavProp = NativeStackNavigationProp<RootStackParamList, "MyBids">;
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "#D97706",
@@ -27,6 +33,7 @@ const fmtMiles = (km: number): string => (km / 1.609344).toFixed(1);
 
 export default function MyBidsScreen(): React.ReactElement {
   const { token } = useAuth();
+  const navigation = useNavigation<MyBidsNavProp>();
   const [bids, setBids] = useState<CraftBid[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -51,33 +58,45 @@ export default function MyBidsScreen(): React.ReactElement {
     loadBids();
   }, [loadBids]);
 
-  const renderBid = ({ item }: { item: CraftBid }) => (
-    <View style={styles.card}>
-      <View style={styles.cardRow}>
-        <Text style={styles.bidId}>Bid #{item.bid_id.slice(0, 8)}</Text>
-        <Text style={[styles.statusBadge, { color: STATUS_COLORS[item.status] ?? "#6B7280" }]}>
-          {item.status.toUpperCase()}
+  const renderBid = ({ item }: { item: CraftBid }) => {
+    const accepted = item.status === "accepted";
+    const openJob = () =>
+      navigation.navigate("RequestDetail", { requestId: item.request_id, canManage: true });
+    const Wrapper: any = accepted ? TouchableOpacity : View;
+    return (
+      <Wrapper style={[styles.card, accepted && styles.cardAccepted]} onPress={accepted ? openJob : undefined}>
+        <View style={styles.cardRow}>
+          <Text style={styles.bidId}>Bid #{item.bid_id.slice(0, 8)}</Text>
+          <Text style={[styles.statusBadge, { color: STATUS_COLORS[item.status] ?? "#6B7280" }]}>
+            {item.status.toUpperCase()}
+          </Text>
+        </View>
+
+        <Text style={styles.price}>{formatUSD(item.price_cents)}</Text>
+
+        <View style={styles.metaRow}>
+          <Text style={styles.metaItem}>⏱ ETA: {item.eta_min} min</Text>
+          {item.distance_km != null && (
+            <Text style={styles.metaItem}>📏 {fmtMiles(item.distance_km)} mi</Text>
+          )}
+        </View>
+
+        {item.note ? (
+          <Text style={styles.note} numberOfLines={2}>💬 {item.note}</Text>
+        ) : null}
+
+        <Text style={styles.date}>
+          Submitted: {new Date(item.created_at).toLocaleDateString()}
         </Text>
-      </View>
 
-      <Text style={styles.price}>{formatUSD(item.price_cents)}</Text>
-
-      <View style={styles.metaRow}>
-        <Text style={styles.metaItem}>⏱ ETA: {item.eta_min} min</Text>
-        {item.distance_km != null && (
-          <Text style={styles.metaItem}>📏 {fmtMiles(item.distance_km)} mi</Text>
+        {accepted && (
+          <View style={styles.openBtn}>
+            <Text style={styles.openBtnText}>🧭 Open job & navigate to customer →</Text>
+          </View>
         )}
-      </View>
-
-      {item.note ? (
-        <Text style={styles.note} numberOfLines={2}>💬 {item.note}</Text>
-      ) : null}
-
-      <Text style={styles.date}>
-        Submitted: {new Date(item.created_at).toLocaleDateString()}
-      </Text>
-    </View>
-  );
+      </Wrapper>
+    );
+  };
 
   if (loading) {
     return (
@@ -131,6 +150,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 6,
   },
+  cardAccepted: { borderColor: "#059669", borderWidth: 2 },
+  openBtn: { marginTop: 12, backgroundColor: "#059669", borderRadius: 8, paddingVertical: 10, alignItems: "center" },
+  openBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   bidId: { fontSize: 12, color: "#9CA3AF" },
   statusBadge: { fontSize: 12, fontWeight: "700" },
   price: { fontSize: 24, fontWeight: "bold", color: "#111827", marginBottom: 6 },

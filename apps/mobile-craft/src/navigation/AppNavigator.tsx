@@ -17,7 +17,7 @@ import WithdrawalsScreen from "../screens/WithdrawalsScreen";
 export type RootStackParamList = {
   Login: undefined;
   Home: undefined;
-  RequestDetail: { requestId: string };
+  RequestDetail: { requestId: string; canManage?: boolean };
   MyBids: undefined;
   Profile: undefined;
   Documents: undefined;
