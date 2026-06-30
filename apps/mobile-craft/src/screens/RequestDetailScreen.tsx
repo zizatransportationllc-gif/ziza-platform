@@ -39,6 +39,7 @@ import {
 } from "../api";
 import { useAuth } from "../context/AuthContext";
 import ChatPanel from "../components/ChatPanel";
+import NavigationView from "../components/NavigationView";
 
 type RouteProps = RouteProp<RootStackParamList, "RequestDetail">;
 type NavProp = NativeStackNavigationProp<RootStackParamList, "RequestDetail">;
@@ -307,18 +308,22 @@ export default function RequestDetailScreen(): React.ReactElement {
         </View>
       )}
 
-      {/* Navigation window — directions from the pro to the customer */}
+      {/* In-app navigation window — follows the pro to the customer */}
       {["assigned", "arrived", "in_progress"].includes(request.status) && (
-        <TouchableOpacity
-          style={styles.navBtn}
-          onPress={() =>
-            Linking.openURL(
-              `https://www.google.com/maps/dir/?api=1&destination=${request.lat},${request.lng}&travelmode=driving`
-            ).catch(() => {})
-          }
-        >
-          <Text style={styles.navBtnText}>🧭 Navigate to the customer</Text>
-        </TouchableOpacity>
+        <View style={styles.navWrap}>
+          <NavigationView targetLat={request.lat} targetLng={request.lng} label="Customer" />
+          {/* Optional external navigation — opens a maps app; the in-app window stays here. */}
+          <TouchableOpacity
+            style={styles.navBtnSecondary}
+            onPress={() =>
+              Linking.openURL(
+                `https://www.google.com/maps/dir/?api=1&destination=${request.lat},${request.lng}&travelmode=driving`
+              ).catch(() => {})
+            }
+          >
+            <Text style={styles.navBtnSecondaryText}>🧭 Open in external maps</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* Pro lifecycle actions */}
@@ -436,6 +441,9 @@ const styles = StyleSheet.create({
   codeHint: { fontSize: 12, color: "#6B7280" },
   navBtn: { marginTop: 16, backgroundColor: "#059669", borderRadius: 10, padding: 16, alignItems: "center" },
   navBtnText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  navWrap: { marginTop: 16 },
+  navBtnSecondary: { marginTop: 10, backgroundColor: "transparent", borderRadius: 10, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "#059669" },
+  navBtnSecondaryText: { color: "#059669", fontWeight: "600", fontSize: 15 },
   photoSection: { marginTop: 16 },
   photoGroup: { marginTop: 8 },
   photoHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
