@@ -2260,7 +2260,11 @@ function CraftSection({ token }) {
         {requests.map((req) => {
           const deadline = req.bid_deadline ? new Date(req.bid_deadline) : null;
           const isExpired = deadline && deadline < new Date();
-          const canViewBids = ["open", "bidding_closed", "assigned"].includes(req.status);
+          // The customer can open the detail at every stage of the job (to confirm
+          // arrival, see the code/photos, confirm completion, pay) — only a
+          // cancelled request has nothing to show.
+          const canViewBids = req.status !== "cancelled";
+          const bidsStage = ["open", "bidding_closed"].includes(req.status);
           const canCancel = req.status === "open";
 
           return (
@@ -2288,7 +2292,7 @@ function CraftSection({ token }) {
                     className="craft-view-bids-btn"
                     onClick={() => { setSelectedRequest(req); setView("bids"); }}
                   >
-                    View Bids →
+                    {bidsStage ? "View Bids →" : "View Details →"}
                   </button>
                 )}
                 {canCancel && (
