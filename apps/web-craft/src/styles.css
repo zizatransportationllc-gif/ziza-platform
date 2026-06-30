@@ -135,6 +135,16 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .craft-wait { margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--color-surface); border: 1px dashed var(--color-border); color: var(--color-fg); font-weight: 600; text-align: center; font-size: 0.9rem; }
 .craft-nav-btn { display: block; width: 100%; box-sizing: border-box; text-align: center; text-decoration: none; margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--color-accent-strong); color: #fff; font-weight: 700; font-size: 0.95rem; }
 .craft-nav-btn:hover { opacity: 0.92; }
+.craft-nav-btn-secondary { background: transparent; color: var(--color-accent, var(--color-accent-strong)); border: 1px solid var(--color-border); }
+.craft-nav-btn-secondary:hover { opacity: 1; border-color: var(--color-accent-strong); }
+
+/* In-app navigation window (pro → customer) */
+.nav-view { margin: var(--space-3) 0 0; }
+.nav-banner { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); background: var(--color-accent-strong); color: #fff; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md) var(--radius-md) 0 0; font-size: 0.92rem; }
+.nav-banner-label { font-weight: 700; }
+.nav-banner-eta { font-weight: 600; opacity: 0.95; }
+.nav-view .mapboxgl-map { border-radius: 0 0 var(--radius-md) var(--radius-md); }
+.nav-hint { color: var(--color-muted); font-size: 0.78rem; text-align: center; margin-top: var(--space-2); }
 .craft-photos { margin: var(--space-3) 0; }
 .craft-photos-title { font-size: 0.95rem; font-weight: 700; margin: 0 0 var(--space-2); }
 .craft-photo-group { margin-bottom: var(--space-3); }

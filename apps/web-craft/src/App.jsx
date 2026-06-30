@@ -14,6 +14,7 @@ import {
   formatUSD,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, sendPasswordReset, firebaseSignOut } from "./auth";
+import NavigationView from "./NavigationView";
 
 const REQUIRED_ROLE = "professional";
 const TOKEN_KEY = "ziza_craft_token";
@@ -410,16 +411,20 @@ function RequestDetail({ token, requestId, onBack }) {
         />
       )}
 
-      {/* Navigation window — directions from the pro to the customer */}
+      {/* In-app navigation window — follows the pro to the customer */}
       {["assigned", "arrived", "in_progress"].includes(request.status) && (
-        <a
-          className="craft-nav-btn"
-          href={`https://www.google.com/maps/dir/?api=1&destination=${request.lat},${request.lng}&travelmode=driving`}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          🧭 Navigate to the customer
-        </a>
+        <>
+          <NavigationView target={{ lat: request.lat, lng: request.lng }} label="Customer" />
+          {/* Optional external navigation — opens a maps app; the in-app window stays here. */}
+          <a
+            className="craft-nav-btn craft-nav-btn-secondary"
+            href={`https://www.google.com/maps/dir/?api=1&destination=${request.lat},${request.lng}&travelmode=driving`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            🧭 Open in external maps
+          </a>
+        </>
       )}
 
       {["assigned", "arrived", "in_progress", "pro_done"].includes(request.status) && (
