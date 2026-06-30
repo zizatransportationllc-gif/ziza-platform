@@ -51,7 +51,7 @@ export default function RequestDetailScreen(): React.ReactElement {
   const { token } = useAuth();
   const route = useRoute<RouteProps>();
   const navigation = useNavigation<NavProp>();
-  const { requestId } = route.params;
+  const { requestId, canManage = false } = route.params;
 
   const [request, setRequest] = useState<CraftRequest | null>(null);
   const [loading, setLoading] = useState(true);
@@ -271,8 +271,9 @@ export default function RequestDetailScreen(): React.ReactElement {
         </View>
       ) : null}
 
-      {/* Verification code once assigned */}
-      {["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status) &&
+      {/* Verification code once assigned (winning pro only) */}
+      {canManage &&
+        ["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status) &&
         request.verification_code && (
           <View style={styles.codeCard}>
             <Text style={styles.codeLabel}>🔐 VERIFICATION CODE</Text>
@@ -281,8 +282,8 @@ export default function RequestDetailScreen(): React.ReactElement {
           </View>
         )}
 
-      {/* Before/after photos */}
-      {["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status) && (
+      {/* Before/after photos (winning pro only) */}
+      {canManage && ["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status) && (
         <View style={styles.photoSection}>
           <Text style={styles.sectionTitle}>📷 Before / After photos</Text>
           {(["before", "after"] as const).map((k) => {
@@ -308,8 +309,8 @@ export default function RequestDetailScreen(): React.ReactElement {
         </View>
       )}
 
-      {/* In-app navigation window — follows the pro to the customer */}
-      {["assigned", "arrived", "in_progress"].includes(request.status) && (
+      {/* In-app navigation window — follows the pro to the customer (winning pro only) */}
+      {canManage && ["assigned", "arrived", "in_progress"].includes(request.status) && (
         <View style={styles.navWrap}>
           <NavigationView targetLat={request.lat} targetLng={request.lng} label="Customer" />
           {/* Optional external navigation — opens a maps app; the in-app window stays here. */}
@@ -326,28 +327,28 @@ export default function RequestDetailScreen(): React.ReactElement {
         </View>
       )}
 
-      {/* Pro lifecycle actions */}
-      {request.status === "assigned" && (
+      {/* Pro lifecycle actions (winning pro only) */}
+      {canManage && request.status === "assigned" && (
         <TouchableOpacity style={[styles.submitBtn, actionBusy && styles.submitBtnDisabled]} onPress={() => runAction(craftMarkArrived)} disabled={actionBusy}>
           <Text style={styles.submitBtnText}>📍 I've arrived at the customer</Text>
         </TouchableOpacity>
       )}
-      {request.status === "arrived" && (
+      {canManage && request.status === "arrived" && (
         <View style={styles.closedNote}><Text style={styles.closedText}>⏳ Waiting for the customer to confirm your arrival…</Text></View>
       )}
-      {request.status === "in_progress" && (
+      {canManage && request.status === "in_progress" && (
         <TouchableOpacity style={[styles.submitBtn, actionBusy && styles.submitBtnDisabled]} onPress={() => runAction(craftWorkDone)} disabled={actionBusy}>
           <Text style={styles.submitBtnText}>🔧 Mark work as done</Text>
         </TouchableOpacity>
       )}
-      {request.status === "pro_done" && (
+      {canManage && request.status === "pro_done" && (
         <View style={styles.closedNote}><Text style={styles.closedText}>⏳ Waiting for the customer to confirm completion…</Text></View>
       )}
-      {request.status === "completed" && (
+      {canManage && request.status === "completed" && (
         <View style={styles.closedNote}><Text style={styles.closedText}>🎉 Job completed.</Text></View>
       )}
 
-      {token && ["assigned", "arrived", "in_progress", "pro_done"].includes(request.status) && (
+      {token && canManage && ["assigned", "arrived", "in_progress", "pro_done"].includes(request.status) && (
         <ChatPanel token={token} requestId={requestId} accent="#059669" />
       )}
     </ScrollView>

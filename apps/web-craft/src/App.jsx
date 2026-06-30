@@ -292,7 +292,7 @@ function CraftPhotos({ token, requestId, canUpload }) {
 // Request detail + bid form
 // ---------------------------------------------------------------------------
 
-function RequestDetail({ token, requestId, onBack }) {
+function RequestDetail({ token, requestId, onBack, canManage = false }) {
   const [request, setRequest] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -366,8 +366,6 @@ function RequestDetail({ token, requestId, onBack }) {
   if (error)   return <p className="form-error">{error}</p>;
   if (!request) return null;
 
-  const isWon = ["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status);
-
   return (
     <div>
       <button className="detail-back-btn" onClick={onBack}>← Back to requests</button>
@@ -393,8 +391,8 @@ function RequestDetail({ token, requestId, onBack }) {
         </div>
       </div>
 
-      {/* Shared verification code once a bid is selected */}
-      {isWon && request.verification_code && (
+      {/* Shared verification code once a bid is selected (winning pro only) */}
+      {canManage && request.verification_code && (
         <div className="craft-code-card">
           <span className="craft-code-label">🔐 Verification code</span>
           <span className="craft-code-value">{request.verification_code}</span>
@@ -402,8 +400,8 @@ function RequestDetail({ token, requestId, onBack }) {
         </div>
       )}
 
-      {/* Before/after photos (visible once the job is assigned) */}
-      {isWon && (
+      {/* Before/after photos (winning pro only) */}
+      {canManage && (
         <CraftPhotos
           token={token}
           requestId={requestId}
@@ -412,7 +410,7 @@ function RequestDetail({ token, requestId, onBack }) {
       )}
 
       {/* In-app navigation window — follows the pro to the customer */}
-      {["assigned", "arrived", "in_progress"].includes(request.status) && (
+      {canManage && ["assigned", "arrived", "in_progress"].includes(request.status) && (
         <>
           <NavigationView target={{ lat: request.lat, lng: request.lng }} label="Customer" />
           {/* Optional external navigation — opens a maps app; the in-app window stays here. */}
@@ -427,28 +425,28 @@ function RequestDetail({ token, requestId, onBack }) {
         </>
       )}
 
-      {["assigned", "arrived", "in_progress", "pro_done"].includes(request.status) && (
+      {canManage && ["assigned", "arrived", "in_progress", "pro_done"].includes(request.status) && (
         <RequestChatPanel token={token} requestId={requestId} accent="#059669" />
       )}
 
-      {/* Pro lifecycle actions */}
-      {request.status === "assigned" && (
+      {/* Pro lifecycle actions (winning pro only) */}
+      {canManage && request.status === "assigned" && (
         <button className="bid-submit-btn" disabled={actionBusy} onClick={() => runAction(craftMarkArrived)}>
           {actionBusy ? "…" : "📍 I've arrived at the customer"}
         </button>
       )}
-      {request.status === "arrived" && (
+      {canManage && request.status === "arrived" && (
         <div className="craft-wait">⏳ Waiting for the customer to confirm your arrival…</div>
       )}
-      {request.status === "in_progress" && (
+      {canManage && request.status === "in_progress" && (
         <button className="bid-submit-btn" disabled={actionBusy} onClick={() => runAction(craftWorkDone)}>
           {actionBusy ? "…" : "🔧 Mark work as done"}
         </button>
       )}
-      {request.status === "pro_done" && (
+      {canManage && request.status === "pro_done" && (
         <div className="craft-wait">⏳ Waiting for the customer to confirm completion…</div>
       )}
-      {request.status === "completed" && (
+      {canManage && request.status === "completed" && (
         <p className="bid-success">🎉 Job completed.</p>
       )}
 
@@ -524,6 +522,7 @@ function OpenRequestsSection({ token, isOnline }) {
         token={token}
         requestId={selectedId}
         onBack={() => { setSelectedId(null); load(page); }}
+        canManage={false}
       />
     );
   }
@@ -599,6 +598,7 @@ function MyBidsSection({ token }) {
   const [bids, setBids] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
+  const [selectedId, setSelectedId] = useState(null);
 
   const load = useCallback(async (p = 0) => {
     setLoading(true);
@@ -612,6 +612,17 @@ function MyBidsSection({ token }) {
 
   useEffect(() => { load(0); }, [load]);
 
+  if (selectedId) {
+    return (
+      <RequestDetail
+        token={token}
+        requestId={selectedId}
+        onBack={() => { setSelectedId(null); load(page); }}
+        canManage={true}
+      />
+    );
+  }
+
   return (
     <div>
       <div className="section-header">
@@ -623,21 +634,35 @@ function MyBidsSection({ token }) {
       {!loading && bids.length === 0 && <div className="empty-state">No bids submitted yet.</div>}
 
       <div className="bid-list">
-        {bids.map((b) => (
-          <div key={b.bid_id} className="bid-item">
-            <div className="bid-item-header">
-              <span className="bid-price">{formatUSD(b.price_cents)}</span>
-              <span className={`bid-status bid-status-${b.status}`}>
-                {BID_STATUS_LABELS[b.status] ?? b.status}
-              </span>
+        {bids.map((b) => {
+          const accepted = b.status === "accepted";
+          return (
+            <div
+              key={b.bid_id}
+              className={`bid-item${accepted ? " bid-item-accepted" : ""}`}
+              onClick={accepted ? () => setSelectedId(b.request_id) : undefined}
+              role={accepted ? "button" : undefined}
+              tabIndex={accepted ? 0 : undefined}
+            >
+              <div className="bid-item-header">
+                <span className="bid-price">{formatUSD(b.price_cents)}</span>
+                <span className={`bid-status bid-status-${b.status}`}>
+                  {BID_STATUS_LABELS[b.status] ?? b.status}
+                </span>
+              </div>
+              <p className="bid-eta">⏱ ETA: {b.eta_min} min</p>
+              {b.note && <p className="bid-note">💬 {b.note}</p>}
+              <p className="bid-date">
+                {new Date(b.created_at).toLocaleDateString("en-US", { dateStyle: "medium" })}
+              </p>
+              {accepted && (
+                <button className="bid-open-btn" onClick={(e) => { e.stopPropagation(); setSelectedId(b.request_id); }}>
+                  🧭 Open job &amp; navigate to customer →
+                </button>
+              )}
             </div>
-            <p className="bid-eta">⏱ ETA: {b.eta_min} min</p>
-            {b.note && <p className="bid-note">💬 {b.note}</p>}
-            <p className="bid-date">
-              {new Date(b.created_at).toLocaleDateString("en-US", { dateStyle: "medium" })}
-            </p>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {(bids.length === BIDS_PAGE || page > 0) && (
