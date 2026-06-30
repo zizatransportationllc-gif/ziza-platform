@@ -26,7 +26,9 @@ const STATUS_COLORS: Record<string, string> = {
   open: "#059669",
   bidding_closed: "#D97706",
   assigned: "#2563EB",
+  arrived: "#2563EB",
   in_progress: "#7C3AED",
+  pro_done: "#7C3AED",
   completed: "#6B7280",
   cancelled: "#EF4444",
 };
@@ -59,7 +61,11 @@ export default function MyCraftRequestsScreen(): React.ReactElement {
   }, [loadRequests]);
 
   const renderRequest = ({ item }: { item: CraftRequest }) => {
-    const canSeeBids = ["open", "bidding_closed", "assigned"].includes(item.status);
+    // The customer can open the detail at every stage (to confirm arrival, see
+    // the code/photos, confirm completion, pay) — only a cancelled request has
+    // nothing to show.
+    const canSeeBids = item.status !== "cancelled";
+    const bidsStage = ["open", "bidding_closed"].includes(item.status);
     const deadline = item.bid_deadline ? new Date(item.bid_deadline) : null;
     const isExpired = deadline ? deadline < new Date() : false;
 
@@ -103,7 +109,7 @@ export default function MyCraftRequestsScreen(): React.ReactElement {
               })
             }
           >
-            <Text style={styles.bidsBtnText}>View Bids →</Text>
+            <Text style={styles.bidsBtnText}>{bidsStage ? "View Bids →" : "View Details →"}</Text>
           </TouchableOpacity>
         )}
       </View>
