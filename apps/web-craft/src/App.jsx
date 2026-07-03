@@ -5,8 +5,9 @@ import {
   avatarUploadUrl, getBankAccount, setBankAccount,
   listOpenRequests, getCraftRequest,
   submitBid, getMyBids, craftMarkArrived, craftWorkDone, uploadCraftPhoto, listCraftPhotos, reverseGeocode,
-  getProBalance, createProPayout, listProPayouts,
+  getProBalance, listProPayouts,
   getConnectStatus, connectOnboard,
+  getIssuingCard, issueIssuingCard, setIssuingCardStatus,
   listRequestMessages, sendRequestMessage,
   submitDocument, listMyDocuments,
   listNotifications, getUnreadCount, markAllRead, deleteNotification,
@@ -688,20 +689,71 @@ const PRO_PAYOUT_STATUS_LABELS = {
   failed:   "⚠ Failed",
 };
 
+// Sprint 70 — Ziza debit card (Stripe Issuing): spend the Connect balance.
+function ZizaCard({ token }) {
+  const [card, setCard] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    getIssuingCard(token).then(setCard).catch(() => {}).finally(() => setLoading(false));
+  }, [token]);
+  useEffect(() => { load(); }, [load]);
+
+  async function handleIssue() {
+    setBusy(true); setError(null);
+    try { setCard(await issueIssuingCard(token)); }
+    catch (e) { setError(e.message); } finally { setBusy(false); }
+  }
+  async function handleToggle() {
+    if (!card) return;
+    setBusy(true); setError(null);
+    try { setCard(await setIssuingCardStatus(token, card.status !== "active")); }
+    catch (e) { setError(e.message); } finally { setBusy(false); }
+  }
+
+  if (loading) return null;
+  return (
+    <div style={{ background: "#111827", color: "#fff", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+      <div style={{ fontSize: 13, opacity: 0.8 }}>💳 Ziza debit card</div>
+      {card ? (
+        <>
+          <div style={{ fontSize: 22, letterSpacing: 2, margin: "8px 0" }}>•••• •••• •••• {card.last4 || "••••"}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 12, textTransform: "uppercase", opacity: 0.8 }}>
+              {card.status === "active" ? "🟢 Active" : "⏸️ Frozen"}
+            </span>
+            <button type="button" className="payout-submit-btn" onClick={handleToggle} disabled={busy}>
+              {card.status === "active" ? "Freeze" : "Unfreeze"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p style={{ fontSize: 13, opacity: 0.85, margin: "8px 0" }}>Get a card to spend your earnings instantly.</p>
+          <button type="button" className="payout-submit-btn" onClick={handleIssue} disabled={busy}>
+            {busy ? "Issuing…" : "Get my card"}
+          </button>
+        </>
+      )}
+      {error && <p className="payout-err" style={{ color: "#fca5a5" }}>{error}</p>}
+    </div>
+  );
+}
+
 function WithdrawalsSection({ token }) {
-  const [amount, setAmount] = useState("");
-  const [available, setAvailable] = useState(null); // disponible_cents
+  const [cardBalance, setCardBalance] = useState(null); // connect_available_cents
   const [payouts, setPayouts] = useState([]);
   const [connect, setConnect] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
     Promise.all([
-      getProBalance(token).then((b) => setAvailable(b.disponible_cents ?? 0)).catch(() => {}),
+      getProBalance(token).then((b) => setCardBalance(b.connect_available_cents ?? null)).catch(() => {}),
       listProPayouts(token).then(setPayouts).catch(() => {}),
       getConnectStatus(token).then(setConnect).catch(() => {}),
     ]).finally(() => setLoading(false));
@@ -709,7 +761,6 @@ function WithdrawalsSection({ token }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const overBalance = available != null && Number(amount) > available;
   const payoutsReady = connect && connect.payouts_enabled;
 
   async function handleOnboard() {
@@ -719,64 +770,35 @@ function WithdrawalsSection({ token }) {
     } catch (err) { setError(err.message); }
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (!amount || Number(amount) <= 0) return;
-    if (overBalance) { setError("Amount exceeds your available balance."); return; }
-    setSubmitting(true); setError(null); setSuccess(null);
-    try {
-      await createProPayout(token, Number(amount));
-      setAmount("");
-      setSuccess("Withdrawal request submitted!");
-      load();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   return (
     <div>
       <div className="section-header">
-        <h2 className="section-title">💰 Withdrawals</h2>
+        <h2 className="section-title">💳 Payouts & Card</h2>
         <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
       </div>
 
+      <ZizaCard token={token} />
+
       {connect && !payoutsReady && (
         <div style={{ background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: 8, padding: 12, marginBottom: 12 }}>
-          <p style={{ margin: "0 0 8px" }}>⚠️ To receive withdrawals, set up your payout account.</p>
+          <p style={{ margin: "0 0 8px" }}>⚠️ To get paid, set up your payout account.</p>
           <button type="button" className="payout-submit-btn" onClick={handleOnboard}>Set up payouts →</button>
         </div>
       )}
 
-      {available != null && (
+      {cardBalance != null && (
         <p className="payout-available">
-          Available to withdraw: <strong>{formatUSD(available)}</strong>
+          Available on your card: <strong>{formatUSD(cardBalance)}</strong>
         </p>
       )}
 
-      <form className="payout-form" onSubmit={handleSubmit}>
-        <input
-          className="payout-amount-input"
-          type="number"
-          min="1"
-          step="100"
-          max={available ?? undefined}
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder="Amount in cents (e.g. 5000 = $50)"
-          required
-        />
-        <button className="payout-submit-btn" type="submit" disabled={submitting || overBalance || !available}>
-          {submitting ? "Sending…" : "Request Withdrawal"}
-        </button>
-      </form>
-      {overBalance && <p className="payout-err">Amount exceeds your available balance.</p>}
-      {success && <p className="payout-success">{success}</p>}
+      <p className="payout-available" style={{ fontSize: 13, color: "#6b7280" }}>
+        Your bid is paid automatically to your Ziza balance and spendable with your
+        debit card — no manual withdrawal needed.
+      </p>
       {error && <p className="payout-err">{error}</p>}
 
-      {!loading && payouts.length === 0 && <div className="empty-state">No withdrawal requests yet.</div>}
+      {payouts.length > 0 && <h3 className="section-title" style={{ fontSize: 14 }}>Past withdrawals</h3>}
       <div className="bid-list">
         {payouts.map((p) => (
           <div key={p.payout_id} className="bid-item">
