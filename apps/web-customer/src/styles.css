@@ -445,6 +445,10 @@ html, body {
 .payment-status-paid { font-size: 0.88rem; font-weight: 700; color: #10b981; text-transform: uppercase; letter-spacing: 0.04em; }
 .payment-status-failed { font-size: 0.88rem; font-weight: 700; color: #ef4444; text-transform: uppercase; letter-spacing: 0.04em; }
 .payment-hint { font-size: 0.78rem; color: var(--color-muted); text-align: center; margin: 0; }
+/* Sprint 70 — price breakdown (base / fee / tax / total) shown before paying */
+.payment-breakdown { display: flex; flex-direction: column; gap: 2px; padding: var(--space-2) var(--space-3); background: color-mix(in srgb, var(--color-fg) 4%, transparent); border-radius: var(--radius-md); font-size: 0.85rem; }
+.payment-breakdown-row { display: flex; justify-content: space-between; color: var(--color-muted); }
+.payment-breakdown-total { margin-top: 4px; padding-top: 4px; border-top: 1px solid color-mix(in srgb, var(--color-fg) 12%, transparent); color: var(--color-fg); font-weight: 700; }
 .payment-btn { display: block; width: 100%; padding: var(--space-3) var(--space-4); background: #10b981; color: #fff; border: none; border-radius: var(--radius-md); font-size: 0.95rem; font-weight: 600; cursor: pointer; text-align: center; text-decoration: none; transition: opacity 0.15s; }
 .payment-btn:hover:not(:disabled) { opacity: 0.88; }
 .payment-btn:disabled { opacity: 0.5; cursor: not-allowed; }
