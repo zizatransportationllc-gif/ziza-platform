@@ -46,13 +46,35 @@ def _get(path: str) -> dict:
         return json.loads(resp.read())
 
 
-def create_express_account(email: str | None) -> str:
-    """Create a Stripe Connect Express account; return its account id."""
+def create_connected_account(email: str | None) -> str:
+    """Create a Stripe Connect **Custom** connected account; return its id.
+
+    Sprint 71 — Custom (platform-controlled) accounts are **required** for Stripe
+    Issuing (the payee's debit card is issued on this account). Express accounts
+    cannot use Issuing. With Custom, the platform (Ziza) owns requirement
+    collection and **loss liability** (the ``controller.*`` fields below); Stripe
+    still performs the actual KYC, surfaced through the hosted onboarding link.
+
+    Capabilities requested:
+      - ``transfers``   → receive the split via destination charges.
+      - ``card_issuing`` → issue the debit card.
+
+    NB: making the card *spendable* additionally requires funding the account's
+    separate **Issuing balance** from its main balance — tracked as a follow-up
+    (see docs/plans backlog); this function only sets the account up correctly.
+    """
     if not _enabled():
         return f"acct_mock_{uuid.uuid4().hex[:16]}"
     acct = _post("/accounts", {
-        "type": "express",
+        "country": "US",
+        # Custom-equivalent controller configuration (no Stripe-hosted dashboard;
+        # platform collects requirements and owns payment losses).
+        "controller[stripe_dashboard][type]": "none",
+        "controller[fees][payer]": "application",
+        "controller[losses][payments]": "application",
+        "controller[requirement_collection]": "application",
         "capabilities[transfers][requested]": "true",
+        "capabilities[card_issuing][requested]": "true",
         **({"email": email} if email else {}),
     })
     return acct["id"]
