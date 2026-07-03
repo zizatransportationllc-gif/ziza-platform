@@ -471,6 +471,9 @@ export interface ProBalance {
   gains_cents: number;
   retraits_cents: number;
   disponible_cents: number;
+  // Sprint 70 — real money in the pro's Stripe Connect account
+  connect_available_cents?: number;
+  connect_pending_cents?: number;
 }
 
 export interface ProPayoutRecord {
@@ -521,6 +524,36 @@ export async function getConnectStatus(token: string): Promise<ConnectStatus> {
 export async function connectOnboard(token: string): Promise<{ account_id: string; onboarding_url: string }> {
   const res = await fetch(`${API_BASE}/v1/payouts/connect/onboard`, { method: "POST", headers: _auth(token) });
   return _json<{ account_id: string; onboarding_url: string }>(res);
+}
+
+// Sprint 70 — Stripe Issuing debit card (spend the Connect balance)
+export interface IssuingCard {
+  card_id: string;
+  last4: string | null;
+  status: string; // "active" | "inactive"
+  owner_role: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getIssuingCard(token: string): Promise<IssuingCard | null> {
+  const res = await fetch(`${API_BASE}/v1/payouts/issuing/card`, { headers: _auth(token) });
+  if (res.status === 404) return null;
+  return _json<IssuingCard>(res);
+}
+
+export async function issueIssuingCard(token: string): Promise<IssuingCard> {
+  const res = await fetch(`${API_BASE}/v1/payouts/issuing/card`, { method: "POST", headers: _auth(token) });
+  return _json<IssuingCard>(res);
+}
+
+export async function setIssuingCardStatus(token: string, active: boolean): Promise<IssuingCard> {
+  const res = await fetch(`${API_BASE}/v1/payouts/issuing/card/status`, {
+    method: "PATCH",
+    headers: { ..._auth(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ active }),
+  });
+  return _json<IssuingCard>(res);
 }
 
 // Sprint 69 — profile, photo, bank account
