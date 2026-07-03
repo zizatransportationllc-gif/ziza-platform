@@ -8,8 +8,9 @@ import {
   getDriverProfile, getProfile, updateProfile, setDriverOnline, listDriverTripHistory,
   avatarUploadUrl, getBankAccount, setBankAccount,
   listTripMessages, sendTripMessage,
-  createPayoutRequest, listPayoutRequests,
+  listPayoutRequests,
   getConnectStatus, connectOnboard,
+  getIssuingCard, issueIssuingCard, setIssuingCardStatus,
   submitDocument, listMyDocuments,
   listNotifications, getUnreadCount, markAllRead, deleteNotification,
   listCategories,
@@ -421,8 +422,17 @@ function EarningsCard({ earnings, balance }) {
             <span className="balance-label">Net available balance</span>
             <span className="balance-value balance-value--net">{formatUSD(balance.solde_net_cents)}</span>
           </div>
+          {balance.connect_available_cents != null && (
+            <div className="balance-row balance-row--net">
+              <span className="balance-label">💳 Available on your Ziza card</span>
+              <span className="balance-value balance-value--net">{formatUSD(balance.connect_available_cents)}</span>
+            </div>
+          )}
         </div>
       )}
+      <p className="earnings-hint">
+        Your share of each ride is paid directly to your Ziza balance and spendable with your debit card.
+      </p>
 
       <div className="earnings-periods">
         <div className="earnings-period">
@@ -697,30 +707,83 @@ const PAYOUT_STATUS_LABELS = {
   rejected: "✗ Rejected",
 };
 
+// Sprint 70 — Ziza debit card (Stripe Issuing): spend the Connect balance.
+function ZizaCard({ token }) {
+  const [card, setCard] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    getIssuingCard(token)
+      .then(setCard)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [token]);
+  useEffect(() => { load(); }, [load]);
+
+  async function handleIssue() {
+    setBusy(true); setError(null);
+    try { setCard(await issueIssuingCard(token)); }
+    catch (e) { setError(e.message); } finally { setBusy(false); }
+  }
+  async function handleToggle() {
+    if (!card) return;
+    setBusy(true); setError(null);
+    try { setCard(await setIssuingCardStatus(token, card.status !== "active")); }
+    catch (e) { setError(e.message); } finally { setBusy(false); }
+  }
+
+  if (loading) return null;
+  return (
+    <div className="card-section" style={{ background: "#111827", color: "#fff", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+      <div style={{ fontSize: 13, opacity: 0.8 }}>💳 Ziza debit card</div>
+      {card ? (
+        <>
+          <div style={{ fontSize: 22, letterSpacing: 2, margin: "8px 0" }}>
+            •••• •••• •••• {card.last4 || "••••"}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 12, textTransform: "uppercase", opacity: 0.8 }}>
+              {card.status === "active" ? "🟢 Active" : "⏸️ Frozen"}
+            </span>
+            <button type="button" className="payout-submit-btn" onClick={handleToggle} disabled={busy}>
+              {card.status === "active" ? "Freeze" : "Unfreeze"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p style={{ fontSize: 13, opacity: 0.85, margin: "8px 0" }}>
+            Get a card to spend your earnings instantly.
+          </p>
+          <button type="button" className="payout-submit-btn" onClick={handleIssue} disabled={busy}>
+            {busy ? "Issuing…" : "Get my card"}
+          </button>
+        </>
+      )}
+      {error && <p className="payout-err" style={{ color: "#fca5a5" }}>{error}</p>}
+    </div>
+  );
+}
+
 function PayoutSection({ token }) {
-  const [amount, setAmount]   = useState("");
   const [payouts, setPayouts] = useState([]);
-  const [available, setAvailable] = useState(null); // disponible_cents (cents)
   const [connect, setConnect] = useState(null); // { onboarded, payouts_enabled }
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError]     = useState(null);
-  const [success, setSuccess] = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
     Promise.all([
       listPayoutRequests(token).then(setPayouts).catch(() => {}),
-      getDriverBalance(token)
-        .then((b) => setAvailable(b.disponible_cents ?? 0))
-        .catch(() => {}),
       getConnectStatus(token).then(setConnect).catch(() => {}),
     ]).finally(() => setLoading(false));
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
 
-  const overBalance = available != null && Number(amount) > available;
   const payoutsReady = connect && connect.payouts_enabled;
 
   async function handleOnboard() {
@@ -730,34 +793,16 @@ function PayoutSection({ token }) {
     } catch (e) { setError(e.message); }
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (!amount || Number(amount) <= 0) return;
-    if (overBalance) {
-      setError("Amount exceeds your available balance.");
-      return;
-    }
-    setSubmitting(true); setError(null); setSuccess(null);
-    try {
-      await createPayoutRequest(token, Number(amount));
-      setAmount("");
-      setSuccess("Withdrawal request submitted!");
-      load();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   return (
     <div className="payout-section">
-      <h3 className="section-title">💰 Withdrawal Requests</h3>
+      <h3 className="section-title">💳 Payouts & Card</h3>
+
+      <ZizaCard token={token} />
 
       {connect && !payoutsReady && (
         <div className="payout-onboard-banner" style={{ background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: 8, padding: 12, marginBottom: 12 }}>
           <p style={{ margin: "0 0 8px" }}>
-            ⚠️ To receive withdrawals, set up your payout account.
+            ⚠️ To get paid, set up your payout account.
           </p>
           <button type="button" className="payout-submit-btn" onClick={handleOnboard}>
             Set up payouts →
@@ -765,43 +810,14 @@ function PayoutSection({ token }) {
         </div>
       )}
 
-      {available != null && (
-        <p className="payout-available">
-          Available to withdraw: <strong>{formatUSD(available)}</strong>
-        </p>
-      )}
-
-      <form className="payout-form" onSubmit={handleSubmit}>
-        <input
-          className="payout-amount-input"
-          type="number"
-          min="1"
-          step="100"
-          max={available ?? undefined}
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder="Amount in cents (e.g. 50000 = $500)"
-          required
-        />
-        <button
-          className="payout-submit-btn"
-          type="submit"
-          disabled={submitting || overBalance || !available}
-        >
-          {submitting ? "Sending…" : "Request Withdrawal"}
-        </button>
-      </form>
-      {overBalance && (
-        <p className="payout-err">Amount exceeds your available balance.</p>
-      )}
-      {success && <p className="payout-success">{success}</p>}
-      {error   && <p className="payout-err">{error}</p>}
+      <p className="payout-available" style={{ fontSize: 13, color: "#6b7280" }}>
+        Your share of each ride is paid automatically to your Ziza balance and
+        spendable with your debit card — no manual withdrawal needed.
+      </p>
 
       <div className="payout-list">
+        {payouts.length > 0 && <h4 className="section-title" style={{ fontSize: 14 }}>Past withdrawals</h4>}
         {loading && <p className="loading-msg">Loading…</p>}
-        {!loading && payouts.length === 0 && (
-          <p className="payout-empty">No withdrawal requests yet.</p>
-        )}
         {payouts.map((p) => (
           <div key={p.payout_id} className={`payout-item payout-${p.status}`}>
             <div className="payout-item-main">

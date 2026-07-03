@@ -404,6 +404,36 @@ export async function connectOnboard(token) {
   return _json(res); // { account_id, onboarding_url }
 }
 
+// Sprint 70 — Stripe Issuing debit card (spend the Connect balance)
+export async function getIssuingCard(token) {
+  const res = await fetch(`${API_BASE}/v1/payouts/issuing/card`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (res.status === 404) return null;
+  return _json(res); // { card_id, last4, status, owner_role, ... }
+}
+
+export async function issueIssuingCard(token) {
+  const res = await fetch(`${API_BASE}/v1/payouts/issuing/card`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
+export async function setIssuingCardStatus(token, active) {
+  const res = await fetch(`${API_BASE}/v1/payouts/issuing/card/status`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ active }),
+  });
+  return _json(res);
+}
+
 // ---------------------------------------------------------------------------
 // Sprint 66 — personal profile (identity) editing
 // ---------------------------------------------------------------------------
