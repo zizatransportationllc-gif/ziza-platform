@@ -4076,7 +4076,7 @@ async def start_connect_onboarding(db: AsyncSession, auth_id: str, role: str) ->
     entity = await _payout_entity(db, auth_id, role)
 
     if not entity.stripe_account_id:
-        entity.stripe_account_id = stripe_connect.create_express_account(user.email)
+        entity.stripe_account_id = stripe_connect.create_connected_account(user.email)
         await db.commit()
         await db.refresh(entity)
 
