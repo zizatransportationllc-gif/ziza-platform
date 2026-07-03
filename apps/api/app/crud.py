@@ -3341,6 +3341,62 @@ async def finance_reconciliation(db: AsyncSession) -> dict:
     }
 
 
+async def fee_reconciliation(db: AsyncSession, adapter) -> dict:
+    """Sprint 70 — reconcile the estimated Stripe fee vs the real fee.
+
+    For each paid PaymentIntent that carries a ``stripe_fee_est_cents`` (i.e. a
+    split-at-charge ride/craft payment), fetch the provider's actual fee and
+    compute the drift (actual − estimated). The estimate is what Ziza used to
+    size its application fee, so a persistent drift eats into (or pads) Ziza's
+    margin and should be tuned via ``stripe_fee_pct`` / ``stripe_fee_fixed_cents``.
+
+    In dev/CI (mock provider) the actual fee is unknown → treated as no drift.
+    """
+    from app.config import settings as _settings  # noqa: PLC0415
+
+    _get_fee = getattr(adapter, "get_actual_fee", None)
+
+    rows = list((await db.execute(
+        select(PaymentIntent).where(
+            PaymentIntent.status == "paid",
+            PaymentIntent.stripe_fee_est_cents.is_not(None),
+        )
+    )).scalars())
+
+    est_total = 0
+    actual_total = 0
+    discrepancies: list[dict] = []
+    for intent in rows:
+        est = int(intent.stripe_fee_est_cents or 0)
+        actual = None
+        if _get_fee is not None and intent.provider_ref:
+            actual = await _get_fee(intent.provider_ref)
+        if actual is None:
+            actual = est  # unknown (e.g. mock) → assume no drift
+        est_total += est
+        actual_total += actual
+        drift = actual - est
+        if drift != 0:
+            discrepancies.append({
+                "intent_id": str(intent.id),
+                "estimated_fee_cents": est,
+                "actual_fee_cents": actual,
+                "drift_cents": drift,
+            })
+
+    drift_total = actual_total - est_total
+    tolerance = _settings.fee_reconciliation_tolerance_cents
+    return {
+        "intents_checked": len(rows),
+        "estimated_fee_total_cents": est_total,
+        "actual_fee_total_cents": actual_total,
+        "drift_total_cents": drift_total,
+        "tolerance_cents": tolerance,
+        "within_tolerance": abs(drift_total) <= tolerance,
+        "discrepancies": discrepancies,
+    }
+
+
 # ---------------------------------------------------------------------------
 # WS6 (Sprint 68) — Finance observability (metrics, transactions feed, alerts)
 # ---------------------------------------------------------------------------
