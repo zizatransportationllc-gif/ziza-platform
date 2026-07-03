@@ -3846,6 +3846,11 @@ async def get_driver_balance(db: AsyncSession, auth_user_id: str) -> dict:
     )
     solde_net = gains_bruts - commission_total - retraits
 
+    # Sprint 70 — the driver's split share is transferred to their Connect
+    # account at charge time; expose that (real, withdrawable) balance.
+    from app.payment import stripe_connect  # noqa: PLC0415
+    connect = stripe_connect.get_balance(driver.stripe_account_id or "")
+
     return {
         "driver_id": str(driver.id),
         "gains_bruts_cents": gains_bruts,
@@ -3853,6 +3858,8 @@ async def get_driver_balance(db: AsyncSession, auth_user_id: str) -> dict:
         "retraits_cents": retraits,
         "solde_net_cents": solde_net,
         "disponible_cents": max(disponible, 0),
+        "connect_available_cents": connect["available_cents"],
+        "connect_pending_cents": connect["pending_cents"],
     }
 
 
@@ -5791,11 +5798,17 @@ async def get_professional_balance(db: AsyncSession, auth_user_id: str) -> dict:
     """Return a professional's available withdrawal balance (USD cents)."""
     prof = await _require_professional(db, auth_user_id)
     gains, committed, disponible = await _professional_gains_and_payouts(db, prof)
+    # Sprint 70 — the pro's bid is transferred to their Connect account at charge
+    # time; expose that (real, withdrawable) balance.
+    from app.payment import stripe_connect  # noqa: PLC0415
+    connect = stripe_connect.get_balance(prof.stripe_account_id or "")
     return {
         "professional_id": str(prof.id),
         "gains_cents": gains,
         "retraits_cents": committed,
         "disponible_cents": max(disponible, 0),
+        "connect_available_cents": connect["available_cents"],
+        "connect_pending_cents": connect["pending_cents"],
     }
 
 

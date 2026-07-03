@@ -82,3 +82,40 @@ def get_account_status(account_id: str) -> dict:
         "charges_enabled": bool(acct.get("charges_enabled")),
         "details_submitted": bool(acct.get("details_submitted")),
     }
+
+
+def _sum_balance_usd(entries: list) -> int:
+    """Sum USD ``amount`` (cents) across a Stripe balance list, ignoring other
+    currencies."""
+    return sum(
+        int(e.get("amount", 0))
+        for e in (entries or [])
+        if (e.get("currency") or "usd").lower() == "usd"
+    )
+
+
+def get_balance(account_id: str) -> dict:
+    """Return the connected account's Stripe balance in USD cents.
+
+    ``{"available_cents": <int>, "pending_cents": <int>}`` — the money the payee
+    has received (from destination charges) that is available or still pending in
+    their Connect account. In dev/CI (no ``stripe_secret_key``) returns zeros.
+    """
+    if not _enabled() or not account_id:
+        return {"available_cents": 0, "pending_cents": 0}
+    req = urllib.request.Request(
+        f"{_API_BASE}/balance",
+        headers={
+            "Authorization": f"Bearer {settings.stripe_secret_key}",
+            "Stripe-Account": account_id,
+        },
+    )
+    try:
+        with urllib.request.urlopen(req) as resp:
+            bal = json.loads(resp.read())
+    except Exception:  # noqa: BLE001 — surface an empty balance rather than 500
+        return {"available_cents": 0, "pending_cents": 0}
+    return {
+        "available_cents": _sum_balance_usd(bal.get("available")),
+        "pending_cents": _sum_balance_usd(bal.get("pending")),
+    }

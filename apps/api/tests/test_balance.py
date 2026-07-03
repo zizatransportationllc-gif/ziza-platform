@@ -107,6 +107,15 @@ def test_balance_zero_with_no_trips():
     )
 
 
+def test_balance_exposes_connect_balance():
+    """Sprint 70 — the driver balance exposes their Stripe Connect balance
+    (money received from split-at-charge destination charges). Zero in dev/CI."""
+    tok = _setup_driver()
+    data = client.get("/v1/drivers/me/balance", headers=_h(tok)).json()
+    assert data["connect_available_cents"] == 0
+    assert data["connect_pending_cents"] == 0
+
+
 def test_balance_after_completed_economy_trip():
     """After an economy trip, gains_bruts_cents increases by the trip fare."""
     c_tok = _setup_customer()
