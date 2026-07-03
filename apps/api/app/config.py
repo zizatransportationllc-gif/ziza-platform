@@ -180,6 +180,14 @@ class Settings(BaseSettings):
     # Overridden per category via POST /v1/admin/commission.
     default_commission_pct: int = 15
 
+    # Sprint 70 — with the split done at charge time (Connect destination
+    # charges), a payee's share is already transferred to their Stripe balance,
+    # so the legacy self-service internal withdrawal (payout_requests → batch)
+    # would double-pay. It is disabled by default; payees access funds via their
+    # Stripe Issuing debit card / automatic Connect payouts. The admin batch
+    # endpoints remain for manual corrections of already-approved requests.
+    internal_withdrawals_enabled: bool = False
+
     # ------------------------------------------------------------------
     # WS5 — AML limits (USD cents). Enforced server-side on creation.
     # ------------------------------------------------------------------

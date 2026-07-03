@@ -32,6 +32,7 @@ import app.crud as _crud_module
 
 import app.db as _db_module
 import app.models  # noqa: F401 — registers all models with Base.metadata
+from app.config import settings as _settings
 from app.db import Base, get_db, get_db_optional
 from app.main import app
 
@@ -136,3 +137,20 @@ def _driver_starts_active():
 
     with patch.object(_crud_module, "upsert_driver", _active_upsert):
         yield
+
+
+# ---------------------------------------------------------------------------
+# Sprint 70 — keep the (now-deprecated) internal withdrawal flow exercisable.
+# Production disables self-service withdrawals by default (funds go to the
+# payee's Stripe balance / Issuing card); the existing payout test suites still
+# validate the mechanism, so enable it for tests. Individual tests can override.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _enable_internal_withdrawals():
+    original = _settings.internal_withdrawals_enabled
+    _settings.internal_withdrawals_enabled = True
+    try:
+        yield
+    finally:
+        _settings.internal_withdrawals_enabled = original
