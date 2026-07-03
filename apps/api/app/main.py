@@ -2019,6 +2019,68 @@ async def connect_status(
 
 
 # ---------------------------------------------------------------------------
+# Sprint 70 — Stripe Issuing debit card (spend the Connect balance)
+# ---------------------------------------------------------------------------
+
+class IssuingCardResponse(BaseModel):
+    card_id: str
+    last4: str | None = None
+    status: str            # active | inactive
+    owner_role: str
+    created_at: str
+    updated_at: str
+
+
+class IssuingCardStatusRequest(BaseModel):
+    active: bool
+
+
+def _require_payee_role(claims: Claims) -> None:
+    if claims.role not in ("driver", "professional"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only drivers and professionals have a debit card",
+        )
+
+
+@app.post("/v1/payouts/issuing/card", tags=["payouts"], status_code=201)
+async def issue_issuing_card(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> IssuingCardResponse:
+    """Driver/professional: issue (or return the existing) Stripe Issuing debit
+    card to spend their Connect balance. Requires completed onboarding (409)."""
+    _require_payee_role(claims)
+    data = await crud.issue_issuing_card(db, claims.user_id, claims.role)
+    return IssuingCardResponse(**data)
+
+
+@app.get("/v1/payouts/issuing/card", tags=["payouts"])
+async def get_issuing_card(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> IssuingCardResponse:
+    """Driver/professional: return their debit card (404 if none issued yet)."""
+    _require_payee_role(claims)
+    data = await crud.get_issuing_card(db, claims.user_id, claims.role)
+    if data is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No card issued yet")
+    return IssuingCardResponse(**data)
+
+
+@app.patch("/v1/payouts/issuing/card/status", tags=["payouts"])
+async def set_issuing_card_status(
+    body: IssuingCardStatusRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> IssuingCardResponse:
+    """Driver/professional: activate or freeze their debit card."""
+    _require_payee_role(claims)
+    data = await crud.set_issuing_card_status(db, claims.user_id, claims.role, body.active)
+    return IssuingCardResponse(**data)
+
+
+# ---------------------------------------------------------------------------
 # WS3 (Sprint 68) — Admin: professional payout processing
 # ---------------------------------------------------------------------------
 

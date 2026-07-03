@@ -4045,6 +4045,114 @@ async def get_connect_status(db: AsyncSession, auth_id: str, role: str) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# Sprint 70 — Stripe Issuing debit cards (spend the Connect balance)
+# ---------------------------------------------------------------------------
+
+def _issuing_card_to_dict(card) -> dict:
+    return {
+        "card_id": card.stripe_card_id,
+        "last4": card.last4,
+        "status": card.status,
+        "owner_role": card.owner_role,
+        "created_at": _utc(card.created_at).isoformat(),
+        "updated_at": _utc(card.updated_at).isoformat(),
+    }
+
+
+async def _require_issuing_ready(db: AsyncSession, auth_id: str, role: str):
+    """Resolve the payee entity and require an onboarded Connect account (409)."""
+    from app.payment import stripe_connect  # noqa: PLC0415
+
+    entity = await _payout_entity(db, auth_id, role)
+    if not entity.stripe_account_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Complete payment onboarding before requesting a card.",
+        )
+    st = stripe_connect.get_account_status(entity.stripe_account_id)
+    if not st.get("payouts_enabled"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Your payment account is not ready yet — finish onboarding first.",
+        )
+    return entity
+
+
+async def issue_issuing_card(db: AsyncSession, auth_id: str, role: str) -> dict:
+    """Issue (or return the existing) Stripe Issuing debit card for the payee.
+
+    Idempotent: one card per user. Requires an onboarded Connect account (409).
+    """
+    from app.models.issuing_card import IssuingCard  # noqa: PLC0415
+    from app.payment import stripe_issuing  # noqa: PLC0415
+
+    entity = await _require_issuing_ready(db, auth_id, role)
+    user = await _get_user_by_auth_id(db, auth_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+
+    existing = await db.scalar(select(IssuingCard).where(IssuingCard.user_id == user.id))
+    if existing is not None:
+        return _issuing_card_to_dict(existing)
+
+    account_id = entity.stripe_account_id
+    cardholder_name = getattr(user, "full_name", None) or user.email
+    cardholder_id = stripe_issuing.create_cardholder(
+        cardholder_name, user.email, account_id
+    )
+    created = stripe_issuing.create_card(cardholder_id, account_id)
+
+    card = IssuingCard(
+        user_id=user.id,
+        owner_role=role,
+        stripe_cardholder_id=cardholder_id,
+        stripe_card_id=created["card_id"],
+        last4=created.get("last4"),
+        status="active",
+    )
+    db.add(card)
+    await db.commit()
+    await db.refresh(card)
+    return _issuing_card_to_dict(card)
+
+
+async def get_issuing_card(db: AsyncSession, auth_id: str, role: str) -> dict | None:
+    """Return the payee's issuing card, or None."""
+    from app.models.issuing_card import IssuingCard  # noqa: PLC0415
+
+    # Resolve the entity to enforce the driver/professional role (403 otherwise).
+    await _payout_entity(db, auth_id, role)
+    user = await _get_user_by_auth_id(db, auth_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    card = await db.scalar(select(IssuingCard).where(IssuingCard.user_id == user.id))
+    return _issuing_card_to_dict(card) if card is not None else None
+
+
+async def set_issuing_card_status(
+    db: AsyncSession, auth_id: str, role: str, active: bool
+) -> dict:
+    """Activate or freeze the payee's issuing card."""
+    from app.models.issuing_card import IssuingCard  # noqa: PLC0415
+    from app.payment import stripe_issuing  # noqa: PLC0415
+
+    entity = await _payout_entity(db, auth_id, role)
+    user = await _get_user_by_auth_id(db, auth_id)
+    card = await db.scalar(
+        select(IssuingCard).where(IssuingCard.user_id == user.id)
+    ) if user else None
+    if card is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No card to update.")
+    result = stripe_issuing.set_card_status(
+        card.stripe_card_id, active, entity.stripe_account_id
+    )
+    card.status = result["status"]
+    await db.commit()
+    await db.refresh(card)
+    return _issuing_card_to_dict(card)
+
+
 def _pro_payout_admin_dict(req, email: str) -> dict:
     return {
         "payout_id": str(req.id),
