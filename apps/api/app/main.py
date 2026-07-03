@@ -1903,6 +1903,10 @@ class ProBalanceResponse(BaseModel):
     gains_cents: int
     retraits_cents: int
     disponible_cents: int
+    # Sprint 70 — real money in the pro's Stripe Connect account (from split-at-
+    # charge destination charges). Defaults keep older callers/tests compatible.
+    connect_available_cents: int = 0
+    connect_pending_cents: int = 0
 
 
 def _pro_payout_response(req) -> ProPayoutResponse:
@@ -3731,6 +3735,10 @@ class DriverBalanceResponse(BaseModel):
     solde_net_cents: int
     # Sprint 67 — amount available to withdraw now (nets out pending/approved payouts)
     disponible_cents: int
+    # Sprint 70 — real money in the driver's Stripe Connect account (from split-at-
+    # charge destination charges). Defaults keep older callers/tests compatible.
+    connect_available_cents: int = 0
+    connect_pending_cents: int = 0
 
 
 class PayoutBatchResponse(BaseModel):

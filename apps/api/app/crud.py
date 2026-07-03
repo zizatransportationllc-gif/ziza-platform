@@ -1633,6 +1633,26 @@ async def _enforce_withdrawal_limits(db: AsyncSession, model, id_col, id_value, 
         )
 
 
+def _require_internal_withdrawals_enabled() -> None:
+    """Block self-service internal withdrawals when disabled (Sprint 70).
+
+    With the split done at charge time (Connect destination charges), a payee's
+    share is already in their Stripe balance, so creating an internal payout
+    request would double-pay. Payees access funds via their Stripe Issuing debit
+    card / automatic Connect payouts instead.
+    """
+    from app.config import settings as _settings  # noqa: PLC0415
+
+    if not _settings.internal_withdrawals_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Self-service withdrawals are disabled. Your earnings are paid to "
+                "your Stripe balance and available via your debit card."
+            ),
+        )
+
+
 async def create_payout_request(
     db: AsyncSession,
     auth_user_id: str,
@@ -1640,8 +1660,10 @@ async def create_payout_request(
 ) -> PayoutRequestModel:
     """Driver creates a payout (withdrawal) request.
 
-    Raises 422 if amount_cents ≤ 0 or exceeds the driver's available balance.
+    Raises 409 when self-service withdrawals are disabled (Sprint 70), else
+    422 if amount_cents ≤ 0 or exceeds the driver's available balance.
     """
+    _require_internal_withdrawals_enabled()
     driver = _require_driver(await _get_driver_by_auth_id(db, auth_user_id))
     if amount_cents <= 0:
         raise HTTPException(
@@ -3846,6 +3868,11 @@ async def get_driver_balance(db: AsyncSession, auth_user_id: str) -> dict:
     )
     solde_net = gains_bruts - commission_total - retraits
 
+    # Sprint 70 — the driver's split share is transferred to their Connect
+    # account at charge time; expose that (real, withdrawable) balance.
+    from app.payment import stripe_connect  # noqa: PLC0415
+    connect = stripe_connect.get_balance(driver.stripe_account_id or "")
+
     return {
         "driver_id": str(driver.id),
         "gains_bruts_cents": gains_bruts,
@@ -3853,6 +3880,8 @@ async def get_driver_balance(db: AsyncSession, auth_user_id: str) -> dict:
         "retraits_cents": retraits,
         "solde_net_cents": solde_net,
         "disponible_cents": max(disponible, 0),
+        "connect_available_cents": connect["available_cents"],
+        "connect_pending_cents": connect["pending_cents"],
     }
 
 
@@ -5791,11 +5820,17 @@ async def get_professional_balance(db: AsyncSession, auth_user_id: str) -> dict:
     """Return a professional's available withdrawal balance (USD cents)."""
     prof = await _require_professional(db, auth_user_id)
     gains, committed, disponible = await _professional_gains_and_payouts(db, prof)
+    # Sprint 70 — the pro's bid is transferred to their Connect account at charge
+    # time; expose that (real, withdrawable) balance.
+    from app.payment import stripe_connect  # noqa: PLC0415
+    connect = stripe_connect.get_balance(prof.stripe_account_id or "")
     return {
         "professional_id": str(prof.id),
         "gains_cents": gains,
         "retraits_cents": committed,
         "disponible_cents": max(disponible, 0),
+        "connect_available_cents": connect["available_cents"],
+        "connect_pending_cents": connect["pending_cents"],
     }
 
 
@@ -5803,6 +5838,7 @@ async def create_professional_payout_request(
     db: AsyncSession, auth_user_id: str, amount_cents: int
 ) -> ProPayoutModel:
     """Professional requests a withdrawal, capped at their available balance."""
+    _require_internal_withdrawals_enabled()
     prof = await _require_professional(db, auth_user_id)
     if amount_cents <= 0:
         raise HTTPException(

@@ -102,6 +102,15 @@ def test_pro_balance_zero_without_earnings():
     assert data["disponible_cents"] == 0
 
 
+def test_pro_balance_exposes_connect_balance():
+    """Sprint 70 — the pro balance exposes their Stripe Connect balance (money
+    received from split-at-charge destination charges). Zero in dev/CI."""
+    tok = _register_pro()
+    data = _balance(tok)
+    assert data["connect_available_cents"] == 0
+    assert data["connect_pending_cents"] == 0
+
+
 def test_pro_balance_requires_pro_role():
     """A driver cannot read the professional balance — 403."""
     tok = _tok("driver@ziza.dev")
