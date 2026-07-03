@@ -181,3 +181,38 @@ class StripeAdapter:
         with urllib.request.urlopen(req) as resp:
             refund = json.loads(resp.read())
         return refund["id"]
+
+    async def get_actual_fee(self, provider_ref: str) -> int | None:
+        """Return Stripe's real processing fee (USD cents) for a paid charge.
+
+        ``provider_ref`` is the Checkout Session id → resolve its PaymentIntent →
+        expand ``latest_charge.balance_transaction`` and read ``fee``. Returns
+        None if it cannot be resolved (reconciliation then assumes no drift).
+        Sprint 70.
+        """
+        import urllib.parse  # noqa: PLC0415
+        import urllib.request  # noqa: PLC0415
+
+        try:
+            sess_req = urllib.request.Request(
+                f"{self._API_BASE}/checkout/sessions/{provider_ref}",
+                headers={"Authorization": f"Bearer {self._secret_key}"},
+            )
+            with urllib.request.urlopen(sess_req) as resp:
+                session = json.loads(resp.read())
+            payment_intent = session.get("payment_intent")
+            if not payment_intent:
+                return None
+            q = urllib.parse.urlencode({"expand[]": "latest_charge.balance_transaction"})
+            pi_req = urllib.request.Request(
+                f"{self._API_BASE}/payment_intents/{payment_intent}?{q}",
+                headers={"Authorization": f"Bearer {self._secret_key}"},
+            )
+            with urllib.request.urlopen(pi_req) as resp:
+                pi = json.loads(resp.read())
+            charge = pi.get("latest_charge") or {}
+            bt = charge.get("balance_transaction") or {}
+            fee = bt.get("fee")
+            return int(fee) if fee is not None else None
+        except Exception:  # noqa: BLE001 — reconciliation tolerates missing data
+            return None

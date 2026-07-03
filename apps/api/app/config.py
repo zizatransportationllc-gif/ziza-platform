@@ -94,6 +94,8 @@ class Settings(BaseSettings):
     # against the real balance_transaction fee).
     stripe_fee_pct: float = 2.9            # percent of the total charged amount
     stripe_fee_fixed_cents: int = 30       # fixed component ($0.30)
+    # Total est-vs-actual Stripe fee drift tolerated before reconciliation flags it.
+    fee_reconciliation_tolerance_cents: int = 100  # $1.00
 
     # ------------------------------------------------------------------
     # Database (Sprint 4)

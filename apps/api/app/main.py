@@ -3507,6 +3507,22 @@ async def admin_finance_reconciliation(
     return await crud.finance_reconciliation(db)
 
 
+@app.get("/v1/admin/finance/fee-reconciliation", tags=["payments"])
+async def admin_finance_fee_reconciliation(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Sprint 70 — Reconcile estimated vs actual Stripe fees on split payments.
+
+    Fetches the provider's real fee for each paid split payment and reports the
+    drift; ``within_tolerance`` is False when the total drift should be acted on
+    (tune the fee estimate). No-op drift in dev/CI (mock provider)."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    from app.payment import get_adapter  # noqa: PLC0415
+    return await crud.fee_reconciliation(db, get_adapter())
+
+
 @app.get("/v1/admin/finance/metrics", tags=["payments"])
 async def admin_finance_metrics(
     claims: Claims = Depends(get_current_user),
