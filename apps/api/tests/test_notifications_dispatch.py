@@ -60,6 +60,7 @@ def _setup_driver():
     tok = _tok("driver@ziza.dev")
     client.post("/v1/auth/register", headers=_h(tok))
     client.post("/v1/drivers/register", headers=_h(tok))
+    client.post("/v1/payouts/connect/onboard", headers=_h(tok))  # Sprint 70: Connect for destination charge
     return tok
 
 

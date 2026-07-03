@@ -41,6 +41,9 @@ class WellsFargoAdapter:
         ref: str,
         return_url: str,
         notify_url: str | None = None,
+        *,
+        destination: str | None = None,  # Connect split — not supported by WF gateway
+        application_fee_cents: int | None = None,
     ) -> dict:
         """Create a hosted payment session.
 

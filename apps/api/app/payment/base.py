@@ -16,17 +16,28 @@ class PaymentAdapter(Protocol):
         amount_cents: int,
         ref: str,
         return_url: str,
+        notify_url: str | None = None,
+        *,
+        destination: str | None = None,
+        application_fee_cents: int | None = None,
     ) -> dict:
         """Create a payment session with the upstream provider.
 
         Parameters
         ----------
         amount_cents:
-            Amount in XOF (West African CFA Franc).
+            Total amount charged to the customer (USD cents).
         ref:
             Unique reference string (typically the intent UUID).
         return_url:
             URL the provider should redirect the customer to after payment.
+        notify_url:
+            Optional webhook/notify URL (used by some providers).
+        destination:
+            Connect connected-account id for a destination charge (Sprint 70).
+            The payee's share is transferred there; ``None`` = no split.
+        application_fee_cents:
+            Amount the platform (Ziza) keeps when ``destination`` is set.
 
         Returns
         -------

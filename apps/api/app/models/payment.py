@@ -49,8 +49,20 @@ class PaymentIntent(Base):
 
     # Sprint 66: amounts are USD cents (field name kept as amount_cents until the
     # coordinated backend+frontend rename in Phase 3b).
+    # Sprint 70: amount_cents is now the TOTAL charged to the customer (base + tax
+    # + any platform fee), not just the base fare/bid.
     amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     currency: Mapped[str] = mapped_column(String(8), nullable=False, default="USD")
+
+    # Sprint 70 — split breakdown (Connect destination charge). Nullable for
+    # backward compatibility with intents created before the redesign.
+    base_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)              # fare / bid (pre-tax)
+    platform_fee_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)      # craft: fee on the bid
+    tax_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)               # levy / sales tax
+    stripe_fee_est_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    payee_amount_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)      # → driver/pro Connect
+    platform_amount_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)   # Ziza application fee
+    payee_account_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     # "cinetpay" | "orange_money" | "stripe" | "mock"
     provider: Mapped[str] = mapped_column(String(32), nullable=False, default="mock")

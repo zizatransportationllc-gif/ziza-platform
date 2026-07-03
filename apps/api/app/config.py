@@ -78,6 +78,24 @@ class Settings(BaseSettings):
     google_maps_api_key: str = ""
 
     # ------------------------------------------------------------------
+    # Payment split — taxes, platform fee, Stripe fee estimate (Sprint 70)
+    # ------------------------------------------------------------------
+    # These are DEFAULTS only — admins override them at runtime via
+    # PATCH /v1/admin/settings/payments (persisted in platform_settings).
+    #
+    # Ride-share: the customer pays fare + a flat per-ride tax/levy; the net
+    # (fare − estimated Stripe fee) is split driver/Ziza per ride_driver_split_pct.
+    ride_tax_flat_cents: int = 50          # $0.50 flat per-ride levy (NJ TNC assessment)
+    ride_driver_split_pct: int = 50        # driver share of the net (50 = 50/50)
+    # Road-side (craft): the customer pays bid + platform fee % + sales tax %.
+    craft_platform_fee_pct: float = 10.0   # Ziza processing fee added on top of the bid
+    craft_tax_pct: float = 6.625           # NJ sales tax on assistance/repair services
+    # Stripe processing fee estimate, applied at charge time (reconciled later
+    # against the real balance_transaction fee).
+    stripe_fee_pct: float = 2.9            # percent of the total charged amount
+    stripe_fee_fixed_cents: int = 30       # fixed component ($0.30)
+
+    # ------------------------------------------------------------------
     # Database (Sprint 4)
     # ------------------------------------------------------------------
     # Full async-compatible connection URL.

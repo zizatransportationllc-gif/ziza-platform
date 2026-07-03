@@ -20,13 +20,26 @@ class MockPaymentAdapter:
         ref: str,
         return_url: str,
         notify_url: str | None = None,
+        *,
+        destination: str | None = None,
+        application_fee_cents: int | None = None,
     ) -> dict:
-        """Return a deterministic fake checkout URL."""
+        """Return a deterministic fake checkout URL.
+
+        ``destination`` / ``application_fee_cents`` (Sprint 70) describe a Connect
+        destination charge — accepted and echoed into the URL so tests can assert
+        the split was wired, but otherwise inert in the mock.
+        """
+        extra = ""
+        if destination is not None:
+            extra += f"&dest={destination}"
+        if application_fee_cents is not None:
+            extra += f"&fee={application_fee_cents}"
         return {
             "provider_ref": f"mock-{ref}",
             "checkout_url": (
                 f"http://localhost/mock-pay"
-                f"?ref={ref}&amount={amount_cents}&return={return_url}"
+                f"?ref={ref}&amount={amount_cents}&return={return_url}{extra}"
             ),
         }
 

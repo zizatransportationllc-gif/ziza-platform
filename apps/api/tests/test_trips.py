@@ -414,6 +414,9 @@ def test_trip_paid_at_set_after_webhook() -> None:
     estimate_id = _get_estimate(tc)
     trip_id = _create_trip(tc, estimate_id).json()["trip_id"]
 
+    # Sprint 70: driver needs a Connect account for the destination charge.
+    client.post("/v1/payouts/connect/onboard", headers={"Authorization": f"Bearer {td}"})
+
     for action in ("accept", "start", "complete"):
         client.patch(
             f"/v1/trips/{trip_id}/{action}",

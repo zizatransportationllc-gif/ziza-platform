@@ -29,6 +29,7 @@ def _paid_trip_and_topup() -> None:
     client.post("/v1/auth/register", headers=_h(tc))
     client.post("/v1/auth/register", headers=_h(td))
     client.post("/v1/drivers/register", headers=_h(td))
+    client.post("/v1/payouts/connect/onboard", headers=_h(td))  # Sprint 70: Connect for destination charge
     est = client.post("/v1/estimate", headers=_h(tc), json={
         "origin_lat": 5.3207, "origin_lng": -4.0175, "dest_lat": 5.36, "dest_lng": -3.98,
     }).json()["estimate_id"]
@@ -67,6 +68,8 @@ def test_transactions_feed():
 
 def test_alerts_flags_failed_payout():
     # A driver payout without Connect onboarding fails → alert.
+    # NB: intentionally do NOT onboard the driver here — the payout batch must
+    # fail (no connected account) so the "failed_payouts" alert is raised.
     td = _tok("driver@ziza.dev")
     tc = _tok("customer@ziza.dev")
     a = _admin()

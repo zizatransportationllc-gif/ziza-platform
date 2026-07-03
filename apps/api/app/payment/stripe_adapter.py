@@ -29,6 +29,9 @@ class StripeAdapter:
         ref: str,
         return_url: str,
         notify_url: str | None = None,  # unused by Stripe (webhook registered in dashboard)
+        *,
+        destination: str | None = None,
+        application_fee_cents: int | None = None,
     ) -> dict:
         """Create a Stripe Checkout Session.
 
@@ -37,11 +40,17 @@ class StripeAdapter:
         Note: Stripe amounts are in the smallest currency unit. USD is a
         two-decimal currency, so ``amount_cents`` (USD cents) maps directly to
         Stripe's ``unit_amount``.
+
+        Sprint 70 — Connect destination charge: when ``destination`` (a connected
+        account id) is given, the underlying PaymentIntent is created with
+        ``transfer_data[destination]`` (the payee's share is transferred to them)
+        and ``application_fee_amount`` (what Ziza keeps). Stripe's processing fee
+        is deducted from the platform balance.
         """
         import urllib.parse  # noqa: PLC0415
         import urllib.request  # noqa: PLC0415
 
-        payload = urllib.parse.urlencode({
+        fields = {
             "payment_method_types[]": "card",
             "line_items[0][price_data][currency]": "usd",
             "line_items[0][price_data][product_data][name]": "Ziza ride",
@@ -51,7 +60,12 @@ class StripeAdapter:
             "success_url": return_url,
             "cancel_url": return_url,
             "client_reference_id": ref,
-        }).encode()
+        }
+        if destination is not None:
+            fields["payment_intent_data[transfer_data][destination]"] = destination
+        if application_fee_cents is not None:
+            fields["payment_intent_data[application_fee_amount]"] = application_fee_cents
+        payload = urllib.parse.urlencode(fields).encode()
 
         req = urllib.request.Request(
             f"{self._API_BASE}/checkout/sessions",
