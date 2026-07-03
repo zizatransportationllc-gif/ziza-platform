@@ -58,13 +58,25 @@ def _get_estimate(token: str) -> str:
     return resp.json()["estimate_id"]
 
 
-def _completed_trip_id() -> tuple[str, str]:
-    """Return (trip_id, customer_token) for a freshly completed trip."""
+def _onboard_connect(token: str) -> None:
+    """Onboard a driver/pro to Stripe Connect (mock account, payouts enabled)."""
+    r = client.post("/v1/payouts/connect/onboard", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 201, r.text
+
+
+def _completed_trip_id(onboard_driver: bool = True) -> tuple[str, str]:
+    """Return (trip_id, customer_token) for a freshly completed trip.
+
+    Sprint 70: the driver is onboarded to Connect by default so the destination
+    charge can be created. Pass ``onboard_driver=False`` to exercise the 409 guard.
+    """
     token_c = _get_token("customer@ziza.dev")
     token_d = _get_token("driver@ziza.dev")
     _register(token_c)
     _register(token_d)
     _register_driver(token_d)
+    if onboard_driver:
+        _onboard_connect(token_d)
 
     estimate_id = _get_estimate(token_c)
     trip_resp = client.post(
@@ -171,6 +183,23 @@ def test_create_payment_intent_happy_path() -> None:
     assert body["provider_ref"]
     assert body["amount_cents"] > 0
     assert body["currency"] == "USD"
+    # Sprint 70 — split breakdown present and consistent
+    assert body["base_cents"] > 0
+    assert body["tax_cents"] >= 0
+    assert body["amount_cents"] == body["base_cents"] + body["tax_cents"]
+    assert body["payee_amount_cents"] + body["platform_amount_cents"] == body["amount_cents"]
+    assert body["payee_account_id"].startswith("acct_mock_")
+
+
+def test_create_payment_intent_driver_not_onboarded_returns_409() -> None:
+    """Without a driver Connect account the destination charge is blocked."""
+    trip_id, token_c = _completed_trip_id(onboard_driver=False)
+    resp = client.post(
+        "/v1/payments/intent",
+        json={"trip_id": trip_id},
+        headers=_auth_header(token_c),
+    )
+    assert resp.status_code == 409, resp.text
 
 
 def test_create_payment_intent_idempotent() -> None:

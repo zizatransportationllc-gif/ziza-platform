@@ -37,6 +37,8 @@ def _completed_trip_with_payment() -> tuple[str, str]:
             headers={"Authorization": f"Bearer {token}"},
         )
     client.post("/v1/drivers/register", headers={"Authorization": f"Bearer {token_d}"})
+    # Sprint 70: driver needs a Connect account for the destination charge.
+    client.post("/v1/payouts/connect/onboard", headers={"Authorization": f"Bearer {token_d}"})
 
     est_resp = client.post(
         "/v1/estimate",

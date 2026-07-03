@@ -2234,6 +2234,70 @@ async def admin_set_pricing(
 
 
 # ---------------------------------------------------------------------------
+# Admin — payment split settings (taxes, platform fee, Stripe fee), Sprint 70
+# ---------------------------------------------------------------------------
+
+class PaymentSettingsResponse(BaseModel):
+    ride_tax_flat_cents: int       # flat per-ride levy in USD cents
+    ride_driver_split_pct: int     # driver share of the ride net (%)
+    craft_platform_fee_pct: float  # Ziza fee added on top of a craft bid (%)
+    craft_tax_pct: float           # sales tax on craft services (%)
+    stripe_fee_pct: float          # Stripe fee estimate — percent of total (%)
+    stripe_fee_fixed_cents: int    # Stripe fee estimate — fixed component (cents)
+
+
+class PaymentSettingsUpdateRequest(BaseModel):
+    """All fields optional — only provided keys are updated."""
+    ride_tax_flat_cents: int | None = Field(None, ge=0, le=100_000)
+    ride_driver_split_pct: int | None = Field(None, ge=0, le=100)
+    craft_platform_fee_pct: float | None = Field(None, ge=0, le=100)
+    craft_tax_pct: float | None = Field(None, ge=0, le=100)
+    stripe_fee_pct: float | None = Field(None, ge=0, le=100)
+    stripe_fee_fixed_cents: int | None = Field(None, ge=0, le=100_000)
+
+
+@app.get("/v1/admin/settings/payments", tags=["admin"])
+async def admin_get_payment_settings(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PaymentSettingsResponse:
+    """Admin: return the payment-split settings (taxes, fees, Stripe estimate)."""
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return PaymentSettingsResponse(**await crud.get_payment_settings(db))
+
+
+@app.patch("/v1/admin/settings/payments", tags=["admin"])
+async def admin_set_payment_settings(
+    body: PaymentSettingsUpdateRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PaymentSettingsResponse:
+    """Admin: update any subset of the payment-split settings.
+
+    Takes effect immediately on subsequent payment intents (ride and craft).
+    """
+    if claims.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    merged = await crud.set_payment_settings(
+        db,
+        ride_tax_flat_cents=body.ride_tax_flat_cents,
+        ride_driver_split_pct=body.ride_driver_split_pct,
+        craft_platform_fee_pct=body.craft_platform_fee_pct,
+        craft_tax_pct=body.craft_tax_pct,
+        stripe_fee_pct=body.stripe_fee_pct,
+        stripe_fee_fixed_cents=body.stripe_fee_fixed_cents,
+    )
+    return PaymentSettingsResponse(**merged)
+
+
+# ---------------------------------------------------------------------------
 # Driver Documents (KYC) — Sprint 17
 # ---------------------------------------------------------------------------
 
@@ -3220,12 +3284,20 @@ class PaymentIntentResponse(BaseModel):
     intent_id: str
     trip_id: str | None = None
     craft_request_id: str | None = None
-    amount_cents: int
+    amount_cents: int   # Sprint 70: total charged to the customer (base + fee + tax)
     currency: str = "USD"
     provider: str
     provider_ref: str | None = None
     status: str   # pending | paid | failed | refunded
     checkout_url: str | None = None
+    # Sprint 70 — split breakdown (null for pre-redesign intents)
+    base_cents: int | None = None
+    platform_fee_cents: int | None = None
+    tax_cents: int | None = None
+    stripe_fee_est_cents: int | None = None
+    payee_amount_cents: int | None = None
+    platform_amount_cents: int | None = None
+    payee_account_id: str | None = None
     created_at: str
     updated_at: str
 

@@ -2147,6 +2147,113 @@ async def set_pricing_config(
 
 
 # ---------------------------------------------------------------------------
+# Payment split config — taxes, platform fee, Stripe fee estimate (Sprint 70)
+# Admin-configurable via GET/PATCH /v1/admin/settings/payments.
+# ---------------------------------------------------------------------------
+
+_PAY_RIDE_TAX_KEY = "ride_tax_flat_cents"
+_PAY_RIDE_SPLIT_KEY = "ride_driver_split_pct"
+_PAY_CRAFT_FEE_KEY = "craft_platform_fee_pct"
+_PAY_CRAFT_TAX_KEY = "craft_tax_pct"
+_PAY_STRIPE_PCT_KEY = "stripe_fee_pct"
+_PAY_STRIPE_FIXED_KEY = "stripe_fee_fixed_cents"
+
+
+async def load_payment_config(db: AsyncSession):
+    """Return the split ``PaymentConfig``, applying admin overrides.
+
+    Falls back to the config defaults (``settings.*``) for any key not persisted.
+    """
+    from app.config import settings as _settings  # noqa: PLC0415
+    from app.payment.split import PaymentConfig  # noqa: PLC0415
+
+    return PaymentConfig(
+        ride_tax_flat_cents=await _get_setting_int(
+            db, _PAY_RIDE_TAX_KEY, _settings.ride_tax_flat_cents
+        ),
+        ride_driver_split_pct=await _get_setting_int(
+            db, _PAY_RIDE_SPLIT_KEY, _settings.ride_driver_split_pct
+        ),
+        craft_platform_fee_pct=await _get_setting_float(
+            db, _PAY_CRAFT_FEE_KEY, _settings.craft_platform_fee_pct
+        ),
+        craft_tax_pct=await _get_setting_float(
+            db, _PAY_CRAFT_TAX_KEY, _settings.craft_tax_pct
+        ),
+        stripe_fee_pct=await _get_setting_float(
+            db, _PAY_STRIPE_PCT_KEY, _settings.stripe_fee_pct
+        ),
+        stripe_fee_fixed_cents=await _get_setting_int(
+            db, _PAY_STRIPE_FIXED_KEY, _settings.stripe_fee_fixed_cents
+        ),
+    )
+
+
+async def get_payment_settings(db: AsyncSession) -> dict:
+    """Return the current payment-split settings (admin view)."""
+    cfg = await load_payment_config(db)
+    return {
+        "ride_tax_flat_cents": cfg.ride_tax_flat_cents,
+        "ride_driver_split_pct": cfg.ride_driver_split_pct,
+        "craft_platform_fee_pct": cfg.craft_platform_fee_pct,
+        "craft_tax_pct": cfg.craft_tax_pct,
+        "stripe_fee_pct": cfg.stripe_fee_pct,
+        "stripe_fee_fixed_cents": cfg.stripe_fee_fixed_cents,
+    }
+
+
+async def set_payment_settings(
+    db: AsyncSession,
+    *,
+    ride_tax_flat_cents: int | None = None,
+    ride_driver_split_pct: int | None = None,
+    craft_platform_fee_pct: float | None = None,
+    craft_tax_pct: float | None = None,
+    stripe_fee_pct: float | None = None,
+    stripe_fee_fixed_cents: int | None = None,
+) -> dict:
+    """Upsert any subset of the payment-split settings. Returns the merged view.
+
+    Validates ranges: cents ≥ 0, percentages in [0, 100].
+    """
+    def _check_cents(name: str, v: int | None) -> None:
+        if v is not None and v < 0:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"{name} must be ≥ 0",
+            )
+
+    def _check_pct(name: str, v: float | None) -> None:
+        if v is not None and not (0 <= v <= 100):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"{name} must be between 0 and 100",
+            )
+
+    _check_cents("ride_tax_flat_cents", ride_tax_flat_cents)
+    _check_pct("ride_driver_split_pct", ride_driver_split_pct)
+    _check_pct("craft_platform_fee_pct", craft_platform_fee_pct)
+    _check_pct("craft_tax_pct", craft_tax_pct)
+    _check_pct("stripe_fee_pct", stripe_fee_pct)
+    _check_cents("stripe_fee_fixed_cents", stripe_fee_fixed_cents)
+
+    if ride_tax_flat_cents is not None:
+        await _upsert_setting(db, _PAY_RIDE_TAX_KEY, str(ride_tax_flat_cents))
+    if ride_driver_split_pct is not None:
+        await _upsert_setting(db, _PAY_RIDE_SPLIT_KEY, str(ride_driver_split_pct))
+    if craft_platform_fee_pct is not None:
+        await _upsert_setting(db, _PAY_CRAFT_FEE_KEY, str(craft_platform_fee_pct))
+    if craft_tax_pct is not None:
+        await _upsert_setting(db, _PAY_CRAFT_TAX_KEY, str(craft_tax_pct))
+    if stripe_fee_pct is not None:
+        await _upsert_setting(db, _PAY_STRIPE_PCT_KEY, str(stripe_fee_pct))
+    if stripe_fee_fixed_cents is not None:
+        await _upsert_setting(db, _PAY_STRIPE_FIXED_KEY, str(stripe_fee_fixed_cents))
+    await db.commit()
+    return await get_payment_settings(db)
+
+
+# ---------------------------------------------------------------------------
 # Sprint 17 — Driver documents (KYC) & admin pending counts
 # ---------------------------------------------------------------------------
 
@@ -2854,9 +2961,49 @@ def _intent_to_dict(intent: PaymentIntent) -> dict:
         "provider_ref": intent.provider_ref,
         "status": intent.status,
         "checkout_url": intent.checkout_url,
+        # Sprint 70 — split breakdown (null for pre-redesign intents)
+        "base_cents": intent.base_cents,
+        "platform_fee_cents": intent.platform_fee_cents,
+        "tax_cents": intent.tax_cents,
+        "stripe_fee_est_cents": intent.stripe_fee_est_cents,
+        "payee_amount_cents": intent.payee_amount_cents,
+        "platform_amount_cents": intent.platform_amount_cents,
+        "payee_account_id": intent.payee_account_id,
         "created_at": _utc(intent.created_at).isoformat(),
         "updated_at": _utc(intent.updated_at).isoformat(),
     }
+
+
+async def _require_payee_connect_account(
+    db: AsyncSession, model, payee_id, label: str
+) -> str:
+    """Return the payee's Stripe Connect account id, or raise 409.
+
+    The split is done at charge time via a destination charge, so the payee
+    (driver / professional) must have an onboarded Connect account that can
+    receive transfers *before* the customer can pay. Sprint 70.
+    """
+    from app.payment import stripe_connect  # noqa: PLC0415
+
+    payee = None
+    if payee_id is not None:
+        payee = await db.scalar(select(model).where(model.id == payee_id))
+    account_id = getattr(payee, "stripe_account_id", None) if payee else None
+    if not account_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"The {label} has not completed payment onboarding yet.",
+        )
+    try:
+        st = stripe_connect.get_account_status(account_id)
+    except Exception:  # noqa: BLE001 — treat provider errors as "not ready"
+        st = {"payouts_enabled": False}
+    if not st.get("payouts_enabled"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"The {label}'s payment account is not ready to receive funds.",
+        )
+    return account_id
 
 
 async def create_payment_intent(
@@ -2914,22 +3061,41 @@ async def create_payment_intent(
     if existing is not None:
         return _intent_to_dict(existing)
 
-    # Create a new intent
-    amount = trip.fare_cents or 0
+    # Sprint 70 — split the fare at charge time (Connect destination charge).
+    # The driver's share is transferred to their Connect account; the customer
+    # is charged fare + tax; Ziza keeps the application fee.
+    from app.payment.split import compute_ride_split  # noqa: PLC0415
+
+    fare = trip.fare_cents or 0
+    cfg = await load_payment_config(db)
+    split = compute_ride_split(fare, cfg)
+
+    destination = await _require_payee_connect_account(
+        db, Driver, trip.driver_id, "driver"
+    )
+
     intent = PaymentIntent(
         trip_id=trip.id,
-        amount_cents=amount,
+        amount_cents=split.total_client_cents,
         provider=getattr(adapter, "_provider_name", "mock"),
+        base_cents=split.base_cents,
+        tax_cents=split.tax_cents,
+        stripe_fee_est_cents=split.stripe_fee_est_cents,
+        payee_amount_cents=split.driver_amount_cents,
+        platform_amount_cents=split.platform_amount_cents,
+        payee_account_id=destination,
     )
     db.add(intent)
     await db.flush()  # get the UUID
 
-    # Call the payment provider
+    # Call the payment provider (destination charge → driver share auto-transferred)
     checkout = await adapter.create_checkout(
-        amount_cents=amount,
+        amount_cents=split.total_client_cents,
         ref=str(intent.id),
         return_url=return_url,
         notify_url=notify_url or None,
+        destination=destination,
+        application_fee_cents=split.platform_amount_cents,
     )
     intent.provider_ref = checkout["provider_ref"]
     intent.checkout_url = checkout["checkout_url"]
@@ -5929,16 +6095,42 @@ async def create_craft_payment_intent(
         return _intent_to_dict(existing)
 
     bid = await _assigned_bid(db, req)
-    amount = bid.price_cents if bid else 0
+    if bid is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No accepted bid to charge for this request.",
+        )
+
+    # Sprint 70 — split at charge time (Connect destination charge). Customer
+    # pays bid + platform fee + tax; the professional receives 100 % of the bid;
+    # Ziza keeps fee + tax. The professional must be onboarded to Connect.
+    from app.payment.split import compute_craft_split  # noqa: PLC0415
+    from app.models.craft import Professional  # noqa: PLC0415
+
+    cfg = await load_payment_config(db)
+    split = compute_craft_split(bid.price_cents, cfg)
+    destination = await _require_payee_connect_account(
+        db, Professional, bid.professional_id, "professional"
+    )
+
     intent = PaymentIntent(
         craft_request_id=rid,
-        amount_cents=amount,
+        amount_cents=split.total_client_cents,
         provider=getattr(adapter, "_provider_name", "mock"),
+        base_cents=split.base_cents,
+        platform_fee_cents=split.platform_fee_cents,
+        tax_cents=split.tax_cents,
+        stripe_fee_est_cents=split.stripe_fee_est_cents,
+        payee_amount_cents=split.pro_amount_cents,
+        platform_amount_cents=split.platform_amount_cents,
+        payee_account_id=destination,
     )
     db.add(intent)
     await db.flush()
     checkout = await adapter.create_checkout(
-        amount_cents=amount, ref=str(intent.id), return_url=return_url, notify_url=notify_url or None,
+        amount_cents=split.total_client_cents, ref=str(intent.id),
+        return_url=return_url, notify_url=notify_url or None,
+        destination=destination, application_fee_cents=split.platform_amount_cents,
     )
     intent.provider_ref = checkout["provider_ref"]
     intent.checkout_url = checkout["checkout_url"]

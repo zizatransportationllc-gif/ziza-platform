@@ -129,13 +129,24 @@ def _drive_to_completed(tc, tp, rid):
 
 def test_craft_payment_flow():
     tc, tp, rid, _ = _assigned_request()
+    # Sprint 70 — the pro must be onboarded to Connect to receive the destination
+    # charge transfer, and the customer pays bid + platform fee + tax.
+    assert client.post("/v1/payouts/connect/onboard", headers=_h(tp)).status_code == 201
     _drive_to_completed(tc, tp, rid)
-    # Customer creates the payment intent (amount = accepted bid: 8000)
     pi = client.post(f"/v1/craft/requests/{rid}/payment-intent", headers=_h(tc))
     assert pi.status_code == 201, pi.text
     intent = pi.json()
     assert intent["craft_request_id"] == rid
-    assert intent["amount_cents"] == 8000
+
+    from app.config import settings
+    from app.payment.split import PaymentConfig, compute_craft_split
+    expected = compute_craft_split(8000, PaymentConfig.from_settings(settings))
+    assert intent["base_cents"] == 8000
+    assert intent["amount_cents"] == expected.total_client_cents
+    assert intent["payee_amount_cents"] == 8000  # pro receives 100 % of the bid
+    assert intent["payee_amount_cents"] + intent["platform_amount_cents"] == intent["amount_cents"]
+    assert intent["payee_account_id"].startswith("acct_mock_")
+
     # Confirm payment via the (mock) webhook
     wh = client.post("/v1/payments/webhook",
                      json={"provider_ref": intent["provider_ref"], "status": "paid"})
@@ -149,3 +160,11 @@ def test_craft_payment_requires_completed():
     tc, tp, rid, _ = _assigned_request()  # status: assigned
     pi = client.post(f"/v1/craft/requests/{rid}/payment-intent", headers=_h(tc))
     assert pi.status_code == 422, pi.text
+
+
+def test_craft_payment_pro_not_onboarded_returns_409():
+    """Sprint 70 — without a Connect account the destination charge is blocked."""
+    tc, tp, rid, _ = _assigned_request()
+    _drive_to_completed(tc, tp, rid)
+    pi = client.post(f"/v1/craft/requests/{rid}/payment-intent", headers=_h(tc))
+    assert pi.status_code == 409, pi.text

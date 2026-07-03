@@ -32,6 +32,9 @@ class CinetPayAdapter:
         ref: str,
         return_url: str,
         notify_url: str | None = None,
+        *,
+        destination: str | None = None,  # Connect split — not supported by CinetPay
+        application_fee_cents: int | None = None,
     ) -> dict:
         """Create a CinetPay payment session via the v2 JSON API.
 

@@ -46,6 +46,30 @@ def test_create_checkout_uses_usd(monkeypatch):
     assert q["line_items[0][price_data][currency]"] == ["usd"]
     assert q["line_items[0][price_data][unit_amount]"] == ["2599"]
     assert "xof" not in captured["body"]
+    # No split requested → no destination charge fields
+    assert "payment_intent_data[transfer_data][destination]" not in captured["body"]
+
+
+def test_create_checkout_destination_charge(monkeypatch):
+    """Sprint 70 — passing destination/application_fee wires a Connect split."""
+    captured = {}
+
+    def _fake_urlopen(req):
+        captured["body"] = req.data.decode()
+        return _FakeResp(json.dumps({"id": "cs_1", "url": "https://stripe/pay"}).encode())
+
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+    # Dummy, non-secret placeholders (avoid secret-scanner false positives).
+    adapter = StripeAdapter(secret_key="sk", webhook_secret="wh")
+
+    asyncio.run(adapter.create_checkout(
+        amount_cents=2050, ref="intent-1", return_url="https://app/return",
+        destination="acct_123", application_fee_cents=1095,
+    ))
+    from urllib.parse import parse_qs
+    q = parse_qs(captured["body"])
+    assert q["payment_intent_data[transfer_data][destination]"] == ["acct_123"]
+    assert q["payment_intent_data[application_fee_amount]"] == ["1095"]
 
 
 def _sign(secret: str, payload: bytes, ts: int) -> str:
