@@ -6,14 +6,15 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   View, Text, StyleSheet, ActivityIndicator, ScrollView,
-  TextInput, TouchableOpacity, Linking,
+  TouchableOpacity, Linking,
 } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import {
   getMyEarnings, EarningsResponse,
-  getDriverBalance, createPayout, listPayouts,
+  getDriverBalance, listPayouts,
   getConnectStatus, connectOnboard,
-  DriverBalance, PayoutRecord, ConnectStatus,
+  getIssuingCard, issueIssuingCard, setIssuingCardStatus,
+  DriverBalance, PayoutRecord, ConnectStatus, IssuingCard,
 } from "../api";
 import EarningsChart from "../components/EarningsChart";
 
@@ -34,15 +35,15 @@ function WithdrawalCard({ token }: { token: string }): React.ReactElement {
   const [balance, setBalance] = useState<DriverBalance | null>(null);
   const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
   const [connect, setConnect] = useState<ConnectStatus | null>(null);
-  const [amount, setAmount] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [card, setCard] = useState<IssuingCard | null>(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
   const load = useCallback(() => {
     getDriverBalance(token).then(setBalance).catch(() => {});
     listPayouts(token).then(setPayouts).catch(() => {});
     getConnectStatus(token).then(setConnect).catch(() => {});
+    getIssuingCard(token).then(setCard).catch(() => {});
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
@@ -55,66 +56,74 @@ function WithdrawalCard({ token }: { token: string }): React.ReactElement {
     } catch { /* ignore */ }
   };
 
-  const available = balance?.disponible_cents ?? null;
-  const amountNum = Number(amount);
-  const overBalance = available != null && amountNum > available;
+  const cardBalance = balance?.connect_available_cents ?? null;
 
-  const handleSubmit = async () => {
-    if (!amountNum || amountNum <= 0 || submitting) return;
-    if (overBalance) { setError("Amount exceeds your available balance."); return; }
-    setSubmitting(true); setError(null); setSuccess(null);
-    try {
-      await createPayout(token, amountNum);
-      setAmount("");
-      setSuccess("Withdrawal request submitted!");
-      load();
-    } catch (e: any) {
-      setError(e?.message || "Could not submit withdrawal.");
-    } finally {
-      setSubmitting(false);
-    }
+  const handleIssue = async () => {
+    setBusy(true); setError(null);
+    try { setCard(await issueIssuingCard(token)); }
+    catch (e: any) { setError(e?.message || "Could not issue card."); }
+    finally { setBusy(false); }
+  };
+  const handleToggle = async () => {
+    if (!card) return;
+    setBusy(true); setError(null);
+    try { setCard(await setIssuingCardStatus(token, card.status !== "active")); }
+    catch (e: any) { setError(e?.message || "Could not update card."); }
+    finally { setBusy(false); }
   };
 
   return (
     <View style={styles.withdrawCard}>
-      <Text style={styles.sectionTitle}>💰 Withdrawals</Text>
-      {connect && !payoutsReady && (
-        <TouchableOpacity style={styles.onboardBanner} onPress={handleOnboard}>
-          <Text style={styles.onboardText}>⚠️ Set up your payout account to receive withdrawals →</Text>
-        </TouchableOpacity>
-      )}
-      {available != null && (
+      <Text style={styles.sectionTitle}>💳 Payouts & Card</Text>
+
+      {/* Ziza debit card */}
+      <View style={styles.zizaCard}>
+        <Text style={styles.zizaCardLabel}>Ziza debit card</Text>
+        {card ? (
+          <>
+            <Text style={styles.zizaCardNumber}>•••• •••• •••• {card.last4 ?? "••••"}</Text>
+            <View style={styles.zizaCardFooter}>
+              <Text style={styles.zizaCardStatus}>{card.status === "active" ? "🟢 Active" : "⏸️ Frozen"}</Text>
+              <TouchableOpacity style={styles.submitBtn} onPress={handleToggle} disabled={busy}>
+                <Text style={styles.submitText}>{card.status === "active" ? "Freeze" : "Unfreeze"}</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          <>
+            <Text style={styles.zizaCardHint}>Get a card to spend your earnings instantly.</Text>
+            <TouchableOpacity style={styles.submitBtn} onPress={handleIssue} disabled={busy}>
+              <Text style={styles.submitText}>{busy ? "Issuing…" : "Get my card"}</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+
+      {cardBalance != null && (
         <Text style={styles.available}>
-          Available to withdraw: <Text style={styles.availableStrong}>{formatUSD(available)}</Text>
+          Available on your card: <Text style={styles.availableStrong}>{formatUSD(cardBalance)}</Text>
         </Text>
       )}
-      <View style={styles.formRow}>
-        <TextInput
-          style={styles.input}
-          value={amount}
-          onChangeText={setAmount}
-          keyboardType="number-pad"
-          placeholder="Amount in cents (e.g. 5000 = $50)"
-        />
-        <TouchableOpacity
-          style={[styles.submitBtn, (submitting || overBalance || !available) && styles.submitBtnDisabled]}
-          onPress={handleSubmit}
-          disabled={submitting || overBalance || !available}
-        >
-          <Text style={styles.submitText}>{submitting ? "…" : "Request"}</Text>
-        </TouchableOpacity>
-      </View>
-      {overBalance && <Text style={styles.err}>Amount exceeds your available balance.</Text>}
-      {error && <Text style={styles.err}>{error}</Text>}
-      {success && <Text style={styles.success}>{success}</Text>}
 
+      {connect && !payoutsReady && (
+        <TouchableOpacity style={styles.onboardBanner} onPress={handleOnboard}>
+          <Text style={styles.onboardText}>⚠️ Set up your payout account to get paid →</Text>
+        </TouchableOpacity>
+      )}
+
+      <Text style={styles.autoNote}>
+        Your share of each ride is paid automatically to your Ziza balance and
+        spendable with your debit card — no manual withdrawal needed.
+      </Text>
+      {error && <Text style={styles.err}>{error}</Text>}
+
+      {payouts.length > 0 && <Text style={styles.pastTitle}>Past withdrawals</Text>}
       {payouts.map((p) => (
         <View key={p.payout_id} style={styles.payoutRow}>
           <Text style={styles.payoutAmount}>{formatUSD(p.amount_cents)}</Text>
           <Text style={styles.payoutStatus}>{PAYOUT_STATUS_LABELS[p.status] ?? p.status}</Text>
         </View>
       ))}
-      {payouts.length === 0 && <Text style={styles.empty}>No withdrawal requests yet.</Text>}
     </View>
   );
 }
@@ -210,6 +219,15 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   sectionTitle: { fontSize: 18, fontWeight: "700", marginBottom: 10, color: "#111827" },
+  // Sprint 70 — Ziza debit card
+  zizaCard: { backgroundColor: "#111827", borderRadius: 12, padding: 16, marginBottom: 12 },
+  zizaCardLabel: { color: "#9CA3AF", fontSize: 13 },
+  zizaCardNumber: { color: "#fff", fontSize: 20, letterSpacing: 2, marginVertical: 8 },
+  zizaCardHint: { color: "#D1D5DB", fontSize: 13, marginVertical: 8 },
+  zizaCardFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  zizaCardStatus: { color: "#D1D5DB", fontSize: 12, textTransform: "uppercase" },
+  autoNote: { fontSize: 13, color: "#6B7280", marginBottom: 8 },
+  pastTitle: { fontSize: 14, fontWeight: "700", color: "#111827", marginTop: 8 },
   onboardBanner: { backgroundColor: "#FEF3C7", borderWidth: 1, borderColor: "#FCD34D", borderRadius: 8, padding: 12, marginBottom: 12 },
   onboardText: { color: "#92400E", fontSize: 13, fontWeight: "600" },
   available: { fontSize: 14, color: "#374151", marginBottom: 10 },
