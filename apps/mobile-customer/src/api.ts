@@ -102,6 +102,10 @@ export interface PaymentIntentResponse {
   provider_ref: string;
   checkout_url: string;
   status: string;  // "pending" | "paid" | "failed"
+  // Sprint 70 — split breakdown (null for pre-redesign intents)
+  base_cents?: number | null;
+  platform_fee_cents?: number | null;
+  tax_cents?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -685,6 +689,10 @@ export interface CraftPaymentIntent {
   status: string;
   provider_ref: string | null;
   checkout_url: string | null;
+  // Sprint 70 — split breakdown
+  base_cents?: number | null;
+  platform_fee_cents?: number | null;
+  tax_cents?: number | null;
 }
 
 export async function createCraftPaymentIntent(token: string, requestId: string): Promise<CraftPaymentIntent> {

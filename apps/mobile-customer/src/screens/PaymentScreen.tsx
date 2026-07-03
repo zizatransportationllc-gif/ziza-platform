@@ -9,7 +9,7 @@
  *   3. We intercept that URL, stop the WebView and start polling.
  *   4. Once status is terminal, show an inline success or failure card.
  */
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -22,7 +22,7 @@ import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { useAuth } from "../context/AuthContext";
-import { getTripPayment } from "../api";
+import { getTripPayment, PaymentIntentResponse } from "../api";
 
 type PaymentRouteProp = RouteProp<RootStackParamList, "Payment">;
 type PaymentNavProp = NativeStackNavigationProp<RootStackParamList, "Payment">;
@@ -54,6 +54,15 @@ export default function PaymentScreen(): React.ReactElement {
 
   const [payState, setPayState] = useState<PaymentState>("checkout");
   const [amountXof, setAmountXof] = useState<number | null>(null);
+  const [intent, setIntent] = useState<PaymentIntentResponse | null>(null);
+
+  // Fetch the payment intent once so we can show the price breakdown (Sprint 70).
+  useEffect(() => {
+    if (!token) return;
+    getTripPayment(token, tripId)
+      .then((d) => { if (d) setIntent(d); })
+      .catch(() => { /* ignore — breakdown is best-effort */ });
+  }, [token, tripId]);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const attemptsRef = useRef(0);
 
@@ -185,8 +194,34 @@ export default function PaymentScreen(): React.ReactElement {
 
   // ---- WebView checkout ---------------------------------------------------
 
+  const showBreakdown = intent != null && intent.base_cents != null;
+
   return (
     <View style={styles.container}>
+      {showBreakdown && (
+        <View style={styles.breakdown}>
+          <View style={styles.breakdownRow}>
+            <Text style={styles.breakdownLabel}>Base</Text>
+            <Text style={styles.breakdownLabel}>{formatUSD(intent!.base_cents)}</Text>
+          </View>
+          {intent!.platform_fee_cents != null && (
+            <View style={styles.breakdownRow}>
+              <Text style={styles.breakdownLabel}>Service fee</Text>
+              <Text style={styles.breakdownLabel}>{formatUSD(intent!.platform_fee_cents)}</Text>
+            </View>
+          )}
+          {intent!.tax_cents != null && (
+            <View style={styles.breakdownRow}>
+              <Text style={styles.breakdownLabel}>Tax</Text>
+              <Text style={styles.breakdownLabel}>{formatUSD(intent!.tax_cents)}</Text>
+            </View>
+          )}
+          <View style={[styles.breakdownRow, styles.breakdownTotalRow]}>
+            <Text style={styles.breakdownTotal}>Total</Text>
+            <Text style={styles.breakdownTotal}>{formatUSD(intent!.amount_cents)}</Text>
+          </View>
+        </View>
+      )}
       <WebView
         source={{ uri: checkoutUrl }}
         startInLoadingState
@@ -205,6 +240,11 @@ export default function PaymentScreen(): React.ReactElement {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  breakdown: { padding: 12, backgroundColor: "#F9FAFB", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  breakdownRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 2 },
+  breakdownLabel: { fontSize: 13, color: "#6B7280" },
+  breakdownTotalRow: { marginTop: 4, paddingTop: 4, borderTopWidth: 1, borderTopColor: "#E5E7EB" },
+  breakdownTotal: { fontSize: 14, fontWeight: "700", color: "#111" },
   loader: { flex: 1, justifyContent: "center", alignItems: "center" },
   resultContainer: {
     flex: 1,

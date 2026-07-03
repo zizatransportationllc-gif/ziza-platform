@@ -53,6 +53,30 @@ function formatUSD(n) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n / 100);
 }
 
+// Price breakdown shown to the customer before/while paying (Sprint 70).
+// Renders base fare/bid, optional platform fee (craft), tax, and total when the
+// payment intent carries the split breakdown; renders nothing otherwise.
+function PaymentBreakdown({ intent }) {
+  if (!intent || intent.base_cents == null) return null;
+  const rows = [["Base", intent.base_cents]];
+  if (intent.platform_fee_cents != null) rows.push(["Service fee", intent.platform_fee_cents]);
+  if (intent.tax_cents != null) rows.push(["Tax", intent.tax_cents]);
+  return (
+    <div className="payment-breakdown">
+      {rows.map(([label, cents]) => (
+        <div className="payment-breakdown-row" key={label}>
+          <span>{label}</span>
+          <span>{formatUSD(cents)}</span>
+        </div>
+      ))}
+      <div className="payment-breakdown-row payment-breakdown-total">
+        <span>Total</span>
+        <span>{formatUSD(intent.amount_cents)}</span>
+      </div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Login form
 // ---------------------------------------------------------------------------
@@ -723,6 +747,7 @@ function PaymentSection({ token, tripId, fareXof }) {
             <div className="payment-amount">{formatUSD(intent.amount_cents)}</div>
           </div>
         </div>
+        <PaymentBreakdown intent={intent} />
         {isMock && (
           <button
             className="payment-btn payment-btn-simulate"
@@ -1876,6 +1901,7 @@ function CraftPayment({ token, requestId, paid }) {
           {loading ? "Loading…" : "💳 Pay for the assistance"}
         </button>
       )}
+      {intent && intent.status === "pending" && <PaymentBreakdown intent={intent} />}
       {intent && intent.status === "pending" && (isMock ? (
         <button className="board-btn" onClick={handleSimulate} disabled={simulating}>
           {simulating ? "Processing…" : `✅ Simulate payment (${formatUSD(intent.amount_cents)})`}
