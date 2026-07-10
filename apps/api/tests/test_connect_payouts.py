@@ -78,6 +78,28 @@ def test_connect_status_before_onboarding():
     assert st.json()["onboarded"] is False
 
 
+def test_onboarding_self_heals_stale_account(monkeypatch):
+    """A stored id Stripe no longer recognizes (mock id from before Stripe went
+    live, or a pre-Custom Express account) is dropped and re-provisioned, instead
+    of leaving the payee stuck on a dead id."""
+    from app.payment import stripe_connect
+
+    d_tok = _tok("driver@ziza.dev")
+    client.post("/v1/auth/register", headers=_h(d_tok))
+    client.post("/v1/drivers/register", headers=_h(d_tok))
+
+    first = client.post("/v1/payouts/connect/onboard", headers=_h(d_tok)).json()["account_id"]
+
+    # Simulate Stripe rejecting the stored id → onboarding must mint a fresh one.
+    monkeypatch.setattr(stripe_connect, "account_exists", lambda _acct: False)
+    monkeypatch.setattr(stripe_connect, "create_connected_account", lambda _email: "acct_fresh_123")
+
+    r = client.post("/v1/payouts/connect/onboard", headers=_h(d_tok))
+    assert r.status_code == 201, r.text
+    assert r.json()["account_id"] == "acct_fresh_123"
+    assert r.json()["account_id"] != first
+
+
 # ---------------------------------------------------------------------------
 # Driver payout batch requires a connected account
 # ---------------------------------------------------------------------------

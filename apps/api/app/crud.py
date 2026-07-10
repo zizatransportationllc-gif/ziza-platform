@@ -4075,6 +4075,15 @@ async def start_connect_onboarding(db: AsyncSession, auth_id: str, role: str) ->
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
     entity = await _payout_entity(db, auth_id, role)
 
+    # Self-heal: an id Stripe no longer recognizes (a mock id from before Stripe
+    # went live in this env, or a pre-Custom Express account) must be replaced —
+    # otherwise account-link creation 500s and the payee is stuck, unable to
+    # onboard or get paid. Drop it so a fresh Custom account is provisioned below.
+    if entity.stripe_account_id and not stripe_connect.account_exists(
+        entity.stripe_account_id
+    ):
+        entity.stripe_account_id = None
+
     if not entity.stripe_account_id:
         entity.stripe_account_id = stripe_connect.create_connected_account(user.email)
         await db.commit()

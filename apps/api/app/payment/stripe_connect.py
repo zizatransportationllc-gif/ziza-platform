@@ -10,6 +10,7 @@ whole flow — onboarding + payout batch — can run without touching Stripe.
 from __future__ import annotations
 
 import json
+import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
@@ -93,12 +94,45 @@ def create_account_link(account_id: str, return_url: str, refresh_url: str) -> s
     return link["url"]
 
 
+def account_exists(account_id: str) -> bool:
+    """Whether Stripe still recognizes ``account_id``.
+
+    Used to detect **stale** connected-account ids so onboarding can re-provision:
+    a mock id (``acct_mock_…``) persisted before Stripe went live in this env, or
+    a pre-Custom Express account. In dev/CI (no key) every id is treated as valid.
+
+    Only a definitive *"no such account"* (HTTP 400/404 ``resource_missing``)
+    returns ``False``; transient/auth/5xx errors return ``True`` so a real account
+    id is never discarded because of a network blip.
+    """
+    if not _enabled():
+        return True
+    if not account_id:
+        return False
+    try:
+        _get(f"/accounts/{account_id}")
+        return True
+    except urllib.error.HTTPError as exc:
+        # A bare account GET can only 400/404 because the id doesn't exist.
+        return exc.code not in (400, 404)
+    except Exception:  # noqa: BLE001 — transient error → keep the id, don't re-provision
+        return True
+
+
 def get_account_status(account_id: str) -> dict:
-    """Return ``{payouts_enabled, charges_enabled, details_submitted}``."""
+    """Return ``{payouts_enabled, charges_enabled, details_submitted}``.
+
+    A stale/invalid id or a transient Stripe error yields an all-``False`` status
+    rather than raising, so callers (e.g. the payee's status endpoint) degrade
+    gracefully instead of 500-ing.
+    """
     if not _enabled():
         # Dev/CI: treat the mock account as fully onboarded so payouts can run.
         return {"payouts_enabled": True, "charges_enabled": True, "details_submitted": True}
-    acct = _get(f"/accounts/{account_id}")
+    try:
+        acct = _get(f"/accounts/{account_id}")
+    except Exception:  # noqa: BLE001 — stale/invalid id or transient error → not ready
+        return {"payouts_enabled": False, "charges_enabled": False, "details_submitted": False}
     return {
         "payouts_enabled": bool(acct.get("payouts_enabled")),
         "charges_enabled": bool(acct.get("charges_enabled")),
