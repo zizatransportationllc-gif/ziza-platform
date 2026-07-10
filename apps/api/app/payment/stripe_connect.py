@@ -66,7 +66,7 @@ def create_connected_account(email: str | None) -> str:
     """
     if not _enabled():
         return f"acct_mock_{uuid.uuid4().hex[:16]}"
-    acct = _post("/accounts", {
+    fields = {
         "country": "US",
         # Custom-equivalent controller configuration (no Stripe-hosted dashboard;
         # platform collects requirements and owns payment losses).
@@ -74,10 +74,17 @@ def create_connected_account(email: str | None) -> str:
         "controller[fees][payer]": "application",
         "controller[losses][payments]": "application",
         "controller[requirement_collection]": "application",
+        # `transfers` is all that's needed to receive the split via destination
+        # charges — request it unconditionally.
         "capabilities[transfers][requested]": "true",
-        "capabilities[card_issuing][requested]": "true",
         **({"email": email} if email else {}),
-    })
+    }
+    # `card_issuing` can ONLY be requested once the platform itself is onboarded
+    # on Stripe Issuing; otherwise Stripe rejects the whole account creation with
+    # a 400 (requested_capabilities), breaking onboarding. Gate it behind config.
+    if settings.stripe_issuing_enabled:
+        fields["capabilities[card_issuing][requested]"] = "true"
+    acct = _post("/accounts", fields)
     return acct["id"]
 
 

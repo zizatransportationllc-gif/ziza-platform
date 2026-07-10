@@ -138,6 +138,13 @@ class Settings(BaseSettings):
     # Stripe (international credit/debit cards)
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
+    # Sprint 71 requested the `card_issuing` capability on every connected
+    # account, but Stripe rejects account creation with a 400
+    # (requested_capabilities) unless the *platform* is already onboarded on
+    # Stripe Issuing — which broke ALL Connect onboarding. Gate it: only request
+    # `card_issuing` once the platform has Issuing enabled. Receiving the split
+    # (destination charges) needs only the `transfers` capability.
+    stripe_issuing_enabled: bool = False
 
     # Wells Fargo Merchant Services payment gateway (US card acquiring)
     wellsfargo_api_base: str = "https://api.wellsfargo.com/merchant-services/v1"

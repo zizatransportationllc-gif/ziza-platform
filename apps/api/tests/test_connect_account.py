@@ -76,10 +76,9 @@ def test_get_account_status_not_ready_on_error(monkeypatch):
     }
 
 
-def test_create_connected_account_custom_payload(monkeypatch):
-    """With Stripe enabled, the account is created as Custom + Issuing-ready."""
+def _capture_account_create(monkeypatch) -> dict:
+    """Run create_connected_account with Stripe 'enabled' and capture the POST."""
     captured = {}
-
     monkeypatch.setattr(stripe_connect, "_enabled", lambda: True)
 
     def _fake_post(path, fields):
@@ -88,17 +87,35 @@ def test_create_connected_account_custom_payload(monkeypatch):
         return {"id": "acct_test_123"}
 
     monkeypatch.setattr(stripe_connect, "_post", _fake_post)
-
     acct = stripe_connect.create_connected_account("driver@ziza.dev")
     assert acct == "acct_test_123"
-    assert captured["path"] == "/accounts"
-    f = captured["fields"]
+    return captured["fields"]
+
+
+def test_create_connected_account_custom_payload(monkeypatch):
+    """With Stripe enabled, the account is created as Custom (transfers capability)."""
+    monkeypatch.setattr(stripe_connect.settings, "stripe_issuing_enabled", False)
+    f = _capture_account_create(monkeypatch)
     # Custom controller configuration (no express type)
     assert "type" not in f
     assert f["controller[stripe_dashboard][type]"] == "none"
     assert f["controller[losses][payments]"] == "application"
     assert f["controller[requirement_collection]"] == "application"
-    # Capabilities: transfers (split) + card_issuing (debit card)
+    # transfers is always requested (receives the split)
     assert f["capabilities[transfers][requested]"] == "true"
-    assert f["capabilities[card_issuing][requested]"] == "true"
     assert f["email"] == "driver@ziza.dev"
+
+
+def test_card_issuing_not_requested_by_default(monkeypatch):
+    """Issuing disabled (default) → card_issuing NOT requested, or Stripe rejects
+    the whole account creation (platform not onboarded on Issuing)."""
+    monkeypatch.setattr(stripe_connect.settings, "stripe_issuing_enabled", False)
+    f = _capture_account_create(monkeypatch)
+    assert "capabilities[card_issuing][requested]" not in f
+
+
+def test_card_issuing_requested_when_enabled(monkeypatch):
+    """Issuing enabled (platform onboarded) → card_issuing capability requested."""
+    monkeypatch.setattr(stripe_connect.settings, "stripe_issuing_enabled", True)
+    f = _capture_account_create(monkeypatch)
+    assert f["capabilities[card_issuing][requested]"] == "true"
