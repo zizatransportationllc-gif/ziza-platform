@@ -4,14 +4,17 @@ Custom connected accounts are required for Stripe Issuing. This asserts the
 account-creation payload requests the controller config + card_issuing capability
 when Stripe is enabled, and still returns a deterministic fake in dev/CI.
 """
+import io
+import json
 import urllib.error
 
 from app.payment import stripe_connect
 
 
-def _http_error(code: int) -> urllib.error.HTTPError:
+def _http_error(code: int, body: dict | None = None) -> urllib.error.HTTPError:
+    fp = io.BytesIO(json.dumps(body).encode()) if body is not None else None
     return urllib.error.HTTPError(
-        "https://api.stripe.com/v1/accounts/x", code, "err", {}, None
+        "https://api.stripe.com/v1/accounts/x", code, "err", {}, fp
     )
 
 
@@ -47,6 +50,28 @@ def test_account_exists_false_when_stripe_has_no_such_account(monkeypatch):
 
     monkeypatch.setattr(stripe_connect, "_get", _boom_400)
     assert stripe_connect.account_exists("acct_mock_dead") is False
+
+
+def test_account_exists_false_on_403_account_invalid(monkeypatch):
+    """A mock/revoked id → Stripe 403 account_invalid → False (re-provision)."""
+    monkeypatch.setattr(stripe_connect, "_enabled", lambda: True)
+
+    def _boom(_path):
+        raise _http_error(403, {"error": {"code": "account_invalid"}})
+
+    monkeypatch.setattr(stripe_connect, "_get", _boom)
+    assert stripe_connect.account_exists("acct_mock_stale") is False
+
+
+def test_account_exists_true_on_403_other(monkeypatch):
+    """A 403 that is NOT account_invalid → keep the id (don't re-provision)."""
+    monkeypatch.setattr(stripe_connect, "_enabled", lambda: True)
+
+    def _boom(_path):
+        raise _http_error(403, {"error": {"code": "permission_error"}})
+
+    monkeypatch.setattr(stripe_connect, "_get", _boom)
+    assert stripe_connect.account_exists("acct_real") is True
 
 
 def test_account_exists_true_on_transient_error(monkeypatch):
