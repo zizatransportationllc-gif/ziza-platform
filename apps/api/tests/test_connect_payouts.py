@@ -78,6 +78,49 @@ def test_connect_status_before_onboarding():
     assert st.json()["onboarded"] is False
 
 
+def test_onboarding_requires_kyc_approval_when_stripe_live(monkeypatch):
+    """With Stripe live, a payee whose KYC isn't admin-approved (status != active)
+    cannot provision a Connect account (409). In mock mode the guard is skipped."""
+    from app.payment import stripe_connect
+
+    d_tok = _tok("driver@ziza.dev")
+    a_tok = _tok("admin@ziza.dev")
+    client.post("/v1/auth/register", headers=_h(d_tok))
+    client.post("/v1/auth/register", headers=_h(a_tok))
+    reg = client.post("/v1/drivers/register", headers=_h(d_tok)).json()
+    # The test DB is shared across tests, so this driver may already be active
+    # from an earlier test — force pending_docs so the KYC guard is exercised.
+    client.patch(f"/v1/admin/drivers/{reg['driver_id']}/status",
+                 headers=_h(a_tok), json={"status": "pending_docs"})
+
+    monkeypatch.setattr(stripe_connect, "_enabled", lambda: True)
+    r = client.post("/v1/payouts/connect/onboard", headers=_h(d_tok))
+    assert r.status_code == 409, r.text
+    assert "approved" in r.json()["detail"].lower()
+
+
+def test_onboarding_self_heals_stale_account(monkeypatch):
+    """A stored id Stripe no longer recognizes (mock id from before Stripe went
+    live, or a pre-Custom Express account) is dropped and re-provisioned, instead
+    of leaving the payee stuck on a dead id."""
+    from app.payment import stripe_connect
+
+    d_tok = _tok("driver@ziza.dev")
+    client.post("/v1/auth/register", headers=_h(d_tok))
+    client.post("/v1/drivers/register", headers=_h(d_tok))
+
+    first = client.post("/v1/payouts/connect/onboard", headers=_h(d_tok)).json()["account_id"]
+
+    # Simulate Stripe rejecting the stored id → onboarding must mint a fresh one.
+    monkeypatch.setattr(stripe_connect, "account_exists", lambda _acct: False)
+    monkeypatch.setattr(stripe_connect, "create_connected_account", lambda _email: "acct_fresh_123")
+
+    r = client.post("/v1/payouts/connect/onboard", headers=_h(d_tok))
+    assert r.status_code == 201, r.text
+    assert r.json()["account_id"] == "acct_fresh_123"
+    assert r.json()["account_id"] != first
+
+
 # ---------------------------------------------------------------------------
 # Driver payout batch requires a connected account
 # ---------------------------------------------------------------------------

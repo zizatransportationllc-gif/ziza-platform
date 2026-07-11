@@ -74,6 +74,24 @@ def test_issue_card_requires_onboarding_409():
     assert r.status_code == 409, r.text
 
 
+def test_issue_card_requires_card_issuing_active(monkeypatch):
+    """Even when payouts are enabled, a card can't be issued until the connected
+    account's card_issuing capability is active (409)."""
+    from app.payment import stripe_connect
+
+    tok = _driver()  # onboarded (mock account)
+    monkeypatch.setattr(
+        stripe_connect, "get_account_status",
+        lambda _acct: {
+            "payouts_enabled": True, "charges_enabled": True,
+            "details_submitted": True, "card_issuing_active": False,
+        },
+    )
+    r = client.post("/v1/payouts/issuing/card", headers=_h(tok))
+    assert r.status_code == 409, r.text
+    assert "issuing" in r.json()["detail"].lower()
+
+
 def test_issue_card_requires_payee_role():
     tok = _tok("customer@ziza.dev")
     client.post("/v1/auth/register", headers=_h(tok))

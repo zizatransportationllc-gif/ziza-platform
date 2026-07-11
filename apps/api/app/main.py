@@ -2045,13 +2045,19 @@ def _require_payee_role(claims: Claims) -> None:
 
 @app.post("/v1/payouts/issuing/card", tags=["payouts"], status_code=201)
 async def issue_issuing_card(
+    request: Request,
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IssuingCardResponse:
     """Driver/professional: issue (or return the existing) Stripe Issuing debit
-    card to spend their Connect balance. Requires completed onboarding (409)."""
+    card to spend their Connect balance. Requires completed onboarding (409).
+
+    Issuing a card records the payee's acceptance of Stripe's Issuing Authorized
+    User Terms, captured from the request IP.
+    """
     _require_payee_role(claims)
-    data = await crud.issue_issuing_card(db, claims.user_id, claims.role)
+    terms_ip = request.client.host if request.client else None
+    data = await crud.issue_issuing_card(db, claims.user_id, claims.role, terms_ip=terms_ip)
     return IssuingCardResponse(**data)
 
 

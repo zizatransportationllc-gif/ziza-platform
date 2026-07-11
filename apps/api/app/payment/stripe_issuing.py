@@ -14,6 +14,7 @@ Stripe before going live (see docs/go-live).
 from __future__ import annotations
 
 import json
+import time
 import urllib.parse
 import urllib.request
 import uuid
@@ -50,21 +51,52 @@ def _get(path: str, account_id: str | None = None) -> dict:
         return json.loads(resp.read())
 
 
-def create_cardholder(name: str, email: str | None, account_id: str | None = None) -> str:
-    """Create an Issuing cardholder; return its id."""
+# Fallback US billing address (Newark, NJ) used only when Stripe has no
+# individual address on file yet — real cards use the KYC address (see
+# stripe_connect.get_individual_address).
+_FALLBACK_ADDRESS = {
+    "line1": "1 Ziza Plaza", "line2": None, "city": "Newark",
+    "state": "NJ", "postal_code": "07102", "country": "US",
+}
+
+
+def create_cardholder(
+    name: str,
+    email: str | None,
+    account_id: str | None = None,
+    *,
+    address: dict | None = None,
+    terms_ip: str | None = None,
+    terms_date: int | None = None,
+) -> str:
+    """Create an Issuing cardholder; return its id.
+
+    ``address`` — the cardholder's real billing address (from Stripe KYC); falls
+    back to a placeholder when unavailable. ``terms_ip`` — the payee's IP at the
+    moment they accepted Stripe's Issuing Authorized User Terms; when provided,
+    records ``user_terms_acceptance`` (required to issue a card).
+    """
     if not _enabled():
         return f"ich_mock_{uuid.uuid4().hex[:16]}"
+    addr = {**_FALLBACK_ADDRESS, **{k: v for k, v in (address or {}).items() if v}}
     fields = {
         "type": "individual",
         "name": name or "ZIZA Payee",
         **({"email": email} if email else {}),
-        # Minimal US billing address; the real value comes from KYC/onboarding.
-        "billing[address][line1]": "N/A",
-        "billing[address][city]": "Newark",
-        "billing[address][state]": "NJ",
-        "billing[address][postal_code]": "07102",
-        "billing[address][country]": "US",
+        "billing[address][line1]": addr["line1"],
+        "billing[address][city]": addr["city"],
+        "billing[address][state]": addr["state"],
+        "billing[address][postal_code]": addr["postal_code"],
+        "billing[address][country]": addr["country"],
+        **({"billing[address][line2]": addr["line2"]} if addr.get("line2") else {}),
     }
+    # Stripe requires the cardholder to accept the Issuing Authorized User Terms
+    # before a card can be created. Record it when we captured the acceptance.
+    if terms_ip:
+        fields["individual[card_issuing][user_terms_acceptance][ip]"] = terms_ip
+        fields["individual[card_issuing][user_terms_acceptance][date]"] = str(
+            terms_date or int(time.time())
+        )
     return _post("/issuing/cardholders", fields, account_id)["id"]
 
 

@@ -10,6 +10,7 @@ whole flow — onboarding + payout batch — can run without touching Stripe.
 from __future__ import annotations
 
 import json
+import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
@@ -65,7 +66,7 @@ def create_connected_account(email: str | None) -> str:
     """
     if not _enabled():
         return f"acct_mock_{uuid.uuid4().hex[:16]}"
-    acct = _post("/accounts", {
+    fields = {
         "country": "US",
         # Custom-equivalent controller configuration (no Stripe-hosted dashboard;
         # platform collects requirements and owns payment losses).
@@ -73,10 +74,17 @@ def create_connected_account(email: str | None) -> str:
         "controller[fees][payer]": "application",
         "controller[losses][payments]": "application",
         "controller[requirement_collection]": "application",
+        # `transfers` is all that's needed to receive the split via destination
+        # charges — request it unconditionally.
         "capabilities[transfers][requested]": "true",
-        "capabilities[card_issuing][requested]": "true",
         **({"email": email} if email else {}),
-    })
+    }
+    # `card_issuing` can ONLY be requested once the platform itself is onboarded
+    # on Stripe Issuing; otherwise Stripe rejects the whole account creation with
+    # a 400 (requested_capabilities), breaking onboarding. Gate it behind config.
+    if settings.stripe_issuing_enabled:
+        fields["capabilities[card_issuing][requested]"] = "true"
+    acct = _post("/accounts", fields)
     return acct["id"]
 
 
@@ -93,16 +101,88 @@ def create_account_link(account_id: str, return_url: str, refresh_url: str) -> s
     return link["url"]
 
 
-def get_account_status(account_id: str) -> dict:
-    """Return ``{payouts_enabled, charges_enabled, details_submitted}``."""
+def account_exists(account_id: str) -> bool:
+    """Whether Stripe still recognizes ``account_id``.
+
+    Used to detect **stale** connected-account ids so onboarding can re-provision:
+    a mock id (``acct_mock_…``) persisted before Stripe went live in this env, or
+    a pre-Custom Express account. In dev/CI (no key) every id is treated as valid.
+
+    Only a definitive *"no such account"* (HTTP 400/404 ``resource_missing``)
+    returns ``False``; transient/auth/5xx errors return ``True`` so a real account
+    id is never discarded because of a network blip.
+    """
     if not _enabled():
-        # Dev/CI: treat the mock account as fully onboarded so payouts can run.
-        return {"payouts_enabled": True, "charges_enabled": True, "details_submitted": True}
-    acct = _get(f"/accounts/{account_id}")
+        return True
+    if not account_id:
+        return False
+    try:
+        _get(f"/accounts/{account_id}")
+        return True
+    except urllib.error.HTTPError as exc:
+        # A bare account GET can only 400/404 because the id doesn't exist.
+        return exc.code not in (400, 404)
+    except Exception:  # noqa: BLE001 — transient error → keep the id, don't re-provision
+        return True
+
+
+def get_account_status(account_id: str) -> dict:
+    """Return ``{payouts_enabled, charges_enabled, details_submitted,
+    card_issuing_active}``.
+
+    ``card_issuing_active`` reflects the connected account's ``card_issuing``
+    capability being ``active`` (required before a card can be issued on it).
+
+    A stale/invalid id or a transient Stripe error yields an all-``False`` status
+    rather than raising, so callers (e.g. the payee's status endpoint) degrade
+    gracefully instead of 500-ing.
+    """
+    if not _enabled():
+        # Dev/CI: treat the mock account as fully onboarded so the flow can run.
+        return {
+            "payouts_enabled": True, "charges_enabled": True,
+            "details_submitted": True, "card_issuing_active": True,
+        }
+    try:
+        acct = _get(f"/accounts/{account_id}")
+    except Exception:  # noqa: BLE001 — stale/invalid id or transient error → not ready
+        return {
+            "payouts_enabled": False, "charges_enabled": False,
+            "details_submitted": False, "card_issuing_active": False,
+        }
+    caps = acct.get("capabilities") or {}
     return {
         "payouts_enabled": bool(acct.get("payouts_enabled")),
         "charges_enabled": bool(acct.get("charges_enabled")),
         "details_submitted": bool(acct.get("details_submitted")),
+        "card_issuing_active": caps.get("card_issuing") == "active",
+    }
+
+
+def get_individual_address(account_id: str) -> dict | None:
+    """Return the connected account's individual billing address (collected by
+    Stripe during hosted onboarding), or ``None``.
+
+    Used to populate the Issuing cardholder's billing address from real KYC data
+    instead of a placeholder. Returns ``None`` in dev/CI (no key), when the
+    account has no id, on any Stripe error, or when no ``line1`` is on file yet.
+    """
+    if not _enabled() or not account_id:
+        return None
+    try:
+        acct = _get(f"/accounts/{account_id}")
+    except Exception:  # noqa: BLE001 — no address available → caller falls back
+        return None
+    addr = (acct.get("individual") or {}).get("address") or {}
+    if not addr.get("line1"):
+        return None
+    return {
+        "line1": addr.get("line1"),
+        "line2": addr.get("line2"),
+        "city": addr.get("city"),
+        "state": addr.get("state"),
+        "postal_code": addr.get("postal_code"),
+        "country": addr.get("country") or "US",
     }
 
 
