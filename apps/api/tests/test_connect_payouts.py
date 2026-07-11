@@ -83,11 +83,17 @@ def test_onboarding_requires_kyc_approval_when_stripe_live(monkeypatch):
     cannot provision a Connect account (409). In mock mode the guard is skipped."""
     from app.payment import stripe_connect
 
-    monkeypatch.setattr(stripe_connect, "_enabled", lambda: True)
     d_tok = _tok("driver@ziza.dev")
+    a_tok = _tok("admin@ziza.dev")
     client.post("/v1/auth/register", headers=_h(d_tok))
-    client.post("/v1/drivers/register", headers=_h(d_tok))  # status = pending_docs
+    client.post("/v1/auth/register", headers=_h(a_tok))
+    reg = client.post("/v1/drivers/register", headers=_h(d_tok)).json()
+    # The test DB is shared across tests, so this driver may already be active
+    # from an earlier test — force pending_docs so the KYC guard is exercised.
+    client.patch(f"/v1/admin/drivers/{reg['driver_id']}/status",
+                 headers=_h(a_tok), json={"status": "pending_docs"})
 
+    monkeypatch.setattr(stripe_connect, "_enabled", lambda: True)
     r = client.post("/v1/payouts/connect/onboard", headers=_h(d_tok))
     assert r.status_code == 409, r.text
     assert "approved" in r.json()["detail"].lower()
