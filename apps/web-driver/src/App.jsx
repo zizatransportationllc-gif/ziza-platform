@@ -1717,6 +1717,65 @@ function AccessDenied({ role, onLogout }) {
 // Root
 // ---------------------------------------------------------------------------
 
+// Stripe redirects here after hosted Connect onboarding: /payouts/return when
+// the payee finishes, /payouts/refresh when the account link expired.
+function PayoutReturnView({ token, mode }) {
+  const [connect, setConnect] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    if (mode === "refresh") {
+      // The one-time onboarding link expired — mint a fresh one and resume.
+      connectOnboard(token)
+        .then((r) => { if (r.onboarding_url) window.location.href = r.onboarding_url; })
+        .catch((e) => { setErr(e.message); setLoading(false); });
+      return;
+    }
+    getConnectStatus(token)
+      .then(setConnect)
+      .catch((e) => setErr(e.message))
+      .finally(() => setLoading(false));
+  }, [token, mode]);
+
+  const goHome = () => window.location.assign("/");
+
+  if (mode === "refresh") {
+    return (
+      <div className="app"><div className="status loading">
+        {err ? `⚠️ ${err}` : "⏳ Refreshing your onboarding link…"}
+      </div></div>
+    );
+  }
+
+  const ready = connect?.payouts_enabled;
+  return (
+    <div className="app" style={{ maxWidth: 480, margin: "0 auto", padding: 24, textAlign: "center" }}>
+      {loading ? (
+        <div className="status loading">⏳ Checking your payout account…</div>
+      ) : ready ? (
+        <>
+          <div style={{ fontSize: 48 }}>✅</div>
+          <h2>You're all set!</h2>
+          <p>Your payout account is verified. Your trips are paid automatically to your
+            Ziza balance — no manual withdrawal needed.</p>
+        </>
+      ) : (
+        <>
+          <div style={{ fontSize: 48 }}>⏳</div>
+          <h2>Almost there</h2>
+          <p>Thanks! Stripe is still verifying your details — this can take a few
+            minutes. We'll enable payouts as soon as it's done.</p>
+        </>
+      )}
+      {err && <p className="payout-err">{err}</p>}
+      <button type="button" className="payout-submit-btn" onClick={goHome} style={{ marginTop: 16 }}>
+        Back to Ziza →
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
   const [user, setUser] = useState(null);
@@ -1799,6 +1858,11 @@ export default function App() {
   }
 
   if (!token) return <LoginForm onEmailLogin={handleEmailLogin} onGoogleLogin={handleGoogleLogin} onSignup={handleSignup} error={loginError} loading={loginLoading} />;
+  // Stripe Connect onboarding redirect targets (see settings.connect_app_base_driver).
+  const path = window.location.pathname;
+  if (path === "/payouts/return" || path === "/payouts/refresh") {
+    return <PayoutReturnView token={token} mode={path.endsWith("refresh") ? "refresh" : "return"} />;
+  }
   if (!user)  return <div className="app"><div className="status loading">⏳ Loading…</div></div>;
   if (user.role !== REQUIRED_ROLE) return <AccessDenied role={user.role} onLogout={handleLogout} />;
   return <Dashboard user={user} token={token} onLogout={handleLogout} />;
