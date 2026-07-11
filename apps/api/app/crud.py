@@ -4111,12 +4111,16 @@ async def get_connect_status(db: AsyncSession, auth_id: str, role: str) -> dict:
 
     entity = await _payout_entity(db, auth_id, role)
     if not entity.stripe_account_id:
-        return {"account_id": None, "onboarded": False, "payouts_enabled": False}
+        return {
+            "account_id": None, "onboarded": False,
+            "payouts_enabled": False, "card_issuing_active": False,
+        }
     st = stripe_connect.get_account_status(entity.stripe_account_id)
     return {
         "account_id": entity.stripe_account_id,
         "onboarded": st["details_submitted"],
         "payouts_enabled": st["payouts_enabled"],
+        "card_issuing_active": st.get("card_issuing_active", False),
     }
 
 

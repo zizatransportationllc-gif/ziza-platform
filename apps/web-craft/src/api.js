@@ -393,7 +393,7 @@ export async function getConnectStatus(token) {
   const res = await fetch(`${API_BASE}/v1/payouts/connect/status`, {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
   });
-  return _json(res); // { account_id, onboarded, payouts_enabled }
+  return _json(res); // { account_id, onboarded, payouts_enabled, card_issuing_active }
 }
 
 export async function connectOnboard(token) {

@@ -690,7 +690,7 @@ const PRO_PAYOUT_STATUS_LABELS = {
 };
 
 // Sprint 70 — Ziza debit card (Stripe Issuing): spend the Connect balance.
-function ZizaCard({ token }) {
+function ZizaCard({ token, issuingReady }) {
   const [card, setCard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -730,13 +730,17 @@ function ZizaCard({ token }) {
             </button>
           </div>
         </>
-      ) : (
+      ) : issuingReady ? (
         <>
           <p style={{ fontSize: 13, opacity: 0.85, margin: "8px 0" }}>Get a card to spend your earnings instantly.</p>
           <button type="button" className="payout-submit-btn" onClick={handleIssue} disabled={busy}>
             {busy ? "Issuing…" : "Get my card"}
           </button>
         </>
+      ) : (
+        <p style={{ fontSize: 13, opacity: 0.85, margin: "8px 0" }}>
+          Your Ziza card will be available once your account is fully verified.
+        </p>
       )}
       {error && <p className="payout-err" style={{ color: "#fca5a5" }}>{error}</p>}
     </div>
@@ -777,7 +781,7 @@ function WithdrawalsSection({ token }) {
         <button className="refresh-btn" onClick={load} disabled={loading}>↻</button>
       </div>
 
-      <ZizaCard token={token} />
+      <ZizaCard token={token} issuingReady={connect?.card_issuing_active} />
 
       {connect && !payoutsReady && (
         <div style={{ background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: 8, padding: 12, marginBottom: 12 }}>

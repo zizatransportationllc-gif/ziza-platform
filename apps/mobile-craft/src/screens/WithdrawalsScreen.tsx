@@ -46,6 +46,7 @@ export default function WithdrawalsScreen(): React.ReactElement {
   useEffect(() => { load(); }, [load]);
 
   const payoutsReady = connect?.payouts_enabled ?? false;
+  const issuingReady = connect?.card_issuing_active ?? false;
   const handleOnboard = async () => {
     if (!token) return;
     try {
@@ -95,13 +96,17 @@ export default function WithdrawalsScreen(): React.ReactElement {
               </TouchableOpacity>
             </View>
           </>
-        ) : (
+        ) : issuingReady ? (
           <>
             <Text style={styles.zizaCardHint}>Get a card to spend your earnings instantly.</Text>
             <TouchableOpacity style={styles.submitBtn} onPress={handleIssue} disabled={busy}>
               <Text style={styles.submitText}>{busy ? "Issuing…" : "Get my card"}</Text>
             </TouchableOpacity>
           </>
+        ) : (
+          <Text style={styles.zizaCardHint}>
+            Your Ziza card will be available once your account is fully verified.
+          </Text>
         )}
       </View>
 

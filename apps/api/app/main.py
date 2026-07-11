@@ -1986,6 +1986,9 @@ class ConnectStatusResponse(BaseModel):
     account_id: str | None = None
     onboarded: bool
     payouts_enabled: bool
+    # Whether the connected account's card_issuing capability is active — lets the
+    # UI offer "Get my card" only when a card can actually be issued.
+    card_issuing_active: bool = False
 
 
 @app.post("/v1/payouts/connect/onboard", tags=["payouts"], status_code=201)
