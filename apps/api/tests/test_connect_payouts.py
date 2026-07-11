@@ -51,6 +51,7 @@ def test_driver_connect_onboard_and_status():
     assert st.status_code == 200
     assert st.json()["onboarded"] is True
     assert st.json()["payouts_enabled"] is True
+    assert st.json()["card_issuing_active"] is True  # mock account is issuing-ready
 
 
 def test_pro_connect_onboard():
@@ -76,6 +77,7 @@ def test_connect_status_before_onboarding():
     assert st.status_code == 200
     assert st.json()["account_id"] is None
     assert st.json()["onboarded"] is False
+    assert st.json()["card_issuing_active"] is False
 
 
 def test_onboarding_requires_kyc_approval_when_stripe_live(monkeypatch):

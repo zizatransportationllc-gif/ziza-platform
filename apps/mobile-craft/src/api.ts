@@ -514,6 +514,7 @@ export interface ConnectStatus {
   account_id: string | null;
   onboarded: boolean;
   payouts_enabled: boolean;
+  card_issuing_active: boolean;
 }
 
 export async function getConnectStatus(token: string): Promise<ConnectStatus> {
