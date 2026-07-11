@@ -146,6 +146,14 @@ class Settings(BaseSettings):
     # (destination charges) needs only the `transfers` capability.
     stripe_issuing_enabled: bool = False
 
+    # Stripe Connect onboarding redirect bases (per environment). Stripe sends the
+    # payee here after finishing (``/payouts/return``) or when the hosted account
+    # link expires (``/payouts/refresh``). Must be LIVE URLs — the payee's own web
+    # app — and are role-aware (professionals → craft app, drivers → driver app).
+    # Defaults are the prod domains; dev overrides these via env.
+    connect_app_base_pro: str = "https://pro.ziza.live"
+    connect_app_base_driver: str = "https://driver.ziza.live"
+
     # Wells Fargo Merchant Services payment gateway (US card acquiring)
     wellsfargo_api_base: str = "https://api.wellsfargo.com/merchant-services/v1"
     wellsfargo_api_key: str = ""

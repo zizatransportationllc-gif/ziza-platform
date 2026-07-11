@@ -80,6 +80,23 @@ def test_connect_status_before_onboarding():
     assert st.json()["card_issuing_active"] is False
 
 
+def test_connect_redirect_urls_are_role_aware(monkeypatch):
+    """Onboarding return/refresh URLs are role-aware and env-configurable — not
+    the dead app.ziza.ci domain."""
+    from app import crud
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "connect_app_base_pro", "https://pro.example.com/")
+    monkeypatch.setattr(settings, "connect_app_base_driver", "https://drv.example.com")
+
+    r, f = crud._connect_redirect_urls("professional")
+    assert r == "https://pro.example.com/payouts/return"
+    assert f == "https://pro.example.com/payouts/refresh"
+    r2, _ = crud._connect_redirect_urls("driver")
+    assert r2 == "https://drv.example.com/payouts/return"
+    assert ".ziza.ci" not in r and ".ziza.ci" not in r2
+
+
 def test_onboarding_requires_kyc_approval_when_stripe_live(monkeypatch):
     """With Stripe live, a payee whose KYC isn't admin-approved (status != active)
     cannot provision a Connect account (409). In mock mode the guard is skipped."""

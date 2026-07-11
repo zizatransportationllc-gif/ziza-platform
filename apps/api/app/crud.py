@@ -4050,8 +4050,19 @@ async def run_payout_batch(db: AsyncSession) -> dict:
 # WS3 (Sprint 68) — Stripe Connect onboarding + professional payout processing
 # ---------------------------------------------------------------------------
 
-_CONNECT_RETURN_URL = "https://app.ziza.ci/payouts/return"
-_CONNECT_REFRESH_URL = "https://app.ziza.ci/payouts/refresh"
+def _connect_redirect_urls(role: str) -> tuple[str, str]:
+    """(return_url, refresh_url) Stripe redirects the payee to after onboarding.
+
+    Role-aware and env-configurable: professionals return to the craft app,
+    drivers to the driver app. See settings.connect_app_base_*.
+    """
+    from app.config import settings  # noqa: PLC0415
+
+    base = (
+        settings.connect_app_base_driver if role == "driver"
+        else settings.connect_app_base_pro
+    ).rstrip("/")
+    return f"{base}/payouts/return", f"{base}/payouts/refresh"
 
 
 async def _payout_entity(db: AsyncSession, auth_id: str, role: str):
@@ -4099,8 +4110,9 @@ async def start_connect_onboarding(db: AsyncSession, auth_id: str, role: str) ->
         await db.commit()
         await db.refresh(entity)
 
+    return_url, refresh_url = _connect_redirect_urls(role)
     url = stripe_connect.create_account_link(
-        entity.stripe_account_id, _CONNECT_RETURN_URL, _CONNECT_REFRESH_URL
+        entity.stripe_account_id, return_url, refresh_url
     )
     return {"account_id": entity.stripe_account_id, "onboarding_url": url}
 
