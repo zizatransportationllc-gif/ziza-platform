@@ -4075,6 +4075,16 @@ async def start_connect_onboarding(db: AsyncSession, auth_id: str, role: str) ->
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
     entity = await _payout_entity(db, auth_id, role)
 
+    # Sprint 72 — a REAL Stripe account is provisioned only once the admin has
+    # validated the payee's KYC documents (status → 'active'); this keeps unvetted
+    # payees off Stripe. The guard applies only when Stripe is live: in mock mode
+    # (no key, e.g. CI) there is no real account to guard.
+    if stripe_connect._enabled() and getattr(entity, "status", None) != "active":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Your account must be approved by Ziza before you can set up payouts.",
+        )
+
     # Self-heal: an id Stripe no longer recognizes (a mock id from before Stripe
     # went live in this env, or a pre-Custom Express account) must be replaced —
     # otherwise account-link creation 500s and the payee is stuck, unable to
@@ -4141,16 +4151,26 @@ async def _require_issuing_ready(db: AsyncSession, auth_id: str, role: str):
             status_code=status.HTTP_409_CONFLICT,
             detail="Your payment account is not ready yet — finish onboarding first.",
         )
+    if not st.get("card_issuing_active"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Card issuing isn't enabled on your account yet — it activates "
+                   "once Stripe finishes verifying your details.",
+        )
     return entity
 
 
-async def issue_issuing_card(db: AsyncSession, auth_id: str, role: str) -> dict:
+async def issue_issuing_card(
+    db: AsyncSession, auth_id: str, role: str, terms_ip: str | None = None
+) -> dict:
     """Issue (or return the existing) Stripe Issuing debit card for the payee.
 
-    Idempotent: one card per user. Requires an onboarded Connect account (409).
+    Idempotent: one card per user. Requires an onboarded Connect account with the
+    ``card_issuing`` capability active (409). ``terms_ip`` records the payee's
+    acceptance of Stripe's Issuing Authorized User Terms.
     """
     from app.models.issuing_card import IssuingCard  # noqa: PLC0415
-    from app.payment import stripe_issuing  # noqa: PLC0415
+    from app.payment import stripe_connect, stripe_issuing  # noqa: PLC0415
 
     entity = await _require_issuing_ready(db, auth_id, role)
     user = await _get_user_by_auth_id(db, auth_id)
@@ -4163,8 +4183,10 @@ async def issue_issuing_card(db: AsyncSession, auth_id: str, role: str) -> dict:
 
     account_id = entity.stripe_account_id
     cardholder_name = getattr(user, "full_name", None) or user.email
+    # Real KYC billing address collected by Stripe during hosted onboarding.
+    address = stripe_connect.get_individual_address(account_id)
     cardholder_id = stripe_issuing.create_cardholder(
-        cardholder_name, user.email, account_id
+        cardholder_name, user.email, account_id, address=address, terms_ip=terms_ip
     )
     created = stripe_issuing.create_card(cardholder_id, account_id)
 

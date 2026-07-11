@@ -78,6 +78,21 @@ def test_connect_status_before_onboarding():
     assert st.json()["onboarded"] is False
 
 
+def test_onboarding_requires_kyc_approval_when_stripe_live(monkeypatch):
+    """With Stripe live, a payee whose KYC isn't admin-approved (status != active)
+    cannot provision a Connect account (409). In mock mode the guard is skipped."""
+    from app.payment import stripe_connect
+
+    monkeypatch.setattr(stripe_connect, "_enabled", lambda: True)
+    d_tok = _tok("driver@ziza.dev")
+    client.post("/v1/auth/register", headers=_h(d_tok))
+    client.post("/v1/drivers/register", headers=_h(d_tok))  # status = pending_docs
+
+    r = client.post("/v1/payouts/connect/onboard", headers=_h(d_tok))
+    assert r.status_code == 409, r.text
+    assert "approved" in r.json()["detail"].lower()
+
+
 def test_onboarding_self_heals_stale_account(monkeypatch):
     """A stored id Stripe no longer recognizes (mock id from before Stripe went
     live, or a pre-Custom Express account) is dropped and re-provisioned, instead

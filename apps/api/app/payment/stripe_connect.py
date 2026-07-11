@@ -127,23 +127,62 @@ def account_exists(account_id: str) -> bool:
 
 
 def get_account_status(account_id: str) -> dict:
-    """Return ``{payouts_enabled, charges_enabled, details_submitted}``.
+    """Return ``{payouts_enabled, charges_enabled, details_submitted,
+    card_issuing_active}``.
+
+    ``card_issuing_active`` reflects the connected account's ``card_issuing``
+    capability being ``active`` (required before a card can be issued on it).
 
     A stale/invalid id or a transient Stripe error yields an all-``False`` status
     rather than raising, so callers (e.g. the payee's status endpoint) degrade
     gracefully instead of 500-ing.
     """
     if not _enabled():
-        # Dev/CI: treat the mock account as fully onboarded so payouts can run.
-        return {"payouts_enabled": True, "charges_enabled": True, "details_submitted": True}
+        # Dev/CI: treat the mock account as fully onboarded so the flow can run.
+        return {
+            "payouts_enabled": True, "charges_enabled": True,
+            "details_submitted": True, "card_issuing_active": True,
+        }
     try:
         acct = _get(f"/accounts/{account_id}")
     except Exception:  # noqa: BLE001 — stale/invalid id or transient error → not ready
-        return {"payouts_enabled": False, "charges_enabled": False, "details_submitted": False}
+        return {
+            "payouts_enabled": False, "charges_enabled": False,
+            "details_submitted": False, "card_issuing_active": False,
+        }
+    caps = acct.get("capabilities") or {}
     return {
         "payouts_enabled": bool(acct.get("payouts_enabled")),
         "charges_enabled": bool(acct.get("charges_enabled")),
         "details_submitted": bool(acct.get("details_submitted")),
+        "card_issuing_active": caps.get("card_issuing") == "active",
+    }
+
+
+def get_individual_address(account_id: str) -> dict | None:
+    """Return the connected account's individual billing address (collected by
+    Stripe during hosted onboarding), or ``None``.
+
+    Used to populate the Issuing cardholder's billing address from real KYC data
+    instead of a placeholder. Returns ``None`` in dev/CI (no key), when the
+    account has no id, on any Stripe error, or when no ``line1`` is on file yet.
+    """
+    if not _enabled() or not account_id:
+        return None
+    try:
+        acct = _get(f"/accounts/{account_id}")
+    except Exception:  # noqa: BLE001 — no address available → caller falls back
+        return None
+    addr = (acct.get("individual") or {}).get("address") or {}
+    if not addr.get("line1"):
+        return None
+    return {
+        "line1": addr.get("line1"),
+        "line2": addr.get("line2"),
+        "city": addr.get("city"),
+        "state": addr.get("state"),
+        "postal_code": addr.get("postal_code"),
+        "country": addr.get("country") or "US",
     }
 
 

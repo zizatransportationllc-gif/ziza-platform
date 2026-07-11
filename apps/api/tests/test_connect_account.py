@@ -73,7 +73,52 @@ def test_get_account_status_not_ready_on_error(monkeypatch):
         "payouts_enabled": False,
         "charges_enabled": False,
         "details_submitted": False,
+        "card_issuing_active": False,
     }
+
+
+# ---------------------------------------------------------------------------
+# card_issuing capability + individual address (Issuing onboarding — Sprint 72)
+# ---------------------------------------------------------------------------
+
+def test_get_account_status_reports_card_issuing(monkeypatch):
+    monkeypatch.setattr(stripe_connect, "_enabled", lambda: True)
+    monkeypatch.setattr(stripe_connect, "_get", lambda _p: {
+        "payouts_enabled": True, "charges_enabled": True,
+        "details_submitted": True, "capabilities": {"card_issuing": "active"},
+    })
+    assert stripe_connect.get_account_status("acct_1")["card_issuing_active"] is True
+
+    monkeypatch.setattr(stripe_connect, "_get", lambda _p: {
+        "capabilities": {"card_issuing": "inactive"},
+    })
+    assert stripe_connect.get_account_status("acct_1")["card_issuing_active"] is False
+
+
+def test_get_account_status_card_issuing_true_in_dev(monkeypatch):
+    monkeypatch.setattr(stripe_connect, "_enabled", lambda: False)
+    assert stripe_connect.get_account_status("x")["card_issuing_active"] is True
+
+
+def test_get_individual_address(monkeypatch):
+    monkeypatch.setattr(stripe_connect, "_enabled", lambda: True)
+    monkeypatch.setattr(stripe_connect, "_get", lambda _p: {"individual": {"address": {
+        "line1": "5 Market St", "city": "Newark", "state": "NJ",
+        "postal_code": "07102", "country": "US",
+    }}})
+    a = stripe_connect.get_individual_address("acct_1")
+    assert a["line1"] == "5 Market St" and a["country"] == "US"
+
+
+def test_get_individual_address_none_when_missing(monkeypatch):
+    monkeypatch.setattr(stripe_connect, "_enabled", lambda: True)
+    monkeypatch.setattr(stripe_connect, "_get", lambda _p: {"individual": {"address": {}}})
+    assert stripe_connect.get_individual_address("acct_1") is None
+
+
+def test_get_individual_address_none_in_dev(monkeypatch):
+    monkeypatch.setattr(stripe_connect, "_enabled", lambda: False)
+    assert stripe_connect.get_individual_address("acct_1") is None
 
 
 def _capture_account_create(monkeypatch) -> dict:
