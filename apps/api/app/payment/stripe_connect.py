@@ -108,9 +108,11 @@ def account_exists(account_id: str) -> bool:
     a mock id (``acct_mock_…``) persisted before Stripe went live in this env, or
     a pre-Custom Express account. In dev/CI (no key) every id is treated as valid.
 
-    Only a definitive *"no such account"* (HTTP 400/404 ``resource_missing``)
-    returns ``False``; transient/auth/5xx errors return ``True`` so a real account
-    id is never discarded because of a network blip.
+    Only a definitive *"no such account / no access"* returns ``False``:
+    HTTP 400/404 (unknown id) or HTTP 403 ``account_invalid`` (the id doesn't
+    exist or the platform's access was revoked — e.g. a mock id from before
+    Stripe went live). Transient/auth/5xx errors return ``True`` so a real
+    account id is never discarded because of a network blip.
     """
     if not _enabled():
         return True
@@ -120,8 +122,18 @@ def account_exists(account_id: str) -> bool:
         _get(f"/accounts/{account_id}")
         return True
     except urllib.error.HTTPError as exc:
-        # A bare account GET can only 400/404 because the id doesn't exist.
-        return exc.code not in (400, 404)
+        if exc.code in (400, 404):
+            return False
+        # Stripe returns 403 account_invalid for an id it doesn't recognize or no
+        # longer grants access to — treat as stale so onboarding re-provisions.
+        if exc.code == 403:
+            try:
+                body = json.loads(exc.read())
+            except Exception:  # noqa: BLE001
+                body = {}
+            if (body.get("error") or {}).get("code") == "account_invalid":
+                return False
+        return True
     except Exception:  # noqa: BLE001 — transient error → keep the id, don't re-provision
         return True
 
