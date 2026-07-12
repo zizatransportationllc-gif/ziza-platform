@@ -57,6 +57,7 @@ function WithdrawalCard({ token }: { token: string }): React.ReactElement {
   };
 
   const cardBalance = balance?.connect_available_cents ?? null;
+  const cardPending = balance?.connect_pending_cents ?? 0;
 
   const handleIssue = async () => {
     setBusy(true); setError(null);
@@ -103,6 +104,9 @@ function WithdrawalCard({ token }: { token: string }): React.ReactElement {
         <Text style={styles.available}>
           Available on your card: <Text style={styles.availableStrong}>{formatUSD(cardBalance)}</Text>
         </Text>
+      )}
+      {cardPending > 0 && (
+        <Text style={styles.pending}>⏳ {formatUSD(cardPending)} on the way (clearing)</Text>
       )}
 
       {connect && !payoutsReady && (
@@ -232,6 +236,7 @@ const styles = StyleSheet.create({
   onboardText: { color: "#92400E", fontSize: 13, fontWeight: "600" },
   available: { fontSize: 14, color: "#374151", marginBottom: 10 },
   availableStrong: { fontWeight: "700", color: "#1D4ED8" },
+  pending: { fontSize: 13, color: "#6B7280", marginBottom: 10, marginTop: -4 },
   formRow: { flexDirection: "row", gap: 8 },
   input: {
     flex: 1,

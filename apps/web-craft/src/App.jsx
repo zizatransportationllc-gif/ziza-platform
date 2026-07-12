@@ -749,6 +749,7 @@ function ZizaCard({ token, issuingReady }) {
 
 function WithdrawalsSection({ token }) {
   const [cardBalance, setCardBalance] = useState(null); // connect_available_cents
+  const [cardPending, setCardPending] = useState(0);    // connect_pending_cents
   const [payouts, setPayouts] = useState([]);
   const [connect, setConnect] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -757,7 +758,7 @@ function WithdrawalsSection({ token }) {
   const load = useCallback(() => {
     setLoading(true);
     Promise.all([
-      getProBalance(token).then((b) => setCardBalance(b.connect_available_cents ?? null)).catch(() => {}),
+      getProBalance(token).then((b) => { setCardBalance(b.connect_available_cents ?? null); setCardPending(b.connect_pending_cents ?? 0); }).catch(() => {}),
       listProPayouts(token).then(setPayouts).catch(() => {}),
       getConnectStatus(token).then(setConnect).catch(() => {}),
     ]).finally(() => setLoading(false));
@@ -793,6 +794,11 @@ function WithdrawalsSection({ token }) {
       {cardBalance != null && (
         <p className="payout-available">
           Available on your card: <strong>{formatUSD(cardBalance)}</strong>
+        </p>
+      )}
+      {cardPending > 0 && (
+        <p className="payout-available" style={{ fontSize: 13, color: "#6b7280" }}>
+          ⏳ On the way: <strong>{formatUSD(cardPending)}</strong> — clearing in your Ziza balance
         </p>
       )}
 

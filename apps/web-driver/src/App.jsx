@@ -428,6 +428,12 @@ function EarningsCard({ earnings, balance }) {
               <span className="balance-value balance-value--net">{formatUSD(balance.connect_available_cents)}</span>
             </div>
           )}
+          {balance.connect_pending_cents > 0 && (
+            <div className="balance-row">
+              <span className="balance-label">⏳ On the way (clearing)</span>
+              <span className="balance-value">{formatUSD(balance.connect_pending_cents)}</span>
+            </div>
+          )}
         </div>
       )}
       <p className="earnings-hint">
