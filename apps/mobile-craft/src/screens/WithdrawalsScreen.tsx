@@ -56,6 +56,7 @@ export default function WithdrawalsScreen(): React.ReactElement {
   };
 
   const cardBalance = balance?.connect_available_cents ?? null;
+  const cardPending = balance?.connect_pending_cents ?? 0;
 
   const handleIssue = async () => {
     if (!token) return;
@@ -114,6 +115,9 @@ export default function WithdrawalsScreen(): React.ReactElement {
         <View style={styles.balanceCard}>
           <Text style={styles.balanceLabel}>Available on your card</Text>
           <Text style={styles.balanceAmount}>{formatUSD(cardBalance)}</Text>
+          {cardPending > 0 && (
+            <Text style={styles.balancePending}>⏳ {formatUSD(cardPending)} on the way (clearing)</Text>
+          )}
         </View>
       )}
 
@@ -167,6 +171,7 @@ const styles = StyleSheet.create({
   },
   balanceLabel: { color: "#D1FAE5", fontSize: 13 },
   balanceAmount: { color: "#fff", fontSize: 32, fontWeight: "bold" },
+  balancePending: { color: "#D1FAE5", fontSize: 13, marginTop: 6 },
   formRow: { flexDirection: "row", gap: 8 },
   input: {
     flex: 1,
