@@ -17,6 +17,15 @@ from app.main import app
 client = TestClient(app)
 
 
+def test_payment_return_url_is_not_the_dead_ci_domain():
+    """The post-payment redirect must point at a live customer app, never the
+    retired app.ziza.ci domain (regression guard)."""
+    from app.config import settings
+
+    assert "ziza.ci" not in settings.payment_return_url
+    assert settings.payment_return_url.startswith("https://")
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
