@@ -160,8 +160,10 @@ class Settings(BaseSettings):
     wellsfargo_merchant_id: str = ""
     wellsfargo_webhook_secret: str = ""
 
-    # Default return URL after payment (override in production)
-    payment_return_url: str = "https://app.ziza.ci/payment/return"
+    # Where Stripe Checkout redirects the customer after paying (success/cancel).
+    # Must be a LIVE customer-app URL; default is the prod domain, dev overrides
+    # it via the PAYMENT_RETURN_URL env var (see deploy workflows).
+    payment_return_url: str = "https://app.ziza.live/payment/return"
     # Webhook URL for payment provider callbacks (Sprint 41)
     # Defaults to empty — CinetPay adapter derives it from payment_return_url
     payment_notify_url: str = ""

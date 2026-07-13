@@ -204,7 +204,7 @@ jobs:
             # unset; set it to "stripe" + provide the STRIPE_* secrets (test keys)
             # to enable Stripe Checkout in dev.
             FLAGS+=(
-              "--set-env-vars=^|^ENVIRONMENT=dev|AUTH_DEV_SECRET=${{ secrets.AUTH_DEV_SECRET }}|AUTH_DEV_PASSWORD=${{ vars.AUTH_DEV_PASSWORD }}|CORS_ORIGINS_RAW=${{ vars.ZIZA_CORS_ORIGINS }}|DATABASE_URL=${{ secrets.DATABASE_URL }}|MAPBOX_ACCESS_TOKEN=${{ vars.VITE_MAPBOX_TOKEN }}|PAYMENT_PROVIDER=${{ vars.ZIZA_PAYMENT_PROVIDER }}|STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}|STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}|CONNECT_APP_BASE_PRO=${{ vars.ZIZA_CRAFT_URL }}|CONNECT_APP_BASE_DRIVER=${{ vars.ZIZA_DRIVER_URL }}"
+              "--set-env-vars=^|^ENVIRONMENT=dev|AUTH_DEV_SECRET=${{ secrets.AUTH_DEV_SECRET }}|AUTH_DEV_PASSWORD=${{ vars.AUTH_DEV_PASSWORD }}|CORS_ORIGINS_RAW=${{ vars.ZIZA_CORS_ORIGINS }}|DATABASE_URL=${{ secrets.DATABASE_URL }}|MAPBOX_ACCESS_TOKEN=${{ vars.VITE_MAPBOX_TOKEN }}|PAYMENT_PROVIDER=${{ vars.ZIZA_PAYMENT_PROVIDER }}|STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}|STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}|CONNECT_APP_BASE_PRO=${{ vars.ZIZA_CRAFT_URL }}|CONNECT_APP_BASE_DRIVER=${{ vars.ZIZA_DRIVER_URL }}|PAYMENT_RETURN_URL=${{ vars.ZIZA_CUSTOMER_URL }}/payment/return"
             )
 
             # Attach Cloud SQL unix socket proxy (requires cloudsql.client on SA)
