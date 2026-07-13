@@ -337,6 +337,37 @@ def test_accept_trip_event_has_actor_driver() -> None:
     assert accepted_events[0]["actor"] == "driver"
 
 
+def test_driver_active_trip_survives_arrived_status() -> None:
+    """A trip in 'arrived' status must still be returned by /driver/active, so the
+    driver doesn't lose the in-progress ride on refresh while at the pickup."""
+    tc = _get_token("customer@ziza.dev")
+    _register(tc)
+    td = _get_token("driver@ziza.dev")
+    client.post("/v1/auth/register", headers={"Authorization": f"Bearer {td}"})
+    reg = client.post("/v1/drivers/register",
+                      headers={"Authorization": f"Bearer {td}"}).json()
+    # Shared test DB may leave the driver pending_docs — activate so it can accept.
+    ta = _get_token("admin@ziza.dev")
+    client.post("/v1/auth/register", headers={"Authorization": f"Bearer {ta}"})
+    client.patch(f"/v1/admin/drivers/{reg['driver_id']}/status",
+                 headers={"Authorization": f"Bearer {ta}"}, json={"status": "active"})
+
+    estimate_id = _get_estimate(tc)
+    trip_id = _create_trip(tc, estimate_id).json()["trip_id"]
+    client.patch(f"/v1/trips/{trip_id}/accept", headers={"Authorization": f"Bearer {td}"})
+    arrived = client.patch(f"/v1/trips/{trip_id}/arrived",
+                           headers={"Authorization": f"Bearer {td}"})
+    assert arrived.status_code == 200, arrived.text
+    assert arrived.json()["status"] == "arrived"
+
+    active = client.get("/v1/trips/driver/active",
+                        headers={"Authorization": f"Bearer {td}"})
+    assert active.status_code == 200, active.text
+    assert active.json()["trip"] is not None, "arrived trip should still be active"
+    assert active.json()["trip"]["trip_id"] == trip_id
+    assert active.json()["trip"]["status"] == "arrived"
+
+
 def test_complete_trip_event_has_actor_driver() -> None:
     """TripEvent on driver complete must carry actor='driver'."""
     tc = _get_token("customer@ziza.dev")

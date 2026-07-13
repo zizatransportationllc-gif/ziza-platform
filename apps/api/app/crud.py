@@ -704,7 +704,13 @@ async def list_available_trips(
 
 
 async def get_driver_active_trip(db: AsyncSession, auth_user_id: str) -> Trip | None:
-    """Return the driver's current trip in accepted or in_progress state."""
+    """Return the driver's current trip in an active state.
+
+    Active = every status between accept and completion: ``accepted`` (heading to
+    pickup), ``arrived`` (at pickup, awaiting the customer's onboard confirmation),
+    and ``in_progress`` (driving to destination). Omitting ``arrived`` made the
+    driver's active trip vanish on refresh while waiting at the pickup.
+    """
     driver = await _get_driver_by_auth_id(db, auth_user_id)
     if driver is None:
         return None
@@ -712,7 +718,7 @@ async def get_driver_active_trip(db: AsyncSession, auth_user_id: str) -> Trip | 
         select(Trip)
         .where(
             Trip.driver_id == driver.id,
-            Trip.status.in_(["accepted", "in_progress"]),
+            Trip.status.in_(["accepted", "arrived", "in_progress"]),
         )
         .order_by(Trip.created_at.desc())
         .limit(1)
