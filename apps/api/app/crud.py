@@ -3034,6 +3034,71 @@ async def _require_payee_connect_account(
     return account_id
 
 
+# ---------------------------------------------------------------------------
+# Saved cards — Stripe Customer + PaymentMethods (Sprint 73, ride payments)
+# ---------------------------------------------------------------------------
+
+async def _ensure_stripe_customer(db: AsyncSession, auth_id: str):
+    """Return the caller's User, creating a Stripe Customer on first use."""
+    from app.payment import stripe_cards  # noqa: PLC0415
+
+    user = await _get_user_by_auth_id(db, auth_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    if not user.stripe_customer_id:
+        name = " ".join(p for p in (user.first_name, user.last_name) if p) or user.name or None
+        user.stripe_customer_id = stripe_cards.create_customer(user.email, name)
+        await db.commit()
+        await db.refresh(user)
+    return user
+
+
+async def create_card_setup_intent(db: AsyncSession, auth_id: str) -> dict:
+    """Return a SetupIntent client_secret the client confirms to save a card."""
+    from app.payment import stripe_cards  # noqa: PLC0415
+
+    user = await _ensure_stripe_customer(db, auth_id)
+    si = stripe_cards.create_setup_intent(user.stripe_customer_id)
+    return {"client_secret": si["client_secret"], "customer_id": user.stripe_customer_id}
+
+
+async def list_cards(db: AsyncSession, auth_id: str) -> list[dict]:
+    from app.payment import stripe_cards  # noqa: PLC0415
+
+    user = await _get_user_by_auth_id(db, auth_id)
+    if user is None or not user.stripe_customer_id:
+        return []
+    default = stripe_cards.get_default_payment_method(user.stripe_customer_id)
+    return stripe_cards.list_payment_methods(user.stripe_customer_id, default)
+
+
+async def _require_owned_card(db: AsyncSession, auth_id: str, pm_id: str):
+    """Ensure ``pm_id`` belongs to the caller's customer (404 otherwise)."""
+    from app.payment import stripe_cards  # noqa: PLC0415
+
+    user = await _get_user_by_auth_id(db, auth_id)
+    if user is None or not user.stripe_customer_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No saved cards.")
+    cards = stripe_cards.list_payment_methods(user.stripe_customer_id)
+    if pm_id not in {c["id"] for c in cards}:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found.")
+    return user
+
+
+async def set_default_card(db: AsyncSession, auth_id: str, pm_id: str) -> None:
+    from app.payment import stripe_cards  # noqa: PLC0415
+
+    user = await _require_owned_card(db, auth_id, pm_id)
+    stripe_cards.set_default_payment_method(user.stripe_customer_id, pm_id)
+
+
+async def delete_card(db: AsyncSession, auth_id: str, pm_id: str) -> None:
+    from app.payment import stripe_cards  # noqa: PLC0415
+
+    await _require_owned_card(db, auth_id, pm_id)
+    stripe_cards.detach_payment_method(pm_id)
+
+
 async def create_payment_intent(
     db: AsyncSession,
     claims: Claims,

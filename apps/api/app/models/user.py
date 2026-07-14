@@ -51,6 +51,8 @@ class User(Base):
     home_address: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Sprint 49: bcrypt hash for locally-created accounts (provider="local")
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Sprint 73: Stripe Customer id holding the user's saved cards (ride payments)
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
