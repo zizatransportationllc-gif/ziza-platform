@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="About Ziza Holding LLC — a community-first transportation ecosystem headquartered in Atlantic County, New Jersey." />
+  <title>About Us — Ziza</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* ── About page specific ── */
+    .about-hero {
+      background: linear-gradient(135deg, #fff1f2 0%, #fff 100%);
+      padding: 64px 0 44px;
+      border-bottom: 1px solid var(--border);
+    }
+    .about-hero .kicker {
+      color: var(--primary);
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      font-size: .78rem;
+      margin-bottom: 10px;
+    }
+    .about-hero h1 {
+      font-size: clamp(1.9rem, 4.5vw, 3rem);
+      font-weight: 800;
+      color: var(--dark);
+      margin-bottom: 12px;
+    }
+    .about-hero .tagline {
+      color: var(--mid);
+      font-size: clamp(1rem, 2vw, 1.25rem);
+      font-weight: 600;
+      max-width: 640px;
+    }
+
+    .about-body { padding: 56px 0 72px; }
+    .about-content { max-width: 900px; }
+    .about-back {
+      display: inline-flex; align-items: center; gap: 6px;
+      color: var(--primary); font-weight: 600; font-size: .9rem;
+      margin-bottom: 28px; transition: opacity .2s;
+    }
+    .about-back:hover { opacity: .75; }
+
+    .about-content p.lead {
+      color: var(--mid); line-height: 1.8; font-size: 1.05rem; margin-bottom: 18px;
+    }
+    .charity-highlight {
+      background: #fff1f2;
+      border-left: 4px solid var(--primary);
+      border-radius: 0 10px 10px 0;
+      padding: 18px 22px; margin: 8px 0 40px; color: var(--mid); line-height: 1.75;
+    }
+    .charity-highlight strong { color: var(--dark); }
+
+    .gen-section { margin-top: 48px; }
+    .gen-head {
+      display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+      padding-bottom: 10px; margin-bottom: 24px;
+      border-bottom: 2px solid var(--border);
+    }
+    .gen-head .gen-tag {
+      background: var(--dark); color: #fff; font-size: .72rem; font-weight: 700;
+      letter-spacing: .08em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px;
+    }
+    .gen-head h2 { font-size: 1.5rem; font-weight: 800; color: var(--dark); }
+    .gen-head .gen-sub { color: var(--muted); font-size: .9rem; }
+
+    .entity-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 18px;
+    }
+    .entity-card {
+      background: #fff; border: 1px solid var(--border); border-radius: 14px;
+      padding: 22px; transition: box-shadow .2s, transform .2s;
+    }
+    .entity-card:hover { box-shadow: 0 10px 30px rgba(0,0,0,.06); transform: translateY(-2px); }
+    .entity-card .role {
+      color: var(--primary); font-weight: 700; text-transform: uppercase;
+      letter-spacing: .1em; font-size: .72rem; margin-bottom: 6px;
+    }
+    .entity-card h3 { font-size: 1.15rem; font-weight: 800; color: var(--dark); margin-bottom: 10px; }
+    .entity-card p { color: var(--mid); line-height: 1.7; font-size: .92rem; margin-bottom: 14px; }
+    .entity-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .entity-tags span {
+      background: #f8fafc; border: 1px solid var(--border); color: var(--muted);
+      font-size: .72rem; font-weight: 600; padding: 4px 9px; border-radius: 999px;
+    }
+
+    .about-closing {
+      margin-top: 52px; padding-top: 28px; border-top: 1px solid var(--border);
+      text-align: center; color: var(--muted);
+    }
+    .about-closing .genline { color: var(--primary); font-weight: 700; margin-top: 6px; }
+  </style>
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header class="header">
+    <div class="container header-inner">
+      <a href="index.html" class="logo">🚗 Ziza</a>
+      <nav class="nav">
+        <a href="index.html#features" class="nav-link">Features</a>
+        <a href="index.html#download" class="nav-link">Download</a>
+        <a href="index.html#contact" class="nav-link">Contact</a>
+      </nav>
+      <a href="index.html#download" class="btn btn-primary">Download the App</a>
+    </div>
+  </header>
+
+  <!-- ===== HERO ===== -->
+  <section class="about-hero">
+    <div class="container">
+      <p class="kicker">About Ziza Holding LLC</p>
+      <h1>Ziza. For the Community.<br />By the Community. Forever.</h1>
+      <p class="tagline">A transportation ecosystem headquartered in Atlantic County, New Jersey — built with a permanent charitable heart.</p>
+    </div>
+  </section>
+
+  <!-- ===== CONTENT ===== -->
+  <section class="about-body">
+    <div class="container">
+      <div class="about-content">
+
+        <a href="index.html" class="about-back">← Back to Ziza</a>
+
+        <p class="lead">Ziza is a transportation ecosystem headquartered in Atlantic County, New Jersey. Built with a permanent charitable heart, Ziza is committed to giving back to the communities it serves.</p>
+
+        <div class="charity-highlight">
+          <strong>A seat for Philanthropy.</strong> To reflect its commitment, Ziza reserves a symbolic seat at the members' table for Philanthropy. Each year, the members vote to select the nonprofit organization that will receive the company's annual charitable contribution.
+        </div>
+
+        <p class="lead">Ziza isn't one company — it's a foundation with businesses growing out of it. Thirteen entities in the ecosystem sit underneath <strong>Ziza Holding</strong>, organized into four generations to deploy over the years.</p>
+
+        <!-- Generation 01 -->
+        <div class="gen-section">
+          <div class="gen-head">
+            <span class="gen-tag">Generation 01</span>
+            <h2>Foundation</h2>
+            <span class="gen-sub">Holding · Financial · Transportation</span>
+          </div>
+          <div class="entity-grid">
+            <div class="entity-card">
+              <p class="role">Apex</p>
+              <h3>Ziza Holding</h3>
+              <p>Owns the ecosystem's IP, real estate, and equipment outright, and manages the whole portfolio's vision, strategy, and deployment by default.</p>
+              <div class="entity-tags">
+                <span>Administration</span><span>Audit &amp; Holding</span><span>Marketing &amp; Customer Affairs</span>
+              </div>
+            </div>
+            <div class="entity-card">
+              <p class="role">Infrastructure</p>
+              <h3>Ziza Financial</h3>
+              <p>Licensed by Ziza Holding to run the Ziza web app and every technology the ecosystem builds. Processes payments and payroll for every LLC in the ecosystem, and serves as its treasury.</p>
+              <div class="entity-tags">
+                <span>Administration &amp; Customer Affairs</span><span>Payment Processing</span><span>Payroll</span><span>Treasury</span>
+              </div>
+            </div>
+            <div class="entity-card">
+              <p class="role">Mobility</p>
+              <h3>Ziza Transportation / Ride</h3>
+              <p>Operates Ziza Ride, the flagship rideshare service, plus marketplaces for independent professionals offering roadside assistance, limousine and special-event transport, and handicap-accessible rides.</p>
+              <div class="entity-tags">
+                <span>Administration &amp; Customer Affairs</span><span>Ride</span><span>Roadside</span><span>Limousine &amp; Special Event</span><span>Handicap</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Generation 02 -->
+        <div class="gen-section">
+          <div class="gen-head">
+            <span class="gen-tag">Generation 02</span>
+            <h2>Expansion</h2>
+            <span class="gen-sub">Garage · Charging Points · Trucking · Dealership &amp; Rental</span>
+          </div>
+          <div class="entity-grid">
+            <div class="entity-card">
+              <p class="role">Automotive</p>
+              <h3>Ziza Garage</h3>
+              <p>Converts diesel trucks to electric using purpose-built e-axle systems — a lighter-duty platform for vans, trucks and buses (Class 4–6) and a heavy-duty platform for Class 8 — through a five-step shop process from de-manufacturing to road test.</p>
+              <div class="entity-tags">
+                <span>Administration &amp; Customer Affairs</span><span>Engineering &amp; Research</span><span>Shop Operations</span>
+              </div>
+            </div>
+            <div class="entity-card">
+              <p class="role">Energy</p>
+              <h3>Ziza Charging Points</h3>
+              <p>EV charging infrastructure built around park-and-charge lots reserving 80% capacity for EV charging, networked with real-time availability on the Ziza Charging Points app — plus bathrooms and other customer conveniences.</p>
+              <div class="entity-tags">
+                <span>Administration &amp; Customer Affairs</span><span>Engineering &amp; Research</span><span>Z.C.P. Operations</span>
+              </div>
+            </div>
+            <div class="entity-card">
+              <p class="role">Freight</p>
+              <h3>Ziza Trucking</h3>
+              <p>Trucking and freight dispatching across local and interstate routes, running Class 5, 6, and 8 vehicles — including a fleet of trucks converted by Ziza Garage.</p>
+              <div class="entity-tags">
+                <span>Administration &amp; Customer Affairs</span><span>Dispatching</span><span>Maintenance &amp; Recovery</span>
+              </div>
+            </div>
+            <div class="entity-card">
+              <p class="role">Retail</p>
+              <h3>Ziza Dealership &amp; Rental</h3>
+              <p>A used truck dealership and rental company specializing in vehicles converted by Ziza Garage — selling and renting the fleet the ecosystem builds.</p>
+              <div class="entity-tags">
+                <span>Administration &amp; Customer Affairs</span><span>Dealership</span><span>Rental</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="about-closing">
+          <p>&copy; 2026 Ziza Holding LLC. Atlantic County, New Jersey.</p>
+          <p class="genline">Generation 01 · Generation 02 · More to come.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <p class="logo">🚗 Ziza</p>
+        <p class="footer-tagline">Smart urban mobility</p>
+        <p class="footer-copy">&copy; 2026 Ziza Holding LLC. All rights reserved.</p>
+      </div>
+      <div class="footer-links">
+        <h4>Product</h4>
+        <a href="index.html#features">Features</a>
+        <a href="index.html#download">Download</a>
+      </div>
+      <div class="footer-links">
+        <h4>Company</h4>
+        <a href="about.html">About Us</a>
+        <a href="terms.html">Terms of Service</a>
+        <a href="privacy.html">Privacy Policy</a>
+        <a href="legal.html">Legal Notice</a>
+      </div>
+      <div class="footer-links">
+        <h4>Contact</h4>
+        <a href="mailto:team@ziza.live">team@ziza.live</a>
+        <a href="tel:+12015550100">+1 (201) 555-0100</a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
