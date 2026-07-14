@@ -3383,6 +3383,68 @@ class WebhookResponse(BaseModel):
     status: str
 
 
+# ---------------------------------------------------------------------------
+# Saved cards — Stripe Customer + PaymentMethods (Sprint 73, ride payments)
+# ---------------------------------------------------------------------------
+
+class SetupIntentResponse(BaseModel):
+    client_secret: str
+    customer_id: str
+
+
+class SavedCard(BaseModel):
+    id: str
+    brand: str | None = None
+    last4: str | None = None
+    exp_month: int | None = None
+    exp_year: int | None = None
+    is_default: bool = False
+
+
+@app.post("/v1/payments/methods/setup-intent", tags=["payments"], status_code=201)
+async def create_pm_setup_intent(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SetupIntentResponse:
+    """Return a SetupIntent client_secret so the client can save a card via
+    Stripe Elements / the mobile SDK. Creates the Stripe Customer on first use.
+
+    Cards are entered client-side and tokenized by Stripe — the raw card number
+    never reaches Ziza's servers."""
+    data = await crud.create_card_setup_intent(db, claims.user_id)
+    return SetupIntentResponse(**data)
+
+
+@app.get("/v1/payments/methods", tags=["payments"])
+async def list_saved_cards(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[SavedCard]:
+    """List the caller's saved cards (brand + last 4 only)."""
+    return [SavedCard(**c) for c in await crud.list_cards(db, claims.user_id)]
+
+
+@app.post("/v1/payments/methods/{pm_id}/default", tags=["payments"])
+async def set_default_saved_card(
+    pm_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Set the caller's default card (used for the ride hold at driver-accept)."""
+    await crud.set_default_card(db, claims.user_id, pm_id)
+    return {"ok": True}
+
+
+@app.delete("/v1/payments/methods/{pm_id}", tags=["payments"], status_code=204)
+async def delete_saved_card(
+    pm_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove a saved card from the caller's account."""
+    await crud.delete_card(db, claims.user_id, pm_id)
+
+
 @app.post("/v1/payments/intent", tags=["payments"], status_code=201)
 async def create_payment_intent(
     body: PaymentIntentRequest,
