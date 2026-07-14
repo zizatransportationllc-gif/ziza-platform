@@ -153,6 +153,7 @@ function initAppLinks() {
   setLink("footer-take-ride", CUSTOMER_URL);
 
   // "Join our road-side assistance team" → web-craft app (Ziza Craft)
+  setLink("nav-join-craft",    CRAFT_URL);
   setLink("footer-join-craft", CRAFT_URL);
 }
 
