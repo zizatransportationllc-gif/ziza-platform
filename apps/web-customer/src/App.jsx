@@ -1769,58 +1769,36 @@ function RequestChatPanel({ token, requestId, accent = "#F97316" }) {
 // Payment for a completed assistance job (reuses the trip payment infra)
 function CraftPayment({ token, requestId, paid }) {
   const [intent, setIntent] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [simulating, setSimulating] = useState(false);
-  const [error, setError] = useState(null);
 
+  // Sprint 74 — payment is automatic (held when the bid is selected, captured
+  // when the pro finishes). Poll to reflect the status; no manual pay button.
   useEffect(() => {
-    getCraftPayment(token, requestId).then((d) => { if (d) setIntent(d); }).catch(() => {});
+    let active = true;
+    const load = () => getCraftPayment(token, requestId).then((d) => { if (active && d) setIntent(d); }).catch(() => {});
+    load();
+    const iv = setInterval(load, 6000);
+    return () => { active = false; clearInterval(iv); };
   }, [token, requestId]);
-
-  async function handlePay() {
-    setLoading(true); setError(null);
-    try { setIntent(await createCraftPaymentIntent(token, requestId)); }
-    catch (e) { setError(e.message); } finally { setLoading(false); }
-  }
-  async function handleSimulate() {
-    if (!intent) return;
-    setSimulating(true); setError(null);
-    try {
-      await simulatePayment(intent.provider_ref);
-      const d = await getCraftPayment(token, requestId);
-      if (d) setIntent(d);
-    } catch (e) { setError(e.message); } finally { setSimulating(false); }
-  }
 
   if (paid || intent?.status === "paid") {
     return <p className="craft-success">✅ Payment confirmed{intent ? ` — ${formatUSD(intent.amount_cents)}` : ""}</p>;
   }
-  const isMock = intent?.checkout_url?.includes("localhost");
+  if (intent?.status === "authorized") {
+    return (
+      <p className="payment-hint" style={{ color: "var(--color-muted)" }}>
+        💳 Held on your card{intent ? ` (${formatUSD(intent.amount_cents)})` : ""} — charged when the professional finishes the job.
+      </p>
+    );
+  }
   return (
-    <div>
-      {error && <p className="form-error">{error}</p>}
-      {!intent && (
-        <button className="board-btn" onClick={handlePay} disabled={loading}>
-          {loading ? "Loading…" : "💳 Pay for the assistance"}
-        </button>
-      )}
-      {intent && intent.status === "pending" && <PaymentBreakdown intent={intent} />}
-      {intent && intent.status === "pending" && (isMock ? (
-        <button className="board-btn" onClick={handleSimulate} disabled={simulating}>
-          {simulating ? "Processing…" : `✅ Simulate payment (${formatUSD(intent.amount_cents)})`}
-        </button>
-      ) : (
-        <a className="board-btn" href={intent.checkout_url} target="_blank" rel="noopener noreferrer"
-           style={{ display: "block", textAlign: "center", textDecoration: "none" }}>
-          💳 Pay {formatUSD(intent.amount_cents)}
-        </a>
-      ))}
-    </div>
+    <p className="payment-hint" style={{ color: "var(--color-muted)" }}>
+      💳 Charged automatically to your saved card when the professional finishes the job.
+    </p>
   );
 }
 
 // Bids view for a single craft request
-function CraftBidsView({ token, request: initialRequest, onBack }) {
+function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
   const [request, setRequest] = useState(initialRequest);
   const [bids, setBids] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1861,7 +1839,11 @@ function CraftBidsView({ token, request: initialRequest, onBack }) {
       const updated = await selectCraftBid(token, request.request_id, bidId);
       setRequest(updated);
       setSuccess("✅ Professional accepted! They are on their way.");
-    } catch (e) { setError(e.message); }
+    } catch (e) {
+      setError(e.message);
+      // Sprint 74 — no saved card → send them to the Payment tab to add one.
+      if (/payment card/i.test(e.message || "") && onNeedCard) onNeedCard();
+    }
     finally { setSelecting(null); }
   }
 
@@ -2115,7 +2097,7 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
 }
 
 // Main craft section — list + new request + bids view
-function CraftSection({ token }) {
+function CraftSection({ token, onNeedCard }) {
   const [view, setView] = useState("list"); // "list" | "new" | "bids"
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2159,6 +2141,7 @@ function CraftSection({ token }) {
         token={token}
         request={selectedRequest}
         onBack={() => { setView("list"); loadRequests(); }}
+        onNeedCard={onNeedCard}
       />
     );
   }
@@ -2585,7 +2568,7 @@ function Dashboard({ user, token, onLogout }) {
           {mode === "ride" && (
             <EstimateSection token={token} onTripCreated={setActiveTrip} onNeedCard={() => setMode("cards")} />
           )}
-          {mode === "craft" && <CraftSection token={token} />}
+          {mode === "craft" && <CraftSection token={token} onNeedCard={() => setMode("cards")} />}
           {mode === "trips" && (
             <div className="history-section">
               <h2 className="estimate-title">My Trips</h2>
