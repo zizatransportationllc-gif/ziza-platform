@@ -318,6 +318,18 @@ function RequestDetail({ token, requestId, onBack, canManage = false }) {
 
   useEffect(() => { reload(); }, [reload]);
 
+  // Poll the request status so the pro sees customer-side transitions (e.g. the
+  // customer confirming arrival → in_progress) without a manual refresh. Silent
+  // update (no spinner); stops at terminal states.
+  useEffect(() => {
+    const status = request?.status;
+    if (!status || ["completed", "cancelled"].includes(status)) return;
+    const iv = setInterval(() => {
+      getCraftRequest(token, requestId).then(setRequest).catch(() => {});
+    }, POLL_MS);
+    return () => clearInterval(iv);
+  }, [token, requestId, request?.status]);
+
   // Auto-capture the pro's GPS + address when the request is open (for the bid).
   useEffect(() => {
     if (request?.status !== "open") return;
