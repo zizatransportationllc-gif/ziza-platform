@@ -102,6 +102,41 @@ export async function fetchEstimate(token, originLat, originLng, destLat, destLn
   return res.json();
 }
 
+// ---- Saved cards (Sprint 73) ----
+export async function createSetupIntent(token) {
+  const res = await fetch(`${API_BASE}/v1/payments/methods/setup-intent`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || "Could not start card setup");
+  return res.json(); // { client_secret, customer_id }
+}
+
+export async function listPaymentMethods(token) {
+  const res = await fetch(`${API_BASE}/v1/payments/methods`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (!res.ok) throw new Error("Could not load cards");
+  return res.json(); // [{ id, brand, last4, exp_month, exp_year, is_default }]
+}
+
+export async function deletePaymentMethod(token, pmId) {
+  const res = await fetch(`${API_BASE}/v1/payments/methods/${pmId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Could not remove card");
+}
+
+export async function setDefaultPaymentMethod(token, pmId) {
+  const res = await fetch(`${API_BASE}/v1/payments/methods/${pmId}/default`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Could not set default card");
+  return res.json();
+}
+
 export async function createTrip(token, estimateId, promoCode = null, category = "economy", addresses = {}) {
   const body = { estimate_id: estimateId, category };
   if (promoCode) body.promo_code = promoCode;
