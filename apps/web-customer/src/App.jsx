@@ -18,6 +18,7 @@ import {
   createCraftPaymentIntent, getCraftPayment, // craft payment
   listRequestMessages, sendRequestMessage, // Sprint 66
   submitDocument, listMyDocuments, // Sprint 53
+  createSetupIntent, listPaymentMethods, deletePaymentMethod, setDefaultPaymentMethod, // Sprint 73 — saved cards
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, sendPasswordReset, firebaseSignOut } from "./auth";
 import { EstimateMap, TripMap } from "./TripMap";
@@ -2472,6 +2473,103 @@ function DocumentsSection({ token }) {
 // Dashboard
 // ---------------------------------------------------------------------------
 
+// Sprint 73 — saved cards for ride payments (charged when the ride completes).
+function PaymentMethods({ token }) {
+  const [cards, setCards] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const cardElRef = useRef(null);
+  const stripeRef = useRef(null);
+  const elementRef = useRef(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    listPaymentMethods(token).then(setCards).catch(() => setCards([])).finally(() => setLoading(false));
+  }, [token]);
+  useEffect(() => { load(); }, [load]);
+
+  // Mount the Stripe card field whenever the add-card form opens.
+  useEffect(() => {
+    if (!adding) return;
+    const pk = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+    if (!pk || !window.Stripe) { setErr("Card entry is unavailable right now."); return; }
+    const stripe = window.Stripe(pk);
+    stripeRef.current = stripe;
+    const card = stripe.elements().create("card");
+    card.mount(cardElRef.current);
+    elementRef.current = card;
+    return () => { try { card.unmount(); } catch (_) { /* noop */ } };
+  }, [adding]);
+
+  async function handleAdd(e) {
+    e.preventDefault();
+    setBusy(true); setErr(null);
+    try {
+      const { client_secret } = await createSetupIntent(token);
+      const result = await stripeRef.current.confirmCardSetup(client_secret, {
+        payment_method: { card: elementRef.current },
+      });
+      if (result.error) { setErr(result.error.message); }
+      else { setAdding(false); load(); }
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  }
+
+  async function act(fn) {
+    setBusy(true); setErr(null);
+    try { await fn(); load(); } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="profile-section">
+      <h2 className="estimate-title">💳 Payment methods</h2>
+      <p style={{ color: "#6b7280", fontSize: 14, marginTop: -4 }}>
+        Add a card to book rides. You're charged automatically when the ride completes — nothing to do at pickup.
+      </p>
+
+      {loading ? <p className="history-empty">⏳ Loading…</p> : (
+        <>
+          {cards.length === 0 && !adding && <p className="history-empty">No card saved yet.</p>}
+          {cards.map((c) => (
+            <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+              border: "1px solid #e5e7eb", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+              <span style={{ fontSize: 14 }}>
+                <strong style={{ textTransform: "capitalize" }}>{c.brand || "card"}</strong> •••• {c.last4}
+                <span style={{ color: "#6b7280" }}> · {String(c.exp_month).padStart(2, "0")}/{c.exp_year}</span>
+                {c.is_default && <span style={{ color: "#16a34a", fontWeight: 600 }}> · Default</span>}
+              </span>
+              <span style={{ display: "flex", gap: 8 }}>
+                {!c.is_default && (
+                  <button type="button" className="link-btn" disabled={busy}
+                    onClick={() => act(() => setDefaultPaymentMethod(token, c.id))}>Set default</button>
+                )}
+                <button type="button" className="link-btn" style={{ color: "#dc2626" }} disabled={busy}
+                  onClick={() => act(() => deletePaymentMethod(token, c.id))}>Remove</button>
+              </span>
+            </div>
+          ))}
+
+          {adding ? (
+            <form onSubmit={handleAdd} style={{ marginTop: 12 }}>
+              <div ref={cardElRef} style={{ padding: 14, border: "1px solid #e5e7eb", borderRadius: 10 }} />
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <button type="submit" className="book-btn" disabled={busy}>{busy ? "Saving…" : "Save card"}</button>
+                <button type="button" className="link-btn" disabled={busy} onClick={() => { setAdding(false); setErr(null); }}>Cancel</button>
+              </div>
+            </form>
+          ) : (
+            <button type="button" className="book-btn" style={{ marginTop: 12 }} onClick={() => { setErr(null); setAdding(true); }}>
+              + Add a card
+            </button>
+          )}
+        </>
+      )}
+      {err && <p className="form-error" style={{ marginTop: 10 }}>{err}</p>}
+    </div>
+  );
+}
+
 function Dashboard({ user, token, onLogout }) {
   const [activeTrip, setActiveTrip] = useState(null);
   const [mode, setMode] = useState("ride"); // "ride" | "craft" | "trips" | "profile" | "notifications" | "places" | "wallet" | "docs"
@@ -2567,6 +2665,12 @@ function Dashboard({ user, token, onLogout }) {
               💰 Wallet
             </button>
             <button
+              className={`mode-tab ${mode === "cards" ? "active" : ""}`}
+              onClick={() => setMode("cards")}
+            >
+              💳 Payment
+            </button>
+            <button
               className={`mode-tab ${mode === "docs" ? "active" : ""}`}
               onClick={() => setMode("docs")}
             >
@@ -2589,6 +2693,7 @@ function Dashboard({ user, token, onLogout }) {
           )}
           {mode === "places" && <SavedPlacesSection token={token} />}
           {mode === "wallet" && <WalletSection token={token} />}
+          {mode === "cards"  && <PaymentMethods token={token} />}
           {mode === "docs"   && <DocumentsSection token={token} />}
         </>
       )}
