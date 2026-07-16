@@ -213,12 +213,6 @@ export default function HomeScreen(): React.ReactElement {
           >
             <Text style={styles.walletBtnText}>💳 Payment</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.walletBtn}
-            onPress={() => navigation.navigate("Wallet")}
-          >
-            <Text style={styles.walletBtnText}>💰 Wallet</Text>
-          </TouchableOpacity>
         </View>
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
