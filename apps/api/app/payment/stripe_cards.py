@@ -12,6 +12,7 @@ flow can run without touching Stripe.
 from __future__ import annotations
 
 import json
+import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
@@ -19,6 +20,13 @@ import uuid
 from app.config import settings
 
 _API_BASE = "https://api.stripe.com/v1"
+
+
+def _safe_json(exc: urllib.error.HTTPError) -> dict:
+    try:
+        return json.loads(exc.read())
+    except Exception:  # noqa: BLE001
+        return {}
 
 
 def _enabled() -> bool:
@@ -117,3 +125,74 @@ def detach_payment_method(pm_id: str) -> None:
     if not _enabled():
         return
     _post(f"/payment_methods/{pm_id}/detach", {})
+
+
+# ---------------------------------------------------------------------------
+# Ride payments — authorize (hold) at driver-accept, capture at completion
+# ---------------------------------------------------------------------------
+
+def create_ride_authorization(
+    customer_id: str,
+    payment_method_id: str,
+    amount_cents: int,
+    ref: str,
+    *,
+    destination: str | None = None,
+    application_fee_cents: int | None = None,
+) -> dict:
+    """Place a hold on the saved card — a manual-capture, off-session
+    PaymentIntent with the Connect split. Returns ``{id, status, error_code?,
+    decline_code?}``. ``status == 'requires_capture'`` means the hold succeeded.
+    Any Stripe error (declined, authentication_required, …) returns
+    ``status == 'failed'`` rather than raising — the caller notifies the payer.
+    """
+    if not _enabled():
+        return {"id": f"pi_mock_{uuid.uuid4().hex[:16]}", "status": "requires_capture"}
+    fields = {
+        "amount": amount_cents,
+        "currency": "usd",
+        "customer": customer_id,
+        "payment_method": payment_method_id,
+        "capture_method": "manual",
+        "confirm": "true",
+        "off_session": "true",
+        "metadata[ziza_ref]": ref,
+    }
+    if destination is not None:
+        fields["transfer_data[destination]"] = destination
+    if application_fee_cents is not None:
+        fields["application_fee_amount"] = application_fee_cents
+    try:
+        pi = _post("/payment_intents", fields)
+        return {"id": pi.get("id"), "status": pi.get("status")}
+    except urllib.error.HTTPError as exc:
+        err = _safe_json(exc).get("error", {})
+        return {
+            "id": (err.get("payment_intent") or {}).get("id"),
+            "status": "failed",
+            "error_code": err.get("code"),
+            "decline_code": err.get("decline_code"),
+        }
+
+
+def capture_ride_payment(payment_intent_id: str, amount_cents: int | None = None) -> dict:
+    """Capture a previously authorized ride payment. ``amount_cents`` (≤ the
+    authorized amount) captures the final fare; None captures the full hold."""
+    if not _enabled():
+        return {"status": "succeeded"}
+    fields = {}
+    if amount_cents is not None:
+        fields["amount_to_capture"] = amount_cents
+    pi = _post(f"/payment_intents/{payment_intent_id}/capture", fields)
+    return {"status": pi.get("status")}
+
+
+def cancel_ride_authorization(payment_intent_id: str) -> dict:
+    """Release a hold (e.g. the ride was cancelled) — void the PaymentIntent."""
+    if not _enabled():
+        return {"status": "canceled"}
+    try:
+        pi = _post(f"/payment_intents/{payment_intent_id}/cancel", {})
+        return {"status": pi.get("status")}
+    except urllib.error.HTTPError as exc:
+        return {"status": "failed", "error": _safe_json(exc).get("error", {}).get("code")}
