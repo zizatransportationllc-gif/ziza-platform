@@ -5983,6 +5983,8 @@ async def cancel_craft_request(
     req.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(req)
+    # Sprint 74 — release the payment hold if a bid had been selected.
+    await _void_craft_authorization(db, req)
     return _craft_request_to_dict(req)
 
 
@@ -6265,6 +6267,98 @@ async def list_professional_payout_requests(
     return list(result.scalars().all())
 
 
+# ---------------------------------------------------------------------------
+# Craft payment — authorize the saved card at bid selection, capture when the
+# professional marks the work done (Sprint 74). Mirrors the ride flow; reuses
+# the generic manual-capture PaymentIntent helpers in stripe_cards.
+# ---------------------------------------------------------------------------
+
+async def _authorize_craft_payment(db: AsyncSession, req, bid) -> None:
+    """Hold the craft total on the customer's default card when the bid is
+    selected. Non-fatal: skips silently when there's no saved card (bid
+    selection already requires one when Stripe is live)."""
+    from app.payment import stripe_cards  # noqa: PLC0415
+    from app.payment.split import compute_craft_split  # noqa: PLC0415
+    from app.models.craft import Professional  # noqa: PLC0415
+
+    if await db.scalar(select(PaymentIntent).where(PaymentIntent.craft_request_id == req.id)):
+        return  # already has an intent (idempotent)
+
+    customer = await db.get(User, req.customer_id)
+    if customer is None or not customer.stripe_customer_id:
+        return
+    pm = stripe_cards.get_default_payment_method(customer.stripe_customer_id)
+    if not pm:
+        return
+    prof = await db.get(Professional, bid.professional_id)
+    destination = getattr(prof, "stripe_account_id", None) if prof else None
+    if not destination:
+        return  # professional not payable yet → can't route the split
+
+    cfg = await load_payment_config(db)
+    split = compute_craft_split(bid.price_cents, cfg)
+    intent = PaymentIntent(
+        craft_request_id=req.id,
+        amount_cents=split.total_client_cents,
+        provider="stripe",
+        base_cents=split.base_cents,
+        platform_fee_cents=split.platform_fee_cents,
+        tax_cents=split.tax_cents,
+        stripe_fee_est_cents=split.stripe_fee_est_cents,
+        payee_amount_cents=split.pro_amount_cents,
+        platform_amount_cents=split.platform_amount_cents,
+        payee_account_id=destination,
+        status="pending",
+    )
+    db.add(intent)
+    await db.flush()
+    res = stripe_cards.create_ride_authorization(
+        customer.stripe_customer_id, pm, split.total_client_cents, str(req.id),
+        destination=destination, application_fee_cents=split.platform_amount_cents,
+    )
+    intent.provider_ref = res.get("id")
+    intent.status = "authorized" if res.get("status") == "requires_capture" else "failed"
+    await db.commit()
+    if intent.status == "failed":
+        await _push_notification(
+            db, req.customer_id, "payment_auth_failed",
+            "⚠️ Payment not authorized",
+            "We couldn't hold the job amount — please update your card.",
+        )
+
+
+async def _capture_craft_payment(db: AsyncSession, req) -> None:
+    """Capture the held craft payment when the pro marks the work done."""
+    from app.payment import stripe_cards  # noqa: PLC0415
+
+    intent = await db.scalar(
+        select(PaymentIntent).where(PaymentIntent.craft_request_id == req.id)
+    )
+    if intent is None or intent.status != "authorized" or not intent.provider_ref:
+        return
+    res = stripe_cards.capture_ride_payment(intent.provider_ref)
+    if res.get("status") == "succeeded":
+        intent.status = "paid"
+        req.paid_at = datetime.now(timezone.utc)
+    else:
+        intent.status = "failed"
+    await db.commit()
+
+
+async def _void_craft_authorization(db: AsyncSession, req) -> None:
+    """Release the hold if the request is cancelled after a bid was selected."""
+    from app.payment import stripe_cards  # noqa: PLC0415
+
+    intent = await db.scalar(
+        select(PaymentIntent).where(PaymentIntent.craft_request_id == req.id)
+    )
+    if intent is None or intent.status != "authorized" or not intent.provider_ref:
+        return
+    stripe_cards.cancel_ride_authorization(intent.provider_ref)
+    intent.status = "cancelled"
+    await db.commit()
+
+
 async def select_craft_bid(
     db: AsyncSession,
     request_id: uuid.UUID,
@@ -6280,6 +6374,22 @@ async def select_craft_bid(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Cannot select a bid when request status is '{req.status}'.",
         )
+
+    # Sprint 74 — selecting a bid holds the amount on the customer's card, so a
+    # saved default card is required (enforced only when Stripe is live).
+    from app.payment import stripe_cards  # noqa: PLC0415
+    if stripe_cards._enabled():
+        customer = await db.get(User, customer_id)
+        pm = (
+            stripe_cards.get_default_payment_method(customer.stripe_customer_id)
+            if customer and customer.stripe_customer_id else None
+        )
+        if not pm:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Add a payment card before selecting a professional.",
+            )
+
     # Verify bid belongs to this request
     bid = await db.scalar(
         select(CraftBid).where(
@@ -6311,6 +6421,8 @@ async def select_craft_bid(
             "🛠️ Your bid was accepted",
             "A customer selected your offer. Open the request to navigate to them.",
         )
+    # Sprint 74 — hold the job amount on the customer's saved card (non-fatal).
+    await _authorize_craft_payment(db, req, bid)
     return _craft_request_to_dict(req)
 
 
@@ -6411,6 +6523,8 @@ async def professional_work_done(db: AsyncSession, request_id: uuid.UUID, auth_u
         "🔧 Work completed",
         "Your professional marked the job as done — please confirm.",
     )
+    # Sprint 74 — the pro finishing the job captures the held payment.
+    await _capture_craft_payment(db, req)
     return _craft_request_to_dict(req)
 
 
