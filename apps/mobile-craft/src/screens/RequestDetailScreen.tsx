@@ -102,6 +102,19 @@ export default function RequestDetailScreen(): React.ReactElement {
     })();
   }, [token, requestId]);
 
+  // Poll the status so the pro sees customer-side transitions (e.g. the customer
+  // confirming arrival → in_progress) without a manual refresh. Stops at
+  // terminal states.
+  useEffect(() => {
+    if (!token) return;
+    const status = request?.status;
+    if (!status || ["completed", "cancelled"].includes(status)) return;
+    const iv = setInterval(() => {
+      getCraftRequest(token, requestId).then(setRequest).catch(() => {});
+    }, 6000);
+    return () => clearInterval(iv);
+  }, [token, requestId, request?.status]);
+
   const handleSubmitBid = async () => {
     setBidError(null);
     const priceNum = parseFloat(priceDollars);
