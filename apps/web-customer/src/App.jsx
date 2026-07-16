@@ -776,17 +776,28 @@ function PaymentSection({ token, tripId, fareXof }) {
     );
   }
 
-  // No intent yet — show Pay button
+  // Authorized (hold placed at driver-accept) — captured on completion.
+  if (intent && intent.status === "authorized") {
+    return (
+      <div className="payment-section">
+        <div className="payment-card">
+          <span className="payment-icon">💳</span>
+          <div className="payment-info">
+            <div className="payment-label">Held on your card — charged when the ride completes</div>
+            <div className="payment-amount">{formatUSD(intent.amount_cents)}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Sprint 73 — rides are charged automatically to the saved card; no manual pay.
   return (
     <div className="payment-section">
-      <button
-        className="payment-btn"
-        onClick={handlePay}
-        disabled={loading}
-      >
-        {loading ? "Loading…" : `💳 Pay ${formatUSD(fareXof || 0)}`}
-      </button>
-      {error && <p className="form-error">{error}</p>}
+      <p className="payment-hint">
+        💳 Your ride is charged automatically to your saved card when it completes.
+        Add or manage cards in the <strong>Payment</strong> tab.
+      </p>
     </div>
   );
 }
@@ -1116,13 +1127,9 @@ function TripHistory({ token }) {
                 })}
               </div>
               {canPay && (
-                <button
-                  className="history-pay-btn"
-                  onClick={() => handlePay(t.trip_id)}
-                  disabled={payingId === t.trip_id}
-                >
-                  {payingId === t.trip_id ? "Loading…" : "💳 Pay Now"}
-                </button>
+                <span className="history-pay-note" style={{ color: "#6b7280", fontSize: 12 }}>
+                  💳 Charged automatically
+                </span>
               )}
             </div>
           );
