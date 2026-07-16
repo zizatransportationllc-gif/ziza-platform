@@ -293,7 +293,7 @@ function AddressInput({ icon, placeholder, value, onSelect, token, onGps, zoneWa
 // Estimate form + fare card + "Book" button
 // ---------------------------------------------------------------------------
 
-function EstimateSection({ token, onTripCreated }) {
+function EstimateSection({ token, onTripCreated, onNeedCard }) {
   const [origin, setOrigin] = useState(null); // { name, lat, lng } | null
   const [dest, setDest]     = useState(null); // { name, lat, lng } | null
   const [gpsLoading, setGpsLoading] = useState(false);
@@ -404,7 +404,11 @@ function EstimateSection({ token, onTripCreated }) {
         destAddress: dest?.name ?? null,
       });
       onTripCreated(trip);
-    } catch (err) { setError(err.message); }
+    } catch (err) {
+      setError(err.message);
+      // Sprint 73 — no saved card → send them to the Payment tab to add one.
+      if (/payment card/i.test(err.message || "") && onNeedCard) onNeedCard();
+    }
     finally { setBooking(false); }
   }
 
@@ -2685,7 +2689,7 @@ function Dashboard({ user, token, onLogout }) {
             </button>
           </div>
           {mode === "ride" && (
-            <EstimateSection token={token} onTripCreated={setActiveTrip} />
+            <EstimateSection token={token} onTripCreated={setActiveTrip} onNeedCard={() => setMode("cards")} />
           )}
           {mode === "craft" && <CraftSection token={token} />}
           {mode === "trips" && (

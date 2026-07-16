@@ -433,6 +433,21 @@ async def create_trip(
             detail="User not found — call POST /v1/auth/register first",
         )
 
+    # Sprint 73 — a saved default card is required to book (the ride is charged
+    # automatically when it completes). Enforced only when Stripe is live; the
+    # mock/CI path (no key) skips it so existing trip flows keep working.
+    from app.payment import stripe_cards  # noqa: PLC0415
+    if stripe_cards._enabled():
+        pm = (
+            stripe_cards.get_default_payment_method(user.stripe_customer_id)
+            if user.stripe_customer_id else None
+        )
+        if not pm:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Add a payment card before booking a ride.",
+            )
+
     # 2. Validate the estimate_id UUID format
     try:
         est_uuid = uuid.UUID(estimate_id)

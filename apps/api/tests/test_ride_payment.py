@@ -54,6 +54,33 @@ def _has_card(monkeypatch, pm: str | None = "pm_test_123"):
     monkeypatch.setattr(stripe_cards, "get_default_payment_method", lambda _cid: pm)
 
 
+def _estimate(c: str) -> str:
+    return client.post("/v1/estimate", headers=_h(c), json={
+        "origin_lat": 5.32, "origin_lng": -4.01, "dest_lat": 5.36, "dest_lng": -3.98,
+    }).json()["estimate_id"]
+
+
+def test_booking_requires_card_when_stripe_live(monkeypatch):
+    from app.payment import stripe_cards
+    monkeypatch.setattr(stripe_cards, "_enabled", lambda: True)
+    monkeypatch.setattr(stripe_cards, "get_default_payment_method", lambda _cid: None)
+    c = _tok("customer@ziza.dev")
+    client.post("/v1/auth/register", headers=_h(c))
+    est = _estimate(c)
+    r = client.post("/v1/trips", headers=_h(c), json={"estimate_id": est, "category": "economy"})
+    assert r.status_code == 402, r.text
+
+
+def test_booking_allowed_with_card_when_stripe_live(monkeypatch):
+    from app.payment import stripe_cards
+    c = _card_customer()  # mock: creates the Stripe customer (no real Stripe call)
+    monkeypatch.setattr(stripe_cards, "_enabled", lambda: True)
+    monkeypatch.setattr(stripe_cards, "get_default_payment_method", lambda _cid: "pm_x")
+    est = _estimate(c)
+    r = client.post("/v1/trips", headers=_h(c), json={"estimate_id": est, "category": "economy"})
+    assert r.status_code in (200, 201), r.text
+
+
 def test_ride_authorized_at_accept_and_captured_at_complete(monkeypatch):
     _has_card(monkeypatch)
     c, d = _card_customer(), _payable_driver()
