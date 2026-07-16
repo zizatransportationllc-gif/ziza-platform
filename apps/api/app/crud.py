@@ -621,6 +621,8 @@ async def cancel_trip(
     db.add(event)
     await db.commit()
     await db.refresh(trip)
+    # Sprint 73 — release the fare hold if one was placed at accept.
+    await _void_ride_authorization(db, trip)
     return trip
 
 
@@ -810,6 +812,8 @@ async def accept_trip(db: AsyncSession, trip_id: str, auth_user_id: str) -> Trip
         "🚗 Driver on the way",
         "A driver accepted your ride. They are on the way!",
     )
+    # Sprint 73 — hold the fare on the customer's saved card (non-fatal).
+    await _authorize_ride_payment(db, trip)
     return trip
 
 
@@ -937,6 +941,8 @@ async def complete_trip(db: AsyncSession, trip_id: str, auth_user_id: str) -> Tr
         "✅ Trip completed",
         f"Your ride is done{fare_str}. Thank you for choosing Ziza!",
     )
+    # Sprint 73 — capture the held fare (no-op if nothing was authorized).
+    await _capture_ride_payment(db, trip)
     return trip
 
 
@@ -3097,6 +3103,91 @@ async def delete_card(db: AsyncSession, auth_id: str, pm_id: str) -> None:
 
     await _require_owned_card(db, auth_id, pm_id)
     stripe_cards.detach_payment_method(pm_id)
+
+
+# ---------------------------------------------------------------------------
+# Ride payment — authorize the saved card at accept, capture at completion
+# (Sprint 73). Non-fatal: no saved card / declined → notify, never block the ride.
+# ---------------------------------------------------------------------------
+
+async def _authorize_ride_payment(db: AsyncSession, trip) -> None:
+    """Hold the estimated fare on the customer's default card at driver-accept.
+
+    Silently skips when the customer has no saved default card — the customer
+    app (Stage 3) requires a card to book, so this only no-ops for legacy/test
+    flows and never blocks the driver's accept.
+    """
+    from app.payment import stripe_cards  # noqa: PLC0415
+    from app.payment.split import compute_ride_split  # noqa: PLC0415
+
+    if await db.scalar(select(PaymentIntent).where(PaymentIntent.trip_id == trip.id)):
+        return  # already has an intent (idempotent)
+
+    customer = await db.get(User, trip.customer_id)
+    if customer is None or not customer.stripe_customer_id:
+        return
+    pm = stripe_cards.get_default_payment_method(customer.stripe_customer_id)
+    if not pm:
+        return
+
+    driver = await db.get(Driver, trip.driver_id) if trip.driver_id else None
+    destination = getattr(driver, "stripe_account_id", None) if driver else None
+    if not destination:
+        return  # driver not payable yet → can't route the split
+
+    cfg = await load_payment_config(db)
+    split = compute_ride_split(trip.fare_cents or 0, cfg)
+    intent = PaymentIntent(
+        trip_id=trip.id,
+        amount_cents=split.total_client_cents,
+        provider="stripe",
+        base_cents=split.base_cents,
+        tax_cents=split.tax_cents,
+        stripe_fee_est_cents=split.stripe_fee_est_cents,
+        payee_amount_cents=split.driver_amount_cents,
+        platform_amount_cents=split.platform_amount_cents,
+        payee_account_id=destination,
+        status="pending",
+    )
+    db.add(intent)
+    await db.flush()
+    res = stripe_cards.create_ride_authorization(
+        customer.stripe_customer_id, pm, split.total_client_cents, str(trip.id),
+        destination=destination, application_fee_cents=split.platform_amount_cents,
+    )
+    intent.provider_ref = res.get("id")
+    intent.status = "authorized" if res.get("status") == "requires_capture" else "failed"
+    await db.commit()
+    if intent.status == "failed":
+        await _push_notification(
+            db, trip.customer_id, "payment_auth_failed",
+            "⚠️ Payment not authorized",
+            "We couldn't hold your ride fare — please update your card.",
+        )
+
+
+async def _capture_ride_payment(db: AsyncSession, trip) -> None:
+    """Capture the held ride payment when the driver completes the trip."""
+    from app.payment import stripe_cards  # noqa: PLC0415
+
+    intent = await db.scalar(select(PaymentIntent).where(PaymentIntent.trip_id == trip.id))
+    if intent is None or intent.status != "authorized" or not intent.provider_ref:
+        return
+    res = stripe_cards.capture_ride_payment(intent.provider_ref)
+    intent.status = "paid" if res.get("status") == "succeeded" else "failed"
+    await db.commit()
+
+
+async def _void_ride_authorization(db: AsyncSession, trip) -> None:
+    """Release the hold if the ride is cancelled after a driver accepted."""
+    from app.payment import stripe_cards  # noqa: PLC0415
+
+    intent = await db.scalar(select(PaymentIntent).where(PaymentIntent.trip_id == trip.id))
+    if intent is None or intent.status != "authorized" or not intent.provider_ref:
+        return
+    stripe_cards.cancel_ride_authorization(intent.provider_ref)
+    intent.status = "cancelled"
+    await db.commit()
 
 
 async def create_payment_intent(
