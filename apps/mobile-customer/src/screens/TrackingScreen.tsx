@@ -11,7 +11,7 @@ import { RootStackParamList } from "../navigation/AppNavigator";
 import { useAuth } from "../context/AuthContext";
 import { useTrip } from "../hooks/useTrip";
 import { useTracking } from "../hooks/useTracking";
-import { createPaymentIntent, confirmOnboard, reverseGeocode } from "../api";
+import { confirmOnboard, reverseGeocode } from "../api";
 import TrackingMap from "../components/TrackingMap";
 import EtaCard from "../components/EtaCard";
 import ChatPanel from "../components/ChatPanel";
@@ -27,7 +27,6 @@ export default function TrackingScreen(): React.ReactElement {
 
   const { trip, refresh } = useTrip(token, tripId);
   const { position } = useTracking(token, trip?.driver_id ?? null, trip?.status ?? null);
-  const [payLoading, setPayLoading] = useState(false);
   const [boarding, setBoarding] = useState(false);
   const [driverAddr, setDriverAddr] = useState<string | null>(null);
 
@@ -53,26 +52,6 @@ export default function TrackingScreen(): React.ReactElement {
       Alert.alert("Error", e.message || "Could not confirm pickup. Please try again.");
     } finally {
       setBoarding(false);
-    }
-  };
-
-  const handlePay = async () => {
-    if (!trip || !token) return;
-    setPayLoading(true);
-    try {
-      // Create (or retrieve existing) payment intent from the API
-      const intent = await createPaymentIntent(token, trip.trip_id);
-      navigation.navigate("Payment", {
-        tripId: trip.trip_id,
-        checkoutUrl: intent.checkout_url,
-      });
-    } catch (e: any) {
-      Alert.alert(
-        "Payment Error",
-        e.message || "Could not initialize payment. Please try again.",
-      );
-    } finally {
-      setPayLoading(false);
     }
   };
 
@@ -118,17 +97,9 @@ export default function TrackingScreen(): React.ReactElement {
           <ChatPanel token={token} scope="trip" id={tripId} accent="#F97316" />
         )}
         {trip?.status === "completed" && (
-          <TouchableOpacity
-            style={[styles.payButton, payLoading && styles.payButtonDisabled]}
-            onPress={handlePay}
-            disabled={payLoading}
-          >
-            {payLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.payText}>💳 Proceed to Payment</Text>
-            )}
-          </TouchableOpacity>
+          <Text style={styles.autoPayNote}>
+            💳 Charged automatically to your saved card.
+          </Text>
         )}
       </View>
     </View>
@@ -153,6 +124,7 @@ const styles = StyleSheet.create({
   },
   payButtonDisabled: { opacity: 0.6 },
   payText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  autoPayNote: { textAlign: "center", color: "#6B7280", fontSize: 14, marginTop: 16, paddingHorizontal: 16 },
   boardButton: {
     backgroundColor: "#F97316",
     borderRadius: 8,
