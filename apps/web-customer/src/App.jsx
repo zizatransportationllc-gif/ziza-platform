@@ -2036,7 +2036,7 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
       <form className="craft-form" onSubmit={handleSubmit}>
         {/* Category */}
         <div className="craft-field">
-          <span className="craft-label">Type of problem</span>
+          <span className="craft-label">Type of issue</span>
           <div className="craft-cat-grid">
             {CRAFT_CATEGORIES.map((cat) => (
               <button
@@ -2053,7 +2053,7 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
 
         {/* Description */}
         <div className="craft-field">
-          <span className="craft-label">Describe the problem</span>
+          <span className="craft-label">Describe the issue</span>
           <textarea
             className="craft-textarea"
             value={description}
