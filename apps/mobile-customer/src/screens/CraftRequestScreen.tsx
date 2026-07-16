@@ -126,7 +126,7 @@ export default function CraftRequestScreen(): React.ReactElement {
       <Text style={styles.subtitle}>Roadside assistance</Text>
 
       {/* Category picker */}
-      <Text style={styles.label}>Type of Problem</Text>
+      <Text style={styles.label}>Type of Issue</Text>
       <View style={styles.categories}>
         {CRAFT_CATEGORIES.map((cat) => (
           <TouchableOpacity
@@ -142,7 +142,7 @@ export default function CraftRequestScreen(): React.ReactElement {
       </View>
 
       {/* Description */}
-      <Text style={styles.label}>Describe the problem</Text>
+      <Text style={styles.label}>Describe the issue</Text>
       <TextInput
         style={[styles.input, styles.multiline]}
         value={description}
