@@ -292,6 +292,50 @@ export async function listCategories(token: string): Promise<CategoryInfo[]> {
 }
 
 // ---------------------------------------------------------------------------
+// Saved cards (Sprint 73) — ride payments
+// ---------------------------------------------------------------------------
+
+export interface SavedCard {
+  id: string;
+  brand: string | null;
+  last4: string | null;
+  exp_month: number | null;
+  exp_year: number | null;
+  is_default: boolean;
+}
+
+export async function createSetupIntent(
+  token: string,
+): Promise<{ client_secret: string; customer_id: string }> {
+  const res = await fetch(`${API_BASE}/v1/payments/methods/setup-intent`, {
+    method: "POST",
+    headers: _auth(token),
+  });
+  return _json(res);
+}
+
+export async function listPaymentMethods(token: string): Promise<SavedCard[]> {
+  const res = await fetch(`${API_BASE}/v1/payments/methods`, { headers: _auth(token) });
+  return _json<SavedCard[]>(res);
+}
+
+export async function deletePaymentMethod(token: string, pmId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/v1/payments/methods/${pmId}`, {
+    method: "DELETE",
+    headers: _auth(token),
+  });
+  if (!res.ok) throw new Error("Could not remove card");
+}
+
+export async function setDefaultPaymentMethod(token: string, pmId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/v1/payments/methods/${pmId}/default`, {
+    method: "POST",
+    headers: _auth(token),
+  });
+  if (!res.ok) throw new Error("Could not set default card");
+}
+
+// ---------------------------------------------------------------------------
 // Trips
 // ---------------------------------------------------------------------------
 

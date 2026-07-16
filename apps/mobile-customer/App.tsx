@@ -8,6 +8,7 @@
 import React from "react";
 import { StatusBar } from "expo-status-bar";
 import * as Notifications from "expo-notifications";
+import { StripeProvider } from "@stripe/stripe-react-native";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { useNotifications } from "./src/hooks/useNotifications";
 import AppNavigator from "./src/navigation/AppNavigator";
@@ -39,10 +40,14 @@ function AppInner(): React.ReactElement {
   );
 }
 
+const STRIPE_PK = (process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY as string) || "";
+
 export default function App(): React.ReactElement {
   return (
-    <AuthProvider>
-      <AppInner />
-    </AuthProvider>
+    <StripeProvider publishableKey={STRIPE_PK}>
+      <AuthProvider>
+        <AppInner />
+      </AuthProvider>
+    </StripeProvider>
   );
 }

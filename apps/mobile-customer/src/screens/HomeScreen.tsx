@@ -198,12 +198,20 @@ export default function HomeScreen(): React.ReactElement {
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.topRow}>
         <Text style={styles.heading}>Book a Ride</Text>
-        <TouchableOpacity
-          style={styles.walletBtn}
-          onPress={() => navigation.navigate("Wallet")}
-        >
-          <Text style={styles.walletBtnText}>💰 Wallet</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <TouchableOpacity
+            style={styles.walletBtn}
+            onPress={() => navigation.navigate("PaymentMethods")}
+          >
+            <Text style={styles.walletBtnText}>💳 Payment</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.walletBtn}
+            onPress={() => navigation.navigate("Wallet")}
+          >
+            <Text style={styles.walletBtnText}>💰 Wallet</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
