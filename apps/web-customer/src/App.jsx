@@ -2399,7 +2399,16 @@ function PaymentMethods({ token }) {
     if (!pk || !window.Stripe) { setErr("Card entry is unavailable right now."); return; }
     const stripe = window.Stripe(pk);
     stripeRef.current = stripe;
-    const card = stripe.elements().create("card");
+    const card = stripe.elements().create("card", {
+      style: {
+        base: {
+          color: "#f8fafc",
+          fontSize: "16px",
+          "::placeholder": { color: "#94a3b8" },
+        },
+        invalid: { color: "#f87171" },
+      },
+    });
     card.mount(cardElRef.current);
     elementRef.current = card;
     return () => { try { card.unmount(); } catch (_) { /* noop */ } };
