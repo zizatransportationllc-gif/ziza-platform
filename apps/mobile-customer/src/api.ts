@@ -877,64 +877,6 @@ export async function sendRequestMessage(token: string, requestId: string, body:
   return _json<ChatMessage>(res);
 }
 
-// ---------------------------------------------------------------------------
-// Wallet — Sprint 33 (mirrors the web-customer wallet). Amounts in USD cents.
-// ---------------------------------------------------------------------------
-
-export interface Wallet {
-  wallet_id: string;
-  balance_cents: number;
-}
-
-export interface WalletTransaction {
-  tx_id: string;
-  wallet_id: string;
-  tx_type: string; // credit | debit | refund
-  amount_cents: number;
-  reason: string;
-  reference_id: string | null;
-  balance_after: number;
-  created_at: string;
-}
-
-export async function getWallet(token: string): Promise<Wallet> {
-  const res = await fetch(`${API_BASE}/v1/wallet`, { headers: _auth(token) });
-  return _json<Wallet>(res);
-}
-
-// WS2 — a top-up is now a real payment. The wallet is credited only once the
-// provider confirms via webhook.
-export interface WalletTopup {
-  topup_id: string;
-  amount_cents: number;
-  currency: string;
-  provider: string;
-  provider_ref: string | null;
-  status: string; // pending | paid | failed
-  checkout_url: string | null;
-}
-
-export async function topupWallet(token: string, amountCents: number): Promise<WalletTopup> {
-  const res = await fetch(`${API_BASE}/v1/wallet/topup`, {
-    method: "POST",
-    headers: { ..._auth(token), "Content-Type": "application/json" },
-    body: JSON.stringify({ amount_cents: amountCents }),
-  });
-  return _json<WalletTopup>(res);
-}
-
-export async function getWalletTransactions(
-  token: string,
-  limit = 20,
-  offset = 0,
-): Promise<WalletTransaction[]> {
-  const res = await fetch(
-    `${API_BASE}/v1/wallet/transactions?limit=${limit}&offset=${offset}`,
-    { headers: _auth(token) },
-  );
-  return _json<WalletTransaction[]>(res);
-}
-
 // Sprint 69 — profile, photo, bank account
 export interface UserProfile {
   user_id: string;

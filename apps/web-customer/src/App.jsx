@@ -10,7 +10,6 @@ import {
   listTripMessages, sendTripMessage,
   createPaymentIntent, getTripPayment, simulatePayment,
   registerDeviceToken,
-  getWallet, topupWallet, getWalletTransactions, // Sprint 33
   searchPlaces, reverseGeocode, // Sprint 43
   checkPointInService, // Sprint 45
   createCraftRequest, getMyCraftRequests, getCraftRequestBids, selectCraftBid, cancelCraftRequest, // Sprint 48
@@ -1685,114 +1684,6 @@ function SavedPlacesSection({ token }) {
 }
 
 // ---------------------------------------------------------------------------
-// WalletSection — Sprint 33
-// ---------------------------------------------------------------------------
-
-function WalletSection({ token }) {
-  const [wallet, setWallet] = useState(null);
-  const [txs, setTxs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [topupAmount, setTopupAmount] = useState("");
-  const [topping, setTopping] = useState(false);
-  const [topupSuccess, setTopupSuccess] = useState(null);
-  const [topupError, setTopupError] = useState(null);
-
-  const TX_ICONS = { credit: "⬆️", debit: "⬇️", refund: "↩️" };
-  const TX_COLORS = { credit: "#16a34a", debit: "#dc2626", refund: "#2563eb" };
-
-  const load = useCallback(async () => {
-    setLoading(true); setError(null);
-    try {
-      const [w, t] = await Promise.all([getWallet(token), getWalletTransactions(token, 10)]);
-      setWallet(w); setTxs(t);
-    } catch (e) { setError(e.message); }
-    finally { setLoading(false); }
-  }, [token]);
-
-  useEffect(() => { load(); }, [load]);
-
-  async function handleTopup(e) {
-    e.preventDefault();
-    const amount = parseFloat(topupAmount);
-    if (!amount || amount <= 0) return;
-    setTopping(true); setTopupError(null); setTopupSuccess(null);
-    try {
-      // WS2: top-up is now a real payment. Returns a checkout URL; the wallet is
-      // credited only once the provider confirms (webhook).
-      const result = await topupWallet(token, amount);
-      setTopupAmount("");
-      if (result.checkout_url && !result.checkout_url.includes("localhost")) {
-        window.open(result.checkout_url, "_blank", "noopener");
-        setTopupSuccess("Redirecting to payment — your wallet will be credited once the payment is confirmed.");
-      } else {
-        setTopupSuccess("Top-up initiated. Your wallet will be credited once the payment is confirmed.");
-      }
-      load();  // refresh; the credit appears after payment is confirmed
-    } catch (err) { setTopupError(err.message); }
-    finally { setTopping(false); }
-  }
-
-  if (loading) return <div className="status loading">⏳ Loading wallet…</div>;
-  if (error) return <p className="form-error">{error}</p>;
-
-  return (
-    <div className="wallet-section">
-      <h2 className="estimate-title">💰 My Wallet</h2>
-
-      {wallet && (
-        <div className="wallet-balance-card">
-          <p className="wallet-balance-label">Available Balance</p>
-          <p className="wallet-balance-amount">
-            {formatUSD(wallet.balance_cents)}
-          </p>
-        </div>
-      )}
-
-      <form className="wallet-topup-form" onSubmit={handleTopup}>
-        <h3 className="wallet-subtitle">Top Up Your Wallet</h3>
-        {topupError && <p className="form-error">{topupError}</p>}
-        {topupSuccess && <p className="form-success">{topupSuccess}</p>}
-        <div className="wallet-topup-row">
-          <input
-            type="number"
-            min="100"
-            step="100"
-            className="wallet-amount-input"
-            placeholder="Amount in cents (100 = $1.00)"
-            value={topupAmount}
-            onChange={(e) => setTopupAmount(e.target.value)}
-            required
-          />
-          <button type="submit" className="booking-btn" disabled={topping}>
-            {topping ? "Processing…" : "Top Up"}
-          </button>
-        </div>
-        <p className="wallet-note">💳 Apple Pay · Google Pay · Credit / Debit Card</p>
-      </form>
-
-      <div className="wallet-history">
-        <h3 className="wallet-subtitle">Transaction History</h3>
-        {txs.length === 0 && <p className="muted-text">No transactions yet.</p>}
-        {txs.map((tx) => (
-          <div key={tx.tx_id} className="wallet-tx-row">
-            <span className="wallet-tx-icon">{TX_ICONS[tx.tx_type] ?? "•"}</span>
-            <div className="wallet-tx-details">
-              <span className="wallet-tx-reason">{tx.reason.replace("_", " ")}</span>
-              {tx.reference_id && <span className="wallet-tx-ref">#{tx.reference_id.slice(-8)}</span>}
-            </div>
-            <span className="wallet-tx-amount" style={{ color: TX_COLORS[tx.tx_type] }}>
-              {tx.tx_type === "debit" ? "−" : "+"}{formatUSD(tx.amount_cents)}
-            </span>
-            <span className="wallet-tx-time">
-              {new Date(tx.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "short" })}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Craft / Maintenance section — Sprint 48
@@ -2583,7 +2474,7 @@ function PaymentMethods({ token }) {
 
 function Dashboard({ user, token, onLogout }) {
   const [activeTrip, setActiveTrip] = useState(null);
-  const [mode, setMode] = useState("ride"); // "ride" | "craft" | "trips" | "profile" | "notifications" | "places" | "wallet" | "docs"
+  const [mode, setMode] = useState("ride"); // "ride" | "craft" | "trips" | "profile" | "notifications" | "places" | "cards" | "docs"
   const [unreadCount, setUnreadCount] = useState(0);
 
   const refreshUnread = useCallback(() => {
@@ -2670,12 +2561,6 @@ function Dashboard({ user, token, onLogout }) {
               🧑‍✈️ Become a Driver
             </button>
             <button
-              className={`mode-tab ${mode === "wallet" ? "active" : ""}`}
-              onClick={() => setMode("wallet")}
-            >
-              💰 Wallet
-            </button>
-            <button
               className={`mode-tab ${mode === "cards" ? "active" : ""}`}
               onClick={() => setMode("cards")}
             >
@@ -2703,7 +2588,6 @@ function Dashboard({ user, token, onLogout }) {
             <NotificationsSection token={token} onRead={refreshUnread} />
           )}
           {mode === "places" && <SavedPlacesSection token={token} />}
-          {mode === "wallet" && <WalletSection token={token} />}
           {mode === "cards"  && <PaymentMethods token={token} />}
           {mode === "docs"   && <DocumentsSection token={token} />}
         </>
