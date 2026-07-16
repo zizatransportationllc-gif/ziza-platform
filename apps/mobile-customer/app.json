@@ -36,7 +36,8 @@
         {
           "locationWhenInUsePermission": "Ziza uses your location to find drivers near you and calculate fares."
         }
-      ]
+      ],
+      "@stripe/stripe-react-native"
     ],
     "extra": {
       "eas": {
