@@ -184,7 +184,15 @@ export default function HomeScreen(): React.ReactElement {
       });
       navigation.navigate("Tracking", { tripId: trip.trip_id });
     } catch (e: any) {
-      setError(e.message);
+      const msg = e?.message || "Booking failed";
+      if (msg.toLowerCase().includes("payment card")) {
+        Alert.alert("Add a payment card", "You need a saved card to book a ride.", [
+          { text: "Not now", style: "cancel" },
+          { text: "Add a card", onPress: () => navigation.navigate("PaymentMethods") },
+        ]);
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
