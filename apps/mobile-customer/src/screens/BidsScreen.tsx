@@ -112,7 +112,15 @@ export default function BidsScreen(): React.ReactElement {
                 [{ text: "OK", onPress: () => navigation.navigate("MyCraftRequests") }]
               );
             } catch (e: any) {
-              Alert.alert("Error", e.message || "Failed to select bid");
+              const msg = e?.message || "Failed to select bid";
+              if (msg.toLowerCase().includes("payment card")) {
+                Alert.alert("Add a payment card", "You need a saved card to select a professional.", [
+                  { text: "Not now", style: "cancel" },
+                  { text: "Add a card", onPress: () => navigation.navigate("PaymentMethods") },
+                ]);
+              } else {
+                Alert.alert("Error", msg);
+              }
             } finally {
               setSelecting(null);
             }
@@ -260,13 +268,9 @@ export default function BidsScreen(): React.ReactElement {
             </View>
           )}
           {request.status === "completed" && (
-            request.paid_at ? (
-              <Text style={styles.paidLabel}>✅ Payment confirmed</Text>
-            ) : (
-              <TouchableOpacity style={styles.lifeBtn} onPress={handlePay} disabled={paying}>
-                <Text style={styles.lifeBtnText}>{paying ? "Processing…" : "💳 Pay for the assistance"}</Text>
-              </TouchableOpacity>
-            )
+            <Text style={styles.paidLabel}>
+              {request.paid_at ? "✅ Payment confirmed" : "💳 Charged automatically to your saved card."}
+            </Text>
           )}
         </View>
       )}
