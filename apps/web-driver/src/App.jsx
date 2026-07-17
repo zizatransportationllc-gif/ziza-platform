@@ -1470,6 +1470,48 @@ function ProfileSection({ token }) {
 // Dashboard
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Account section — Sprint 65: secondary items grouped under one tab
+// ---------------------------------------------------------------------------
+
+function DriverAccountSection({ token, vehicle, onVehicleSaved, driverStatus, sub, onSub }) {
+  const needsDocs = driverStatus === "pending_docs";
+  const ITEMS = [
+    { key: "profile",   icon: "👤", label: "Profile" },
+    { key: "vehicle",   icon: "🚗", label: "Vehicle" },
+    { key: "documents", icon: "📄", label: "Documents", badge: needsDocs },
+    { key: "location",  icon: "📍", label: "Location" },
+  ];
+
+  if (sub) {
+    return (
+      <div className="account-sub">
+        <button className="account-back-btn" onClick={() => onSub(null)}>← Account</button>
+        {sub === "profile"   && <ProfileSection token={token} />}
+        {sub === "vehicle"   && <VehicleCard token={token} vehicle={vehicle} onSaved={onVehicleSaved} />}
+        {sub === "documents" && <DocumentsSection token={token} driverStatus={driverStatus} />}
+        {sub === "location"  && <LocationSection token={token} />}
+      </div>
+    );
+  }
+
+  return (
+    <div className="account-section">
+      <h2 className="section-title">👤 Account</h2>
+      <div className="account-menu">
+        {ITEMS.map((it) => (
+          <button key={it.key} className="account-menu-row" onClick={() => onSub(it.key)}>
+            <span className="account-menu-icon">{it.icon}</span>
+            <span className="account-menu-label">{it.label}</span>
+            {it.badge && <span className="account-menu-badge" title="Action required">!</span>}
+            <span className="account-menu-chevron">›</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Dashboard({ user, token, onLogout }) {
   const [activeTrip, setActiveTrip] = useState(null);
   const [initialized, setInitialized] = useState(false);
@@ -1478,8 +1520,12 @@ function Dashboard({ user, token, onLogout }) {
   const [vehicle, setVehicle] = useState(undefined); // undefined = loading, null = none
   const [isOnline, setIsOnline] = useState(false);
   const [togglingOnline, setTogglingOnline] = useState(false);
-  const [tab, setTab] = useState("dispatch"); // "dispatch" | "history" | "payouts" | "documents" | "notifications" | "location"
+  const [tab, setTab] = useState("dispatch"); // "dispatch" | "earnings" | "activity" | "account" | "notifications"
+  const [accountSub, setAccountSub] = useState(null); // sub-screen within Account
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Jump to Account → Documents (used by the KYC pending banner).
+  const goToDocs = useCallback(() => { setAccountSub("documents"); setTab("account"); }, []);
   const [balance, setBalance] = useState(null); // Sprint 29 — net balance
   const [driverStatus, setDriverStatus] = useState("pending_docs"); // Sprint 54 — safe default: lock until profile confirmed
 
@@ -1616,46 +1662,22 @@ function Dashboard({ user, token, onLogout }) {
               🚕 Dispatch
             </button>
             <button
-              className={`driver-tab ${tab === "vehicle" ? "active" : ""}`}
-              onClick={() => setTab("vehicle")}
+              className={`driver-tab ${tab === "earnings" ? "active" : ""}`}
+              onClick={() => setTab("earnings")}
             >
-              🚗 Vehicle
+              💰 Earnings
             </button>
             <button
-              className={`driver-tab ${tab === "profile" ? "active" : ""}`}
-              onClick={() => setTab("profile")}
+              className={`driver-tab ${tab === "activity" ? "active" : ""}`}
+              onClick={() => setTab("activity")}
             >
-              👤 Profile
+              📋 Activity
             </button>
             <button
-              className={`driver-tab ${tab === "history" ? "active" : ""}`}
-              onClick={() => setTab("history")}
+              className={`driver-tab ${tab === "account" ? "active" : ""}`}
+              onClick={() => { setAccountSub(null); setTab("account"); }}
             >
-              📋 History
-            </button>
-            <button
-              className={`driver-tab ${tab === "payouts" ? "active" : ""}`}
-              onClick={() => setTab("payouts")}
-            >
-              💰 Withdrawals
-            </button>
-            <button
-              className={`driver-tab ${tab === "documents" ? "active" : ""}`}
-              onClick={() => setTab("documents")}
-            >
-              📄 Documents
-            </button>
-            <button
-              className={`driver-tab ${tab === "notifications" ? "active" : ""}`}
-              onClick={() => setTab("notifications")}
-            >
-              🔔{unreadCount > 0 && <span className="tab-badge-sm">{unreadCount}</span>}
-            </button>
-            <button
-              className={`driver-tab ${tab === "location" ? "active" : ""}`}
-              onClick={() => setTab("location")}
-            >
-              📍
+              👤 Account
             </button>
           </div>
 
@@ -1667,8 +1689,8 @@ function Dashboard({ user, token, onLogout }) {
                 <strong>Account pending verification</strong>
                 <p>Submit your documents below. Access to trips will be unlocked once an admin approves your documents.</p>
               </div>
-              {tab !== "documents" && (
-                <button className="btn-kyc-docs" onClick={() => setTab("documents")}>📄 Submit Documents →</button>
+              {accountSub !== "documents" && (
+                <button className="btn-kyc-docs" onClick={goToDocs}>📄 Submit Documents →</button>
               )}
             </div>
           )}
@@ -1694,17 +1716,23 @@ function Dashboard({ user, token, onLogout }) {
             )
           )}
 
-          {tab === "vehicle"       && <VehicleCard token={token} vehicle={vehicle} onSaved={setVehicle} />}
-          {tab === "profile"       && <ProfileSection token={token} />}
-          {tab === "history"       && <DriverTripHistory token={token} />}
-          {tab === "payouts"       && <PayoutSection token={token} />}
-          {tab === "documents"     && <DocumentsSection token={token} driverStatus={driverStatus} />}
+          {tab === "earnings"      && <PayoutSection token={token} />}
+          {tab === "activity"      && <DriverTripHistory token={token} />}
+          {tab === "account"       && (
+            <DriverAccountSection
+              token={token}
+              vehicle={vehicle}
+              onVehicleSaved={setVehicle}
+              driverStatus={driverStatus}
+              sub={accountSub}
+              onSub={setAccountSub}
+            />
+          )}
           {tab === "notifications" && <DriverNotificationsSection token={token} onRead={refreshUnread} />}
-          {tab === "location"      && <LocationSection token={token} />}
         </>
       )}
 
-      <p className="footer">App: <strong>web-driver</strong> · Sprint 64 — Profile Fields</p>
+      <p className="footer">App: <strong>web-driver</strong> · Sprint 65 — 4-Tab Navigation</p>
     </div>
   );
 }
