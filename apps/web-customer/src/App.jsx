@@ -2464,10 +2464,155 @@ function PaymentMethods({ token }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Activity section — Sprint 65: unified history (rides + assistance)
+// ---------------------------------------------------------------------------
+
+// Read-only list of the customer's assistance requests, used inside Activity.
+function ActivityCraftList({ token, onOpen }) {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    getMyCraftRequests(token)
+      .then((d) => { if (alive) setRequests(d); })
+      .catch((e) => { if (alive) setError(e.message); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [token]);
+
+  if (loading) return <p className="craft-loading">⏳ Loading…</p>;
+  if (error)   return <p className="form-error">{error}</p>;
+  if (requests.length === 0) return <p className="history-empty">No assistance requests yet.</p>;
+
+  return (
+    <div className="craft-list">
+      {requests.map((req) => (
+        <div key={req.request_id} className="craft-request-card">
+          <div className="craft-request-header">
+            <span className="craft-cat-chip">{CRAFT_CAT_LABELS[req.category] ?? req.category}</span>
+            <span className="craft-status-badge">{CRAFT_STATUS_LABELS[req.status] ?? req.status}</span>
+          </div>
+          <p className="craft-request-desc">{req.description}</p>
+          {req.address && <p className="craft-meta">📍 {req.address}</p>}
+          <p className="craft-date">
+            Posted: {new Date(req.created_at).toLocaleDateString("en-US", { dateStyle: "medium" })}
+          </p>
+          {req.status !== "cancelled" && (
+            <div className="craft-request-actions">
+              <button className="craft-view-bids-btn" onClick={() => onOpen(req)}>View Details →</button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ActivitySection({ token, onNeedCard }) {
+  const [filter, setFilter] = useState("all"); // "all" | "rides" | "assistance"
+  const [selectedRequest, setSelectedRequest] = useState(null);
+
+  // Opening an assistance item reuses the same detail/bids view as the
+  // Assistance tab, so the customer can act on it without switching tabs.
+  if (selectedRequest) {
+    return (
+      <CraftBidsView
+        token={token}
+        request={selectedRequest}
+        onBack={() => setSelectedRequest(null)}
+        onNeedCard={onNeedCard}
+      />
+    );
+  }
+
+  const showRides       = filter === "all" || filter === "rides";
+  const showAssistance  = filter === "all" || filter === "assistance";
+
+  return (
+    <div className="activity-section">
+      <h2 className="estimate-title">📋 Activity</h2>
+      <div className="activity-filter">
+        <button className={`activity-chip ${filter === "all" ? "active" : ""}`} onClick={() => setFilter("all")}>All</button>
+        <button className={`activity-chip ${filter === "rides" ? "active" : ""}`} onClick={() => setFilter("rides")}>Rides</button>
+        <button className={`activity-chip ${filter === "assistance" ? "active" : ""}`} onClick={() => setFilter("assistance")}>Assistance</button>
+      </div>
+
+      {showRides && (
+        <div className="activity-group">
+          {filter === "all" && <h3 className="activity-group-title">🚕 Rides</h3>}
+          <div className="history-section"><TripHistory token={token} /></div>
+        </div>
+      )}
+      {showAssistance && (
+        <div className="activity-group">
+          {filter === "all" && <h3 className="activity-group-title">🔧 Assistance</h3>}
+          <ActivityCraftList token={token} onOpen={setSelectedRequest} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Account section — Sprint 65: secondary items grouped under one tab
+// ---------------------------------------------------------------------------
+
+function AccountSection({ token, sub, onSub }) {
+  const ITEMS = [
+    { key: "profile", icon: "👤", label: "Profile" },
+    { key: "cards",   icon: "💳", label: "Payment Methods" },
+    { key: "docs",    icon: "📄", label: "My Documents" },
+    { key: "places",  icon: "📍", label: "Saved Places" },
+  ];
+
+  if (sub) {
+    return (
+      <div className="account-sub">
+        <button className="account-back-btn" onClick={() => onSub(null)}>← Account</button>
+        {sub === "profile" && <ProfileSection token={token} />}
+        {sub === "cards"   && <PaymentMethods token={token} />}
+        {sub === "docs"    && <DocumentsSection token={token} />}
+        {sub === "places"  && <SavedPlacesSection token={token} />}
+      </div>
+    );
+  }
+
+  return (
+    <div className="account-section">
+      <h2 className="estimate-title">👤 Account</h2>
+      <div className="account-menu">
+        {ITEMS.map((it) => (
+          <button key={it.key} className="account-menu-row" onClick={() => onSub(it.key)}>
+            <span className="account-menu-icon">{it.icon}</span>
+            <span className="account-menu-label">{it.label}</span>
+            <span className="account-menu-chevron">›</span>
+          </button>
+        ))}
+        <button
+          className="account-menu-row"
+          onClick={() => window.open(`${DRIVER_APP_URL}?signup=1`, "_blank", "noopener")}
+        >
+          <span className="account-menu-icon">🧑‍✈️</span>
+          <span className="account-menu-label">Become a Driver</span>
+          <span className="account-menu-chevron">↗</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Dashboard({ user, token, onLogout }) {
   const [activeTrip, setActiveTrip] = useState(null);
-  const [mode, setMode] = useState("ride"); // "ride" | "craft" | "trips" | "profile" | "notifications" | "places" | "cards" | "docs"
+  const [mode, setMode] = useState("course"); // "course" | "assistance" | "activity" | "account" | "notifications"
+  const [accountSub, setAccountSub] = useState(null); // sub-screen within Account
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Deep-link used by booking / assistance flows that need a saved card:
+  // jump to Account → Payment Methods.
+  const goToCards = useCallback(() => { setAccountSub("cards"); setMode("account"); }, []);
 
   const refreshUnread = useCallback(() => {
     getUnreadCount(token).then((d) => setUnreadCount(d.count)).catch(() => {});
@@ -2511,81 +2656,45 @@ function Dashboard({ user, token, onLogout }) {
         <>
           <div className="mode-tabs">
             <button
-              className={`mode-tab ${mode === "ride" ? "active" : ""}`}
-              onClick={() => setMode("ride")}
+              className={`mode-tab ${mode === "course" ? "active" : ""}`}
+              onClick={() => setMode("course")}
             >
               🚕 Ride
             </button>
             <button
-              className={`mode-tab ${mode === "craft" ? "active" : ""}`}
-              onClick={() => setMode("craft")}
+              className={`mode-tab ${mode === "assistance" ? "active" : ""}`}
+              onClick={() => setMode("assistance")}
             >
               🔧 Assistance
             </button>
             <button
-              className={`mode-tab ${mode === "trips" ? "active" : ""}`}
-              onClick={() => setMode("trips")}
+              className={`mode-tab ${mode === "activity" ? "active" : ""}`}
+              onClick={() => setMode("activity")}
             >
-              📜 My Trips
+              📋 Activity
             </button>
             <button
-              className={`mode-tab ${mode === "profile" ? "active" : ""}`}
-              onClick={() => setMode("profile")}
+              className={`mode-tab ${mode === "account" ? "active" : ""}`}
+              onClick={() => { setAccountSub(null); setMode("account"); }}
             >
-              👤 Profile
-            </button>
-            <button
-              className={`mode-tab ${mode === "notifications" ? "active" : ""}`}
-              onClick={() => setMode("notifications")}
-            >
-              🔔 Notifs{unreadCount > 0 && <span className="tab-badge-sm">{unreadCount}</span>}
-            </button>
-            <button
-              className={`mode-tab ${mode === "places" ? "active" : ""}`}
-              onClick={() => setMode("places")}
-            >
-              📍 Places
-            </button>
-            <button
-              className="mode-tab"
-              onClick={() => window.open(`${DRIVER_APP_URL}?signup=1`, "_blank", "noopener")}
-            >
-              🧑‍✈️ Become a Driver
-            </button>
-            <button
-              className={`mode-tab ${mode === "cards" ? "active" : ""}`}
-              onClick={() => setMode("cards")}
-            >
-              💳 Payment
-            </button>
-            <button
-              className={`mode-tab ${mode === "docs" ? "active" : ""}`}
-              onClick={() => setMode("docs")}
-            >
-              📄 Docs
+              👤 Account
             </button>
           </div>
-          {mode === "ride" && (
-            <EstimateSection token={token} onTripCreated={setActiveTrip} onNeedCard={() => setMode("cards")} />
+          {mode === "course" && (
+            <EstimateSection token={token} onTripCreated={setActiveTrip} onNeedCard={goToCards} />
           )}
-          {mode === "craft" && <CraftSection token={token} onNeedCard={() => setMode("cards")} />}
-          {mode === "trips" && (
-            <div className="history-section">
-              <h2 className="estimate-title">My Trips</h2>
-              <TripHistory token={token} />
-            </div>
+          {mode === "assistance" && <CraftSection token={token} onNeedCard={goToCards} />}
+          {mode === "activity" && <ActivitySection token={token} onNeedCard={goToCards} />}
+          {mode === "account" && (
+            <AccountSection token={token} sub={accountSub} onSub={setAccountSub} />
           )}
-          {mode === "profile" && <ProfileSection token={token} />}
           {mode === "notifications" && (
             <NotificationsSection token={token} onRead={refreshUnread} />
           )}
-          {mode === "places" && <SavedPlacesSection token={token} />}
-          {mode === "cards"  && <PaymentMethods token={token} />}
-          {mode === "docs"   && <DocumentsSection token={token} />}
         </>
       )}
 
-      <p className="footer">App: <strong>web-customer</strong> · Sprint 64 — Profile Fields</p>
+      <p className="footer">App: <strong>web-customer</strong> · Sprint 65 — 4-Tab Navigation</p>
     </div>
   );
 }

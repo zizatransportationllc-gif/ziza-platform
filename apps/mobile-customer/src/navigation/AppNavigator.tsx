@@ -1,13 +1,14 @@
 /**
  * AppNavigator — React Navigation stack for mobile-customer.
- * Sprint 53 — added Documents screen.
+ * Sprint 65 — 4-tab navigation: MainScreen hosts the Ride / Assistance /
+ * Activity / Account tabs; the screens below are pushed on top as details.
  */
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import LoginScreen from "../screens/LoginScreen";
-import HomeScreen from "../screens/HomeScreen";
+import MainScreen from "../screens/MainScreen";
 import TrackingScreen from "../screens/TrackingScreen";
 import PaymentScreen from "../screens/PaymentScreen";
 import HistoryScreen from "../screens/HistoryScreen";
@@ -19,9 +20,11 @@ import MyCraftRequestsScreen from "../screens/MyCraftRequestsScreen";
 import BidsScreen from "../screens/BidsScreen";
 import DocumentsScreen from "../screens/DocumentsScreen";
 import PaymentMethodsScreen from "../screens/PaymentMethodsScreen";
+import SavedPlacesScreen from "../screens/SavedPlacesScreen";
 
 export type RootStackParamList = {
   Login: undefined;
+  Main: undefined;
   Home: undefined;
   Tracking: { tripId: string };
   Payment: { tripId: string; checkoutUrl: string };
@@ -34,6 +37,7 @@ export type RootStackParamList = {
   Bids: { requestId: string; customerLat?: number; customerLng?: number };
   Documents: undefined;
   PaymentMethods: undefined;
+  SavedPlaces: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -52,7 +56,7 @@ export default function AppNavigator({
       >
         {isAuthenticated ? (
           <>
-            <Stack.Screen name="Home" component={HomeScreen} options={{ title: "Ziza — Book a Ride" }} />
+            <Stack.Screen name="Main" component={MainScreen} options={{ title: "Ziza" }} />
             <Stack.Screen name="Tracking" component={TrackingScreen} options={{ title: "Live Tracking" }} />
             <Stack.Screen name="Payment" component={PaymentScreen} options={{ title: "Payment" }} />
             <Stack.Screen name="History" component={HistoryScreen} options={{ title: "My Trips" }} />
@@ -83,6 +87,11 @@ export default function AppNavigator({
               name="PaymentMethods"
               component={PaymentMethodsScreen}
               options={{ title: "Payment Methods" }}
+            />
+            <Stack.Screen
+              name="SavedPlaces"
+              component={SavedPlacesScreen}
+              options={{ title: "My Places" }}
             />
           </>
         ) : (

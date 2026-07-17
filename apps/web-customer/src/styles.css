@@ -610,3 +610,22 @@ html, body {
 .doc-status-rejected { background: color-mix(in srgb, #ef4444 12%, transparent); color: #ef4444; }
 .doc-note { font-size: 0.8rem; color: var(--color-muted); font-style: italic; margin: var(--space-1) 0; }
 .doc-date { font-size: 0.75rem; color: var(--color-muted); margin-top: var(--space-1); }
+
+/* ── Sprint 65: 4-tab nav — Activity (unified history) ──────────────────── */
+.activity-section { text-align: left; }
+.activity-filter { display: flex; gap: var(--space-2); margin: var(--space-3) 0 var(--space-4); }
+.activity-chip { background: var(--color-surface); border: 1px solid var(--color-border); color: var(--color-muted); border-radius: 999px; padding: var(--space-1) var(--space-4); font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+.activity-chip.active { background: var(--color-accent-strong); border-color: var(--color-accent-strong); color: #fff; }
+.activity-group { margin-bottom: var(--space-5); }
+.activity-group-title { font-size: 0.95rem; font-weight: 700; color: var(--color-fg); margin: 0 0 var(--space-2); }
+
+/* ── Sprint 65: 4-tab nav — Account (grouped secondary items) ───────────── */
+.account-section { text-align: left; }
+.account-menu { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-3); }
+.account-menu-row { display: flex; align-items: center; gap: var(--space-3); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); cursor: pointer; text-align: left; transition: all 0.15s; }
+.account-menu-row:hover { border-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 6%, var(--color-surface)); }
+.account-menu-icon { font-size: 1.2rem; }
+.account-menu-label { flex: 1; font-size: 0.95rem; font-weight: 600; color: var(--color-fg); }
+.account-menu-chevron { font-size: 1.1rem; color: var(--color-muted); }
+.account-sub { text-align: left; }
+.account-back-btn { background: none; border: none; color: var(--color-accent); font-size: 0.9rem; font-weight: 600; cursor: pointer; padding: 0; margin-bottom: var(--space-3); }
