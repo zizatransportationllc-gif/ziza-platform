@@ -1,12 +1,14 @@
 /**
  * AppNavigator — React Navigation stack for mobile-driver.
- * Sprint 28 — Application mobile driver
+ * Sprint 65 — 4-tab navigation: MainScreen hosts the Dispatch / Earnings /
+ * Activity / Account tabs; the screens below are pushed on top as details.
  */
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
-import DispatchScreen from "../screens/DispatchScreen";
+import MainScreen from "../screens/MainScreen";
+import AccountScreen from "../screens/AccountScreen";
 import ActiveTripScreen from "../screens/ActiveTripScreen";
 import LocationScreen from "../screens/LocationScreen";
 import EarningsScreen from "../screens/EarningsScreen";
@@ -17,7 +19,9 @@ import VehicleScreen from "../screens/VehicleScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
 
 export type RootStackParamList = {
+  Main: undefined;
   Dispatch: undefined;
+  Account: undefined;
   ActiveTrip: { tripId: string };
   Location: undefined;
   Earnings: undefined;
@@ -34,12 +38,17 @@ export default function AppNavigator(): React.ReactElement {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        screenOptions={{ headerStyle: { backgroundColor: "#1D4ED8" } }}
+        screenOptions={{ headerStyle: { backgroundColor: "#1D4ED8" }, headerTintColor: "#fff" }}
       >
         <Stack.Screen
-          name="Dispatch"
-          component={DispatchScreen}
-          options={{ title: "Ziza Driver — Missions" }}
+          name="Main"
+          component={MainScreen}
+          options={{ title: "Ziza Driver" }}
+        />
+        <Stack.Screen
+          name="Account"
+          component={AccountScreen}
+          options={{ title: "Account" }}
         />
         <Stack.Screen
           name="ActiveTrip"

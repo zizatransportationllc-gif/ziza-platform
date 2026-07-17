@@ -1476,18 +1476,62 @@ function NotificationsSection({ token, onRead }) {
 // Dashboard
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Account section — Sprint 65: secondary items grouped under one tab
+// ---------------------------------------------------------------------------
+
+function CraftAccountSection({ token, profile, onProfileUpdated, profStatus, sub, onSub }) {
+  const needsDocs = profStatus === "pending_docs";
+  const ITEMS = [
+    { key: "profile",   icon: "👤", label: "Profile" },
+    { key: "skills",    icon: "🎯", label: "Skills" },
+    { key: "documents", icon: "📄", label: "Documents", badge: needsDocs },
+  ];
+
+  if (sub) {
+    return (
+      <div className="account-sub">
+        <button className="account-back-btn" onClick={() => onSub(null)}>← Account</button>
+        {sub === "profile"   && <ProfileSection token={token} profile={profile} onProfileUpdated={onProfileUpdated} />}
+        {sub === "skills"    && <SkillsSection token={token} profile={profile} onProfileUpdated={onProfileUpdated} />}
+        {sub === "documents" && <DocumentsSection token={token} profStatus={profStatus} />}
+      </div>
+    );
+  }
+
+  return (
+    <div className="account-section">
+      <h2 className="section-title">👤 Account</h2>
+      <div className="account-menu">
+        {ITEMS.map((it) => (
+          <button key={it.key} className="account-menu-row" onClick={() => onSub(it.key)}>
+            <span className="account-menu-icon">{it.icon}</span>
+            <span className="account-menu-label">{it.label}</span>
+            {it.badge && <span className="account-menu-badge" title="Action required">!</span>}
+            <span className="account-menu-chevron">›</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Dashboard({ user, token, onLogout }) {
   const [profile, setProfile] = useState(null);
   const [profStatus, setProfStatus] = useState("pending_docs"); // Sprint 54 — safe default: lock until profile confirmed
   const [isOnline, setIsOnline] = useState(false);
   const [togglingOnline, setTogglingOnline] = useState(false);
-  const [tab, setTab] = useState("requests");
+  const [tab, setTab] = useState("requests"); // "requests" | "earnings" | "bids" | "account" | "notifications"
+  const [accountSub, setAccountSub] = useState(null); // sub-screen within Account
   const [unreadCount, setUnreadCount] = useState(0);
   const [initialized, setInitialized] = useState(false);
 
   const refreshUnread = useCallback(() => {
     getUnreadCount(token).then((d) => setUnreadCount(d.count)).catch(() => {});
   }, [token]);
+
+  // Jump to Account → Documents (used by the KYC pending banner).
+  const goToDocs = useCallback(() => { setAccountSub("documents"); setTab("account"); }, []);
 
   useEffect(() => {
     Promise.all([
@@ -1554,40 +1598,22 @@ function Dashboard({ user, token, onLogout }) {
           🛠️ Requests
         </button>
         <button
+          className={`craft-tab ${tab === "earnings" ? "active" : ""}`}
+          onClick={() => setTab("earnings")}
+        >
+          💰 Earnings
+        </button>
+        <button
           className={`craft-tab ${tab === "bids" ? "active" : ""}`}
           onClick={() => setTab("bids")}
         >
           📋 My Bids
         </button>
         <button
-          className={`craft-tab ${tab === "profile" ? "active" : ""}`}
-          onClick={() => setTab("profile")}
+          className={`craft-tab ${tab === "account" ? "active" : ""}`}
+          onClick={() => { setAccountSub(null); setTab("account"); }}
         >
-          👤 Profile
-        </button>
-        <button
-          className={`craft-tab ${tab === "skills" ? "active" : ""}`}
-          onClick={() => setTab("skills")}
-        >
-          🎯 Skills
-        </button>
-        <button
-          className={`craft-tab ${tab === "documents" ? "active" : ""}`}
-          onClick={() => setTab("documents")}
-        >
-          📄 Documents
-        </button>
-        <button
-          className={`craft-tab ${tab === "withdrawals" ? "active" : ""}`}
-          onClick={() => setTab("withdrawals")}
-        >
-          💰 Withdrawals
-        </button>
-        <button
-          className={`craft-tab ${tab === "notifications" ? "active" : ""}`}
-          onClick={() => setTab("notifications")}
-        >
-          🔔{unreadCount > 0 && <span className="tab-badge-sm">{unreadCount}</span>}
+          👤 Account
         </button>
       </div>
 
@@ -1599,8 +1625,8 @@ function Dashboard({ user, token, onLogout }) {
             <strong>Account pending verification</strong>
             <p>Submit your professional documents below. Access to client requests will be unlocked once an admin approves your documents.</p>
           </div>
-          {tab !== "documents" && (
-            <button className="btn-kyc-docs" onClick={() => setTab("documents")}>📄 Submit Documents →</button>
+          {accountSub !== "documents" && (
+            <button className="btn-kyc-docs" onClick={goToDocs}>📄 Submit Documents →</button>
           )}
         </div>
       )}
@@ -1616,14 +1642,21 @@ function Dashboard({ user, token, onLogout }) {
           <OpenRequestsSection token={token} isOnline={isOnline} />
         )
       )}
+      {tab === "earnings"      && <WithdrawalsSection token={token} />}
       {tab === "bids"          && <MyBidsSection token={token} />}
-      {tab === "profile"       && <ProfileSection token={token} profile={profile} onProfileUpdated={(p) => { setProfile(p); setIsOnline(p.is_online); }} />}
-      {tab === "skills"        && <SkillsSection token={token} profile={profile} onProfileUpdated={(p) => { setProfile(p); }} />}
-      {tab === "documents"     && <DocumentsSection token={token} profStatus={profStatus} />}
-      {tab === "withdrawals"   && <WithdrawalsSection token={token} />}
+      {tab === "account"       && (
+        <CraftAccountSection
+          token={token}
+          profile={profile}
+          onProfileUpdated={(p) => { setProfile(p); setIsOnline(p.is_online); }}
+          profStatus={profStatus}
+          sub={accountSub}
+          onSub={setAccountSub}
+        />
+      )}
       {tab === "notifications" && <NotificationsSection token={token} onRead={refreshUnread} />}
 
-      <p className="footer">App: <strong>web-craft</strong> · Sprint 64 — Profile Fields</p>
+      <p className="footer">App: <strong>web-craft</strong> · Sprint 65 — 4-Tab Navigation</p>
     </div>
   );
 }

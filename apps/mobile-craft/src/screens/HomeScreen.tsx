@@ -133,9 +133,9 @@ export default function HomeScreen(): React.ReactElement {
           </Text>
           <Text
             style={styles.kycLink}
-            onPress={() => navigation.navigate("Profile")}
+            onPress={() => navigation.navigate("Documents")}
           >
-            📄 Go to Profile → Documents →
+            📄 Submit Documents →
           </Text>
         </View>
       </View>
@@ -154,28 +154,6 @@ export default function HomeScreen(): React.ReactElement {
           onValueChange={handleToggleOnline}
           trackColor={{ true: "#059669" }}
         />
-      </View>
-
-      {/* Nav row */}
-      <View style={styles.navRow}>
-        <TouchableOpacity
-          style={styles.navBtn}
-          onPress={() => navigation.navigate("MyBids")}
-        >
-          <Text style={styles.navBtnText}>My Bids</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navBtn}
-          onPress={() => navigation.navigate("Profile")}
-        >
-          <Text style={styles.navBtnText}>Profile</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navBtn}
-          onPress={() => navigation.navigate("Withdrawals")}
-        >
-          <Text style={styles.navBtnText}>💰 Withdraw</Text>
-        </TouchableOpacity>
       </View>
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -223,24 +201,6 @@ const styles = StyleSheet.create({
     borderBottomColor: "#E5E7EB",
   },
   onlineLabel: { fontSize: 16, fontWeight: "600" },
-  navRow: {
-    flexDirection: "row",
-    gap: 8,
-    padding: 10,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-  },
-  navBtn: {
-    flex: 1,
-    backgroundColor: "#ECFDF5",
-    borderRadius: 8,
-    padding: 10,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#A7F3D0",
-  },
-  navBtnText: { color: "#059669", fontWeight: "600", fontSize: 14 },
   list: { padding: 12 },
   card: {
     backgroundColor: "#fff",
