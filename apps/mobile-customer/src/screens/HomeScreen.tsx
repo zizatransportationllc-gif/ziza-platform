@@ -204,41 +204,7 @@ export default function HomeScreen(): React.ReactElement {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.topRow}>
-        <Text style={styles.heading}>Book a Ride</Text>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          <TouchableOpacity
-            style={styles.walletBtn}
-            onPress={() => navigation.navigate("PaymentMethods")}
-          >
-            <Text style={styles.walletBtnText}>💳 Payment</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
-
-      {/* Sprint 47 — Ziza Craft entry point */}
-      <View style={styles.craftCard}>
-        <Text style={styles.craftTitle}>🔧 Assistance — Roadside Help</Text>
-        <Text style={styles.craftSubtitle}>
-          Breakdown, flat tire, towing, lockout, battery…
-          Post your situation and professionals bid to assist you.
-        </Text>
-        <View style={styles.craftButtons}>
-          <TouchableOpacity
-            style={styles.craftBtn}
-            onPress={() => navigation.navigate("CraftRequest")}
-          >
-            <Text style={styles.craftBtnText}>+ Post a Request</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.craftBtn, styles.craftBtnOutline]}
-            onPress={() => navigation.navigate("MyCraftRequests")}
-          >
-            <Text style={[styles.craftBtnText, styles.craftBtnTextOutline]}>My Requests</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
 
       {/* ── Pickup location ───────────────────────────────── */}
       <View style={styles.locationCard}>
@@ -357,17 +323,6 @@ export default function HomeScreen(): React.ReactElement {
 
 const styles = StyleSheet.create({
   container: { padding: 20 },
-  topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  heading: { fontSize: 22, fontWeight: "bold" },
-  walletBtn: {
-    backgroundColor: "#FFF7ED",
-    borderWidth: 1,
-    borderColor: "#FED7AA",
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  walletBtnText: { color: "#C2410C", fontWeight: "700", fontSize: 13 },
   error: { color: "#EF4444", marginBottom: 8, fontSize: 13 },
   hintText: { textAlign: "center", color: "#9CA3AF", fontSize: 12, marginTop: 4 },
 
@@ -444,27 +399,4 @@ const styles = StyleSheet.create({
   },
   price: { fontSize: 28, fontWeight: "bold", color: "#F97316", textAlign: "center" },
   detail: { textAlign: "center", color: "#6B7280", marginBottom: 12 },
-
-  // Sprint 47 — Ziza Craft
-  craftCard: {
-    backgroundColor: "#ECFDF5",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#A7F3D0",
-  },
-  craftTitle: { fontSize: 16, fontWeight: "700", color: "#059669", marginBottom: 4 },
-  craftSubtitle: { fontSize: 13, color: "#374151", marginBottom: 12 },
-  craftButtons: { flexDirection: "row", gap: 8 },
-  craftBtn: {
-    flex: 1,
-    backgroundColor: "#059669",
-    borderRadius: 8,
-    padding: 10,
-    alignItems: "center",
-  },
-  craftBtnOutline: { backgroundColor: "transparent", borderWidth: 1, borderColor: "#059669" },
-  craftBtnText: { color: "#fff", fontWeight: "600", fontSize: 13 },
-  craftBtnTextOutline: { color: "#059669" },
 });

@@ -148,7 +148,7 @@ export default function PaymentScreen(): React.ReactElement {
         )}
         <TouchableOpacity
           style={styles.doneButton}
-          onPress={() => navigation.navigate("Home")}
+          onPress={() => navigation.navigate("Main")}
         >
           <Text style={styles.doneText}>Back to home</Text>
         </TouchableOpacity>

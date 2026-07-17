@@ -523,6 +523,62 @@ export async function reverseGeocode(
 }
 
 // ---------------------------------------------------------------------------
+// Saved places — Sprint 65 (parity with web-customer)
+// ---------------------------------------------------------------------------
+
+export interface SavedPlace {
+  place_id: string;
+  label: string; // "home" | "work" | "other"
+  name: string;
+  lat: number;
+  lng: number;
+  created_at: string;
+}
+
+export async function listSavedPlaces(token: string): Promise<SavedPlace[]> {
+  const res = await fetch(`${API_BASE}/v1/places`, { headers: _auth(token) });
+  return _json<SavedPlace[]>(res);
+}
+
+export async function createSavedPlace(
+  token: string,
+  label: string,
+  name: string,
+  lat: number,
+  lng: number
+): Promise<SavedPlace> {
+  const res = await fetch(`${API_BASE}/v1/places`, {
+    method: "POST",
+    headers: { ..._auth(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ label, name, lat, lng }),
+  });
+  return _json<SavedPlace>(res);
+}
+
+export async function updateSavedPlace(
+  token: string,
+  placeId: string,
+  fields: { label?: string; name?: string; lat?: number; lng?: number }
+): Promise<SavedPlace> {
+  const res = await fetch(`${API_BASE}/v1/places/${placeId}`, {
+    method: "PATCH",
+    headers: { ..._auth(token), "Content-Type": "application/json" },
+    body: JSON.stringify(fields),
+  });
+  return _json<SavedPlace>(res);
+}
+
+export async function deleteSavedPlace(token: string, placeId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/v1/places/${placeId}`, {
+    method: "DELETE",
+    headers: _auth(token),
+  });
+  if (!res.ok && res.status !== 204) {
+    throw new ApiError(res.status, `Delete place error (${res.status})`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Geo — Sprint 45: zone coverage check
 // ---------------------------------------------------------------------------
 
