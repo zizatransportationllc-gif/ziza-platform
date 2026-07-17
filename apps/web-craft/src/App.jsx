@@ -14,7 +14,7 @@ import {
   registerDeviceToken,
   formatUSD,
 } from "./api";
-import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, sendPasswordReset, firebaseSignOut } from "./auth";
+import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, sendPasswordReset, resendVerification, changeEmail, firebaseSignOut } from "./auth";
 import NavigationView from "./NavigationView";
 
 const REQUIRED_ROLE = "professional";
@@ -95,7 +95,7 @@ function PasswordInput({ value, onChange, placeholder, required }) {
   );
 }
 
-function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
+function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, notice, loading }) {
   const [tab, setTab] = useState("signin");
   // Sign-in fields
   const [email, setEmail] = useState("professional@ziza.dev");
@@ -155,6 +155,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
             <button type="button" className="link-btn" onClick={handleForgot}>Forgot password?</button>
           )}
           {resetMsg && <p className="hint">{resetMsg}</p>}
+          {notice && <p className="verify-notice">{notice}</p>}
           {error && <p className="form-error">{error}</p>}
           <p className="hint">Dev: professional@ziza.dev / ziza2024</p>
         </>
@@ -170,6 +171,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
             <input type="tel" value={suPhone} onChange={(e) => setSuPhone(e.target.value)} placeholder="Phone number" />
             <button type="submit" disabled={loading}>{loading ? "Creating account…" : "Join as Professional"}</button>
           </form>
+          {notice && <p className="verify-notice">{notice}</p>}
           {(suError || error) && <p className="form-error">{suError || error}</p>}
           <p className="hint">After sign-up, complete your professional profile to receive service requests.</p>
         </>
@@ -901,6 +903,59 @@ function BankAccountForm({ token }) {
   );
 }
 
+// Sprint 67 — change the account e-mail via Firebase (verify-before-update).
+function ChangeEmailBox() {
+  const [open, setOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [err, setErr] = useState(null);
+
+  if (!firebaseEnabled) return null;
+
+  async function submit(e) {
+    e.preventDefault();
+    setErr(null); setMsg(null);
+    if (!newEmail.trim()) { setErr("Enter a new email."); return; }
+    setBusy(true);
+    try {
+      await changeEmail(newEmail.trim());
+      setMsg(`Confirmation link sent to ${newEmail.trim()}. Click it, then sign in again with your new email.`);
+      setNewEmail(""); setOpen(false);
+    } catch (e2) {
+      setErr(e2.message || "Could not change email.");
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div style={{ margin: "6px 0 14px" }}>
+      {!open ? (
+        <button type="button" className="link-btn" style={{ width: "auto" }} onClick={() => { setOpen(true); setMsg(null); setErr(null); }}>
+          ✉️ Change email
+        </button>
+      ) : (
+        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <input
+            type="email" placeholder="New email address" value={newEmail} required
+            onChange={(e) => setNewEmail(e.target.value)}
+            style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-fg)" }}
+          />
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="submit" disabled={busy} style={{ background: "var(--color-accent-strong)", color: "#fff", border: "none", borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontWeight: 600 }}>
+              {busy ? "…" : "Send confirmation"}
+            </button>
+            <button type="button" onClick={() => setOpen(false)} disabled={busy} style={{ background: "transparent", border: "1px solid var(--color-border)", borderRadius: 8, padding: "8px 12px", cursor: "pointer", color: "var(--color-fg)" }}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+      {msg && <p className="verify-notice">{msg}</p>}
+      {err && <p className="form-error">{err}</p>}
+    </div>
+  );
+}
+
 function ProfileSection({ token, profile, onProfileUpdated }) {
   const [bio, setBio] = useState(profile?.bio ?? "");
   const [saving, setSaving] = useState(false);
@@ -993,6 +1048,7 @@ function ProfileSection({ token, profile, onProfileUpdated }) {
           </label>
         </div>
         {me && <p style={{ fontSize: 13, opacity: 0.8, marginTop: -6 }}>✉️ {me.email} · {me.role}</p>}
+        <ChangeEmailBox />
         <form className="profile-form" onSubmit={handleSavePersonal}>
           <label>First name</label>
           <input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} maxLength={64} placeholder="First name" />
@@ -1744,6 +1800,7 @@ export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
   const [user, setUser] = useState(null);
   const [loginError, setLoginError] = useState(null);
+  const [loginNotice, setLoginNotice] = useState(null);
   const [loginLoading, setLoginLoading] = useState(false);
 
   useEffect(() => {
@@ -1775,20 +1832,32 @@ export default function App() {
     }).catch(() => {});
   }, [user]);
 
+  // When the backend refuses an unverified e-mail (prod gate), surface a
+  // friendly "verify your e-mail" notice instead of a raw error. (Sprint 67)
+  async function handleUnverified(email, { resend }) {
+    if (resend) { try { await resendVerification(); } catch (_) { /* best effort */ } }
+    await firebaseSignOut();
+    setLoginError(null);
+    setLoginNotice(`Please verify your email. We sent a link to ${email} — click it, then sign in.`);
+  }
+
   async function handleLogin(email, password) {
-    setLoginLoading(true); setLoginError(null);
+    setLoginLoading(true); setLoginError(null); setLoginNotice(null);
     try {
       const { access_token } = firebaseEnabled
         ? await exchangeFirebaseToken(await signInEmail(email, password))
         : await login(email, password);
       localStorage.setItem(TOKEN_KEY, access_token);
       setToken(access_token);
-    } catch (e) { setLoginError(e.message); }
+    } catch (e) {
+      if (e.message === "EMAIL_NOT_VERIFIED") return handleUnverified(email, { resend: true });
+      setLoginError(e.message);
+    }
     finally { setLoginLoading(false); }
   }
 
   async function handleGoogleLogin() {
-    setLoginLoading(true); setLoginError(null);
+    setLoginLoading(true); setLoginError(null); setLoginNotice(null);
     try {
       const idToken = await signInWithGoogle();
       const { access_token } = await exchangeFirebaseToken(idToken);
@@ -1799,14 +1868,17 @@ export default function App() {
   }
 
   async function handleSignup(email, password, firstName, lastName, birthDate, phone) {
-    setLoginLoading(true); setLoginError(null);
+    setLoginLoading(true); setLoginError(null); setLoginNotice(null);
     try {
       const { access_token } = firebaseEnabled
         ? await exchangeFirebaseToken(await signUpEmail(email, password), { firstName, lastName, birthDate, phone })
         : await signup(email, password, firstName, lastName, birthDate, phone || null);
       localStorage.setItem(TOKEN_KEY, access_token);
       setToken(access_token);
-    } catch (e) { setLoginError(e.message); }
+    } catch (e) {
+      if (e.message === "EMAIL_NOT_VERIFIED") return handleUnverified(email, { resend: false });
+      setLoginError(e.message);
+    }
     finally { setLoginLoading(false); }
   }
 
@@ -1817,7 +1889,7 @@ export default function App() {
     setUser(null);
   }
 
-  if (!token) return <LoginForm onEmailLogin={handleLogin} onGoogleLogin={handleGoogleLogin} onSignup={handleSignup} error={loginError} loading={loginLoading} />;
+  if (!token) return <LoginForm onEmailLogin={handleLogin} onGoogleLogin={handleGoogleLogin} onSignup={handleSignup} error={loginError} notice={loginNotice} loading={loginLoading} />;
   // Stripe Connect onboarding redirect targets (see settings.connect_app_base_pro).
   const path = window.location.pathname;
   if (path === "/payouts/return" || path === "/payouts/refresh") {

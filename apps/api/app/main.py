@@ -549,6 +549,27 @@ async def auth_firebase(
                 first_name=body.first_name, last_name=body.last_name,
                 date_of_birth=body.date_of_birth, phone=body.phone, name=body.name,
             )
+    elif identity.email and identity.email != user.email and identity.email_verified:
+        # The e-mail on the Firebase account changed (verifyBeforeUpdateEmail)
+        # and Firebase has verified the new address — sync it into the Ziza
+        # account, guarding against taking over another user's e-mail. (Sprint 67)
+        collision = await crud.get_user_by_email(db, identity.email)
+        if collision is not None and collision.user_id != user.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email already in use by another account",
+            )
+        user = await crud.update_user_email(db, user.user_id, identity.email)
+
+    # E-mail verification gate — mandatory in prod (see settings). The user is
+    # already persisted above (so profile fields entered at signup are kept); we
+    # simply refuse to issue a session until Firebase confirms the e-mail. The
+    # client surfaces this as a "verify your e-mail" prompt. (Sprint 67)
+    if settings.require_email_verification and not identity.email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="EMAIL_NOT_VERIFIED",
+        )
 
     from app.auth.dev_adapter import DevAdapter  # noqa: PLC0415
     access_token = DevAdapter().issue_raw(user.email, user.user_id, user.role)

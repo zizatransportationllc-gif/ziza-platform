@@ -16,7 +16,7 @@ import {
   Alert,
 } from "react-native";
 import { login as apiLogin, signup as apiSignup, exchangeFirebaseToken as apiExchangeFirebase } from "../api";
-import { firebaseEnabled, signInEmail, signUpEmail, sendPasswordReset } from "../auth";
+import { firebaseEnabled, signInEmail, signUpEmail, sendPasswordReset, resendVerification, firebaseSignOut } from "../auth";
 import { useAuth } from "../context/AuthContext";
 
 // Password field with a "Show password" checkbox (toggles visibility).
@@ -71,16 +71,28 @@ export default function LoginScreen(): React.ReactElement {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  // When the backend refuses an unverified e-mail (prod gate), show a friendly
+  // "verify your e-mail" notice instead of a raw error. (Sprint 67)
+  const handleUnverified = async (addr: string, resend: boolean) => {
+    if (resend) { try { await resendVerification(); } catch (_) { /* best effort */ } }
+    await firebaseSignOut();
+    setError(null);
+    setNotice(`Please verify your email. We sent a link to ${addr} — tap it, then sign in.`);
+  };
 
   const handleLogin = async () => {
     setLoading(true);
     setError(null);
+    setNotice(null);
     try {
       const data = firebaseEnabled
         ? await apiExchangeFirebase(await signInEmail(email, password))
         : await apiLogin(email, password);
       await login(data.access_token, data.refresh_token ?? null);
     } catch (e: any) {
+      if (e.message === "EMAIL_NOT_VERIFIED") { await handleUnverified(email.trim(), true); return; }
       setError(e.message || "Login failed");
     } finally {
       setLoading(false);
@@ -106,12 +118,14 @@ export default function LoginScreen(): React.ReactElement {
     if (suPassword.length < 6) { setError("Password must be at least 6 characters"); return; }
     if (suPassword !== suConfirm) { setError("Passwords do not match"); return; }
     setLoading(true);
+    setNotice(null);
     try {
       const data = firebaseEnabled
         ? await apiExchangeFirebase(await signUpEmail(suEmail.trim(), suPassword), { firstName: suFirstName.trim(), lastName: suLastName.trim(), birthDate: suBirthDate.trim(), phone: suPhone || null })
         : await apiSignup(suEmail.trim(), suPassword, suFirstName.trim(), suLastName.trim(), suBirthDate.trim(), suPhone || null);
       await login(data.access_token, data.refresh_token ?? null);
     } catch (e: any) {
+      if (e.message === "EMAIL_NOT_VERIFIED") { await handleUnverified(suEmail.trim(), false); return; }
       setError(e.message || "Sign-up failed");
     } finally {
       setLoading(false);
@@ -143,6 +157,7 @@ export default function LoginScreen(): React.ReactElement {
           </TouchableOpacity>
         </View>
 
+        {notice ? <Text style={styles.notice}>{notice}</Text> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         {tab === "signin" ? (
@@ -219,6 +234,7 @@ const styles = StyleSheet.create({
   },
   buttonText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
   error: { color: "red", textAlign: "center", marginBottom: 12, fontSize: 14 },
+  notice: { color: "#065f46", backgroundColor: "#ECFDF5", borderWidth: 1, borderColor: "#A7F3D0", borderRadius: 8, padding: 10, textAlign: "center", marginBottom: 12, fontSize: 13 },
   hint: { fontSize: 12, color: "#aaa", textAlign: "center", marginTop: 12 },
   forgot: { fontSize: 13, color: "#059669", textAlign: "center", marginTop: 12, textDecorationLine: "underline" },
 });

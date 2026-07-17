@@ -384,6 +384,20 @@ async def create_firebase_user(
     return user
 
 
+async def update_user_email(db: AsyncSession, user_id: str, new_email: str) -> User:
+    """Update a user's e-mail — used to sync a Firebase-verified e-mail change
+    (verifyBeforeUpdateEmail) back into the Ziza account. Callers must guard
+    against collisions before calling this. (Sprint 67)
+    """
+    user = await _get_user_by_auth_id(db, user_id)
+    if user is None:
+        raise ValueError("user not found")
+    user.email = new_email
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
 async def list_local_users(db: AsyncSession) -> list[User]:
     """Return all bcrypt-backed local accounts (provider='local' with a hash).
 
