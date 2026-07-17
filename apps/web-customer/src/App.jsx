@@ -19,7 +19,7 @@ import {
   submitDocument, listMyDocuments, // Sprint 53
   createSetupIntent, listPaymentMethods, deletePaymentMethod, setDefaultPaymentMethod, // Sprint 73 — saved cards
 } from "./api";
-import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, sendPasswordReset, firebaseSignOut } from "./auth";
+import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, sendPasswordReset, resendVerification, changeEmail, firebaseSignOut } from "./auth";
 import { EstimateMap, TripMap } from "./TripMap";
 
 const REQUIRED_ROLE = "customer";
@@ -119,7 +119,7 @@ function PasswordInput({ value, onChange, placeholder, required }) {
   );
 }
 
-function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
+function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, notice, loading }) {
   const [tab, setTab] = useState("signin");
   // Sign-in fields
   const [email, setEmail] = useState("customer@ziza.dev");
@@ -179,6 +179,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
             <button type="button" className="link-btn" onClick={handleForgot}>Forgot password?</button>
           )}
           {resetMsg && <p className="hint">{resetMsg}</p>}
+          {notice && <p className="verify-notice">{notice}</p>}
           {error && <p className="form-error">{error}</p>}
           <p className="hint">Dev: customer@ziza.dev / ziza2024</p>
         </>
@@ -194,6 +195,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, loading }) {
             <input type="tel" value={suPhone} onChange={(e) => setSuPhone(e.target.value)} placeholder="Phone number (optional)" />
             <button type="submit" disabled={loading}>{loading ? "Creating account…" : "Create Account"}</button>
           </form>
+          {notice && <p className="verify-notice">{notice}</p>}
           {(suError || error) && <p className="form-error">{suError || error}</p>}
         </>
       )}
@@ -1227,6 +1229,54 @@ function BankAccountForm({ token }) {
   );
 }
 
+// Sprint 67 — change the account e-mail via Firebase (verify-before-update).
+function ChangeEmailBox() {
+  const [open, setOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [err, setErr] = useState(null);
+
+  if (!firebaseEnabled) return null;
+
+  async function submit(e) {
+    e.preventDefault();
+    setErr(null); setMsg(null);
+    if (!newEmail.trim()) { setErr("Enter a new email."); return; }
+    setBusy(true);
+    try {
+      await changeEmail(newEmail.trim());
+      setMsg(`Confirmation link sent to ${newEmail.trim()}. Click it, then sign in again with your new email.`);
+      setNewEmail(""); setOpen(false);
+    } catch (e2) {
+      setErr(e2.message || "Could not change email.");
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="change-email-box">
+      {!open ? (
+        <button type="button" className="link-btn" onClick={() => { setOpen(true); setMsg(null); setErr(null); }}>
+          ✉️ Change email
+        </button>
+      ) : (
+        <form className="change-email-form" onSubmit={submit}>
+          <input
+            className="profile-input" type="email" placeholder="New email address"
+            value={newEmail} onChange={(e) => setNewEmail(e.target.value)} required
+          />
+          <div className="change-email-actions">
+            <button type="submit" className="place-save-btn" disabled={busy}>{busy ? "…" : "Send confirmation"}</button>
+            <button type="button" className="place-cancel-btn" onClick={() => setOpen(false)} disabled={busy}>Cancel</button>
+          </div>
+        </form>
+      )}
+      {msg && <p className="verify-notice">{msg}</p>}
+      {err && <p className="form-error">{err}</p>}
+    </div>
+  );
+}
+
 function ProfileSection({ token }) {
   const [profile, setProfile] = useState(null);
   const [firstName, setFirstName] = useState("");
@@ -1329,6 +1379,7 @@ function ProfileSection({ token }) {
           <span className="profile-role">{profile.role}</span>
         </div>
       )}
+      <ChangeEmailBox />
       <form className="profile-form" onSubmit={handleSave}>
         <label className="profile-label">
           <span>First name</span>
@@ -2731,6 +2782,7 @@ export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
   const [user, setUser] = useState(null);
   const [loginError, setLoginError] = useState(null);
+  const [loginNotice, setLoginNotice] = useState(null);
   const [loginLoading, setLoginLoading] = useState(false);
 
   useEffect(() => {
@@ -2766,8 +2818,17 @@ export default function App() {
     }).catch(() => {});
   }, [user]);
 
+  // When the backend refuses an unverified e-mail (prod gate), surface a
+  // friendly "verify your e-mail" notice instead of a raw error. (Sprint 67)
+  async function handleUnverified(email, { resend }) {
+    if (resend) { try { await resendVerification(); } catch (_) { /* best effort */ } }
+    await firebaseSignOut();
+    setLoginError(null);
+    setLoginNotice(`Please verify your email. We sent a link to ${email} — click it, then sign in.`);
+  }
+
   async function handleEmailLogin(email, password) {
-    setLoginLoading(true); setLoginError(null);
+    setLoginLoading(true); setLoginError(null); setLoginNotice(null);
     try {
       // Firebase identity when configured; /v1/token fallback for local dev.
       const { access_token } = firebaseEnabled
@@ -2775,12 +2836,15 @@ export default function App() {
         : await login(email, password);
       localStorage.setItem(TOKEN_KEY, access_token);
       setToken(access_token);
-    } catch (e) { setLoginError(e.message); }
+    } catch (e) {
+      if (e.message === "EMAIL_NOT_VERIFIED") return handleUnverified(email, { resend: true });
+      setLoginError(e.message);
+    }
     finally { setLoginLoading(false); }
   }
 
   async function handleGoogleLogin() {
-    setLoginLoading(true); setLoginError(null);
+    setLoginLoading(true); setLoginError(null); setLoginNotice(null);
     try {
       const idToken = await signInWithGoogle();
       const { access_token } = await exchangeFirebaseToken(idToken);
@@ -2791,14 +2855,17 @@ export default function App() {
   }
 
   async function handleSignup(email, password, firstName, lastName, birthDate, phone) {
-    setLoginLoading(true); setLoginError(null);
+    setLoginLoading(true); setLoginError(null); setLoginNotice(null);
     try {
       const { access_token } = firebaseEnabled
         ? await exchangeFirebaseToken(await signUpEmail(email, password), { firstName, lastName, birthDate, phone })
         : await signup(email, password, firstName, lastName, birthDate, phone || null);
       localStorage.setItem(TOKEN_KEY, access_token);
       setToken(access_token);
-    } catch (e) { setLoginError(e.message); }
+    } catch (e) {
+      if (e.message === "EMAIL_NOT_VERIFIED") return handleUnverified(email, { resend: false });
+      setLoginError(e.message);
+    }
     finally { setLoginLoading(false); }
   }
 
@@ -2807,7 +2874,7 @@ export default function App() {
     localStorage.removeItem(TOKEN_KEY); setToken(null); setUser(null);
   }
 
-  if (!token) return <LoginForm onEmailLogin={handleEmailLogin} onGoogleLogin={handleGoogleLogin} onSignup={handleSignup} error={loginError} loading={loginLoading} />;
+  if (!token) return <LoginForm onEmailLogin={handleEmailLogin} onGoogleLogin={handleGoogleLogin} onSignup={handleSignup} error={loginError} notice={loginNotice} loading={loginLoading} />;
   if (!user)  return <div className="app"><div className="status loading">⏳ Loading…</div></div>;
   if (user.role !== REQUIRED_ROLE) return <AccessDenied role={user.role} onLogout={handleLogout} />;
   return <Dashboard user={user} token={token} onLogout={handleLogout} />;

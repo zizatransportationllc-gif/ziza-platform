@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 from app.main import app
 from app.auth.base import Claims
+from app.config import settings
 import app.auth.firebase_adapter as fb
 
 client = TestClient(app)
@@ -93,3 +94,55 @@ def test_verified_email_links_existing_account(monkeypatch):
     me2 = _me(r2.json()["access_token"])
     assert me2["user_id"] == "fb_A"
     assert me2["role"] == "driver"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 67 — e-mail verification gate (prod-only) + verified e-mail change sync
+# ---------------------------------------------------------------------------
+
+def test_email_verification_gate_blocks_unverified(monkeypatch):
+    # Simulate prod: verification is mandatory.
+    monkeypatch.setattr(settings, "require_email_verification", True)
+    _install(monkeypatch, uid="fb_ev1", email="ev1@x.io", verified=False)
+    r = client.post("/v1/auth/firebase", json={"id_token": "t", "role": "customer"})
+    assert r.status_code == 403
+    assert r.json()["detail"] == "EMAIL_NOT_VERIFIED"
+    # The account is still persisted; once the same uid's e-mail is verified, the
+    # exchange succeeds (profile fields entered at signup are preserved).
+    _install(monkeypatch, uid="fb_ev1", email="ev1@x.io", verified=True)
+    r2 = client.post("/v1/auth/firebase", json={"id_token": "t", "role": "customer"})
+    assert r2.status_code == 200
+    assert _me(r2.json()["access_token"])["user_id"] == "fb_ev1"
+
+
+def test_unverified_allowed_when_not_required(monkeypatch):
+    # Default (dev/CI): verification off → unverified e-mail logs in fine.
+    monkeypatch.setattr(settings, "require_email_verification", False)
+    _install(monkeypatch, uid="fb_ev2", email="ev2@x.io", verified=False)
+    r = client.post("/v1/auth/firebase", json={"id_token": "t", "role": "customer"})
+    assert r.status_code == 200
+
+
+def test_verified_email_change_syncs(monkeypatch):
+    _install(monkeypatch, uid="fb_ec1", email="old-ec1@x.io", verified=True)
+    r1 = client.post("/v1/auth/firebase", json={"id_token": "t", "role": "customer"})
+    assert r1.status_code == 200
+    assert _me(r1.json()["access_token"])["email"] == "old-ec1@x.io"
+    # Same uid, new VERIFIED e-mail (verifyBeforeUpdateEmail) → DB syncs.
+    _install(monkeypatch, uid="fb_ec1", email="new-ec1@x.io", verified=True)
+    r2 = client.post("/v1/auth/firebase", json={"id_token": "t", "role": "customer"})
+    assert r2.status_code == 200
+    assert _me(r2.json()["access_token"])["email"] == "new-ec1@x.io"
+
+
+def test_email_change_collision_rejected(monkeypatch):
+    _install(monkeypatch, uid="fb_ecA", email="taken-ec@x.io", verified=True)
+    assert client.post("/v1/auth/firebase",
+                       json={"id_token": "t", "role": "customer"}).status_code == 200
+    _install(monkeypatch, uid="fb_ecB", email="own-ec@x.io", verified=True)
+    assert client.post("/v1/auth/firebase",
+                       json={"id_token": "t", "role": "customer"}).status_code == 200
+    # B tries to change to A's e-mail → conflict.
+    _install(monkeypatch, uid="fb_ecB", email="taken-ec@x.io", verified=True)
+    r = client.post("/v1/auth/firebase", json={"id_token": "t", "role": "customer"})
+    assert r.status_code == 409

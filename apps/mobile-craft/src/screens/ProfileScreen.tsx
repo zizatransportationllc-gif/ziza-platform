@@ -23,6 +23,7 @@ import {
   UserProfile, BankAccountInfo,
 } from "../api";
 import { RootStackParamList } from "../navigation/AppNavigator";
+import { firebaseEnabled, changeEmail } from "../auth";
 
 const CAT_LABELS: Record<string, string> = {
   breakdown:   "🔧 Breakdown",
@@ -51,6 +52,23 @@ function AccountSection({ token }: { token: string }): React.ReactElement {
   const [acctType, setAcctType] = useState("checking");
   const [savingBank, setSavingBank] = useState(false);
   const [bankMsg, setBankMsg] = useState<string | null>(null);
+  // Sprint 67 — change e-mail (Firebase verify-before-update)
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailMsg, setEmailMsg] = useState<string | null>(null);
+
+  const submitEmailChange = async () => {
+    if (!newEmail.trim()) { setEmailMsg("Enter a new email."); return; }
+    setEmailBusy(true); setEmailMsg(null);
+    try {
+      await changeEmail(newEmail.trim());
+      setEmailMsg(`Confirmation link sent to ${newEmail.trim()}. Tap it, then sign in again.`);
+      setNewEmail(""); setEmailOpen(false);
+    } catch (e: any) {
+      setEmailMsg(e?.message || "Could not change email.");
+    } finally { setEmailBusy(false); }
+  };
 
   const load = useCallback(() => {
     getProfile(token).then(setMe).catch(() => {});
@@ -101,6 +119,32 @@ function AccountSection({ token }: { token: string }): React.ReactElement {
           <Text style={{ color: ACCENT, fontWeight: "700" }}>{avatarBusy ? "Uploading…" : "📷 Change photo"}</Text>
         </TouchableOpacity>
       </View>
+
+      <Text style={styles.sectionTitle}>✉️ Email</Text>
+      {me?.email ? <Text style={acc.onFile}>{me.email}</Text> : null}
+      {firebaseEnabled && (
+        emailOpen ? (
+          <>
+            <TextInput
+              style={styles.input} value={newEmail} onChangeText={setNewEmail}
+              placeholder="New email address" autoCapitalize="none" keyboardType="email-address"
+            />
+            <View style={acc.typeRow}>
+              <TouchableOpacity style={[styles.saveBtn, { flex: 1 }, emailBusy && styles.saveBtnDisabled]} onPress={submitEmailChange} disabled={emailBusy}>
+                <Text style={styles.saveBtnText}>{emailBusy ? "…" : "Send confirmation"}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[acc.typeBtn, { flex: 1 }]} onPress={() => { setEmailOpen(false); setEmailMsg(null); }} disabled={emailBusy}>
+                <Text style={acc.typeTxt}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          <TouchableOpacity onPress={() => { setEmailOpen(true); setEmailMsg(null); }} style={{ marginBottom: 16 }}>
+            <Text style={{ color: ACCENT, fontWeight: "700" }}>✉️ Change email</Text>
+          </TouchableOpacity>
+        )
+      )}
+      {emailMsg && <Text style={styles.successText}>{emailMsg}</Text>}
 
       <Text style={styles.sectionTitle}>🏦 Payout bank account</Text>
       {bank && <Text style={acc.onFile}>On file: {bank.account_holder_name} · ****{bank.account_number_last4} ({bank.account_type})</Text>}

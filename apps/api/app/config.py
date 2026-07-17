@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     firebase_project_id: str = ""
 
+    # When True, POST /v1/auth/firebase refuses to issue a session for an
+    # account whose e-mail Firebase has not verified. Forced True in prod
+    # (see model_post_init) so verification is mandatory there; left False
+    # elsewhere so local/dev/CI testing is never blocked. (Sprint 67)
+    require_email_verification: bool = False
+
     # ------------------------------------------------------------------
     # Pricing — base currency: USD, amounts in integer cents (Sprint 66)
     # ------------------------------------------------------------------
@@ -257,6 +263,8 @@ class Settings(BaseSettings):
                 raise ValueError("JWT_SECRET must be at least 32 characters in prod")
             if not self.firebase_project_id:
                 raise ValueError("FIREBASE_PROJECT_ID is required in prod")
+            # E-mail verification is mandatory in prod, regardless of env override.
+            self.require_email_verification = True
 
 
 settings = Settings()

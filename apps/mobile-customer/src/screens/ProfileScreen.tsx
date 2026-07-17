@@ -13,6 +13,7 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "../context/AuthContext";
 import { RootStackParamList } from "../navigation/AppNavigator";
+import { firebaseEnabled, changeEmail } from "../auth";
 import {
   getProfile, updateProfile, avatarUploadUrl, getBankAccount, setBankAccount, reverseGeocode,
   UserProfile, BankAccountInfo,
@@ -55,6 +56,23 @@ function AccountSection({ token }: { token: string }): React.ReactElement {
   const [msg, setMsg] = useState<string | null>(null);
   const [homeAddress, setHomeAddress] = useState("");
   const [homeBusy, setHomeBusy] = useState(false);
+  // Sprint 67 — change e-mail (Firebase verify-before-update)
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailMsg, setEmailMsg] = useState<string | null>(null);
+
+  const submitEmailChange = async () => {
+    if (!newEmail.trim()) { setEmailMsg("Enter a new email."); return; }
+    setEmailBusy(true); setEmailMsg(null);
+    try {
+      await changeEmail(newEmail.trim());
+      setEmailMsg(`Confirmation link sent to ${newEmail.trim()}. Tap it, then sign in again.`);
+      setNewEmail(""); setEmailOpen(false);
+    } catch (e: any) {
+      setEmailMsg(e?.message || "Could not change email.");
+    } finally { setEmailBusy(false); }
+  };
 
   const load = useCallback(() => {
     getProfile(token).then((p) => { setProfile(p); setHomeAddress(p.home_address || ""); }).catch(() => {});
@@ -125,6 +143,32 @@ function AccountSection({ token }: { token: string }): React.ReactElement {
           <Text style={[styles.changePhoto, { color: ACCENT }]}>{avatarBusy ? "Uploading…" : "📷 Change photo"}</Text>
         </TouchableOpacity>
       </View>
+
+      <Text style={styles.sectionTitle}>✉️ Email</Text>
+      {profile?.email ? <Text style={styles.onFile}>{profile.email}</Text> : null}
+      {firebaseEnabled && (
+        emailOpen ? (
+          <>
+            <TextInput
+              style={styles.input} value={newEmail} onChangeText={setNewEmail}
+              placeholder="New email address" autoCapitalize="none" keyboardType="email-address"
+            />
+            <View style={styles.typeRow}>
+              <TouchableOpacity style={[styles.saveBtn, { flex: 1 }, emailBusy && { opacity: 0.6 }]} onPress={submitEmailChange} disabled={emailBusy}>
+                <Text style={styles.saveTxt}>{emailBusy ? "…" : "Send confirmation"}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.typeBtn, { flex: 1 }]} onPress={() => { setEmailOpen(false); setEmailMsg(null); }} disabled={emailBusy}>
+                <Text style={styles.typeTxt}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          <TouchableOpacity onPress={() => { setEmailOpen(true); setEmailMsg(null); }}>
+            <Text style={[styles.changePhoto, { color: ACCENT }]}>✉️ Change email</Text>
+          </TouchableOpacity>
+        )
+      )}
+      {emailMsg && <Text style={styles.msg}>{emailMsg}</Text>}
 
       <Text style={styles.sectionTitle}>🏠 Home address</Text>
       <TextInput style={styles.input} value={homeAddress} onChangeText={setHomeAddress} placeholder="Your home address" />

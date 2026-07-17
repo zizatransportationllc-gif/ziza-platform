@@ -31,12 +31,33 @@ export async function signInWithGoogle() {
   return result.user.getIdToken();
 }
 
-/** Create a Firebase account with email/password. Returns the Firebase ID token. */
+/** Create a Firebase account with email/password. Sends a verification e-mail
+ *  (Sprint 67) and returns the Firebase ID token. */
 export async function signUpEmail(email, password) {
-  const { createUserWithEmailAndPassword } = await import("firebase/auth");
+  const { createUserWithEmailAndPassword, sendEmailVerification } = await import("firebase/auth");
   const auth = await getFirebaseAuth();
   const cred = await createUserWithEmailAndPassword(auth, email, password);
+  try { await sendEmailVerification(cred.user); } catch (_) { /* non-blocking */ }
   return cred.user.getIdToken();
+}
+
+/** Resend the verification e-mail to the currently signed-in Firebase user. */
+export async function resendVerification() {
+  const { sendEmailVerification } = await import("firebase/auth");
+  const auth = await getFirebaseAuth();
+  if (auth.currentUser) {
+    try { await sendEmailVerification(auth.currentUser); } catch (_) { /* non-blocking */ }
+  }
+}
+
+/** Change the account e-mail (Sprint 67). Firebase sends a confirmation link to
+ *  the NEW address; the change only applies once the user clicks it, after which
+ *  the backend syncs the Ziza account on the next token exchange. */
+export async function changeEmail(newEmail) {
+  const { verifyBeforeUpdateEmail } = await import("firebase/auth");
+  const auth = await getFirebaseAuth();
+  if (!auth.currentUser) throw new Error("Please sign in again to change your email.");
+  await verifyBeforeUpdateEmail(auth.currentUser, newEmail);
 }
 
 /** Sign in with an existing Firebase email/password. Returns the Firebase ID token. */
