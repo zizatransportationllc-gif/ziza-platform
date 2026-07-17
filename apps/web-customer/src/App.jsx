@@ -33,6 +33,20 @@ const DRIVER_APP_URL = import.meta.env.VITE_DRIVER_URL || "http://localhost:3002
 const PLACE_LABEL_ICONS = { home: "🏠", work: "💼", other: "📍" };
 const PLACE_LABEL_NAMES = { home: "Home", work: "Work", other: "Other" };
 
+// NJ landmark areas — used to prefill coordinates in the saved-places form.
+const NJ_LOCATIONS = {
+  "Newark": { lat: 40.7357, lng: -74.1724 },
+  "Jersey City": { lat: 40.7178, lng: -74.0431 },
+  "Hoboken": { lat: 40.7439, lng: -74.0324 },
+  "Elizabeth": { lat: 40.6639, lng: -74.2107 },
+  "Paterson": { lat: 40.9168, lng: -74.1718 },
+  "Edison": { lat: 40.5187, lng: -74.4121 },
+  "New Brunswick": { lat: 40.4862, lng: -74.4518 },
+  "Trenton": { lat: 40.2171, lng: -74.7429 },
+  "Atlantic City": { lat: 39.3643, lng: -74.4229 },
+};
+const LOCATION_NAMES = Object.keys(NJ_LOCATIONS);
+
 // Sprint 21 — vehicle category constants
 const CATEGORY_ICONS  = { economy: "🚗", comfort: "🚙", premium: "🏎️" };
 const CATEGORY_ORDER  = ["economy", "comfort", "premium"];
