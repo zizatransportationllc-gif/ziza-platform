@@ -18,6 +18,7 @@ import {
   registerDeviceToken,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, sendPasswordReset, resendVerification, changeEmail, firebaseSignOut } from "./auth";
+import Icon from "./Icon";
 import DriverMap from "./DriverMap";
 import NavigationView from "./NavigationView";
 import { reverseGeocode } from "./geo";
@@ -1681,7 +1682,7 @@ function Dashboard({ user, token, onLogout }) {
             onClick={() => setTab("notifications")}
             title="Notifications"
           >
-            🔔{unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}
+            <Icon name="bell" size={20} />{unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}
           </button>
           <button className="logout-btn" onClick={onLogout}>Sign Out</button>
         </div>
@@ -1714,25 +1715,25 @@ function Dashboard({ user, token, onLogout }) {
               className={`driver-tab ${tab === "dispatch" ? "active" : ""}`}
               onClick={() => setTab("dispatch")}
             >
-              🚕 Dispatch
+              <Icon name="dispatch" /> Dispatch
             </button>
             <button
               className={`driver-tab ${tab === "earnings" ? "active" : ""}`}
               onClick={() => setTab("earnings")}
             >
-              💰 Earnings
+              <Icon name="earnings" /> Earnings
             </button>
             <button
               className={`driver-tab ${tab === "activity" ? "active" : ""}`}
               onClick={() => setTab("activity")}
             >
-              📋 Activity
+              <Icon name="activity" /> Activity
             </button>
             <button
               className={`driver-tab ${tab === "account" ? "active" : ""}`}
               onClick={() => { setAccountSub(null); setTab("account"); }}
             >
-              👤 Account
+              <Icon name="account" /> Account
             </button>
           </div>
 
