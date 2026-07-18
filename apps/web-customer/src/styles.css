@@ -642,3 +642,12 @@ html, body {
 .change-email-box { margin: var(--space-2) 0 var(--space-3); text-align: left; }
 .change-email-form { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); }
 .change-email-actions { display: flex; gap: var(--space-2); }
+
+/* ── Sprint 67: dispatch-console typography — money, ETAs & codes in mono ── */
+.fare-amount, .history-fare, .craft-bid-price, .eta-time, .fare-original,
+.active-fare {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.verify-code-value { font-variant-numeric: tabular-nums; }
