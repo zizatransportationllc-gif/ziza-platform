@@ -523,6 +523,11 @@ html, body {
 .craft-request-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-2); flex-wrap: wrap; gap: var(--space-1); }
 .craft-cat-chip { display: inline-block; background: color-mix(in srgb, var(--color-accent) 12%, transparent); color: var(--color-accent); font-size: 0.72rem; font-weight: 700; padding: 2px var(--space-2); border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em; }
 .craft-status-badge { font-size: 0.78rem; color: var(--color-muted); font-weight: 600; }
+/* Status → semantic color (replaces the old status emoji) */
+.cs-pending { color: var(--color-muted); }
+.cs-active  { color: var(--color-accent); }
+.cs-ok      { color: var(--color-success); }
+.cs-crit    { color: var(--color-error); }
 .craft-request-desc { font-size: 0.9rem; color: var(--color-fg); margin-bottom: var(--space-2); line-height: 1.4; }
 .craft-meta { font-size: 0.8rem; color: var(--color-muted); margin-bottom: var(--space-1); }
 .craft-deadline { font-size: 0.78rem; color: #f59e0b; margin-bottom: var(--space-1); }
