@@ -1354,7 +1354,7 @@ function BankAccountForm({ token }) {
           </select>
         </label>
         {err && <p className="form-error">{err}</p>}
-        {msg && <p style={{ color: "#059669", fontWeight: 600 }}>{msg}</p>}
+        {msg && <p style={{ color: "var(--color-success)", fontWeight: 600 }}>{msg}</p>}
         <button type="submit" className="btn-primary" disabled={saving}>{saving ? "Saving…" : "Save bank account"}</button>
       </form>
     </div>
@@ -1510,7 +1510,7 @@ function ProfileSection({ token }) {
           <input style={inStyle} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={32} placeholder="+1 (201) 555-0000" />
         </label>
         {error && <p className="form-error">{error}</p>}
-        {success && <p style={{ color: "#059669", fontWeight: 600 }}>✓ Profile updated</p>}
+        {success && <p style={{ color: "var(--color-success)", fontWeight: 600 }}>✓ Profile updated</p>}
         <button type="submit" className="btn-primary" disabled={saving} style={{ marginTop: 4 }}>
           {saving ? "Saving…" : "Save"}
         </button>
