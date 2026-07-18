@@ -24,17 +24,23 @@ import {
 } from "../api";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { firebaseEnabled, changeEmail } from "../auth";
+import Icon from "../components/Icon";
 
 const CAT_LABELS: Record<string, string> = {
-  breakdown:   "🔧 Breakdown",
-  flat_tyre:   "🔴 Flat Tire",
-  tow:         "🚛 Towing",
-  fuel:        "⛽ Out of Fuel",
-  lockout:     "🔑 Lockout",
-  battery:     "🔋 Dead Battery",
-  accident:    "🚨 Post-Accident",
-  diagnostics: "🔍 Diagnostics",
-  other:       "🛠️ Other",
+  breakdown:   "Breakdown",
+  flat_tyre:   "Flat Tire",
+  tow:         "Towing",
+  fuel:        "Out of Fuel",
+  lockout:     "Lockout",
+  battery:     "Dead Battery",
+  accident:    "Post-Accident",
+  diagnostics: "Diagnostics",
+  other:       "Other",
+};
+const CAT_ICON: Record<string, string> = {
+  breakdown: "requests", flat_tyre: "tire", tow: "tow", fuel: "fuel",
+  lockout: "lock", battery: "battery", accident: "alert",
+  diagnostics: "search", other: "requests",
 };
 import { useAuth } from "../context/AuthContext";
 
@@ -267,6 +273,7 @@ export default function ProfileScreen(): React.ReactElement {
             style={[styles.catChip, specialties.has(cat) && styles.catChipSelected]}
             onPress={() => toggleSpecialty(cat)}
           >
+            <Icon name={CAT_ICON[cat] ?? "requests"} size={15} color={specialties.has(cat) ? "#1D4ED8" : "#374151"} />
             <Text style={[styles.catChipText, specialties.has(cat) && styles.catChipTextSelected]}>
               {CAT_LABELS[cat] ?? cat}
             </Text>
@@ -341,6 +348,9 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontWeight: "700", color: "#374151", marginBottom: 10 },
   categories: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
   catChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
     backgroundColor: "#F3F4F6",
     borderRadius: 20,
     paddingHorizontal: 12,
