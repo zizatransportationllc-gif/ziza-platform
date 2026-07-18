@@ -18,6 +18,7 @@ import {
 import { login as apiLogin, signup as apiSignup, exchangeFirebaseToken as apiExchangeFirebase } from "../api";
 import { firebaseEnabled, signInEmail, signUpEmail, sendPasswordReset, resendVerification, firebaseSignOut } from "../auth";
 import { useAuth } from "../context/AuthContext";
+import ZizaCraftLogo from "../components/ZizaCraftLogo";
 
 // Password field with a "Show password" checkbox (toggles visibility).
 function PasswordField({
@@ -138,7 +139,9 @@ export default function LoginScreen(): React.ReactElement {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>Ziza Craft</Text>
+        <View style={styles.logoWrapper}>
+          <ZizaCraftLogo size={80} />
+        </View>
         <Text style={styles.subtitle}>Sprint 64 — Profile Fields</Text>
 
         {/* Tab bar */}
@@ -197,6 +200,7 @@ export default function LoginScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
   scroll: { flexGrow: 1, justifyContent: "center", padding: 24 },
+  logoWrapper: { alignItems: "center", marginBottom: 12 },
   title: {
     fontSize: 28,
     fontWeight: "bold",

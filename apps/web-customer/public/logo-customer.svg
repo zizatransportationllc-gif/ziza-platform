@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Ziza Customer logo">
   <title>Ziza Customer — Normal</title>
-  <rect width="512" height="512" rx="96" fill="#0F2A5F"/>
-  <!-- Z rouge -->
-  <path d="M 130 150 L 382 150 L 382 196 L 215 362 L 382 362 L 382 408 L 130 408 L 130 362 L 297 196 L 130 196 Z" fill="#E63946"/>
-  <!-- Pin jaune encore agrandi -->
+  <rect width="512" height="512" rx="96" fill="#111922"/>
+  <!-- Z — rescue red (brand) -->
+  <path d="M 130 150 L 382 150 L 382 196 L 215 362 L 382 362 L 382 408 L 130 408 L 130 362 L 297 196 L 130 196 Z" fill="#E01F2D"/>
+  <!-- Pin — rescue blue (brand) -->
   <g transform="translate(390,100)">
-    <path d="M 0 -78 C -46 -78 -82 -42 -82 4 C -82 60 0 140 0 140 C 0 140 82 60 82 4 C 82 -42 46 -78 0 -78 Z" fill="#FBBF24" stroke="#0F2A5F" stroke-width="8"/>
-    <circle cx="0" cy="4" r="24" fill="#0F2A5F"/>
+    <path d="M 0 -78 C -46 -78 -82 -42 -82 4 C -82 60 0 140 0 140 C 0 140 82 60 82 4 C 82 -42 46 -78 0 -78 Z" fill="#1D4ED8" stroke="#111922" stroke-width="8"/>
+    <circle cx="0" cy="4" r="24" fill="#111922"/>
   </g>
 </svg>
