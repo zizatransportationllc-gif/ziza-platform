@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
   driverAddr: { fontSize: 13, color: "#374151", marginBottom: 8 },
   codeCard: { alignItems: "center", backgroundColor: "#EEF3FE", borderWidth: 1, borderColor: "#1D4ED8", borderStyle: "dashed", borderRadius: 10, paddingVertical: 12, marginBottom: 10 },
   codeLabel: { fontSize: 11, fontWeight: "700", color: "#1E40AF", letterSpacing: 1 },
-  codeValue: { fontSize: 30, fontWeight: "800", letterSpacing: 8, color: "#111827" },
+  codeValue: { fontSize: 30, fontWeight: "800", letterSpacing: 8, color: "#111827", fontVariant: ["tabular-nums"] },
   codeHint: { fontSize: 12, color: "#6B7280" },
   payButton: {
     backgroundColor: "#16A34A",

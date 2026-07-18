@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 4,
   },
-  price: { fontWeight: "bold", fontSize: 16 },
+  price: { fontWeight: "bold", fontSize: 16, fontVariant: ["tabular-nums"] },
   status: { fontWeight: "600", fontSize: 14 },
   date: { color: "#9CA3AF", fontSize: 13 },
   paidBadge: {

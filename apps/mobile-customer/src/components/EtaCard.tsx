@@ -27,5 +27,5 @@ const styles = StyleSheet.create({
     marginVertical: 8,
   },
   label: { fontSize: 13, color: "#6B7280" },
-  eta: { fontSize: 28, fontWeight: "bold", color: "#1D4ED8" },
+  eta: { fontSize: 28, fontWeight: "bold", color: "#1D4ED8", fontVariant: ["tabular-nums"] },
 });
