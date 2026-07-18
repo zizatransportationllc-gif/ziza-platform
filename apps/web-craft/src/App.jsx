@@ -15,6 +15,7 @@ import {
   formatUSD,
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, sendPasswordReset, resendVerification, changeEmail, firebaseSignOut } from "./auth";
+import Icon from "./Icon";
 import NavigationView from "./NavigationView";
 
 const REQUIRED_ROLE = "professional";
@@ -1624,7 +1625,7 @@ function Dashboard({ user, token, onLogout }) {
             onClick={() => setTab("notifications")}
             title="Notifications"
           >
-            🔔{unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}
+            <Icon name="bell" size={20} />{unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}
           </button>
           <button className="logout-btn" onClick={onLogout}>Sign Out</button>
         </div>
@@ -1650,25 +1651,25 @@ function Dashboard({ user, token, onLogout }) {
           className={`craft-tab ${tab === "requests" ? "active" : ""}`}
           onClick={() => setTab("requests")}
         >
-          🛠️ Requests
+          <Icon name="requests" /> Requests
         </button>
         <button
           className={`craft-tab ${tab === "earnings" ? "active" : ""}`}
           onClick={() => setTab("earnings")}
         >
-          💰 Earnings
+          <Icon name="earnings" /> Earnings
         </button>
         <button
           className={`craft-tab ${tab === "bids" ? "active" : ""}`}
           onClick={() => setTab("bids")}
         >
-          📋 My Bids
+          <Icon name="bids" /> My Bids
         </button>
         <button
           className={`craft-tab ${tab === "account" ? "active" : ""}`}
           onClick={() => { setAccountSub(null); setTab("account"); }}
         >
-          👤 Account
+          <Icon name="account" /> Account
         </button>
       </div>
 
