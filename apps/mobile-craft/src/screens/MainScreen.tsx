@@ -15,15 +15,16 @@ import HomeScreen from "./HomeScreen";
 import WithdrawalsScreen from "./WithdrawalsScreen";
 import MyBidsScreen from "./MyBidsScreen";
 import AccountScreen from "./AccountScreen";
+import Icon from "../components/Icon";
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "Main">;
 type Tab = "requests" | "earnings" | "bids" | "account";
 
 const TABS: { key: Tab; icon: string; label: string; title: string }[] = [
-  { key: "requests", icon: "🛠️", label: "Requests", title: "Nearby Requests" },
-  { key: "earnings", icon: "💰", label: "Earnings", title: "Earnings" },
-  { key: "bids", icon: "📋", label: "My Bids", title: "My Bids" },
-  { key: "account", icon: "👤", label: "Account", title: "Account" },
+  { key: "requests", icon: "requests", label: "Requests", title: "Nearby Requests" },
+  { key: "earnings", icon: "earnings", label: "Earnings", title: "Earnings" },
+  { key: "bids", icon: "bids", label: "My Bids", title: "My Bids" },
+  { key: "account", icon: "account", label: "Account", title: "Account" },
 ];
 
 const ACCENT = "#1D4ED8";
@@ -53,7 +54,7 @@ export default function MainScreen(): React.ReactElement {
           const isActive = t.key === tab;
           return (
             <TouchableOpacity key={t.key} style={styles.tabItem} onPress={() => setTab(t.key)}>
-              <Text style={[styles.tabIcon, isActive && styles.tabIconActive]}>{t.icon}</Text>
+              <Icon name={t.icon} size={22} color={isActive ? ACCENT : "#9CA3AF"} />
               <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>{t.label}</Text>
             </TouchableOpacity>
           );
