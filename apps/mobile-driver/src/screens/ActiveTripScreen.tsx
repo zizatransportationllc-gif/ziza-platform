@@ -187,7 +187,7 @@ export default function ActiveTripScreen(): React.ReactElement {
       <Text style={styles.navHint}>Optional — opens an external maps app. Your trip steps stay here.</Text>
 
       {token && (status === "accepted" || status === "arrived" || status === "in_progress") && (
-        <ChatPanel token={token} tripId={tripId} accent="#2563EB" />
+        <ChatPanel token={token} tripId={tripId} accent="#1D4ED8" />
       )}
     </ScrollView>
   );
