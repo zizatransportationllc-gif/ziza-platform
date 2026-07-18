@@ -1979,6 +1979,20 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
 
   const canSelect = ["open", "bidding_closed"].includes(request.status);
   const isActive = ["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status);
+  const acceptedBid = bids.find((b) => b.status === "accepted") || null;
+
+  // Short "where is my pro" line keyed off the job status — the roadside
+  // north-star is time-to-help, so surface the ETA while they're en route.
+  function proStatusLine() {
+    switch (request.status) {
+      case "assigned":    return acceptedBid ? `🚗 On the way — ~${acceptedBid.eta_min} min away` : "🚗 On the way";
+      case "arrived":     return "📍 On site";
+      case "in_progress":
+      case "pro_done":    return "🔧 Working on it";
+      case "completed":   return "✅ Job done";
+      default:            return null;
+    }
+  }
 
   return (
     <div className="craft-detail">
@@ -1992,6 +2006,17 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
 
       {/* Progress timeline once a professional is assigned */}
       {isActive && <CraftStatusTimeline status={request.status} />}
+
+      {/* Assigned-professional summary — agreed price + live "where are they" */}
+      {isActive && acceptedBid && (
+        <div className="craft-pro-card">
+          <div className="craft-pro-head">
+            <span className="craft-pro-title">Your professional</span>
+            <span className="craft-pro-price">{formatUSD(acceptedBid.price_cents)}</span>
+          </div>
+          <span className="craft-pro-status">{proStatusLine()}</span>
+        </div>
+      )}
 
       {/* Shared verification code once a professional is assigned */}
       {isActive && request.verification_code && (

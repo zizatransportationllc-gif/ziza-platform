@@ -286,6 +286,24 @@ export default function BidsScreen(): React.ReactElement {
           {["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status) && (
             <StatusTimeline status={request.status} />
           )}
+          {(() => {
+            const accepted = bids.find((b) => b.status === "accepted");
+            if (!accepted || !["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status)) return null;
+            const line =
+              request.status === "assigned" ? `🚗 On the way — ~${accepted.eta_min} min away`
+              : request.status === "arrived" ? "📍 On site"
+              : request.status === "completed" ? "✅ Job done"
+              : "🔧 Working on it";
+            return (
+              <View style={styles.proCard}>
+                <View style={styles.proHead}>
+                  <Text style={styles.proTitle}>YOUR PROFESSIONAL</Text>
+                  <Text style={styles.proPrice}>{formatUSD(accepted.price_cents)}</Text>
+                </View>
+                <Text style={styles.proStatus}>{line}</Text>
+              </View>
+            );
+          })()}
           {request.verification_code &&
             ["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status) && (
               <View style={styles.codeCard}>
@@ -365,6 +383,14 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   requestDesc: { fontSize: 14, color: "#374151" },
+  proCard: {
+    marginTop: 12, backgroundColor: "#F9FAFB", borderWidth: 1, borderColor: "#E5E7EB",
+    borderRadius: 8, padding: 10,
+  },
+  proHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
+  proTitle: { fontSize: 11, fontWeight: "700", color: "#6B7280", letterSpacing: 0.4 },
+  proPrice: { fontSize: 18, fontWeight: "700", color: "#111827", fontVariant: ["tabular-nums"] },
+  proStatus: { marginTop: 2, fontSize: 14, fontWeight: "600", color: "#1D4ED8" },
   codeCard: { marginTop: 10, backgroundColor: "#EEF3FE", borderWidth: 1, borderColor: "#C7D7F7", borderRadius: 8, padding: 10, alignItems: "center" },
   codeLabel: { fontSize: 11, color: "#1E40AF", fontWeight: "600" },
   codeValue: { fontSize: 24, fontWeight: "800", letterSpacing: 6, color: "#1D4ED8", fontVariant: ["tabular-nums"] },
