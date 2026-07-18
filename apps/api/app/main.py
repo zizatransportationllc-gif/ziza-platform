@@ -5200,6 +5200,41 @@ async def craft_get_request(
     return CraftRequestResponse(**_craft_request_to_dict(req))
 
 
+class CraftTrackingResponse(BaseModel):
+    """Live position of the assigned professional for an active assistance job."""
+
+    request_id: str
+    status: str
+    pro_lat: float
+    pro_lng: float
+    distance_km: float
+    eta_min: int
+
+
+@app.get(
+    "/v1/craft/requests/{request_id}/tracking",
+    response_model=CraftTrackingResponse,
+    summary="Customer polls the assigned professional's live position",
+)
+async def craft_get_tracking(
+    request_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CraftTrackingResponse:
+    """Customer tracks the assigned professional coming to them (polling).
+
+    Returns the pro's latest GPS position and a fresh ETA to the customer.
+    404 while the pro has not pushed any position yet (client retries).
+    """
+    if claims.role != "customer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only customers can track a request",
+        )
+    data = await crud.get_craft_tracking(db, claims, request_id)
+    return CraftTrackingResponse(**data)
+
+
 @app.post(
     "/v1/craft/requests/{request_id}/cancel",
     response_model=CraftRequestResponse,

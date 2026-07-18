@@ -5954,6 +5954,77 @@ async def get_craft_request(
     return req
 
 
+async def get_craft_tracking(
+    db: AsyncSession,
+    claims: Claims,
+    request_id: str,
+) -> dict:
+    """Live position of the assigned professional for an active assistance job.
+
+    Mirrors the ride ``get_trip_tracking`` endpoint. Only the customer who owns
+    the request may call it, and only while the job is active (a professional is
+    assigned and on the way / on site). The professional travels *to* the
+    customer, so the ETA is always computed against the request location.
+
+    Returns ``{request_id, status, pro_lat, pro_lng, distance_km, eta_min}``.
+    Raises 404 when the professional has not pushed a live position yet — the
+    customer app should keep polling.
+    """
+    try:
+        rid = uuid.UUID(request_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid request_id format",
+        )
+
+    user = await _get_user_by_auth_id(db, claims.user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    req = await db.scalar(select(CraftRequest).where(CraftRequest.id == rid))
+    if req is None or req.customer_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Craft request not found")
+
+    if req.status not in ("assigned", "arrived", "in_progress"):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Request is not active",
+        )
+
+    if req.selected_bid_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No professional assigned yet",
+        )
+
+    bid = await db.scalar(select(CraftBid).where(CraftBid.id == req.selected_bid_id))
+    prof = (
+        await db.scalar(select(Professional).where(Professional.id == bid.professional_id))
+        if bid is not None
+        else None
+    )
+    p_lat = getattr(prof, "current_lat", None) if prof else None
+    p_lng = getattr(prof, "current_lng", None) if prof else None
+    if p_lat is None or p_lng is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Professional location not available yet",
+        )
+
+    distance_km = round(_haversine_km(p_lat, p_lng, req.lat, req.lng), 2)
+    eta_min = max(1, round((distance_km / CITY_SPEED_KMH) * 60))
+
+    return {
+        "request_id": str(req.id),
+        "status": req.status,
+        "pro_lat": p_lat,
+        "pro_lng": p_lng,
+        "distance_km": distance_km,
+        "eta_min": eta_min,
+    }
+
+
 async def list_open_craft_requests(
     db: AsyncSession,
     lat: float,
