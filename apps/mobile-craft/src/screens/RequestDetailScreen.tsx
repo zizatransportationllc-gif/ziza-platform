@@ -7,7 +7,7 @@
  *   - A form to submit their bid (price in USD, ETA in minutes, optional note)
  *   - Their GPS position is captured at bid time for distance calculation
  */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -33,6 +33,7 @@ import {
   reverseGeocode,
   listCraftPhotos,
   uploadCraftPhoto,
+  updateProfessionalProfile,
   CraftRequest,
   CraftPhoto,
   formatUSD,
@@ -167,6 +168,17 @@ export default function RequestDetailScreen(): React.ReactElement {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [request?.status]);
+
+  // Publish the pro's live position to the backend so the customer can track
+  // them (throttled to ~10s to spare the network / battery).
+  const lastPushRef = useRef(0);
+  const publishPosition = useCallback((lat: number, lng: number) => {
+    if (!token) return;
+    const now = Date.now();
+    if (now - lastPushRef.current < 10000) return;
+    lastPushRef.current = now;
+    updateProfessionalProfile(token, { current_lat: lat, current_lng: lng }).catch(() => {});
+  }, [token]);
 
   const addPhoto = async (kind: "before" | "after") => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
@@ -325,7 +337,7 @@ export default function RequestDetailScreen(): React.ReactElement {
       {/* In-app navigation window — follows the pro to the customer (winning pro only) */}
       {canManage && ["assigned", "arrived", "in_progress"].includes(request.status) && (
         <View style={styles.navWrap}>
-          <NavigationView targetLat={request.lat} targetLng={request.lng} label="Customer" />
+          <NavigationView targetLat={request.lat} targetLng={request.lng} label="Customer" onPosition={publishPosition} />
           {/* Optional external navigation — opens a maps app; the in-app window stays here. */}
           <TouchableOpacity
             style={styles.navBtnSecondary}

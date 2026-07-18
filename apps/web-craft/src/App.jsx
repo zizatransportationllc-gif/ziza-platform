@@ -384,6 +384,17 @@ function RequestDetail({ token, requestId, onBack, canManage = false }) {
     finally { setActionBusy(false); }
   }
 
+  // Publish the pro's live position to the backend so the customer can track
+  // them (throttled to ~10s to spare the network).
+  const lastPushRef = useRef(0);
+  const publishPosition = useCallback((lat, lng) => {
+    if (!token) return;
+    const now = Date.now();
+    if (now - lastPushRef.current < 10000) return;
+    lastPushRef.current = now;
+    updateMyProfile(token, { current_lat: lat, current_lng: lng }).catch(() => {});
+  }, [token]);
+
   if (loading) return <div className="status loading">⏳ Loading request…</div>;
   if (error)   return <p className="form-error">{error}</p>;
   if (!request) return null;
@@ -434,7 +445,7 @@ function RequestDetail({ token, requestId, onBack, canManage = false }) {
       {/* In-app navigation window — follows the pro to the customer */}
       {canManage && ["assigned", "arrived", "in_progress"].includes(request.status) && (
         <>
-          <NavigationView target={{ lat: request.lat, lng: request.lng }} label="Customer" />
+          <NavigationView target={{ lat: request.lat, lng: request.lng }} label="Customer" onPosition={publishPosition} />
           {/* Optional external navigation — opens a maps app; the in-app window stays here. */}
           <a
             className="craft-nav-btn craft-nav-btn-secondary"

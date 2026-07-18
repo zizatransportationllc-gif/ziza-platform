@@ -14,6 +14,10 @@ interface Props {
   targetLat: number;
   targetLng: number;
   label?: string; // shown in the banner, e.g. "Customer"
+  // Called on every fresh GPS fix so the parent can publish the position to the
+  // backend (the customer tracks the pro live). Kept out of this component so it
+  // stays free of api/token concerns.
+  onPosition?: (lat: number, lng: number) => void;
 }
 
 interface LatLng {
@@ -57,11 +61,13 @@ async function fetchRoute(
   }
 }
 
-export default function NavigationView({ targetLat, targetLng, label = "Customer" }: Props): React.ReactElement {
+export default function NavigationView({ targetLat, targetLng, label = "Customer", onPosition }: Props): React.ReactElement {
   const mapRef = useRef<MapView | null>(null);
   const [pro, setPro] = useState<LatLng | null>(null);
   const [route, setRoute] = useState<{ coords: LatLng[]; distanceM: number; durationS: number } | null>(null);
   const lastFetchPos = useRef<LatLng | null>(null);
+  const onPositionRef = useRef(onPosition);
+  onPositionRef.current = onPosition;
 
   // Watch the pro's live position (foreground) for following + route origin.
   useEffect(() => {
@@ -72,7 +78,10 @@ export default function NavigationView({ targetLat, targetLng, label = "Customer
       if (status !== "granted" || !active) return;
       sub = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.High, timeInterval: 4000, distanceInterval: 15 },
-        (pos) => setPro({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+        (pos) => {
+          setPro({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+          onPositionRef.current?.(pos.coords.latitude, pos.coords.longitude);
+        },
       );
     })();
     return () => { active = false; sub?.remove(); };

@@ -35,12 +35,18 @@ function metersBetween(a, b) {
  * Props:
  *   target: { lat, lng }    the customer's location (required)
  *   label:  string          shown in the banner, e.g. "Customer"
+ *   onPosition: (lat, lng) => void
+ *          called on each GPS fix so the parent can publish the pro's live
+ *          position to the backend (the customer tracks the pro). Kept out of
+ *          this component so it stays free of api/token concerns.
  */
-export default function NavigationView({ target, label = "Customer" }) {
+export default function NavigationView({ target, label = "Customer", onPosition }) {
   const mapRef = useRef(null);
   const [pro, setPro] = useState(null);            // { lat, lng }
   const [route, setRoute] = useState(null);        // { coords, distanceM, durationS }
   const lastFetchPos = useRef(null);
+  const onPositionRef = useRef(onPosition);
+  onPositionRef.current = onPosition;
 
   const hasTarget = target?.lat != null && target?.lng != null;
 
@@ -48,7 +54,10 @@ export default function NavigationView({ target, label = "Customer" }) {
   useEffect(() => {
     if (!("geolocation" in navigator)) return;
     const watchId = navigator.geolocation.watchPosition(
-      (pos) => setPro({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (pos) => {
+        setPro({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        onPositionRef.current?.(pos.coords.latitude, pos.coords.longitude);
+      },
       () => {},
       { enableHighAccuracy: true, maximumAge: 3000, timeout: 20000 },
     );
