@@ -134,7 +134,6 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, notice, loadi
   return (
     <div className="app">
       <img src="/logo-craft.svg" alt="Ziza Craft" className="app-logo" />
-      <p className="subtitle">Sprint 64 — Profile Fields</p>
       <div className="auth-tabs">
         <button className={`auth-tab${tab === "signin" ? " active" : ""}`} onClick={() => setTab("signin")}>Sign In</button>
         <button className={`auth-tab${tab === "signup" ? " active" : ""}`} onClick={() => setTab("signup")}>Join as Pro</button>
@@ -1712,7 +1711,6 @@ function Dashboard({ user, token, onLogout }) {
       )}
       {tab === "notifications" && <NotificationsSection token={token} onRead={refreshUnread} />}
 
-      <p className="footer">App: <strong>web-craft</strong> · Sprint 65 — 4-Tab Navigation</p>
     </div>
   );
 }

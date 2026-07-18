@@ -142,7 +142,6 @@ export default function LoginScreen(): React.ReactElement {
         <View style={styles.logoWrapper}>
           <ZizaCustomerLogo size={80} />
         </View>
-        <Text style={styles.subtitle}>Sprint 64 — Profile Fields</Text>
 
         {/* Tab bar */}
         <View style={styles.tabBar}>

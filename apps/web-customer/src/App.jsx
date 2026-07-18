@@ -158,7 +158,6 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, notice, loadi
   return (
     <div className="app">
       <img src="/logo-customer.svg" alt="Ziza Customer" className="app-logo" />
-      <p className="subtitle">Sprint 64 — Profile Fields</p>
       <div className="auth-tabs">
         <button className={`auth-tab${tab === "signin" ? " active" : ""}`} onClick={() => setTab("signin")}>Sign In</button>
         <button className={`auth-tab${tab === "signup" ? " active" : ""}`} onClick={() => setTab("signup")}>Create Account</button>
@@ -2769,7 +2768,6 @@ function Dashboard({ user, token, onLogout }) {
         </>
       )}
 
-      <p className="footer">App: <strong>web-customer</strong> · Sprint 65 — 4-Tab Navigation</p>
     </div>
   );
 }
