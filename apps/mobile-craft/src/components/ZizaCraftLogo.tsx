@@ -3,8 +3,9 @@
  *
  * SVG logo for the Ziza Craft app.
  * Mirrors apps/web-craft/public/logo-craft.svg
- * (dark-blue rounded square · red Z · green open-end wrench — the craft
- *  counterpart to the driver logo, with the steering wheel swapped for a wrench)
+ * (asphalt rounded square · rescue-red Z · rescue-blue open-end wrench — the
+ *  craft counterpart to the driver logo, wheel swapped for a wrench) —
+ *  brand alignment: red + blue on asphalt.
  */
 import React from "react";
 import Svg, { Rect, Path, G } from "react-native-svg";
@@ -22,19 +23,19 @@ export default function ZizaCraftLogo({ size = 96 }: Props) {
       accessibilityLabel="Ziza Craft logo"
       accessibilityRole="image"
     >
-      {/* Dark blue rounded background */}
-      <Rect width="512" height="512" rx="96" fill="#0F2A5F" />
+      {/* Asphalt rounded background */}
+      <Rect width="512" height="512" rx="96" fill="#111922" />
 
-      {/* Bold red Z */}
+      {/* Bold Z — rescue red (brand) */}
       <Path
         d="M 130 150 L 382 150 L 382 196 L 215 362 L 382 362 L 382 408 L 130 408 L 130 362 L 297 196 L 130 196 Z"
-        fill="#E63946"
+        fill="#E01F2D"
       />
 
-      {/* Green open-end wrench — top-right corner (replaces the driver's wheel) */}
+      {/* Open-end wrench — rescue blue (brand), top-right corner (replaces the wheel) */}
       <G transform="translate(396,118) rotate(45) scale(0.92)">
         <Path
-          fill="#059669"
+          fill="#1D4ED8"
           d="M -34 -92 L -13 -92 L -13 -58 L 13 -58 L 13 -92 L 34 -92 L 34 -40 L 12 -40 L 12 40 L 34 40 L 34 92 L 13 92 L 13 58 L -13 58 L -13 92 L -34 92 L -34 40 L -12 40 L -12 -40 L -34 -40 Z"
         />
       </G>

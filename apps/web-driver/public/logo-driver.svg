@@ -1,14 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Ziza Driver logo">
   <title>Ziza Driver — Normal</title>
-  <rect width="512" height="512" rx="96" fill="#0F2A5F"/>
-  <!-- Z rouge -->
-  <path d="M 130 150 L 382 150 L 382 196 L 215 362 L 382 362 L 382 408 L 130 408 L 130 362 L 297 196 L 130 196 Z" fill="#E63946"/>
-  <!-- Volant vert encore agrandi -->
+  <rect width="512" height="512" rx="96" fill="#111922"/>
+  <!-- Z — rescue red (brand) -->
+  <path d="M 130 150 L 382 150 L 382 196 L 215 362 L 382 362 L 382 408 L 130 408 L 130 362 L 297 196 L 130 196 Z" fill="#E01F2D"/>
+  <!-- Steering wheel — rescue blue (brand) -->
   <g transform="translate(400,116)">
-    <circle cx="0" cy="0" r="78" fill="none" stroke="#22C55E" stroke-width="16"/>
-    <circle cx="0" cy="0" r="17" fill="#22C55E"/>
-    <line x1="-62" y1="0" x2="-17" y2="0" stroke="#22C55E" stroke-width="13" stroke-linecap="round"/>
-    <line x1="62" y1="0" x2="17" y2="0" stroke="#22C55E" stroke-width="13" stroke-linecap="round"/>
-    <line x1="0" y1="62" x2="0" y2="17" stroke="#22C55E" stroke-width="13" stroke-linecap="round"/>
+    <circle cx="0" cy="0" r="78" fill="none" stroke="#1D4ED8" stroke-width="16"/>
+    <circle cx="0" cy="0" r="17" fill="#1D4ED8"/>
+    <line x1="-62" y1="0" x2="-17" y2="0" stroke="#1D4ED8" stroke-width="13" stroke-linecap="round"/>
+    <line x1="62" y1="0" x2="17" y2="0" stroke="#1D4ED8" stroke-width="13" stroke-linecap="round"/>
+    <line x1="0" y1="62" x2="0" y2="17" stroke="#1D4ED8" stroke-width="13" stroke-linecap="round"/>
   </g>
 </svg>
