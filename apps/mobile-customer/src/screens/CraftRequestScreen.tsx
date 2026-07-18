@@ -43,6 +43,16 @@ const CAT_ICON: Record<string, string> = {
   lockout: "lock", battery: "battery", accident: "alert",
   diagnostics: "search", other: "assistance",
 };
+// One optional quick question per service type — a couple of chips that help
+// the pro quote accurately. The answer is prefixed to the description sent.
+const SERVICE_Q: Record<string, { q: string; opts: string[] }> = {
+  breakdown: { q: "Engine", opts: ["Won't start", "Starts then stalls"] },
+  flat_tyre: { q: "Spare tire", opts: ["Have a spare", "No spare"] },
+  tow:       { q: "Vehicle", opts: ["Still rolls", "Wheels locked"] },
+  fuel:      { q: "Fuel type", opts: ["Gas", "Diesel"] },
+  lockout:   { q: "Keys", opts: ["Locked inside", "Lost"] },
+  battery:   { q: "Need", opts: ["Jump start", "Replacement"] },
+};
 import { useAuth } from "../context/AuthContext";
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "CraftRequest">;
@@ -52,6 +62,7 @@ export default function CraftRequestScreen(): React.ReactElement {
   const navigation = useNavigation<NavProp>();
 
   const [category, setCategory] = useState<string>("");
+  const [serviceAnswer, setServiceAnswer] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");
@@ -112,10 +123,15 @@ export default function CraftRequestScreen(): React.ReactElement {
     if (!token || !canSubmit) return;
     setSubmitting(true);
     setError(null);
+    // Prefix the quick-question answer so the pro sees it in the description.
+    const svcQ = SERVICE_Q[category];
+    const fullDescription = svcQ && serviceAnswer
+      ? `${svcQ.q}: ${serviceAnswer}\n${description.trim()}`.trim()
+      : description.trim();
     try {
       const req = await createCraftRequest(token, {
         category,
-        description: description.trim(),
+        description: fullDescription,
         lat: parseFloat(lat),
         lng: parseFloat(lng),
         address: address.trim() || null,
@@ -150,7 +166,7 @@ export default function CraftRequestScreen(): React.ReactElement {
           <TouchableOpacity
             key={cat}
             style={[styles.catChip, category === cat && styles.catChipSelected]}
-            onPress={() => setCategory(cat)}
+            onPress={() => { setCategory(cat); setServiceAnswer(null); }}
           >
             <Icon name={CAT_ICON[cat] ?? "assistance"} size={15} color={category === cat ? "#1D4ED8" : "#374151"} />
             <Text style={[styles.catChipText, category === cat && styles.catChipTextSelected]}>
@@ -159,6 +175,26 @@ export default function CraftRequestScreen(): React.ReactElement {
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* Optional quick question for this service type */}
+      {SERVICE_Q[category] && (
+        <>
+          <Text style={styles.label}>{SERVICE_Q[category].q}</Text>
+          <View style={styles.categories}>
+            {SERVICE_Q[category].opts.map((opt) => (
+              <TouchableOpacity
+                key={opt}
+                style={[styles.catChip, serviceAnswer === opt && styles.catChipSelected]}
+                onPress={() => setServiceAnswer(serviceAnswer === opt ? null : opt)}
+              >
+                <Text style={[styles.catChipText, serviceAnswer === opt && styles.catChipTextSelected]}>
+                  {opt}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </>
+      )}
 
       {/* Description */}
       <Text style={styles.label}>Describe the issue</Text>
