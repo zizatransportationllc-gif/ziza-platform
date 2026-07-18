@@ -183,7 +183,7 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, notice, loadi
 // Chat panel for a craft request — Sprint 66 (polling 3s)
 // ---------------------------------------------------------------------------
 
-function RequestChatPanel({ token, requestId, accent = "#059669" }) {
+function RequestChatPanel({ token, requestId, accent = "#4c82f0" }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -440,7 +440,7 @@ function RequestDetail({ token, requestId, onBack, canManage = false }) {
       )}
 
       {canManage && ["assigned", "arrived", "in_progress", "pro_done"].includes(request.status) && (
-        <RequestChatPanel token={token} requestId={requestId} accent="#059669" />
+        <RequestChatPanel token={token} requestId={requestId} accent="#4c82f0" />
       )}
 
       {/* Pro lifecycle actions (winning pro only) */}
@@ -1041,7 +1041,7 @@ function ProfileSection({ token, profile, onProfileUpdated }) {
               ? <img src={me.avatar_url} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: 26 }}>👤</div>}
           </div>
-          <label style={{ fontSize: 13, fontWeight: 600, cursor: "pointer", color: "#059669" }}>
+          <label style={{ fontSize: 13, fontWeight: 600, cursor: "pointer", color: "#4c82f0" }}>
             {avatarBusy ? "Uploading…" : "📷 Change photo"}
             <input type="file" accept="image/*" onChange={handleAvatar} disabled={avatarBusy} style={{ display: "none" }} />
           </label>
