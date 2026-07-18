@@ -32,5 +32,5 @@ export default function StarPicker({ onRate, initial = 0 }: Props): React.ReactE
 const styles = StyleSheet.create({
   container: { flexDirection: "row", justifyContent: "center", marginVertical: 8 },
   star: { fontSize: 32, color: "#D1D5DB", marginHorizontal: 4 },
-  starFilled: { color: "#F97316" },
+  starFilled: { color: "#1D4ED8" },
 });

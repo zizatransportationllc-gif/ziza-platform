@@ -156,7 +156,7 @@ export default function CraftRequestScreen(): React.ReactElement {
       <Text style={styles.label}>Your location</Text>
       <TouchableOpacity style={styles.gpsBtn} onPress={() => handleGPS(false)} disabled={locating}>
         {locating ? (
-          <ActivityIndicator color="#F97316" />
+          <ActivityIndicator color="#1D4ED8" />
         ) : (
           <Text style={styles.gpsBtnText}>📍 Use my GPS location</Text>
         )}
@@ -229,9 +229,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
-  catChipSelected: { backgroundColor: "#FFF7ED", borderColor: "#F97316" },
+  catChipSelected: { backgroundColor: "#EEF3FE", borderColor: "#1D4ED8" },
   catChipText: { fontSize: 13, color: "#374151" },
-  catChipTextSelected: { color: "#F97316", fontWeight: "600" },
+  catChipTextSelected: { color: "#1D4ED8", fontWeight: "600" },
   input: {
     borderWidth: 1,
     borderColor: "#D1D5DB",
@@ -243,20 +243,20 @@ const styles = StyleSheet.create({
   },
   multiline: { height: 100, textAlignVertical: "top" },
   gpsBtn: {
-    backgroundColor: "#FFF7ED",
+    backgroundColor: "#EEF3FE",
     borderRadius: 8,
     padding: 12,
     alignItems: "center",
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#FED7AA",
+    borderColor: "#C7D7F7",
   },
-  gpsBtnText: { color: "#F97316", fontWeight: "600", fontSize: 14 },
+  gpsBtnText: { color: "#1D4ED8", fontWeight: "600", fontSize: 14 },
   coordRow: { flexDirection: "row", gap: 8 },
   coordInput: { flex: 1 },
   errorText: { color: "#EF4444", textAlign: "center", marginBottom: 8, fontSize: 13 },
   submitBtn: {
-    backgroundColor: "#F97316",
+    backgroundColor: "#1D4ED8",
     borderRadius: 10,
     padding: 14,
     alignItems: "center",

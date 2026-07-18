@@ -154,7 +154,7 @@ export default function SavedPlacesScreen(): React.ReactElement {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#F97316" />
+        <ActivityIndicator size="large" color="#1D4ED8" />
       </View>
     );
   }
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   heading: { fontSize: 20, fontWeight: "bold", color: "#111827" },
-  addBtn: { backgroundColor: "#F97316", borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8 },
+  addBtn: { backgroundColor: "#1D4ED8", borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8 },
   addBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   error: { color: "#EF4444", fontSize: 13, marginVertical: 6 },
 
@@ -292,9 +292,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     alignItems: "center",
   },
-  labelBtnActive: { borderColor: "#F97316", backgroundColor: "#FFF7ED" },
+  labelBtnActive: { borderColor: "#1D4ED8", backgroundColor: "#EEF3FE" },
   labelBtnText: { fontSize: 13, color: "#374151", fontWeight: "600" },
-  labelBtnTextActive: { color: "#C2410C" },
+  labelBtnTextActive: { color: "#1E40AF" },
   input: {
     borderWidth: 1,
     borderColor: "#D1D5DB",
@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
   pickBtnText: { fontSize: 14, color: "#374151" },
   coordsHint: { fontSize: 12, color: "#9CA3AF", marginTop: 6 },
   formActions: { flexDirection: "row", gap: 8, marginTop: 14 },
-  saveBtn: { flex: 1, backgroundColor: "#F97316", borderRadius: 8, paddingVertical: 12, alignItems: "center" },
+  saveBtn: { flex: 1, backgroundColor: "#1D4ED8", borderRadius: 8, paddingVertical: 12, alignItems: "center" },
   saveBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   btnDisabled: { opacity: 0.6 },
   cancelBtn: { flex: 1, borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, paddingVertical: 12, alignItems: "center" },

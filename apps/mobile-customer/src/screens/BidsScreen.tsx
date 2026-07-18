@@ -231,7 +231,7 @@ export default function BidsScreen(): React.ReactElement {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#F97316" />
+        <ActivityIndicator size="large" color="#1D4ED8" />
       </View>
     );
   }
@@ -288,7 +288,7 @@ export default function BidsScreen(): React.ReactElement {
               setRefreshing(true);
               loadData(false);
             }}
-            tintColor="#F97316"
+            tintColor="#1D4ED8"
           />
         }
         ListEmptyComponent={
@@ -296,7 +296,7 @@ export default function BidsScreen(): React.ReactElement {
         }
         ListFooterComponent={
           token && bids.some((b) => b.status === "accepted")
-            ? <ChatPanel token={token} scope="request" id={requestId} accent="#F97316" />
+            ? <ChatPanel token={token} scope="request" id={requestId} accent="#1D4ED8" />
             : null
         }
         contentContainerStyle={styles.list}
@@ -317,14 +317,14 @@ const styles = StyleSheet.create({
   requestCategory: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#F97316",
+    color: "#1D4ED8",
     marginBottom: 4,
   },
   requestDesc: { fontSize: 14, color: "#374151" },
-  codeCard: { marginTop: 10, backgroundColor: "#FFF7ED", borderWidth: 1, borderColor: "#FED7AA", borderRadius: 8, padding: 10, alignItems: "center" },
-  codeLabel: { fontSize: 11, color: "#9A3412", fontWeight: "600" },
-  codeValue: { fontSize: 24, fontWeight: "800", letterSpacing: 6, color: "#F97316" },
-  lifeBtn: { marginTop: 10, backgroundColor: "#F97316", borderRadius: 8, padding: 14, alignItems: "center" },
+  codeCard: { marginTop: 10, backgroundColor: "#EEF3FE", borderWidth: 1, borderColor: "#C7D7F7", borderRadius: 8, padding: 10, alignItems: "center" },
+  codeLabel: { fontSize: 11, color: "#1E40AF", fontWeight: "600" },
+  codeValue: { fontSize: 24, fontWeight: "800", letterSpacing: 6, color: "#1D4ED8" },
+  lifeBtn: { marginTop: 10, backgroundColor: "#1D4ED8", borderRadius: 8, padding: 14, alignItems: "center" },
   lifeBtnText: { color: "#fff", fontWeight: "bold", fontSize: 15 },
   photosBox: { marginTop: 12 },
   photosTitle: { fontSize: 13, fontWeight: "600", color: "#374151", marginBottom: 6 },
@@ -339,16 +339,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
-  cardSelected: { borderColor: "#F97316", borderWidth: 2 },
+  cardSelected: { borderColor: "#1D4ED8", borderWidth: 2 },
   selectedBanner: {
-    backgroundColor: "#FFF7ED",
+    backgroundColor: "#EEF3FE",
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3,
     alignSelf: "flex-start",
     marginBottom: 8,
   },
-  selectedBannerText: { color: "#F97316", fontWeight: "700", fontSize: 12 },
+  selectedBannerText: { color: "#1D4ED8", fontWeight: "700", fontSize: 12 },
   priceRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
   note: { fontSize: 13, color: "#374151", fontStyle: "italic", marginBottom: 6 },
   date: { fontSize: 11, color: "#D1D5DB", marginBottom: 8 },
   selectBtn: {
-    backgroundColor: "#F97316",
+    backgroundColor: "#1D4ED8",
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: "center",

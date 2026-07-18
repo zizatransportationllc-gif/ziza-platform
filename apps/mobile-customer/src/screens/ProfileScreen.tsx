@@ -21,7 +21,7 @@ import {
 
 type ProfileNav = NativeStackNavigationProp<RootStackParamList, "Profile">;
 
-const ACCENT = "#F97316";
+const ACCENT = "#1D4ED8";
 const DRIVER_BLUE = "#1D4ED8"; // Ziza Driver brand color
 
 // "Become a Driver" sends the user to the standalone Ziza Driver app's store

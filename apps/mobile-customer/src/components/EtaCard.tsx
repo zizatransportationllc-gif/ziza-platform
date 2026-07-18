@@ -20,12 +20,12 @@ export default function EtaCard({ etaMinutes }: Props): React.ReactElement {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#FFF7ED",
+    backgroundColor: "#EEF3FE",
     borderRadius: 10,
     padding: 12,
     alignItems: "center",
     marginVertical: 8,
   },
   label: { fontSize: 13, color: "#6B7280" },
-  eta: { fontSize: 28, fontWeight: "bold", color: "#F97316" },
+  eta: { fontSize: 28, fontWeight: "bold", color: "#1D4ED8" },
 });

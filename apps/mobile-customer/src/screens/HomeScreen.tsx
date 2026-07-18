@@ -359,18 +359,18 @@ const styles = StyleSheet.create({
   resumeBanner: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFF7ED",
+    backgroundColor: "#EEF3FE",
     borderWidth: 1,
-    borderColor: "#F97316",
+    borderColor: "#1D4ED8",
     borderRadius: 12,
     padding: 14,
     marginBottom: 16,
   },
   resumeIcon: { fontSize: 24, marginRight: 12 },
   resumeInfo: { flex: 1 },
-  resumeTitle: { fontSize: 15, fontWeight: "700", color: "#9A3412" },
-  resumeSubtitle: { fontSize: 13, color: "#B45309", marginTop: 2 },
-  resumeChevron: { fontSize: 26, color: "#F97316", fontWeight: "300" },
+  resumeTitle: { fontSize: 15, fontWeight: "700", color: "#1E40AF" },
+  resumeSubtitle: { fontSize: 13, color: "#1E40AF", marginTop: 2 },
+  resumeChevron: { fontSize: 26, color: "#1D4ED8", fontWeight: "300" },
   error: { color: "#EF4444", marginBottom: 8, fontSize: 13 },
   hintText: { textAlign: "center", color: "#9CA3AF", fontSize: 12, marginTop: 4 },
 
@@ -423,12 +423,12 @@ const styles = StyleSheet.create({
   clearBtn: { color: "#9CA3AF", fontSize: 14, paddingLeft: 8 },
   zoneWarning: {
     fontSize: 12,
-    color: "#B45309",
+    color: "#1E40AF",
     marginTop: 6,
   },
 
   button: {
-    backgroundColor: "#F97316",
+    backgroundColor: "#1D4ED8",
     borderRadius: 8,
     padding: 14,
     alignItems: "center",
@@ -445,6 +445,6 @@ const styles = StyleSheet.create({
     padding: 16,
     marginTop: 4,
   },
-  price: { fontSize: 28, fontWeight: "bold", color: "#F97316", textAlign: "center" },
+  price: { fontSize: 28, fontWeight: "bold", color: "#1D4ED8", textAlign: "center" },
   detail: { textAlign: "center", color: "#6B7280", marginBottom: 12 },
 });

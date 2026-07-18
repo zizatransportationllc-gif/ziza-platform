@@ -129,7 +129,7 @@ export default function PaymentScreen(): React.ReactElement {
   if (payState === "polling") {
     return (
       <View style={styles.resultContainer}>
-        <ActivityIndicator size="large" color="#F97316" />
+        <ActivityIndicator size="large" color="#1D4ED8" />
         <Text style={styles.pollingText}>Verifying payment…</Text>
         <Text style={styles.pollingHint}>
           This usually takes a few seconds.
@@ -227,7 +227,7 @@ export default function PaymentScreen(): React.ReactElement {
         startInLoadingState
         renderLoading={() => (
           <View style={styles.loader}>
-            <ActivityIndicator size="large" color="#F97316" />
+            <ActivityIndicator size="large" color="#1D4ED8" />
           </View>
         )}
         javaScriptEnabled
@@ -255,12 +255,12 @@ const styles = StyleSheet.create({
   },
   resultIcon: { fontSize: 56, marginBottom: 16 },
   resultTitle: { fontSize: 22, fontWeight: "bold", color: "#111", marginBottom: 8, textAlign: "center" },
-  resultAmount: { fontSize: 28, fontWeight: "700", color: "#F97316", marginBottom: 24 },
+  resultAmount: { fontSize: 28, fontWeight: "700", color: "#1D4ED8", marginBottom: 24 },
   resultHint: { fontSize: 14, color: "#666", textAlign: "center", marginBottom: 24, lineHeight: 20 },
   pollingText: { fontSize: 18, fontWeight: "600", color: "#111", marginTop: 20, marginBottom: 8 },
   pollingHint: { fontSize: 13, color: "#888", textAlign: "center" },
   doneButton: {
-    backgroundColor: "#F97316",
+    backgroundColor: "#1D4ED8",
     borderRadius: 10,
     paddingVertical: 14,
     paddingHorizontal: 36,

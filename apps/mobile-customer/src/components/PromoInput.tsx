@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   button: {
-    backgroundColor: "#F97316",
+    backgroundColor: "#1D4ED8",
     borderRadius: 8,
     paddingHorizontal: 14,
     justifyContent: "center",
