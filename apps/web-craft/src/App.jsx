@@ -23,29 +23,36 @@ const TOKEN_KEY = "ziza_craft_token";
 const POLL_MS = 6000;
 
 const CATEGORY_LABELS = {
-  breakdown:   "🔧 Breakdown",
-  flat_tyre:   "🔴 Flat Tire",
-  tow:         "🚛 Tow Truck",
-  fuel:        "⛽ Out of Fuel",
-  lockout:     "🔑 Lockout",
-  battery:     "🔋 Battery",
-  accident:    "🚨 Accident",
-  diagnostics: "🔍 Diagnostics",
-  other:       "🛠️ Other",
+  breakdown:   "Breakdown",
+  flat_tyre:   "Flat Tire",
+  tow:         "Tow Truck",
+  fuel:        "Out of Fuel",
+  lockout:     "Lockout",
+  battery:     "Battery",
+  accident:    "Accident",
+  diagnostics: "Diagnostics",
+  other:       "Other",
+};
+// Category → Icon name (see Icon.jsx). Labels are text-only so the same map
+// renders cleanly in chips, badges and the skills picker.
+const CATEGORY_ICON = {
+  breakdown: "requests", flat_tyre: "tire", tow: "tow", fuel: "fuel",
+  lockout: "lock", battery: "battery", accident: "alert",
+  diagnostics: "search", other: "requests",
 };
 
 // Skills available to professionals — identical to customer problem categories
 // so a customer's request always finds a professional with the right skill.
 const ALL_SKILLS = [
-  { key: "breakdown",   label: "🔧 Breakdown",    desc: "Car won't start / general breakdown" },
-  { key: "flat_tyre",   label: "🔴 Flat Tire",     desc: "Punctured or flat tire replacement" },
-  { key: "tow",         label: "🚛 Tow Truck",     desc: "Towing to a garage or safe location" },
-  { key: "fuel",        label: "⛽ Out of Fuel",   desc: "Emergency fuel delivery" },
-  { key: "lockout",     label: "🔑 Lockout",       desc: "Keys locked inside the vehicle" },
-  { key: "battery",     label: "🔋 Battery",       desc: "Jump-start or battery replacement" },
-  { key: "accident",    label: "🚨 Accident",      desc: "Post-accident assistance & scene management" },
-  { key: "diagnostics", label: "🔍 Diagnostics",   desc: "Electronic / OBD on-site diagnostics" },
-  { key: "other",       label: "🛠️ Other",        desc: "Any other vehicle intervention" },
+  { key: "breakdown",   label: "Breakdown",    desc: "Car won't start / general breakdown" },
+  { key: "flat_tyre",   label: "Flat Tire",     desc: "Punctured or flat tire replacement" },
+  { key: "tow",         label: "Tow Truck",     desc: "Towing to a garage or safe location" },
+  { key: "fuel",        label: "Out of Fuel",   desc: "Emergency fuel delivery" },
+  { key: "lockout",     label: "Lockout",       desc: "Keys locked inside the vehicle" },
+  { key: "battery",     label: "Battery",       desc: "Jump-start or battery replacement" },
+  { key: "accident",    label: "Accident",      desc: "Post-accident assistance & scene management" },
+  { key: "diagnostics", label: "Diagnostics",   desc: "Electronic / OBD on-site diagnostics" },
+  { key: "other",       label: "Other",        desc: "Any other vehicle intervention" },
 ];
 
 const BID_STATUS_LABELS = {
@@ -1151,7 +1158,7 @@ function SkillsSection({ token, profile, onProfileUpdated }) {
                 checked={selected.has(key)}
                 onChange={() => toggleSkill(key)}
               />
-              <span className="skill-label">{label}</span>
+              <span className="skill-label"><Icon name={CATEGORY_ICON[key] ?? "requests"} size={15} /> {label}</span>
               <span className="skill-desc">{desc}</span>
             </label>
           ))}
