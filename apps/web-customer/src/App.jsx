@@ -825,7 +825,7 @@ function PaymentSection({ token, tripId, fareXof }) {
 // Chat panel — Sprint 66 (in-app messaging, polling every 3s)
 // ---------------------------------------------------------------------------
 
-function ChatPanel({ token, tripId, accent = "#F97316" }) {
+function ChatPanel({ token, tripId, accent = "#4c82f0" }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -1044,7 +1044,7 @@ function BookingSection({ token, trip, onTripUpdate, onNewEstimate }) {
         </button>
       )}
       {(trip.status === "accepted" || trip.status === "arrived" || trip.status === "in_progress") && (
-        <ChatPanel token={token} tripId={trip.trip_id} accent="#F97316" />
+        <ChatPanel token={token} tripId={trip.trip_id} accent="#4c82f0" />
       )}
       {error && <p className="form-error">{error}</p>}
       {canCancel && (
@@ -1367,7 +1367,7 @@ function ProfileSection({ token }) {
             ? <img src={profile.avatar_url} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: 26 }}>👤</div>}
         </div>
-        <label style={{ fontSize: 13, fontWeight: 600, cursor: "pointer", color: "#F97316" }}>
+        <label style={{ fontSize: 13, fontWeight: 600, cursor: "pointer", color: "#4c82f0" }}>
           {avatarBusy ? "Uploading…" : "📷 Change photo"}
           <input type="file" accept="image/*" onChange={handleAvatar} disabled={avatarBusy} style={{ display: "none" }} />
         </label>
@@ -1779,7 +1779,7 @@ const CRAFT_STATUS_LABELS = {
 };
 
 // Chat panel for a craft request conversation — Sprint 66 (polling 3s)
-function RequestChatPanel({ token, requestId, accent = "#F97316" }) {
+function RequestChatPanel({ token, requestId, accent = "#4c82f0" }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -2015,7 +2015,7 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
       )}
 
       {(isActive || success || bids.some((b) => b.status === "accepted")) && (
-        <RequestChatPanel token={token} requestId={request.request_id} accent="#F97316" />
+        <RequestChatPanel token={token} requestId={request.request_id} accent="#4c82f0" />
       )}
     </div>
   );
