@@ -147,10 +147,10 @@ const DOC_TYPE_LABELS = {
 };
 
 const DOC_STATUS_LABELS = {
-  pending:              "⏳ Pending",
-  approved:             "✅ Approved",
-  rejected:             "✗ Rejected",
-  needs_resubmission:   "🔄 Redo",
+  pending:              "Pending",
+  approved:             "Approved",
+  rejected:             "Rejected",
+  needs_resubmission:   "Redo",
 };
 
 const PAGE_SIZE_DOCS = 10;
@@ -820,9 +820,9 @@ function PromoPanel({ token }) {
 // ---------------------------------------------------------------------------
 
 const PAYOUT_STATUS_LABELS = {
-  pending:  "⏳ Pending",
-  approved: "✅ Approved",
-  rejected: "✗ Rejected",
+  pending:  "Pending",
+  approved: "Approved",
+  rejected: "Rejected",
 };
 
 const PAGE_SIZE_PAYOUT = 10;
@@ -1266,10 +1266,10 @@ function PricingPanel({ token }) {
 // ---------------------------------------------------------------------------
 
 const APP_STATUS_LABELS = {
-  submitted:    "📤 Submitted",
-  under_review: "🔍 Under Review",
-  approved:     "✅ Approved",
-  rejected:     "✗ Rejected",
+  submitted:    "Submitted",
+  under_review: "Under Review",
+  approved:     "Approved",
+  rejected:     "Rejected",
 };
 
 const APP_STATUS_FILTERS = [
