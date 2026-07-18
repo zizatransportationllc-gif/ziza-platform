@@ -158,6 +158,23 @@ export async function createTrip(token, estimateId, promoCode = null, category =
   return res.json();
 }
 
+// Returns the customer's current active trip (pending/accepted/arrived/in_progress)
+// or null. Used on load to restore live tracking after a page reload.
+export async function getActiveTrip(token) {
+  const res = await fetch(`${API_BASE}/v1/trips/active`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Get active trip error (${res.status})`);
+  }
+  const data = await res.json();
+  return data.trip ?? null;
+}
+
 export async function getTrip(token, tripId) {
   const res = await fetch(`${API_BASE}/v1/trips/${tripId}`, {
     headers: {

@@ -3,7 +3,7 @@
  * Sprint 43 — address search + GPS for pickup; address search for drop-off.
  * Sprint 45 — zone coverage check after each location selection.
  */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -14,16 +14,18 @@ import {
   Alert,
 } from "react-native";
 import * as Location from "expo-location";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
   listCategories,
   getEstimate,
   createTrip,
+  getActiveTrip,
   checkPointInService,
   reverseGeocode,
   CategoryInfo,
   EstimateResponse,
+  TripResponse,
 } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { RootStackParamList } from "../navigation/AppNavigator";
@@ -63,10 +65,26 @@ export default function HomeScreen(): React.ReactElement {
   const [originInZone, setOriginInZone] = useState<boolean | null>(null);
   const [destInZone, setDestInZone]     = useState<boolean | null>(null);
 
+  // Any ride still in progress — lets the customer jump back into live tracking.
+  const [activeTrip, setActiveTrip] = useState<TripResponse | null>(null);
+
   useEffect(() => {
     if (!token) return;
     listCategories(token).then(setCategories).catch(() => {});
   }, [token]);
+
+  // Refresh the active-ride banner every time Home regains focus (e.g. after
+  // backing out of Tracking) so it reflects the current trip state.
+  useFocusEffect(
+    useCallback(() => {
+      if (!token) return;
+      let active = true;
+      getActiveTrip(token)
+        .then((trip) => { if (active) setActiveTrip(trip); })
+        .catch(() => {});
+      return () => { active = false; };
+    }, [token]),
+  );
 
   // Sprint 45: async zone check helper
   const checkZone = async (point: LocationPoint | null): Promise<boolean | null> => {
@@ -206,6 +224,21 @@ export default function HomeScreen(): React.ReactElement {
     <ScrollView contentContainerStyle={styles.container}>
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
+      {/* Resume live tracking of an in-progress ride */}
+      {activeTrip && (
+        <TouchableOpacity
+          style={styles.resumeBanner}
+          onPress={() => navigation.navigate("Tracking", { tripId: activeTrip.trip_id })}
+        >
+          <Text style={styles.resumeIcon}>🚕</Text>
+          <View style={styles.resumeInfo}>
+            <Text style={styles.resumeTitle}>Ride in progress</Text>
+            <Text style={styles.resumeSubtitle}>Tap to track your ride</Text>
+          </View>
+          <Text style={styles.resumeChevron}>›</Text>
+        </TouchableOpacity>
+      )}
+
       {/* ── Pickup location ───────────────────────────────── */}
       <View style={styles.locationCard}>
         <Text style={styles.locationLabel}>📍 Pickup</Text>
@@ -323,6 +356,21 @@ export default function HomeScreen(): React.ReactElement {
 
 const styles = StyleSheet.create({
   container: { padding: 20 },
+  resumeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#F97316",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+  },
+  resumeIcon: { fontSize: 24, marginRight: 12 },
+  resumeInfo: { flex: 1 },
+  resumeTitle: { fontSize: 15, fontWeight: "700", color: "#9A3412" },
+  resumeSubtitle: { fontSize: 13, color: "#B45309", marginTop: 2 },
+  resumeChevron: { fontSize: 26, color: "#F97316", fontWeight: "300" },
   error: { color: "#EF4444", marginBottom: 8, fontSize: 13 },
   hintText: { textAlign: "center", color: "#9CA3AF", fontSize: 12, marginTop: 4 },
 

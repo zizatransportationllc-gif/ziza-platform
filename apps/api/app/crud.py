@@ -619,6 +619,29 @@ async def list_trips(
     return list(result.scalars().all())
 
 
+async def get_customer_active_trip(db: AsyncSession, auth_user_id: str) -> Trip | None:
+    """Return the customer's current trip in a non-terminal state, or None.
+
+    Active = every status before the trip settles: ``pending`` (awaiting a
+    driver), ``accepted`` (driver heading to pickup), ``arrived`` (at pickup),
+    and ``in_progress`` (en route). Lets a customer who reloads the app or
+    returns later resume live tracking instead of losing the ride.
+    """
+    user = await _get_user_by_auth_id(db, auth_user_id)
+    if user is None:
+        return None
+    result = await db.execute(
+        select(Trip)
+        .where(
+            Trip.customer_id == user.id,
+            Trip.status.in_(["pending", "accepted", "arrived", "in_progress"]),
+        )
+        .order_by(Trip.created_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def cancel_trip(
     db: AsyncSession,
     trip_id: str,
