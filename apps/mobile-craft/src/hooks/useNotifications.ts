@@ -18,7 +18,7 @@ export function useNotifications(_token: string | null): void {
         name: "Ziza Craft",
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
-        lightColor: "#059669",
+        lightColor: "#1D4ED8",
         sound: "default",
       }).catch(() => {});
     }

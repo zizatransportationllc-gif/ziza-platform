@@ -193,7 +193,7 @@ export default function RequestDetailScreen(): React.ReactElement {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#059669" />
+        <ActivityIndicator size="large" color="#1D4ED8" />
       </View>
     );
   }
@@ -362,7 +362,7 @@ export default function RequestDetailScreen(): React.ReactElement {
       )}
 
       {token && canManage && ["assigned", "arrived", "in_progress", "pro_done"].includes(request.status) && (
-        <ChatPanel token={token} requestId={requestId} accent="#059669" />
+        <ChatPanel token={token} requestId={requestId} accent="#1D4ED8" />
       )}
     </ScrollView>
   );
@@ -381,8 +381,8 @@ const styles = StyleSheet.create({
   category: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#059669",
-    backgroundColor: "#ECFDF5",
+    color: "#1D4ED8",
+    backgroundColor: "#EEF3FE",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
@@ -391,8 +391,8 @@ const styles = StyleSheet.create({
   statusBadge: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#059669",
-    backgroundColor: "#D1FAE5",
+    color: "#1D4ED8",
+    backgroundColor: "#DCE7FB",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
@@ -425,7 +425,7 @@ const styles = StyleSheet.create({
   noteInput: { height: 80, textAlignVertical: "top" },
   errorText: { color: "#EF4444", textAlign: "center", marginBottom: 8, fontSize: 13 },
   submitBtn: {
-    backgroundColor: "#059669",
+    backgroundColor: "#1D4ED8",
     borderRadius: 10,
     padding: 14,
     alignItems: "center",
@@ -443,26 +443,26 @@ const styles = StyleSheet.create({
   closedText: { color: "#6B7280", textAlign: "center", fontSize: 14 },
   codeCard: {
     marginTop: 20,
-    backgroundColor: "#ECFDF5",
+    backgroundColor: "#EEF3FE",
     borderWidth: 1,
-    borderColor: "#A7F3D0",
+    borderColor: "#C7D7F7",
     borderRadius: 10,
     padding: 16,
     alignItems: "center",
   },
-  codeLabel: { fontSize: 12, color: "#047857", fontWeight: "600" },
-  codeValue: { fontSize: 28, fontWeight: "800", letterSpacing: 6, color: "#059669", marginVertical: 4 },
+  codeLabel: { fontSize: 12, color: "#1E40AF", fontWeight: "600" },
+  codeValue: { fontSize: 28, fontWeight: "800", letterSpacing: 6, color: "#1D4ED8", marginVertical: 4 },
   codeHint: { fontSize: 12, color: "#6B7280" },
-  navBtn: { marginTop: 16, backgroundColor: "#059669", borderRadius: 10, padding: 16, alignItems: "center" },
+  navBtn: { marginTop: 16, backgroundColor: "#1D4ED8", borderRadius: 10, padding: 16, alignItems: "center" },
   navBtnText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
   navWrap: { marginTop: 16 },
-  navBtnSecondary: { marginTop: 10, backgroundColor: "transparent", borderRadius: 10, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "#059669" },
-  navBtnSecondaryText: { color: "#059669", fontWeight: "600", fontSize: 15 },
+  navBtnSecondary: { marginTop: 10, backgroundColor: "transparent", borderRadius: 10, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "#1D4ED8" },
+  navBtnSecondaryText: { color: "#1D4ED8", fontWeight: "600", fontSize: 15 },
   photoSection: { marginTop: 16 },
   photoGroup: { marginTop: 8 },
   photoHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
   photoKind: { fontSize: 13, fontWeight: "600", color: "#6B7280" },
-  photoAdd: { fontSize: 13, fontWeight: "700", color: "#059669" },
+  photoAdd: { fontSize: 13, fontWeight: "700", color: "#1D4ED8" },
   photoThumb: { width: 84, height: 84, borderRadius: 8, marginRight: 8, backgroundColor: "#E5E7EB" },
   photoEmpty: { fontSize: 12, color: "#9CA3AF" },
 });
