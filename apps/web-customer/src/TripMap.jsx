@@ -253,3 +253,87 @@ export function TripMap({ trip, driverLocation }) {
     </div>
   );
 }
+
+// ─── CraftTrackingMap ─────────────────────────────────────────────────────────
+
+/**
+ * Live map for an assistance job: the customer (fixed) + the assigned pro
+ * moving toward them, with a road-following route between the two.
+ *
+ * Props:
+ *   customerLat, customerLng – the request location (where help is needed)
+ *   proLat, proLng           – the pro's live position | null (from tracking)
+ */
+export function CraftTrackingMap({ customerLat, customerLng, proLat, proLng }) {
+  const mapRef = useRef(null);
+  const [routeCoords, setRouteCoords] = useState(null);
+  const hasPro = proLat != null && proLng != null;
+
+  // (Re)fetch the road route pro → customer as the pro moves.
+  useEffect(() => {
+    if (!hasPro || customerLat == null) return;
+    fetchRouteCoords(proLng, proLat, customerLng, customerLat)
+      .then((coords) => setRouteCoords(coords));
+  }, [proLat, proLng, customerLat, customerLng]);
+
+  // Follow the pro.
+  useEffect(() => {
+    if (!hasPro || !mapRef.current) return;
+    mapRef.current.easeTo({ center: [proLng, proLat], duration: 800 });
+  }, [proLat, proLng]);
+
+  if (customerLat == null) return null;
+
+  const initLat = hasPro ? proLat : customerLat;
+  const initLng = hasPro ? proLng : customerLng;
+  const coords = routeCoords ?? (hasPro ? [[proLng, proLat], [customerLng, customerLat]] : null);
+  const isDashed = !routeCoords;
+
+  return (
+    <div className="trip-map-wrap">
+      <Map
+        ref={mapRef}
+        initialViewState={{ longitude: initLng, latitude: initLat, zoom: 13 }}
+        style={{ width: "100%", height: "260px" }}
+        mapStyle={MAP_STYLE}
+        mapboxAccessToken={TOKEN}
+        attributionControl={false}
+        reuseMaps
+      >
+        <NavigationControl position="top-right" showCompass={false} />
+
+        {coords && coords.length >= 2 && (
+          <Source id="craft-route" type="geojson" data={routeFeature(coords)}>
+            <Layer
+              id="craft-route-casing"
+              type="line"
+              paint={{ "line-color": "#fff", "line-width": 7, "line-opacity": 0.5 }}
+            />
+            <Layer
+              id="craft-route-line"
+              type="line"
+              paint={{
+                "line-color": "#1d4ed8",
+                "line-width": 4,
+                "line-opacity": 0.9,
+                ...(isDashed ? { "line-dasharray": [2, 1.5] } : {}),
+              }}
+            />
+          </Source>
+        )}
+
+        {/* Customer location (where help is needed) */}
+        <Marker longitude={customerLng} latitude={customerLat} anchor="bottom">
+          <span style={PIN} title="You">📍</span>
+        </Marker>
+
+        {/* Live pro position */}
+        {hasPro && (
+          <Marker longitude={proLng} latitude={proLat} anchor="center">
+            <div style={DRIVER_DOT} title="Professional">🛠️</div>
+          </Marker>
+        )}
+      </Map>
+    </div>
+  );
+}

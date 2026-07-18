@@ -772,6 +772,28 @@ export async function getCraftRequest(
   return _json<CraftRequest>(res);
 }
 
+export interface CraftTracking {
+  request_id: string;
+  status: string;
+  pro_lat: number;
+  pro_lng: number;
+  distance_km: number;
+  eta_min: number;
+}
+
+// Live position of the assigned professional. null (404) until the pro has
+// pushed a position — the caller polls again.
+export async function getCraftTracking(
+  token: string,
+  requestId: string
+): Promise<CraftTracking | null> {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/tracking`, {
+    headers: _auth(token),
+  });
+  if (res.status === 404) return null;
+  return _json<CraftTracking>(res);
+}
+
 // Customer lifecycle actions on an assigned craft job.
 async function _craftPatch(token: string, path: string): Promise<CraftRequest> {
   const res = await fetch(`${API_BASE}${path}`, { method: "PATCH", headers: _auth(token) });
