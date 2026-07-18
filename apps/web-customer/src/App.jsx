@@ -2052,64 +2052,49 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
 function CraftNewRequestForm({ token, onCreated, onCancel }) {
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
-  const [lat, setLat] = useState("");
-  const [lng, setLng] = useState("");
-  const [address, setAddress] = useState("");
+  // Location is a single { lat, lng, name } object — set by the Mapbox address
+  // autocomplete (AddressInput, same as the ride form) or by GPS.
+  const [location, setLocation] = useState(null);
   const [locating, setLocating] = useState(false);
-  const [gpsLabel, setGpsLabel] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  // Auto-detect GPS silently when the form mounts
-  useEffect(() => {
-    if (!navigator.geolocation) return;
-    setLocating(true);
+  // Resolve the browser GPS position into a { lat, lng, name } location,
+  // reverse-geocoding to a readable address (falls back to coordinates).
+  const useGPS = useCallback((silent) => {
+    if (!navigator.geolocation) { if (!silent) setError("Geolocation not available in this browser."); return; }
+    setLocating(true); if (!silent) setError(null);
     navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        setLat(coords.latitude.toFixed(5));
-        setLng(coords.longitude.toFixed(5));
-        setGpsLabel("✓ GPS position detected");
+      async ({ coords }) => {
+        const { latitude, longitude } = coords;
+        let name = `My location (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`;
+        try { const r = await reverseGeocode(token, latitude, longitude); if (r?.name) name = r.name; } catch { /* keep fallback */ }
+        setLocation({ lat: latitude, lng: longitude, name });
         setLocating(false);
-        // Auto-fill the address from the GPS position (don't clobber typing).
-        reverseGeocode(token, coords.latitude, coords.longitude)
-          .then((r) => { if (r?.name) setAddress((prev) => prev || r.name); })
-          .catch(() => {});
       },
-      () => { setLocating(false); }, // silent failure — defaults used
-      { timeout: 8000 },
+      () => { if (!silent) setError("Couldn't get your GPS position — search your address instead."); setLocating(false); },
+      { timeout: silent ? 8000 : 10000 },
     );
+  }, [token]);
+
+  // Auto-detect GPS silently on mount (the customer can override by searching).
+  useEffect(() => {
+    if (!location) useGPS(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  function handleGPS() {
-    if (!navigator.geolocation) { setError("Geolocation not available in this browser."); return; }
-    setLocating(true); setError(null); setGpsLabel("");
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        setLat(coords.latitude.toFixed(5));
-        setLng(coords.longitude.toFixed(5));
-        setGpsLabel("✓ GPS position updated");
-        setLocating(false);
-        reverseGeocode(token, coords.latitude, coords.longitude)
-          .then((r) => { if (r?.name) setAddress(r.name); })
-          .catch(() => {});
-      },
-      () => { setError("Unable to get GPS position. You can still submit — a default location will be used."); setLocating(false); },
-      { timeout: 10000 },
-    );
-  }
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (!category) { setError("Please select a category."); return; }
+    if (!location) { setError("Add your location — search an address or use GPS."); return; }
     setSubmitting(true); setError(null);
     try {
       const req = await createCraftRequest(token, {
         category,
         description: description.trim(),
-        lat: parseFloat(lat) || 40.7357,
-        lng: parseFloat(lng) || -74.1724,
-        address: address.trim() || null,
+        lat: location.lat,
+        lng: location.lng,
+        address: location.name?.trim() || null,
         bid_deadline_minutes: 30,
       });
       onCreated(req);
@@ -2156,30 +2141,24 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
           />
         </div>
 
-        {/* Address */}
+        {/* Address — Mapbox autocomplete (same component as the ride form),
+            with the 📡 button for one-tap GPS. Selecting an address sets the
+            coordinates too, so the pro knows exactly where to go. */}
         <div className="craft-field">
-          <span className="craft-label">Your address</span>
-          <input
-            className="craft-input"
-            type="text"
-            placeholder="e.g. 123 Main St, Newark NJ"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            maxLength={500}
+          <span className="craft-label">Your location</span>
+          <AddressInput
+            icon="📍"
+            placeholder="Search your address…"
+            value={location}
+            onSelect={setLocation}
+            token={token}
+            onGps={() => useGPS(false)}
           />
-        </div>
-
-        {/* GPS location (button only — no manual lat/lng inputs) */}
-        <div className="craft-field">
-          <span className="craft-label">GPS location (optional)</span>
-          <button type="button" className="craft-gps-btn" onClick={handleGPS} disabled={locating}>
-            {locating ? "⏳ Detecting…" : "📍 Refresh GPS"}
-          </button>
-          {gpsLabel && <p className="craft-gps-ok">{gpsLabel}</p>}
+          {locating && <p className="craft-gps-ok">⏳ Detecting your GPS position…</p>}
         </div>
 
         {error && <p className="form-error">{error}</p>}
-        <button type="submit" className="craft-submit-btn" disabled={submitting || !category}>
+        <button type="submit" className="craft-submit-btn" disabled={submitting || !category || !location}>
           {submitting ? "Posting…" : "📤 Post Request"}
         </button>
       </form>
