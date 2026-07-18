@@ -18,15 +18,16 @@ import DispatchScreen from "./DispatchScreen";
 import EarningsScreen from "./EarningsScreen";
 import HistoryScreen from "./HistoryScreen";
 import AccountScreen from "./AccountScreen";
+import Icon from "../components/Icon";
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "Main">;
 type Tab = "dispatch" | "earnings" | "activity" | "account";
 
 const TABS: { key: Tab; icon: string; label: string; title: string }[] = [
-  { key: "dispatch", icon: "🚕", label: "Dispatch", title: "Missions" },
-  { key: "earnings", icon: "💰", label: "Earnings", title: "Earnings" },
-  { key: "activity", icon: "📋", label: "Activity", title: "Activity" },
-  { key: "account", icon: "👤", label: "Account", title: "Account" },
+  { key: "dispatch", icon: "dispatch", label: "Dispatch", title: "Missions" },
+  { key: "earnings", icon: "earnings", label: "Earnings", title: "Earnings" },
+  { key: "activity", icon: "activity", label: "Activity", title: "Activity" },
+  { key: "account", icon: "account", label: "Account", title: "Account" },
 ];
 
 const ACCENT = "#1D4ED8";
@@ -62,7 +63,7 @@ export default function MainScreen(): React.ReactElement {
           onPress={() => navigation.navigate("Notifications")}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Text style={styles.bellIcon}>🔔</Text>
+          <Icon name="bell" size={20} color="#fff" />
           {unread > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{unread > 9 ? "9+" : unread}</Text>
@@ -87,7 +88,7 @@ export default function MainScreen(): React.ReactElement {
           const isActive = t.key === tab;
           return (
             <TouchableOpacity key={t.key} style={styles.tabItem} onPress={() => setTab(t.key)}>
-              <Text style={[styles.tabIcon, isActive && styles.tabIconActive]}>{t.icon}</Text>
+              <Icon name={t.icon} size={22} color={isActive ? ACCENT : "#9CA3AF"} />
               <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>{t.label}</Text>
             </TouchableOpacity>
           );
