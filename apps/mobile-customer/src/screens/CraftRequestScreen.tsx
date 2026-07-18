@@ -90,6 +90,18 @@ export default function CraftRequestScreen(): React.ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Open the Mapbox address search (same picker as the ride flow). Selecting a
+  // result fills the address AND the coordinates, so the pro knows where to go.
+  const openSearch = () => {
+    navigation.navigate("Places", {
+      onSelect: (place: { lat: number; lng: number; name: string }) => {
+        setLat(place.lat.toFixed(5));
+        setLng(place.lng.toFixed(5));
+        setAddress(place.name);
+      },
+    });
+  };
+
   const canSubmit =
     category !== "" &&
     description.trim().length > 0 &&
@@ -161,6 +173,9 @@ export default function CraftRequestScreen(): React.ReactElement {
 
       {/* Location */}
       <Text style={styles.label}>Your location</Text>
+      <TouchableOpacity style={styles.searchBtn} onPress={openSearch}>
+        <Text style={styles.searchBtnText}>🔍 Search your address…</Text>
+      </TouchableOpacity>
       <TouchableOpacity style={styles.gpsBtn} onPress={() => handleGPS(false)} disabled={locating}>
         {locating ? (
           <ActivityIndicator color="#1D4ED8" />
@@ -252,6 +267,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#F9FAFB",
   },
   multiline: { height: 100, textAlignVertical: "top" },
+  searchBtn: {
+    backgroundColor: "#1D4ED8",
+    borderRadius: 8,
+    padding: 13,
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  searchBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   gpsBtn: {
     backgroundColor: "#EEF3FE",
     borderRadius: 8,
