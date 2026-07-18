@@ -500,6 +500,16 @@ export async function getTripTracking(token, tripId) {
   return _json(res);
 }
 
+// Live position of the assigned professional for an active assistance job.
+// Returns null while the pro hasn't pushed a position yet (client polls again).
+export async function getCraftTracking(token, requestId) {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/tracking`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (res.status === 404) return null;
+  return _json(res);
+}
+
 // Sprint 66 — in-app messaging (customer ↔ driver)
 export async function listTripMessages(token, tripId) {
   const res = await fetch(`${API_BASE}/v1/trips/${tripId}/messages`, {

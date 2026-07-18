@@ -37,10 +37,13 @@ import {
   createCraftPaymentIntent,
   getCraftPayment,
   simulateCraftPayment,
+  getCraftTracking,
   CraftBid,
   CraftRequest,
   CraftPhoto,
+  CraftTracking,
 } from "../api";
+import CraftTrackingMap from "../components/CraftTrackingMap";
 import { Linking } from "react-native";
 import { useAuth } from "../context/AuthContext";
 
@@ -212,6 +215,23 @@ export default function BidsScreen(): React.ReactElement {
     }
   }, [token, requestId, request?.status]);
 
+  // Live position of the assigned pro (null until they push one). Poll while the
+  // pro is travelling / on site.
+  const [tracking, setTracking] = useState<CraftTracking | null>(null);
+  useEffect(() => {
+    const st = request?.status;
+    if (!token || !st || !["assigned", "arrived", "in_progress"].includes(st)) {
+      setTracking(null);
+      return;
+    }
+    let active = true;
+    const tick = () =>
+      getCraftTracking(token, requestId).then((t) => { if (active) setTracking(t); }).catch(() => {});
+    tick();
+    const id = setInterval(tick, 5000);
+    return () => { active = false; clearInterval(id); };
+  }, [token, requestId, request?.status]);
+
   const renderBid = ({ item }: { item: CraftBid }) => {
     const isSelected = item.bid_id === request?.selected_bid_id;
     const isSelecting = selecting === item.bid_id;
@@ -289,8 +309,9 @@ export default function BidsScreen(): React.ReactElement {
           {(() => {
             const accepted = bids.find((b) => b.status === "accepted");
             if (!accepted || !["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status)) return null;
+            const etaMin = tracking?.eta_min ?? accepted.eta_min;
             const line =
-              request.status === "assigned" ? `🚗 On the way — ~${accepted.eta_min} min away`
+              request.status === "assigned" ? `🚗 On the way — ~${etaMin} min away`
               : request.status === "arrived" ? "📍 On site"
               : request.status === "completed" ? "✅ Job done"
               : "🔧 Working on it";
@@ -304,6 +325,16 @@ export default function BidsScreen(): React.ReactElement {
               </View>
             );
           })()}
+          {["assigned", "arrived", "in_progress"].includes(request.status) && (
+            <View style={styles.mapWrap}>
+              <CraftTrackingMap
+                customerLat={request.lat}
+                customerLng={request.lng}
+                proLat={tracking?.pro_lat ?? null}
+                proLng={tracking?.pro_lng ?? null}
+              />
+            </View>
+          )}
           {request.verification_code &&
             ["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status) && (
               <View style={styles.codeCard}>
@@ -391,6 +422,7 @@ const styles = StyleSheet.create({
   proTitle: { fontSize: 11, fontWeight: "700", color: "#6B7280", letterSpacing: 0.4 },
   proPrice: { fontSize: 18, fontWeight: "700", color: "#111827", fontVariant: ["tabular-nums"] },
   proStatus: { marginTop: 2, fontSize: 14, fontWeight: "600", color: "#1D4ED8" },
+  mapWrap: { marginTop: 12, borderRadius: 10, overflow: "hidden" },
   codeCard: { marginTop: 10, backgroundColor: "#EEF3FE", borderWidth: 1, borderColor: "#C7D7F7", borderRadius: 8, padding: 10, alignItems: "center" },
   codeLabel: { fontSize: 11, color: "#1E40AF", fontWeight: "600" },
   codeValue: { fontSize: 24, fontWeight: "800", letterSpacing: 6, color: "#1D4ED8", fontVariant: ["tabular-nums"] },

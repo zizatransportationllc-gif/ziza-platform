@@ -13,7 +13,7 @@ import {
   searchPlaces, reverseGeocode, // Sprint 43
   checkPointInService, // Sprint 45
   createCraftRequest, getMyCraftRequests, getCraftRequestBids, selectCraftBid, cancelCraftRequest, // Sprint 48
-  getCraftRequest, craftConfirmArrival, craftComplete, listCraftPhotos, // craft lifecycle
+  getCraftRequest, craftConfirmArrival, craftComplete, listCraftPhotos, getCraftTracking, // craft lifecycle
   createCraftPaymentIntent, getCraftPayment, // craft payment
   listRequestMessages, sendRequestMessage, // Sprint 66
   submitDocument, listMyDocuments, // Sprint 53
@@ -21,7 +21,7 @@ import {
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, sendPasswordReset, resendVerification, changeEmail, firebaseSignOut } from "./auth";
 import Icon from "./Icon";
-import { EstimateMap, TripMap } from "./TripMap";
+import { EstimateMap, TripMap, CraftTrackingMap } from "./TripMap";
 
 const REQUIRED_ROLE = "customer";
 const TOKEN_KEY = "ziza_token";
@@ -1950,6 +1950,20 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
     return () => clearInterval(id);
   }, [request.status, reloadRequest]);
 
+  // Live position of the assigned pro (null until they push one). Poll while the
+  // pro is travelling / on site — stop once the work is under way or finished.
+  const [tracking, setTracking] = useState(null);
+  useEffect(() => {
+    if (!["assigned", "arrived", "in_progress"].includes(request.status)) { setTracking(null); return; }
+    let active = true;
+    const tick = () => getCraftTracking(token, request.request_id)
+      .then((t) => { if (active) setTracking(t); })
+      .catch(() => {});
+    tick();
+    const id = setInterval(tick, 5000);
+    return () => { active = false; clearInterval(id); };
+  }, [token, request.request_id, request.status]);
+
   // Load the pro's before/after photos once a pro is assigned.
   useEffect(() => {
     if (!["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status)) return;
@@ -1985,7 +1999,11 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
   // north-star is time-to-help, so surface the ETA while they're en route.
   function proStatusLine() {
     switch (request.status) {
-      case "assigned":    return acceptedBid ? `🚗 On the way — ~${acceptedBid.eta_min} min away` : "🚗 On the way";
+      case "assigned": {
+        // Prefer the live ETA (updates as the pro drives), fall back to the bid.
+        const eta = tracking?.eta_min ?? acceptedBid?.eta_min;
+        return eta != null ? `🚗 On the way — ~${eta} min away` : "🚗 On the way";
+      }
       case "arrived":     return "📍 On site";
       case "in_progress":
       case "pro_done":    return "🔧 Working on it";
@@ -2016,6 +2034,16 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
           </div>
           <span className="craft-pro-status">{proStatusLine()}</span>
         </div>
+      )}
+
+      {/* Live map — the pro moving toward the customer, while en route / on site */}
+      {["assigned", "arrived", "in_progress"].includes(request.status) && (
+        <CraftTrackingMap
+          customerLat={request.lat}
+          customerLng={request.lng}
+          proLat={tracking?.pro_lat ?? null}
+          proLng={tracking?.pro_lng ?? null}
+        />
       )}
 
       {/* Shared verification code once a professional is assigned */}
