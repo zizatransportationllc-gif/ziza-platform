@@ -1758,15 +1758,28 @@ const CRAFT_CATEGORIES = [
   "breakdown", "flat_tyre", "tow", "fuel", "lockout", "battery", "accident", "diagnostics", "other",
 ];
 const CRAFT_CAT_LABELS = {
-  breakdown:   "🔧 Breakdown",
-  flat_tyre:   "🔴 Flat Tire",
-  tow:         "🚛 Towing",
-  fuel:        "⛽ Out of Fuel",
-  lockout:     "🔑 Lockout",
-  battery:     "🔋 Dead Battery",
-  accident:    "🚨 Post-Accident",
-  diagnostics: "🔍 Diagnostics",
-  other:       "🛠️ Other",
+  breakdown:   "Breakdown",
+  flat_tyre:   "Flat Tire",
+  tow:         "Towing",
+  fuel:        "Out of Fuel",
+  lockout:     "Lockout",
+  battery:     "Dead Battery",
+  accident:    "Post-Accident",
+  diagnostics: "Diagnostics",
+  other:       "Other",
+};
+// Category → Icon name (see Icon.jsx). Keeps the label text-only so the same
+// map renders cleanly in both the picker (icon + text) and the status chips.
+const CRAFT_CAT_ICON = {
+  breakdown:   "assistance",
+  flat_tyre:   "tire",
+  tow:         "tow",
+  fuel:        "fuel",
+  lockout:     "lock",
+  battery:     "battery",
+  accident:    "alert",
+  diagnostics: "search",
+  other:       "assistance",
 };
 const CRAFT_STATUS_LABELS = {
   open:           "🟢 Open — accepting bids",
@@ -2110,7 +2123,7 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
                 className={`craft-cat-btn ${category === cat ? "craft-cat-selected" : ""}`}
                 onClick={() => setCategory(cat)}
               >
-                {CRAFT_CAT_LABELS[cat]}
+                <Icon name={CRAFT_CAT_ICON[cat]} size={16} /> {CRAFT_CAT_LABELS[cat]}
               </button>
             ))}
           </div>
