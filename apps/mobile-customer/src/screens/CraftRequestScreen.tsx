@@ -25,17 +25,23 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { createCraftRequest, reverseGeocode, CRAFT_CATEGORIES } from "../api";
+import Icon from "../components/Icon";
 
 const CAT_LABELS: Record<string, string> = {
-  breakdown:   "🔧 Breakdown",
-  flat_tyre:   "🔴 Flat Tire",
-  tow:         "🚛 Towing",
-  fuel:        "⛽ Out of Fuel",
-  lockout:     "🔑 Lockout",
-  battery:     "🔋 Dead Battery",
-  accident:    "🚨 Post-Accident",
-  diagnostics: "🔍 Diagnostics",
-  other:       "🛠️ Other",
+  breakdown:   "Breakdown",
+  flat_tyre:   "Flat Tire",
+  tow:         "Towing",
+  fuel:        "Out of Fuel",
+  lockout:     "Lockout",
+  battery:     "Dead Battery",
+  accident:    "Post-Accident",
+  diagnostics: "Diagnostics",
+  other:       "Other",
+};
+const CAT_ICON: Record<string, string> = {
+  breakdown: "assistance", flat_tyre: "tire", tow: "tow", fuel: "fuel",
+  lockout: "lock", battery: "battery", accident: "alert",
+  diagnostics: "search", other: "assistance",
 };
 import { useAuth } from "../context/AuthContext";
 
@@ -134,6 +140,7 @@ export default function CraftRequestScreen(): React.ReactElement {
             style={[styles.catChip, category === cat && styles.catChipSelected]}
             onPress={() => setCategory(cat)}
           >
+            <Icon name={CAT_ICON[cat] ?? "assistance"} size={15} color={category === cat ? "#1D4ED8" : "#374151"} />
             <Text style={[styles.catChipText, category === cat && styles.catChipTextSelected]}>
               {CAT_LABELS[cat] ?? cat}
             </Text>
@@ -222,6 +229,9 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, fontWeight: "600", color: "#374151", marginBottom: 8 },
   categories: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
   catChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
     backgroundColor: "#F3F4F6",
     borderRadius: 20,
     paddingHorizontal: 12,
