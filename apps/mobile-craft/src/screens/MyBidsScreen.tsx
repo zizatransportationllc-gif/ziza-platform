@@ -24,7 +24,7 @@ type MyBidsNavProp = NativeStackNavigationProp<RootStackParamList, "MyBids">;
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "#D97706",
-  accepted: "#059669",
+  accepted: "#1D4ED8",
   rejected: "#EF4444",
 };
 
@@ -101,7 +101,7 @@ export default function MyBidsScreen(): React.ReactElement {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#059669" />
+        <ActivityIndicator size="large" color="#1D4ED8" />
       </View>
     );
   }
@@ -120,7 +120,7 @@ export default function MyBidsScreen(): React.ReactElement {
               setRefreshing(true);
               loadBids(false);
             }}
-            tintColor="#059669"
+            tintColor="#1D4ED8"
           />
         }
         ListEmptyComponent={
@@ -150,8 +150,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 6,
   },
-  cardAccepted: { borderColor: "#059669", borderWidth: 2 },
-  openBtn: { marginTop: 12, backgroundColor: "#059669", borderRadius: 8, paddingVertical: 10, alignItems: "center" },
+  cardAccepted: { borderColor: "#1D4ED8", borderWidth: 2 },
+  openBtn: { marginTop: 12, backgroundColor: "#1D4ED8", borderRadius: 8, paddingVertical: 10, alignItems: "center" },
   openBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   bidId: { fontSize: 12, color: "#9CA3AF" },
   statusBadge: { fontSize: 12, fontWeight: "700" },

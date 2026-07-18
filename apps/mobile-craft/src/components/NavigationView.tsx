@@ -123,7 +123,7 @@ export default function NavigationView({ targetLat, targetLng, label = "Customer
         showsUserLocation
       >
         {route && route.coords.length >= 2 && (
-          <Polyline coordinates={route.coords} strokeColor="#059669" strokeWidth={5} />
+          <Polyline coordinates={route.coords} strokeColor="#1D4ED8" strokeWidth={5} />
         )}
         {pro && <Marker coordinate={pro} title="You" pinColor="green" />}
         <Marker
@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#059669",
+    backgroundColor: "#1D4ED8",
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderTopLeftRadius: 10,

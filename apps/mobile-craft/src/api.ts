@@ -2,7 +2,7 @@
  * API client for mobile-craft — Sprint 47 (Ziza Craft).
  * Isolated per frontend-isolation rule (no shared code with other frontends).
  *
- * Color theme: Emerald #059669
+ * Color theme: Emerald #1D4ED8
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
 

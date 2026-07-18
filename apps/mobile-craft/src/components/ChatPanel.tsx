@@ -8,7 +8,7 @@ import { listRequestMessages, sendRequestMessage, ChatMessage } from "../api";
 
 type Props = { token: string; requestId: string; accent?: string };
 
-export default function ChatPanel({ token, requestId, accent = "#059669" }: Props): React.ReactElement {
+export default function ChatPanel({ token, requestId, accent = "#1D4ED8" }: Props): React.ReactElement {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);

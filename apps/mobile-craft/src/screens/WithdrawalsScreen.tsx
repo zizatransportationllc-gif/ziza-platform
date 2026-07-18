@@ -76,7 +76,7 @@ export default function WithdrawalsScreen(): React.ReactElement {
   if (loading && !balance) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#059669" />
+        <ActivityIndicator size="large" color="#1D4ED8" />
       </View>
     );
   }
@@ -163,15 +163,15 @@ const styles = StyleSheet.create({
   onboardBanner: { backgroundColor: "#FEF3C7", borderWidth: 1, borderColor: "#FCD34D", borderRadius: 8, padding: 12, marginBottom: 14 },
   onboardText: { color: "#92400E", fontSize: 13, fontWeight: "600" },
   balanceCard: {
-    backgroundColor: "#059669",
+    backgroundColor: "#1D4ED8",
     borderRadius: 14,
     padding: 20,
     alignItems: "center",
     marginBottom: 16,
   },
-  balanceLabel: { color: "#D1FAE5", fontSize: 13 },
+  balanceLabel: { color: "#DCE7FB", fontSize: 13 },
   balanceAmount: { color: "#fff", fontSize: 32, fontWeight: "bold" },
-  balancePending: { color: "#D1FAE5", fontSize: 13, marginTop: 6 },
+  balancePending: { color: "#DCE7FB", fontSize: 13, marginTop: 6 },
   formRow: { flexDirection: "row", gap: 8 },
   input: {
     flex: 1,
@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   submitBtn: {
-    backgroundColor: "#059669",
+    backgroundColor: "#1D4ED8",
     borderRadius: 8,
     paddingHorizontal: 16,
     justifyContent: "center",

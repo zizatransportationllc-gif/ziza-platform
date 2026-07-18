@@ -26,7 +26,7 @@ const TABS: { key: Tab; icon: string; label: string; title: string }[] = [
   { key: "account", icon: "👤", label: "Account", title: "Account" },
 ];
 
-const ACCENT = "#059669";
+const ACCENT = "#1D4ED8";
 
 export default function MainScreen(): React.ReactElement {
   const navigation = useNavigation<NavProp>();

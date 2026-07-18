@@ -205,7 +205,7 @@ export default function DocumentsScreen(): React.ReactElement {
   };
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator color="#059669" /></View>;
+    return <View style={styles.center}><ActivityIndicator color="#1D4ED8" /></View>;
   }
 
   return (
@@ -334,14 +334,14 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0f1a14" },
   content: { padding: 20, paddingBottom: 40 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  heading: { fontSize: 22, fontWeight: "bold", marginBottom: 16, color: "#34d399" },
+  heading: { fontSize: 22, fontWeight: "bold", marginBottom: 16, color: "#4C82F0" },
 
   // Onboarding stepper
   stepperRow: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
   stepperStep: { flex: 1, alignItems: "center" },
   stepCircle: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  circleDone:   { backgroundColor: "#059669" },
-  circleActive: { backgroundColor: "#34d399" },
+  circleDone:   { backgroundColor: "#1D4ED8" },
+  circleActive: { backgroundColor: "#4C82F0" },
   circleTodo:   { backgroundColor: "transparent", borderWidth: 2, borderColor: "#233328" },
   stepNum: { fontSize: 12, fontWeight: "700" },
   numDone:   { color: "#fff" },
@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
   labelActive: { color: "#e8f5ec", fontWeight: "600" },
   labelTodo:   { color: "#6b9e7a" },
   stepLine: { flex: 0.8, height: 2, marginBottom: 16 },
-  lineDone: { backgroundColor: "#059669" },
+  lineDone: { backgroundColor: "#1D4ED8" },
   lineTodo: { backgroundColor: "#233328" },
 
   // Banners
@@ -359,30 +359,30 @@ const styles = StyleSheet.create({
   actionBannerTitle: { color: "#fbbf24", fontWeight: "700", fontSize: 14, marginBottom: 4 },
   actionBannerBody: { color: "#fcd34d", fontSize: 13 },
   reviewBanner: { backgroundColor: "rgba(52,211,153,0.08)", borderWidth: 1, borderColor: "rgba(52,211,153,0.3)", borderRadius: 8, padding: 12, marginBottom: 12 },
-  reviewBannerText: { color: "#34d399", fontSize: 13 },
+  reviewBannerText: { color: "#4C82F0", fontSize: 13 },
 
   sectionLabel: { fontSize: 13, fontWeight: "600", color: "#6b9e7a", marginBottom: 8 },
   typeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 16 },
-  typeChip: { borderWidth: 1, borderColor: "#34d399", borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5 },
-  typeChipSelected: { backgroundColor: "#059669" },
-  typeText: { color: "#34d399", fontSize: 12 },
+  typeChip: { borderWidth: 1, borderColor: "#4C82F0", borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5 },
+  typeChipSelected: { backgroundColor: "#1D4ED8" },
+  typeText: { color: "#4C82F0", fontSize: 12 },
   typeTextSelected: { color: "#fff" },
 
   captureRow: { flexDirection: "row", gap: 8, marginBottom: 14 },
-  captureBtn: { flex: 1, backgroundColor: "#059669", borderRadius: 8, paddingVertical: 11, alignItems: "center" },
+  captureBtn: { flex: 1, backgroundColor: "#1D4ED8", borderRadius: 8, paddingVertical: 11, alignItems: "center" },
   captureBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
-  galleryBtn: { backgroundColor: "#162117", borderWidth: 1, borderColor: "#34d399" },
-  galleryBtnText: { color: "#34d399" },
+  galleryBtn: { backgroundColor: "#162117", borderWidth: 1, borderColor: "#4C82F0" },
+  galleryBtnText: { color: "#4C82F0" },
   pdfBtn: { backgroundColor: "transparent", borderWidth: 1, borderColor: "#6b9e7a" },
   pdfBtnText: { color: "#6b9e7a" },
 
   previewWrap: { marginBottom: 14, alignItems: "center" },
-  previewImg: { width: 200, height: 150, borderRadius: 8, borderWidth: 2, borderColor: "#34d399" },
-  pdfSelectedWrap: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#162117", borderWidth: 1, borderColor: "#34d399", borderRadius: 8, padding: 10, marginBottom: 12 },
+  previewImg: { width: 200, height: 150, borderRadius: 8, borderWidth: 2, borderColor: "#4C82F0" },
+  pdfSelectedWrap: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#162117", borderWidth: 1, borderColor: "#4C82F0", borderRadius: 8, padding: 10, marginBottom: 12 },
   pdfIcon: { fontSize: 20 },
-  pdfFileName: { flex: 1, fontSize: 13, color: "#34d399", fontWeight: "600" },
+  pdfFileName: { flex: 1, fontSize: 13, color: "#4C82F0", fontWeight: "600" },
 
-  submitBtn: { backgroundColor: "#059669", borderRadius: 8, padding: 14, alignItems: "center", marginBottom: 8 },
+  submitBtn: { backgroundColor: "#1D4ED8", borderRadius: 8, padding: 14, alignItems: "center", marginBottom: 8 },
   submitBtnDisabled: { opacity: 0.5 },
   submitBtnText: { color: "#fff", fontWeight: "bold", fontSize: 15 },
   subHeading: { fontSize: 16, fontWeight: "600", marginTop: 24, marginBottom: 10, color: "#e8f5ec" },

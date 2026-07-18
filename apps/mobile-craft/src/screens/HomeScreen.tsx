@@ -152,14 +152,14 @@ export default function HomeScreen(): React.ReactElement {
         <Switch
           value={isOnline}
           onValueChange={handleToggleOnline}
-          trackColor={{ true: "#059669" }}
+          trackColor={{ true: "#1D4ED8" }}
         />
       </View>
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       {loading ? (
-        <ActivityIndicator size="large" color="#059669" style={{ marginTop: 40 }} />
+        <ActivityIndicator size="large" color="#1D4ED8" style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={requests}
@@ -172,7 +172,7 @@ export default function HomeScreen(): React.ReactElement {
                 setRefreshing(true);
                 loadRequests(false);
               }}
-              tintColor="#059669"
+              tintColor="#1D4ED8"
             />
           }
           ListEmptyComponent={
@@ -223,8 +223,8 @@ const styles = StyleSheet.create({
   category: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#059669",
-    backgroundColor: "#ECFDF5",
+    color: "#1D4ED8",
+    backgroundColor: "#EEF3FE",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   address: { fontSize: 12, color: "#6B7280", marginBottom: 4 },
   deadline: { fontSize: 12, color: "#D97706", marginBottom: 8 },
   bidButton: {
-    backgroundColor: "#059669",
+    backgroundColor: "#1D4ED8",
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: "center",
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
   // Sprint 54 — KYC pending
   kycBanner: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32 },
   kycIcon: { fontSize: 48, marginBottom: 16 },
-  kycTitle: { fontSize: 20, fontWeight: "700", color: "#065f46", marginBottom: 12, textAlign: "center" },
+  kycTitle: { fontSize: 20, fontWeight: "700", color: "#1E40AF", marginBottom: 12, textAlign: "center" },
   kycBody: { fontSize: 14, color: "#6B7280", textAlign: "center", lineHeight: 22, marginBottom: 24 },
-  kycLink: { fontSize: 15, fontWeight: "700", color: "#059669", textDecorationLine: "underline" },
+  kycLink: { fontSize: 15, fontWeight: "700", color: "#1D4ED8", textDecorationLine: "underline" },
 });

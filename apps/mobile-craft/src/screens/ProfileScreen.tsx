@@ -40,7 +40,7 @@ import { useAuth } from "../context/AuthContext";
 
 type ProfileNav = NativeStackNavigationProp<RootStackParamList, "Profile">;
 
-const ACCENT = "#059669";
+const ACCENT = "#1D4ED8";
 
 function AccountSection({ token }: { token: string }): React.ReactElement {
   const [me, setMe] = useState<UserProfile | null>(null);
@@ -318,7 +318,7 @@ export default function ProfileScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F9FAFB" },
   content: { padding: 20, paddingBottom: 40 },
-  title: { fontSize: 22, fontWeight: "bold", color: "#059669", marginBottom: 16 },
+  title: { fontSize: 22, fontWeight: "bold", color: "#1D4ED8", marginBottom: 16 },
   infoCard: {
     backgroundColor: "#fff",
     borderRadius: 10,
@@ -348,9 +348,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
-  catChipSelected: { backgroundColor: "#ECFDF5", borderColor: "#059669" },
+  catChipSelected: { backgroundColor: "#EEF3FE", borderColor: "#1D4ED8" },
   catChipText: { fontSize: 13, color: "#374151" },
-  catChipTextSelected: { color: "#059669", fontWeight: "600" },
+  catChipTextSelected: { color: "#1D4ED8", fontWeight: "600" },
   input: {
     borderWidth: 1,
     borderColor: "#D1D5DB",
@@ -362,9 +362,9 @@ const styles = StyleSheet.create({
   },
   bioInput: { height: 100, textAlignVertical: "top" },
   errorText: { color: "#EF4444", textAlign: "center", marginBottom: 8, fontSize: 13 },
-  successText: { color: "#059669", textAlign: "center", marginBottom: 8, fontSize: 13, fontWeight: "600" },
+  successText: { color: "#1D4ED8", textAlign: "center", marginBottom: 8, fontSize: 13, fontWeight: "600" },
   saveBtn: {
-    backgroundColor: "#059669",
+    backgroundColor: "#1D4ED8",
     borderRadius: 10,
     padding: 14,
     alignItems: "center",
@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
   saveBtnDisabled: { opacity: 0.6 },
   saveBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
   docsBtn: {
-    backgroundColor: "#059669",
+    backgroundColor: "#1D4ED8",
     borderRadius: 10,
     padding: 14,
     alignItems: "center",
