@@ -48,11 +48,11 @@ const NJ_LOCATIONS = {
 const LOCATION_NAMES = Object.keys(NJ_LOCATIONS);
 
 const STATUS_LABELS = {
-  accepted:    "✓ Ride accepted — heading to customer",
-  arrived:     "📍 Arrived — waiting for customer to confirm pickup",
-  in_progress: "🚗 Ride in progress",
-  completed:   "✅ Ride completed",
-  cancelled:   "✗ Ride cancelled by customer",
+  accepted:    "Ride accepted — heading to customer",
+  arrived:     "Arrived — waiting for customer to confirm pickup",
+  in_progress: "Ride in progress",
+  completed:   "Ride completed",
+  cancelled:   "Ride cancelled by customer",
 };
 
 
@@ -710,9 +710,9 @@ function DriverTripHistory({ token }) {
 // ---------------------------------------------------------------------------
 
 const PAYOUT_STATUS_LABELS = {
-  pending:  "⏳ Pending",
-  approved: "✅ Approved",
-  rejected: "✗ Rejected",
+  pending:  "Pending",
+  approved: "Approved",
+  rejected: "Rejected",
 };
 
 // Sprint 70 — Ziza debit card (Stripe Issuing): spend the Connect balance.
@@ -861,10 +861,10 @@ const DOCUMENT_TYPE_LABELS = {
 };
 
 const DOCUMENT_STATUS_LABELS = {
-  pending:            "⏳ Pending",
-  approved:           "✅ Approved",
-  rejected:           "✗ Rejected",
-  needs_resubmission: "🔄 Resubmit Required",
+  pending:            "Pending",
+  approved:           "Approved",
+  rejected:           "Rejected",
+  needs_resubmission: "Resubmit Required",
 };
 
 const DOCUMENT_TYPES = ["license", "insurance", "registration", "id_card"];
