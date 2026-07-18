@@ -1,16 +1,19 @@
 /* Local design tokens for web-customer.
    DO NOT import this file from web-driver or web-admin.
-   Each frontend keeps its own copy on purpose (isolation rule). */
+   Each frontend keeps its own copy on purpose (isolation rule).
+   Roadside brand: rescue blue + red on asphalt (dark theme). */
 :root {
-  --color-bg: #0f172a;
-  --color-fg: #f8fafc;
-  --color-muted: #94a3b8;
-  --color-accent: #38bdf8;
-  --color-accent-strong: #0ea5e9;
-  --color-success: #4ade80;
+  --color-bg: #0e1522;              /* asphalt night */
+  --color-fg: #eef3f8;
+  --color-muted: #97a2b0;
+  --color-accent: #4c82f0;          /* rescue blue — highlights, links */
+  --color-accent-strong: #1d4ed8;   /* rescue blue — solid actions (white text) */
+  --color-red: #ff5c68;             /* rescue red — urgency, live */
+  --color-red-strong: #e01f2d;      /* rescue red — SOS / solid urgent (white text) */
+  --color-success: #5fd08a;
   --color-error: #f87171;
-  --color-surface: rgba(255, 255, 255, 0.04);
-  --color-border: rgba(255, 255, 255, 0.08);
+  --color-surface: rgba(255, 255, 255, 0.05);
+  --color-border: rgba(255, 255, 255, 0.10);
 
   --font-stack:
     system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
