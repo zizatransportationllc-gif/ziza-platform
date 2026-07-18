@@ -2086,14 +2086,15 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
   async function handleSubmit(e) {
     e.preventDefault();
     if (!category) { setError("Please select a category."); return; }
+    if (!location) { setError("Add your location — search an address or use GPS."); return; }
     setSubmitting(true); setError(null);
     try {
       const req = await createCraftRequest(token, {
         category,
         description: description.trim(),
-        lat: location?.lat ?? 40.7357,
-        lng: location?.lng ?? -74.1724,
-        address: location?.name?.trim() || null,
+        lat: location.lat,
+        lng: location.lng,
+        address: location.name?.trim() || null,
         bid_deadline_minutes: 30,
       });
       onCreated(req);
@@ -2157,7 +2158,7 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
         </div>
 
         {error && <p className="form-error">{error}</p>}
-        <button type="submit" className="craft-submit-btn" disabled={submitting || !category}>
+        <button type="submit" className="craft-submit-btn" disabled={submitting || !category || !location}>
           {submitting ? "Posting…" : "📤 Post Request"}
         </button>
       </form>

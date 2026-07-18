@@ -5,8 +5,8 @@
  * Customer fills in:
  *   - Category (picker)
  *   - Description (free text)
- *   - Location (GPS auto-fill or manual lat/lng)
- *   - Address (optional)
+ *   - Location: either search an address (Mapbox) or use GPS — no manual
+ *     coordinates; lat/lng are resolved from whichever the customer picks.
  *   - Bidding window duration (default 30 min)
  */
 import React, { useState, useEffect } from "react";
@@ -171,11 +171,19 @@ export default function CraftRequestScreen(): React.ReactElement {
         numberOfLines={4}
       />
 
-      {/* Location */}
+      {/* Location — enter an address (Mapbox search) or use GPS. No manual
+          coordinates: lat/lng are resolved behind the scenes from either. */}
       <Text style={styles.label}>Your location</Text>
-      <TouchableOpacity style={styles.searchBtn} onPress={openSearch}>
-        <Text style={styles.searchBtnText}>🔍 Search your address…</Text>
+      <TouchableOpacity style={styles.addressField} onPress={openSearch}>
+        <Text
+          style={address ? styles.addressText : styles.addressPlaceholder}
+          numberOfLines={2}
+        >
+          {address || "Search your address…"}
+        </Text>
+        <Text style={styles.addressSearchIcon}>🔍</Text>
       </TouchableOpacity>
+      <Text style={styles.orDivider}>or</Text>
       <TouchableOpacity style={styles.gpsBtn} onPress={() => handleGPS(false)} disabled={locating}>
         {locating ? (
           <ActivityIndicator color="#1D4ED8" />
@@ -183,31 +191,6 @@ export default function CraftRequestScreen(): React.ReactElement {
           <Text style={styles.gpsBtnText}>📍 Use my GPS location</Text>
         )}
       </TouchableOpacity>
-      <View style={styles.coordRow}>
-        <TextInput
-          style={[styles.input, styles.coordInput]}
-          value={lat}
-          onChangeText={setLat}
-          placeholder="Latitude"
-          keyboardType="decimal-pad"
-        />
-        <TextInput
-          style={[styles.input, styles.coordInput]}
-          value={lng}
-          onChangeText={setLng}
-          placeholder="Longitude"
-          keyboardType="decimal-pad"
-        />
-      </View>
-
-      {/* Address (optional) */}
-      <Text style={styles.label}>Address (optional)</Text>
-      <TextInput
-        style={styles.input}
-        value={address}
-        onChangeText={setAddress}
-        placeholder="e.g. 123 Main St, Newark NJ"
-      />
 
       {/* Bidding window */}
       <Text style={styles.label}>Bidding window (minutes)</Text>
@@ -267,14 +250,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#F9FAFB",
   },
   multiline: { height: 100, textAlignVertical: "top" },
-  searchBtn: {
-    backgroundColor: "#1D4ED8",
-    borderRadius: 8,
-    padding: 13,
+  addressField: {
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 8,
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 8,
+    padding: 12,
+    minHeight: 48,
+    backgroundColor: "#F9FAFB",
+    marginBottom: 6,
   },
-  searchBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  addressText: { flex: 1, fontSize: 15, color: "#111", marginRight: 8 },
+  addressPlaceholder: { flex: 1, fontSize: 15, color: "#9CA3AF", marginRight: 8 },
+  addressSearchIcon: { fontSize: 16 },
+  orDivider: { textAlign: "center", color: "#9CA3AF", fontSize: 12, marginBottom: 6 },
   gpsBtn: {
     backgroundColor: "#EEF3FE",
     borderRadius: 8,
@@ -285,8 +276,6 @@ const styles = StyleSheet.create({
     borderColor: "#C7D7F7",
   },
   gpsBtnText: { color: "#1D4ED8", fontWeight: "600", fontSize: 14 },
-  coordRow: { flexDirection: "row", gap: 8 },
-  coordInput: { flex: 1 },
   errorText: { color: "#EF4444", textAlign: "center", marginBottom: 8, fontSize: 13 },
   submitBtn: {
     backgroundColor: "#1D4ED8",
