@@ -20,6 +20,7 @@ import {
   createSetupIntent, listPaymentMethods, deletePaymentMethod, setDefaultPaymentMethod, // Sprint 73 — saved cards
 } from "./api";
 import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, sendPasswordReset, resendVerification, changeEmail, firebaseSignOut } from "./auth";
+import Icon from "./Icon";
 import { EstimateMap, TripMap } from "./TripMap";
 
 const REQUIRED_ROLE = "customer";
@@ -2709,7 +2710,7 @@ function Dashboard({ user, token, onLogout }) {
             onClick={() => setMode("notifications")}
             title="Notifications"
           >
-            🔔{unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}
+            <Icon name="bell" size={20} />{unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}
           </button>
           <button className="logout-btn" onClick={onLogout}>Sign Out</button>
         </div>
@@ -2733,25 +2734,25 @@ function Dashboard({ user, token, onLogout }) {
               className={`mode-tab ${mode === "course" ? "active" : ""}`}
               onClick={() => setMode("course")}
             >
-              🚕 Ride
+              <Icon name="ride" /> Ride
             </button>
             <button
               className={`mode-tab ${mode === "assistance" ? "active" : ""}`}
               onClick={() => setMode("assistance")}
             >
-              🔧 Assistance
+              <Icon name="assistance" /> Assistance
             </button>
             <button
               className={`mode-tab ${mode === "activity" ? "active" : ""}`}
               onClick={() => setMode("activity")}
             >
-              📋 Activity
+              <Icon name="activity" /> Activity
             </button>
             <button
               className={`mode-tab ${mode === "account" ? "active" : ""}`}
               onClick={() => { setAccountSub(null); setMode("account"); }}
             >
-              👤 Account
+              <Icon name="account" /> Account
             </button>
           </div>
           {mode === "course" && (
