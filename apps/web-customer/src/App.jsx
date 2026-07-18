@@ -53,12 +53,12 @@ const CATEGORY_ICONS  = { economy: "🚗", comfort: "🚙", premium: "🏎️" }
 const CATEGORY_ORDER  = ["economy", "comfort", "premium"];
 
 const STATUS_LABELS = {
-  pending:     "⏳ Waiting for a driver",
-  accepted:    "✓ Driver on the way",
-  arrived:     "📍 Your driver has arrived — confirm when you're in the car",
-  in_progress: "🚗 Ride in progress",
-  completed:   "✅ Ride completed",
-  cancelled:   "✗ Ride cancelled",
+  pending:     "Waiting for a driver",
+  accepted:    "Driver on the way",
+  arrived:     "Your driver has arrived — confirm when you're in the car",
+  in_progress: "Ride in progress",
+  completed:   "Ride completed",
+  cancelled:   "Ride cancelled",
 };
 
 const TERMINAL_STATUSES = new Set(["completed", "cancelled"]);
@@ -1782,14 +1782,27 @@ const CRAFT_CAT_ICON = {
   other:       "assistance",
 };
 const CRAFT_STATUS_LABELS = {
-  open:           "🟢 Open — accepting bids",
-  bidding_closed: "⏰ Bidding closed",
-  assigned:       "✅ Professional on the way",
-  arrived:        "📍 Professional has arrived",
-  in_progress:    "🔧 Work in progress",
-  pro_done:       "🔧 Work finished — confirm completion",
-  completed:      "✅ Completed",
-  cancelled:      "✗ Cancelled",
+  open:           "Open — accepting bids",
+  bidding_closed: "Bidding closed",
+  assigned:       "Professional on the way",
+  arrived:        "Professional has arrived",
+  in_progress:    "Work in progress",
+  pro_done:       "Work finished — confirm completion",
+  completed:      "Completed",
+  cancelled:      "Cancelled",
+};
+// Status → semantic color (design system: pending=slate, active=blue,
+// done=green, cancelled=red). The badge is color-coded so the emoji is no
+// longer needed to signal state.
+const CRAFT_STATUS_COLOR = {
+  open:           "active",
+  bidding_closed: "pending",
+  assigned:       "active",
+  arrived:        "active",
+  in_progress:    "active",
+  pro_done:       "active",
+  completed:      "ok",
+  cancelled:      "crit",
 };
 
 // Chat panel for a craft request conversation — Sprint 66 (polling 3s)
@@ -2261,7 +2274,7 @@ function CraftSection({ token, onNeedCard }) {
             <div key={req.request_id} className="craft-request-card">
               <div className="craft-request-header">
                 <span className="craft-cat-chip">{CRAFT_CAT_LABELS[req.category] ?? req.category}</span>
-                <span className="craft-status-badge">{CRAFT_STATUS_LABELS[req.status] ?? req.status}</span>
+                <span className={`craft-status-badge cs-${CRAFT_STATUS_COLOR[req.status] ?? "pending"}`}>{CRAFT_STATUS_LABELS[req.status] ?? req.status}</span>
               </div>
               <p className="craft-request-desc">{req.description}</p>
               {req.address && <p className="craft-meta">📍 {req.address}</p>}
@@ -2315,9 +2328,9 @@ const DOCUMENT_TYPE_LABELS = {
   id_card:      "🪪 Government ID",
 };
 const DOCUMENT_STATUS_LABELS = {
-  pending:  "⏳ Pending",
-  approved: "✅ Approved",
-  rejected: "✗ Rejected",
+  pending:  "Pending",
+  approved: "Approved",
+  rejected: "Rejected",
 };
 
 function DocumentsSection({ token }) {
@@ -2571,7 +2584,7 @@ function ActivityCraftList({ token, onOpen }) {
         <div key={req.request_id} className="craft-request-card">
           <div className="craft-request-header">
             <span className="craft-cat-chip">{CRAFT_CAT_LABELS[req.category] ?? req.category}</span>
-            <span className="craft-status-badge">{CRAFT_STATUS_LABELS[req.status] ?? req.status}</span>
+            <span className={`craft-status-badge cs-${CRAFT_STATUS_COLOR[req.status] ?? "pending"}`}>{CRAFT_STATUS_LABELS[req.status] ?? req.status}</span>
           </div>
           <p className="craft-request-desc">{req.description}</p>
           {req.address && <p className="craft-meta">📍 {req.address}</p>}
