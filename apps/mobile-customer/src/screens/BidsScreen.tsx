@@ -57,6 +57,47 @@ function formatUSD(cents: number): string {
 // Distances are stored in km; display in miles (US). 1 mi = 1.609344 km.
 const fmtMiles = (km: number): string => (km / 1.609344).toFixed(1);
 
+// Customer-facing progress milestones for an assistance job.
+const TL_STEPS = ["Requested", "On the way", "Arrived", "In progress", "Done"];
+const STATUS_STEP: Record<string, number> = {
+  open: 0, bidding_closed: 0,
+  assigned: 1, arrived: 2,
+  in_progress: 3, pro_done: 3,
+  completed: 4,
+};
+
+/** Horizontal step timeline showing where the job is right now. */
+function StatusTimeline({ status }: { status: string }): React.ReactElement | null {
+  if (status === "cancelled") return null;
+  const current = STATUS_STEP[status] ?? 0;
+  const complete = status === "completed";
+  const last = TL_STEPS.length - 1;
+  return (
+    <View style={tl.row}>
+      {TL_STEPS.map((label, i) => {
+        const done = complete || i < current;
+        const active = !complete && i === current;
+        const leftOn = i <= current || complete;   // segment reaching this dot
+        const rightOn = i < current || complete;    // segment leaving this dot
+        return (
+          <View key={label} style={tl.step}>
+            <View style={tl.track}>
+              <View style={[tl.seg, i === 0 && tl.segHidden, leftOn && tl.segOn]} />
+              <View style={[tl.dot, done && tl.dotDone, active && tl.dotActive]}>
+                <Text style={[tl.dotText, (done || active) && tl.dotTextOn]}>
+                  {done ? "✓" : String(i + 1)}
+                </Text>
+              </View>
+              <View style={[tl.seg, i === last && tl.segHidden, rightOn && tl.segOn]} />
+            </View>
+            <Text style={[tl.label, active && tl.labelActive]}>{label}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function BidsScreen(): React.ReactElement {
   const { token } = useAuth();
   const route = useRoute<RouteProps>();
@@ -242,6 +283,9 @@ export default function BidsScreen(): React.ReactElement {
         <View style={styles.requestHeader}>
           <Text style={styles.requestCategory}>{request.category.toUpperCase()}</Text>
           <Text style={styles.requestDesc} numberOfLines={2}>{request.description}</Text>
+          {["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status) && (
+            <StatusTimeline status={request.status} />
+          )}
           {request.verification_code &&
             ["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status) && (
               <View style={styles.codeCard}>
@@ -373,4 +417,24 @@ const styles = StyleSheet.create({
   bidRejected: { color: "#9CA3AF" },
   empty: { textAlign: "center", color: "#9CA3AF", marginTop: 60, fontSize: 16 },
   errorText: { color: "#EF4444", textAlign: "center", padding: 12 },
+});
+
+// Progress timeline styles
+const tl = StyleSheet.create({
+  row: { flexDirection: "row", marginTop: 12, marginBottom: 2 },
+  step: { flex: 1, alignItems: "center" },
+  track: { flexDirection: "row", alignItems: "center", alignSelf: "stretch", height: 22 },
+  seg: { flex: 1, height: 2, backgroundColor: "#E5E7EB" },
+  segHidden: { backgroundColor: "transparent" },
+  segOn: { backgroundColor: "#1D4ED8" },
+  dot: {
+    width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center",
+    borderWidth: 2, borderColor: "#E5E7EB", backgroundColor: "#fff",
+  },
+  dotDone: { backgroundColor: "#16A34A", borderColor: "#16A34A" },
+  dotActive: { backgroundColor: "#1D4ED8", borderColor: "#1D4ED8" },
+  dotText: { fontSize: 11, fontWeight: "700", color: "#9CA3AF" },
+  dotTextOn: { color: "#fff" },
+  label: { fontSize: 9, color: "#9CA3AF", marginTop: 4, textAlign: "center" },
+  labelActive: { color: "#1D4ED8", fontWeight: "700" },
 });

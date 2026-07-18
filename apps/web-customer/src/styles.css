@@ -576,6 +576,26 @@ html, body {
 .craft-photo-thumb { width: 84px; height: 84px; object-fit: cover; border-radius: var(--radius-md); border: 1px solid var(--color-border); }
 .craft-request-info { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2); flex-wrap: wrap; }
 .craft-status-label { font-size: 0.82rem; color: var(--color-muted); font-weight: 500; }
+
+/* Assistance job progress timeline (Requested → On the way → … → Completed) */
+.craft-timeline { list-style: none; display: flex; padding: 0; margin: 0 0 var(--space-4); }
+.craft-tl-step { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; }
+.craft-tl-step::before {
+  content: ""; position: absolute; top: 11px; left: -50%; width: 100%; height: 2px;
+  background: var(--color-border); z-index: 0;
+}
+.craft-tl-step:first-child::before { display: none; }
+.craft-tl-dot {
+  position: relative; z-index: 1; width: 24px; height: 24px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 0.7rem; font-weight: 700;
+  background: var(--color-surface); border: 2px solid var(--color-border); color: var(--color-muted);
+}
+.craft-tl-label { font-size: 0.66rem; text-align: center; color: var(--color-muted); line-height: 1.25; }
+.craft-tl-done .craft-tl-dot { background: var(--color-success); border-color: var(--color-success); color: #08160d; }
+.craft-tl-done::before { background: var(--color-success); }
+.craft-tl-active .craft-tl-dot { background: var(--color-accent-strong); border-color: var(--color-accent-strong); color: #fff; }
+.craft-tl-active::before { background: var(--color-accent-strong); }
+.craft-tl-active .craft-tl-label { color: var(--color-fg); font-weight: 700; }
 .craft-description { font-size: 0.95rem; color: var(--color-fg); margin-bottom: var(--space-2); line-height: 1.5; }
 .craft-bids-title { font-size: 1rem; font-weight: 700; margin: var(--space-4) 0 var(--space-3); color: var(--color-fg); }
 .craft-success { color: var(--color-success, #16a34a); font-size: 0.9rem; font-weight: 600; margin-bottom: var(--space-3); }
