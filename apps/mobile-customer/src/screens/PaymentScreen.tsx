@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
   },
   resultIcon: { fontSize: 56, marginBottom: 16 },
   resultTitle: { fontSize: 22, fontWeight: "bold", color: "#111", marginBottom: 8, textAlign: "center" },
-  resultAmount: { fontSize: 28, fontWeight: "700", color: "#1D4ED8", marginBottom: 24 },
+  resultAmount: { fontSize: 28, fontWeight: "700", color: "#1D4ED8", marginBottom: 24, fontVariant: ["tabular-nums"] },
   resultHint: { fontSize: 14, color: "#666", textAlign: "center", marginBottom: 24, lineHeight: 20 },
   pollingText: { fontSize: 18, fontWeight: "600", color: "#111", marginTop: 20, marginBottom: 8 },
   pollingHint: { fontSize: 13, color: "#888", textAlign: "center" },

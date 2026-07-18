@@ -445,6 +445,6 @@ const styles = StyleSheet.create({
     padding: 16,
     marginTop: 4,
   },
-  price: { fontSize: 28, fontWeight: "bold", color: "#1D4ED8", textAlign: "center" },
+  price: { fontSize: 28, fontWeight: "bold", color: "#1D4ED8", textAlign: "center", fontVariant: ["tabular-nums"] },
   detail: { textAlign: "center", color: "#6B7280", marginBottom: 12 },
 });
