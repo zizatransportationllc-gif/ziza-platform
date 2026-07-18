@@ -56,9 +56,9 @@ const ALL_SKILLS = [
 ];
 
 const BID_STATUS_LABELS = {
-  pending:  "⏳ Pending",
-  accepted: "✅ Accepted",
-  rejected: "✗ Rejected",
+  pending:  "Pending",
+  accepted: "Accepted",
+  rejected: "Rejected",
 };
 
 const DOCUMENT_TYPES = ["license", "insurance", "registration", "id_card"];
@@ -69,10 +69,10 @@ const DOCUMENT_TYPE_LABELS = {
   id_card:      "🪪 Government ID",
 };
 const DOCUMENT_STATUS_LABELS = {
-  pending:            "⏳ Pending",
-  approved:           "✅ Approved",
-  rejected:           "✗ Rejected",
-  needs_resubmission: "🔄 Resubmit Required",
+  pending:            "Pending",
+  approved:           "Approved",
+  rejected:           "Rejected",
+  needs_resubmission: "Resubmit Required",
 };
 
 // ---------------------------------------------------------------------------
@@ -703,11 +703,11 @@ function MyBidsSection({ token }) {
 // ---------------------------------------------------------------------------
 
 const PRO_PAYOUT_STATUS_LABELS = {
-  pending:  "⏳ Pending",
-  approved: "✅ Approved",
-  rejected: "✗ Rejected",
-  processed: "💸 Paid",
-  failed:   "⚠ Failed",
+  pending:  "Pending",
+  approved: "Approved",
+  rejected: "Rejected",
+  processed: "Paid",
+  failed:   "Failed",
 };
 
 // Sprint 70 — Ziza debit card (Stripe Issuing): spend the Connect balance.

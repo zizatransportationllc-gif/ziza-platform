@@ -172,6 +172,8 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .bid-status-pending  { background: color-mix(in srgb, var(--color-warning) 15%, transparent); color: var(--color-warning); }
 .bid-status-accepted { background: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success); }
 .bid-status-rejected { background: color-mix(in srgb, var(--color-error) 12%, transparent); color: var(--color-error); }
+.bid-status-processed { background: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success); }
+.bid-status-failed { background: color-mix(in srgb, var(--color-error) 12%, transparent); color: var(--color-error); }
 .bid-eta  { font-size: 0.82rem; color: var(--color-muted); margin-bottom: var(--space-1); }
 .bid-note { font-size: 0.82rem; color: var(--color-muted); font-style: italic; }
 .bid-date { font-size: 0.75rem; color: var(--color-muted); margin-top: var(--space-2); }
