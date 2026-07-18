@@ -1,15 +1,17 @@
-/* ── Ziza Craft — web-craft styles (Sprint 48) ─────────────────────────── */
-/* Emerald green theme: #059669 */
+/* ── Ziza Craft — web-craft styles ─────────────────────────────────────── */
+/* Roadside brand: rescue blue + red on asphalt (dark theme). */
 
 :root {
-  --color-bg:           #0f1a14;
-  --color-surface:      #162117;
-  --color-border:       #233328;
-  --color-fg:           #e8f5ec;
-  --color-muted:        #6b9e7a;
-  --color-accent:       #34d399;
-  --color-accent-strong: #059669;
-  --color-success:      #34d399;
+  --color-bg:           #0e1522;      /* asphalt night */
+  --color-surface:      #16202e;
+  --color-border:       rgba(255, 255, 255, 0.10);
+  --color-fg:           #eef3f8;
+  --color-muted:        #97a2b0;
+  --color-accent:       #4c82f0;      /* rescue blue — highlights, links */
+  --color-accent-strong: #1d4ed8;     /* rescue blue — solid actions (white text) */
+  --color-red:          #ff5c68;      /* rescue red — urgency, live */
+  --color-red-strong:   #e01f2d;      /* rescue red — SOS / solid urgent */
+  --color-success:      #5fd08a;
   --color-error:        #f87171;
   --color-warning:      #fbbf24;
   --font-stack:         "Inter", "Segoe UI", system-ui, sans-serif;
