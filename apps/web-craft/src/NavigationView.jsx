@@ -113,7 +113,7 @@ export default function NavigationView({ target, label = "Customer" }) {
               type="line"
               layout={{ "line-cap": "round", "line-join": "round" }}
               paint={{
-                "line-color": "#059669",
+                "line-color": "#1d4ed8",
                 "line-width": 5,
                 "line-opacity": 0.85,
                 ...(route ? {} : { "line-dasharray": [2, 1.5] }),
