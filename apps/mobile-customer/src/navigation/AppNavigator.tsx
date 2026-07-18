@@ -52,7 +52,7 @@ export default function AppNavigator({
   return (
     <NavigationContainer>
       <Stack.Navigator
-        screenOptions={{ headerStyle: { backgroundColor: "#F97316" }, headerTintColor: "#fff" }}
+        screenOptions={{ headerStyle: { backgroundColor: "#1D4ED8" }, headerTintColor: "#fff" }}
       >
         {isAuthenticated ? (
           <>

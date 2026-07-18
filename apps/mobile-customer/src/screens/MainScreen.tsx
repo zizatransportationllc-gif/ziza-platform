@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
   tabIcon: { fontSize: 20, opacity: 0.5 },
   tabIconActive: { opacity: 1 },
   tabLabel: { fontSize: 11, color: "#9CA3AF", fontWeight: "600" },
-  tabLabelActive: { color: "#F97316" },
+  tabLabelActive: { color: "#1D4ED8" },
   bell: { paddingHorizontal: 8, paddingVertical: 4 },
   bellIcon: { fontSize: 20 },
   badge: {

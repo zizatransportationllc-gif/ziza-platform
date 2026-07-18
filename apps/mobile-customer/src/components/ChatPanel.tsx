@@ -13,7 +13,7 @@ import {
 
 type Props = { token: string; scope: "trip" | "request"; id: string; accent?: string };
 
-export default function ChatPanel({ token, scope, id, accent = "#F97316" }: Props): React.ReactElement {
+export default function ChatPanel({ token, scope, id, accent = "#1D4ED8" }: Props): React.ReactElement {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);

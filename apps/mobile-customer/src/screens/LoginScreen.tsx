@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 14, color: "#888", textAlign: "center", marginBottom: 20 },
   tabBar: { flexDirection: "row", borderRadius: 8, backgroundColor: "#F3F4F6", marginBottom: 20, overflow: "hidden" },
   tab: { flex: 1, paddingVertical: 10, alignItems: "center" },
-  tabActive: { backgroundColor: "#F97316" },
+  tabActive: { backgroundColor: "#1D4ED8" },
   tabText: { fontSize: 14, fontWeight: "600", color: "#6B7280" },
   tabTextActive: { color: "#fff" },
   input: {
@@ -217,11 +217,11 @@ const styles = StyleSheet.create({
   pwInputTight: { marginBottom: 6 },
   pwToggle: { flexDirection: "row", alignItems: "center" },
   pwCheckbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: "#bbb", alignItems: "center", justifyContent: "center", marginRight: 8 },
-  pwCheckboxOn: { backgroundColor: "#F97316", borderColor: "#F97316" },
+  pwCheckboxOn: { backgroundColor: "#1D4ED8", borderColor: "#1D4ED8" },
   pwCheckmark: { color: "#fff", fontSize: 12, fontWeight: "bold", lineHeight: 14 },
   pwToggleLabel: { fontSize: 13, color: "#666" },
   button: {
-    backgroundColor: "#F97316",
+    backgroundColor: "#1D4ED8",
     borderRadius: 8,
     padding: 14,
     alignItems: "center",
@@ -231,5 +231,5 @@ const styles = StyleSheet.create({
   error: { color: "red", textAlign: "center", marginBottom: 12, fontSize: 14 },
   notice: { color: "#065f46", backgroundColor: "#ECFDF5", borderWidth: 1, borderColor: "#A7F3D0", borderRadius: 8, padding: 10, textAlign: "center", marginBottom: 12, fontSize: 13 },
   hint: { fontSize: 12, color: "#aaa", textAlign: "center", marginTop: 12 },
-  forgot: { fontSize: 13, color: "#F97316", textAlign: "center", marginTop: 12, textDecorationLine: "underline" },
+  forgot: { fontSize: 13, color: "#1D4ED8", textAlign: "center", marginTop: 12, textDecorationLine: "underline" },
 });

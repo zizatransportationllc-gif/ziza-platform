@@ -58,7 +58,7 @@ export default function NotificationsScreen(): React.ReactElement {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#F97316" />
+        <ActivityIndicator size="large" color="#1D4ED8" />
       </View>
     );
   }
@@ -106,10 +106,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   heading: { fontSize: 22, fontWeight: "bold" },
-  markRead: { color: "#F97316", fontWeight: "600" },
+  markRead: { color: "#1D4ED8", fontWeight: "600" },
   item: { borderBottomWidth: 1, borderBottomColor: "#f3f4f6", paddingVertical: 12, flexDirection: "row", alignItems: "center" },
   itemContent: { flex: 1 },
-  unread: { backgroundColor: "#FFF7ED" },
+  unread: { backgroundColor: "#EEF3FE" },
   itemTitle: { fontWeight: "bold", fontSize: 15 },
   itemBody: { color: "#374151", marginTop: 2 },
   deleteBtn: { color: "#9CA3AF", fontSize: 18, paddingHorizontal: 8 },

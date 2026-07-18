@@ -74,7 +74,7 @@ export default function ActivityScreen(): React.ReactElement {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#F97316" />
+        <ActivityIndicator size="large" color="#1D4ED8" />
       </View>
     );
   }
@@ -87,7 +87,7 @@ export default function ActivityScreen(): React.ReactElement {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={() => { setRefreshing(true); load(false); }}
-          tintColor="#F97316"
+          tintColor="#1D4ED8"
         />
       }
     >
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 6,
   },
-  chipActive: { backgroundColor: "#F97316", borderColor: "#F97316" },
+  chipActive: { backgroundColor: "#1D4ED8", borderColor: "#1D4ED8" },
   chipText: { fontSize: 13, fontWeight: "600", color: "#6B7280" },
   chipTextActive: { color: "#fff" },
   group: { marginBottom: 20 },
@@ -193,8 +193,8 @@ const styles = StyleSheet.create({
   category: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#F97316",
-    backgroundColor: "#FFF7ED",
+    color: "#1D4ED8",
+    backgroundColor: "#EEF3FE",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
@@ -205,12 +205,12 @@ const styles = StyleSheet.create({
   meta: { fontSize: 12, color: "#6B7280", marginBottom: 4 },
   date: { fontSize: 11, color: "#D1D5DB", marginBottom: 8 },
   bidsBtn: {
-    backgroundColor: "#FFF7ED",
+    backgroundColor: "#EEF3FE",
     borderRadius: 8,
     paddingVertical: 8,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#FED7AA",
+    borderColor: "#C7D7F7",
   },
-  bidsBtnText: { color: "#F97316", fontWeight: "700", fontSize: 13 },
+  bidsBtnText: { color: "#1D4ED8", fontWeight: "700", fontSize: 13 },
 });

@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
   paidBadgeText: { color: "#16A34A", fontSize: 12, fontWeight: "600" },
   payBtn: {
     marginTop: 8,
-    backgroundColor: "#F97316",
+    backgroundColor: "#1D4ED8",
     borderRadius: 8,
     paddingVertical: 8,
     alignItems: "center",

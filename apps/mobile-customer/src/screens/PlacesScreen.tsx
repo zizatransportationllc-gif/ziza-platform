@@ -58,7 +58,7 @@ export default function PlacesScreen(): React.ReactElement {
         placeholder="Search address…"
         autoFocus
       />
-      {loading && <ActivityIndicator color="#F97316" style={{ marginVertical: 8 }} />}
+      {loading && <ActivityIndicator color="#1D4ED8" style={{ marginVertical: 8 }} />}
       <FlatList
         data={results}
         keyExtractor={(item) => item.place_id}

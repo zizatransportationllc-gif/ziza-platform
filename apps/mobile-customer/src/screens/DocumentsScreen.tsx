@@ -152,7 +152,7 @@ export default function DocumentsScreen(): React.ReactElement {
 
       {/* Submitted documents list */}
       <Text style={styles.subHeading}>Submitted documents</Text>
-      {loading && <ActivityIndicator color="#F97316" style={{ marginTop: 12 }} />}
+      {loading && <ActivityIndicator color="#1D4ED8" style={{ marginTop: 12 }} />}
       {!loading && documents.length === 0 && (
         <Text style={styles.empty}>No documents submitted yet.</Text>
       )}
@@ -171,24 +171,24 @@ export default function DocumentsScreen(): React.ReactElement {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F9FAFB" },
   content: { padding: 20, paddingBottom: 40 },
-  heading: { fontSize: 22, fontWeight: "bold", marginBottom: 16, color: "#F97316" },
+  heading: { fontSize: 22, fontWeight: "bold", marginBottom: 16, color: "#1D4ED8" },
   sectionLabel: { fontSize: 13, fontWeight: "600", color: "#6B7280", marginBottom: 8 },
   subHeading: { fontSize: 16, fontWeight: "600", marginTop: 24, marginBottom: 10, color: "#374151" },
   typeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 16 },
   typeChip: {
     borderWidth: 1,
-    borderColor: "#F97316",
+    borderColor: "#1D4ED8",
     borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-  typeChipSelected: { backgroundColor: "#F97316" },
-  typeText: { color: "#F97316", fontSize: 12 },
+  typeChipSelected: { backgroundColor: "#1D4ED8" },
+  typeText: { color: "#1D4ED8", fontSize: 12 },
   typeTextSelected: { color: "#fff" },
   captureRow: { flexDirection: "row", gap: 10, marginBottom: 14 },
   captureBtn: {
     flex: 1,
-    backgroundColor: "#F97316",
+    backgroundColor: "#1D4ED8",
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: "center",
@@ -197,9 +197,9 @@ const styles = StyleSheet.create({
   galleryBtn: { backgroundColor: "#E5E7EB" },
   galleryBtnText: { color: "#374151" },
   previewWrap: { marginBottom: 14, alignItems: "center" },
-  previewImg: { width: 200, height: 150, borderRadius: 8, borderWidth: 2, borderColor: "#F97316" },
+  previewImg: { width: 200, height: 150, borderRadius: 8, borderWidth: 2, borderColor: "#1D4ED8" },
   submitBtn: {
-    backgroundColor: "#F97316",
+    backgroundColor: "#1D4ED8",
     borderRadius: 8,
     padding: 14,
     alignItems: "center",

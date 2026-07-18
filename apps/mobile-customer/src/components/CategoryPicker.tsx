@@ -38,13 +38,13 @@ const styles = StyleSheet.create({
   container: { marginBottom: 12 },
   chip: {
     borderWidth: 1,
-    borderColor: "#F97316",
+    borderColor: "#1D4ED8",
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 8,
     marginRight: 8,
   },
-  chipSelected: { backgroundColor: "#F97316" },
-  chipText: { color: "#F97316", fontWeight: "600" },
+  chipSelected: { backgroundColor: "#1D4ED8" },
+  chipText: { color: "#1D4ED8", fontWeight: "600" },
   chipTextSelected: { color: "#fff" },
 });

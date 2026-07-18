@@ -37,7 +37,7 @@ export default function HistoryScreen(): React.ReactElement {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#F97316" />
+        <ActivityIndicator size="large" color="#1D4ED8" />
       </View>
     );
   }

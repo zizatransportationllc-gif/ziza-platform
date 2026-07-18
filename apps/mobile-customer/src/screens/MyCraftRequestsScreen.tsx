@@ -119,7 +119,7 @@ export default function MyCraftRequestsScreen(): React.ReactElement {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#F97316" />
+        <ActivityIndicator size="large" color="#1D4ED8" />
       </View>
     );
   }
@@ -146,7 +146,7 @@ export default function MyCraftRequestsScreen(): React.ReactElement {
               setRefreshing(true);
               loadRequests(false);
             }}
-            tintColor="#F97316"
+            tintColor="#1D4ED8"
           />
         }
         ListEmptyComponent={
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F9FAFB" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   newRequestBtn: {
-    backgroundColor: "#F97316",
+    backgroundColor: "#1D4ED8",
     margin: 12,
     borderRadius: 10,
     padding: 12,
@@ -195,8 +195,8 @@ const styles = StyleSheet.create({
   category: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#F97316",
-    backgroundColor: "#FFF7ED",
+    color: "#1D4ED8",
+    backgroundColor: "#EEF3FE",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
@@ -209,18 +209,18 @@ const styles = StyleSheet.create({
   expired: { fontSize: 12, color: "#9CA3AF", marginBottom: 4 },
   date: { fontSize: 11, color: "#D1D5DB", marginBottom: 8 },
   bidsBtn: {
-    backgroundColor: "#FFF7ED",
+    backgroundColor: "#EEF3FE",
     borderRadius: 8,
     paddingVertical: 8,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#FED7AA",
+    borderColor: "#C7D7F7",
   },
-  bidsBtnText: { color: "#F97316", fontWeight: "700", fontSize: 13 },
+  bidsBtnText: { color: "#1D4ED8", fontWeight: "700", fontSize: 13 },
   emptyContainer: { alignItems: "center", marginTop: 60 },
   empty: { color: "#9CA3AF", fontSize: 16, marginBottom: 16 },
   postFirstBtn: {
-    backgroundColor: "#F97316",
+    backgroundColor: "#1D4ED8",
     borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 24,

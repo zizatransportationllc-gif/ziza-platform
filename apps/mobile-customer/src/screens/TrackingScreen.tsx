@@ -94,7 +94,7 @@ export default function TrackingScreen(): React.ReactElement {
           </TouchableOpacity>
         )}
         {token && (trip?.status === "accepted" || trip?.status === "arrived" || trip?.status === "in_progress") && (
-          <ChatPanel token={token} scope="trip" id={tripId} accent="#F97316" />
+          <ChatPanel token={token} scope="trip" id={tripId} accent="#1D4ED8" />
         )}
         {trip?.status === "completed" && (
           <Text style={styles.autoPayNote}>
@@ -111,8 +111,8 @@ const styles = StyleSheet.create({
   info: { padding: 16 },
   status: { fontSize: 16, fontWeight: "600", marginBottom: 8 },
   driverAddr: { fontSize: 13, color: "#374151", marginBottom: 8 },
-  codeCard: { alignItems: "center", backgroundColor: "#FFF7ED", borderWidth: 1, borderColor: "#F97316", borderStyle: "dashed", borderRadius: 10, paddingVertical: 12, marginBottom: 10 },
-  codeLabel: { fontSize: 11, fontWeight: "700", color: "#9A3412", letterSpacing: 1 },
+  codeCard: { alignItems: "center", backgroundColor: "#EEF3FE", borderWidth: 1, borderColor: "#1D4ED8", borderStyle: "dashed", borderRadius: 10, paddingVertical: 12, marginBottom: 10 },
+  codeLabel: { fontSize: 11, fontWeight: "700", color: "#1E40AF", letterSpacing: 1 },
   codeValue: { fontSize: 30, fontWeight: "800", letterSpacing: 8, color: "#111827" },
   codeHint: { fontSize: 12, color: "#6B7280" },
   payButton: {
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
   payText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
   autoPayNote: { textAlign: "center", color: "#6B7280", fontSize: 14, marginTop: 16, paddingHorizontal: 16 },
   boardButton: {
-    backgroundColor: "#F97316",
+    backgroundColor: "#1D4ED8",
     borderRadius: 8,
     padding: 16,
     alignItems: "center",
