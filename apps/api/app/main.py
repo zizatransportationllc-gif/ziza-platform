@@ -11,6 +11,7 @@ Endpoints:
   POST  /v1/estimate                               fare estimate for a ride (origin → destination)
   POST  /v1/trips                                  book a trip from a valid estimate
   GET   /v1/trips                                  list customer's trips (paginated)
+  GET   /v1/trips/active                           customer's current active trip (or null)
   GET   /v1/trips/driver/available                 pending trips (driver view)
   GET   /v1/trips/driver/active                    driver's current active trip
   GET   /v1/trips/driver/history                   driver's completed/cancelled trips (paginated)
@@ -979,6 +980,29 @@ async def list_trips(
     return [_trip_response(t) for t in trips]
 
 
+class ActiveTripWrap(BaseModel):
+    """Wraps a user's current active trip (or None when there is none)."""
+    trip: TripResponse | None = None
+
+
+@app.get("/v1/trips/active", tags=["rides"])
+async def get_customer_active_trip(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ActiveTripWrap:
+    """Return the customer's current trip (pending/accepted/arrived/in_progress), or null.
+
+    Lets the app restore live tracking after a reload instead of dropping the
+    ride. Registered before ``/v1/trips/{trip_id}`` so "active" is not captured
+    as a trip id.
+    """
+    trip = await crud.get_customer_active_trip(db, claims.user_id)
+    if trip:
+        vehicle = await crud.get_vehicle_for_driver_uuid(db, trip.driver_id)
+        return ActiveTripWrap(trip=_trip_response(trip, vehicle=vehicle))
+    return ActiveTripWrap(trip=None)
+
+
 @app.get("/v1/trips/{trip_id}", tags=["rides"])
 async def get_trip(
     trip_id: str,
@@ -1012,11 +1036,6 @@ class DriverResponse(BaseModel):
     status: str
     license_number: str | None = None
     created: bool
-
-
-class ActiveTripWrap(BaseModel):
-    """Wraps the driver's active trip (or None when the driver is free)."""
-    trip: TripResponse | None = None
 
 
 @app.post("/v1/drivers/register", tags=["drivers"])

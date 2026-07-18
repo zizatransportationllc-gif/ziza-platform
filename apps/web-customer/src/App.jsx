@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
-  login, signup, exchangeFirebaseToken, fetchMe, fetchDemo, registerUser, fetchEstimate, createTrip, getTrip, cancelTrip, confirmOnboard, rateTrip,
+  login, signup, exchangeFirebaseToken, fetchMe, fetchDemo, registerUser, fetchEstimate, createTrip, getTrip, getActiveTrip, cancelTrip, confirmOnboard, rateTrip,
   listMyTrips,
   validatePromo, getProfile, updateProfile,
   avatarUploadUrl, getBankAccount, setBankAccount,
@@ -2674,6 +2674,16 @@ function Dashboard({ user, token, onLogout }) {
   const [mode, setMode] = useState("course"); // "course" | "assistance" | "activity" | "account" | "notifications"
   const [accountSub, setAccountSub] = useState(null); // sub-screen within Account
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Restore any in-progress ride on load so a page reload doesn't drop the
+  // customer's live tracking view. Only adopts it while nothing is active yet.
+  useEffect(() => {
+    let active = true;
+    getActiveTrip(token)
+      .then((trip) => { if (active && trip) setActiveTrip((cur) => cur ?? trip); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [token]);
 
   // Deep-link used by booking / assistance flows that need a saved card:
   // jump to Account → Payment Methods.

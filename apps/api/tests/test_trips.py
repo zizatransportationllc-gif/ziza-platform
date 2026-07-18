@@ -285,6 +285,49 @@ def test_list_trips_requires_auth() -> None:
 
 
 # ---------------------------------------------------------------------------
+# GET /v1/trips/active  (customer resumes live tracking)
+# ---------------------------------------------------------------------------
+
+def test_active_trip_returns_most_recent_booking() -> None:
+    """A freshly booked (pending) trip is returned as the customer's active trip."""
+    token = _get_token()
+    _register(token)
+    est = _get_estimate(token)
+    booked = _create_trip(token, est).json()
+
+    resp = client.get("/v1/trips/active", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["trip"] is not None
+    assert body["trip"]["trip_id"] == booked["trip_id"]
+    assert body["trip"]["status"] in {"pending", "accepted", "arrived", "in_progress"}
+
+
+def test_active_trip_excludes_cancelled() -> None:
+    """A cancelled trip is terminal and must not be reported as active."""
+    token = _get_token()
+    _register(token)
+    est = _get_estimate(token)
+    cancelled = _create_trip(token, est).json()
+    client.patch(
+        f"/v1/trips/{cancelled['trip_id']}/cancel",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    resp = client.get("/v1/trips/active", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200, resp.text
+    active = resp.json()["trip"]
+    # Whatever (if anything) is active, it is never the trip we just cancelled.
+    if active is not None:
+        assert active["trip_id"] != cancelled["trip_id"]
+
+
+def test_active_trip_requires_auth() -> None:
+    resp = client.get("/v1/trips/active")
+    assert resp.status_code in {401, 403}
+
+
+# ---------------------------------------------------------------------------
 # Sprint 23 — actor field on TripEvent (3 tests)
 # ---------------------------------------------------------------------------
 

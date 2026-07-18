@@ -401,6 +401,18 @@ export async function getTripStatus(
   return _json<TripResponse>(res);
 }
 
+// Returns the customer's current active trip (pending/accepted/arrived/in_progress)
+// or null. Used on Home focus to resume live tracking after leaving the screen.
+export async function getActiveTrip(
+  token: string
+): Promise<TripResponse | null> {
+  const res = await fetch(`${API_BASE}/v1/trips/active`, {
+    headers: _auth(token),
+  });
+  const data = await _json<{ trip: TripResponse | null }>(res);
+  return data.trip ?? null;
+}
+
 export async function cancelTrip(
   token: string,
   tripId: string
