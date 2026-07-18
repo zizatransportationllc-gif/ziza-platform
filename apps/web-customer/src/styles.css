@@ -217,7 +217,9 @@ html, body {
 
 /* ── Sprint 9: Assistance ────────────────────────────────────────────── */
 .mode-tabs { display: flex; gap: var(--space-2); margin-top: var(--space-4); margin-bottom: var(--space-2); }
-.mode-tab { flex: 1; background: var(--color-surface); border: 1px solid var(--color-border); color: var(--color-muted); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.9rem; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.mode-tab { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--color-surface); border: 1px solid var(--color-border); color: var(--color-muted); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); font-size: 0.9rem; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.zic { flex: 0 0 auto; }
+.bell-btn { display: inline-flex; align-items: center; justify-content: center; }
 .mode-tab.active { background: var(--color-accent-strong); border-color: var(--color-accent-strong); color: #fff; }
 
 .assistance-section { margin-top: var(--space-4); text-align: left; }
