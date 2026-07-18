@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
   stepperRow: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
   stepperStep: { flex: 1, alignItems: "center" },
   stepCircle: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  circleDone:   { backgroundColor: "#22C55E" },
+  circleDone:   { backgroundColor: "#1D4ED8" },
   circleActive: { backgroundColor: "#1D4ED8" },
   circleTodo:   { backgroundColor: "transparent", borderWidth: 2, borderColor: "#D1D5DB" },
   stepNum: { fontSize: 12, fontWeight: "700" },
@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
   labelActive: { color: "#1F2937", fontWeight: "600" },
   labelTodo:   { color: "#9CA3AF" },
   stepLine: { flex: 0.8, height: 2, marginBottom: 16 },
-  lineDone: { backgroundColor: "#22C55E" },
+  lineDone: { backgroundColor: "#1D4ED8" },
   lineTodo: { backgroundColor: "#E5E7EB" },
 
   // Banners
