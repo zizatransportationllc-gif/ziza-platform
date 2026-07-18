@@ -607,6 +607,20 @@ html, body {
 .craft-pro-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-muted); font-weight: 700; }
 .craft-pro-price { font-family: var(--font-mono, monospace); font-variant-numeric: tabular-nums; font-size: 1.1rem; font-weight: 700; color: var(--color-fg); }
 .craft-pro-status { font-size: 0.9rem; color: var(--color-accent); font-weight: 600; }
+
+/* Per-service quick-question chips on the request form */
+.craft-chip-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.craft-chip {
+  padding: var(--space-2) var(--space-3); border-radius: 999px;
+  border: 1px solid var(--color-border); background: var(--color-surface);
+  color: var(--color-fg); font-size: 0.85rem; font-weight: 500; cursor: pointer;
+  transition: all 0.15s;
+}
+.craft-chip:hover { border-color: var(--color-accent); }
+.craft-chip-selected {
+  background: var(--color-accent-strong); border-color: var(--color-accent-strong);
+  color: #fff; font-weight: 600;
+}
 .craft-description { font-size: 0.95rem; color: var(--color-fg); margin-bottom: var(--space-2); line-height: 1.5; }
 .craft-bids-title { font-size: 1rem; font-weight: 700; margin: var(--space-4) 0 var(--space-3); color: var(--color-fg); }
 .craft-success { color: var(--color-success, #16a34a); font-size: 0.9rem; font-weight: 600; margin-bottom: var(--space-3); }

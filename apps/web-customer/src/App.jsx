@@ -1781,6 +1781,18 @@ const CRAFT_CAT_ICON = {
   diagnostics: "search",
   other:       "assistance",
 };
+// One optional quick question per service type — a couple of chips that help
+// the pro quote accurately (fuel type, spare tire, jump vs replace…). The
+// answer is prefixed to the description sent; there's no schema change.
+const CRAFT_SERVICE_Q = {
+  breakdown: { q: "Engine", opts: ["Won't start", "Starts then stalls"] },
+  flat_tyre: { q: "Spare tire", opts: ["Have a spare", "No spare"] },
+  tow:       { q: "Vehicle", opts: ["Still rolls", "Wheels locked"] },
+  fuel:      { q: "Fuel type", opts: ["Gas", "Diesel"] },
+  lockout:   { q: "Keys", opts: ["Locked inside", "Lost"] },
+  battery:   { q: "Need", opts: ["Jump start", "Replacement"] },
+};
+
 const CRAFT_STATUS_LABELS = {
   open:           "Open — accepting bids",
   bidding_closed: "Bidding closed",
@@ -2140,6 +2152,8 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
 function CraftNewRequestForm({ token, onCreated, onCancel }) {
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
+  // Optional answer to the per-service quick question (reset when category changes).
+  const [serviceAnswer, setServiceAnswer] = useState(null);
   // Location is a single { lat, lng, name } object — set by the Mapbox address
   // autocomplete (AddressInput, same as the ride form) or by GPS.
   const [location, setLocation] = useState(null);
@@ -2176,10 +2190,15 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
     if (!category) { setError("Please select a category."); return; }
     if (!location) { setError("Add your location — search an address or use GPS."); return; }
     setSubmitting(true); setError(null);
+    // Prefix the quick-question answer so the pro sees it in the description.
+    const svcQ = CRAFT_SERVICE_Q[category];
+    const fullDescription = svcQ && serviceAnswer
+      ? `${svcQ.q}: ${serviceAnswer}\n${description.trim()}`.trim()
+      : description.trim();
     try {
       const req = await createCraftRequest(token, {
         category,
-        description: description.trim(),
+        description: fullDescription,
         lat: location.lat,
         lng: location.lng,
         address: location.name?.trim() || null,
@@ -2207,13 +2226,32 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
                 key={cat}
                 type="button"
                 className={`craft-cat-btn ${category === cat ? "craft-cat-selected" : ""}`}
-                onClick={() => setCategory(cat)}
+                onClick={() => { setCategory(cat); setServiceAnswer(null); }}
               >
                 <Icon name={CRAFT_CAT_ICON[cat]} size={16} /> {CRAFT_CAT_LABELS[cat]}
               </button>
             ))}
           </div>
         </div>
+
+        {/* Optional quick question for this service type */}
+        {CRAFT_SERVICE_Q[category] && (
+          <div className="craft-field">
+            <span className="craft-label">{CRAFT_SERVICE_Q[category].q}</span>
+            <div className="craft-chip-row">
+              {CRAFT_SERVICE_Q[category].opts.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  className={`craft-chip ${serviceAnswer === opt ? "craft-chip-selected" : ""}`}
+                  onClick={() => setServiceAnswer(serviceAnswer === opt ? null : opt)}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Description */}
         <div className="craft-field">
