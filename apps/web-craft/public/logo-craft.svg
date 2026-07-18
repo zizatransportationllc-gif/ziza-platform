@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Ziza Craft logo">
   <title>Ziza Craft — Normal</title>
-  <rect width="512" height="512" rx="96" fill="#0F2A5F"/>
-  <!-- Z rouge -->
-  <path d="M 130 150 L 382 150 L 382 196 L 215 362 L 382 362 L 382 408 L 130 408 L 130 362 L 297 196 L 130 196 Z" fill="#E63946"/>
-  <!-- Clé plate à fourche verte (remplace le volant), coin haut-droit -->
+  <rect width="512" height="512" rx="96" fill="#111922"/>
+  <!-- Z — rescue red (brand) -->
+  <path d="M 130 150 L 382 150 L 382 196 L 215 362 L 382 362 L 382 408 L 130 408 L 130 362 L 297 196 L 130 196 Z" fill="#E01F2D"/>
+  <!-- Open-end wrench — rescue blue (brand), top-right corner -->
   <g transform="translate(396,118) rotate(45) scale(0.92)">
-    <path fill="#059669" d="M -34 -92 L -13 -92 L -13 -58 L 13 -58 L 13 -92 L 34 -92 L 34 -40 L 12 -40 L 12 40 L 34 40 L 34 92 L 13 92 L 13 58 L -13 58 L -13 92 L -34 92 L -34 40 L -12 40 L -12 -40 L -34 -40 Z"/>
+    <path fill="#1D4ED8" d="M -34 -92 L -13 -92 L -13 -58 L 13 -58 L 13 -92 L 34 -92 L 34 -40 L 12 -40 L 12 40 L 34 40 L 34 92 L 13 92 L 13 58 L -13 58 L -13 92 L -34 92 L -34 40 L -12 40 L -12 -40 L -34 -40 Z"/>
   </g>
 </svg>
