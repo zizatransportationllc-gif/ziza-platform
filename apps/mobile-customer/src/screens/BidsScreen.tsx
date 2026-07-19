@@ -23,6 +23,7 @@ import {
   Alert,
   RefreshControl,
   Share,
+  TextInput,
 } from "react-native";
 import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -40,10 +41,13 @@ import {
   simulateCraftPayment,
   getCraftTracking,
   createCraftShareUrl,
+  createCraftRating,
+  getCraftRating,
   CraftBid,
   CraftRequest,
   CraftPhoto,
   CraftTracking,
+  CraftRating,
 } from "../api";
 import CraftTrackingMap from "../components/CraftTrackingMap";
 import { Linking } from "react-native";
@@ -99,6 +103,70 @@ function StatusTimeline({ status }: { status: string }): React.ReactElement | nu
           </View>
         );
       })}
+    </View>
+  );
+}
+
+// Post-job rating — stars + optional comment, shown once completed.
+function RatingBlock({ token, requestId }: { token: string; requestId: string }): React.ReactElement | null {
+  const [existing, setExisting] = useState<CraftRating | null | undefined>(undefined);
+  const [stars, setStars] = useState(0);
+  const [comment, setComment] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    getCraftRating(token, requestId).then((r) => setExisting(r ?? null)).catch(() => setExisting(null));
+  }, [token, requestId]);
+
+  const submit = async () => {
+    if (!stars) return;
+    setBusy(true);
+    try {
+      setExisting(await createCraftRating(token, requestId, stars, comment.trim() || null));
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Couldn't submit rating");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (existing === undefined) return null;
+  const shown = existing ? existing.stars : stars;
+
+  return (
+    <View style={rt.box}>
+      <Text style={rt.title}>Rate your professional</Text>
+      <View style={rt.starsRow}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <TouchableOpacity key={n} disabled={!!existing} onPress={() => setStars(n)}>
+            <Text style={[rt.star, n <= shown && rt.starOn]}>★</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      {existing ? (
+        <>
+          {existing.comment ? <Text style={rt.comment}>“{existing.comment}”</Text> : null}
+          <Text style={rt.thanks}>Thanks for your feedback!</Text>
+        </>
+      ) : (
+        <>
+          <TextInput
+            style={rt.input}
+            placeholder="Add a comment (optional)…"
+            value={comment}
+            onChangeText={setComment}
+            multiline
+            maxLength={500}
+          />
+          <TouchableOpacity
+            style={[rt.btn, (!stars || busy) && rt.btnDisabled]}
+            onPress={submit}
+            disabled={!stars || busy}
+          >
+            <Text style={rt.btnText}>{busy ? "Sending…" : "Submit rating"}</Text>
+          </TouchableOpacity>
+        </>
+      )}
     </View>
   );
 }
@@ -386,6 +454,9 @@ export default function BidsScreen(): React.ReactElement {
               {request.paid_at ? "✅ Payment confirmed" : "💳 Charged automatically to your saved card."}
             </Text>
           )}
+          {token && request.status === "completed" && (
+            <RatingBlock token={token} requestId={requestId} />
+          )}
         </View>
       )}
 
@@ -502,6 +573,24 @@ const styles = StyleSheet.create({
   bidRejected: { color: "#9CA3AF" },
   empty: { textAlign: "center", color: "#9CA3AF", marginTop: 60, fontSize: 16 },
   errorText: { color: "#EF4444", textAlign: "center", padding: 12 },
+});
+
+// Post-job rating styles
+const rt = StyleSheet.create({
+  box: { marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: "#E5E7EB" },
+  title: { fontSize: 14, fontWeight: "700", color: "#111827", marginBottom: 8 },
+  starsRow: { flexDirection: "row", gap: 6, marginBottom: 8 },
+  star: { fontSize: 30, color: "#D1D5DB", lineHeight: 34 },
+  starOn: { color: "#F5B301" },
+  comment: { fontStyle: "italic", color: "#6B7280", marginBottom: 4 },
+  thanks: { color: "#16A34A", fontWeight: "600", fontSize: 13 },
+  input: {
+    borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 10,
+    minHeight: 52, textAlignVertical: "top", backgroundColor: "#F9FAFB", marginBottom: 8,
+  },
+  btn: { backgroundColor: "#1D4ED8", borderRadius: 8, paddingVertical: 12, alignItems: "center" },
+  btnDisabled: { opacity: 0.5 },
+  btnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
 });
 
 // Progress timeline styles

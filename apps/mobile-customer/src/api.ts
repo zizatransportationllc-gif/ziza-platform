@@ -796,6 +796,34 @@ export async function createCraftShareUrl(token: string, requestId: string): Pro
   return `${WEB_BASE}/?t=${share_token}`;
 }
 
+export interface CraftRating {
+  rating_id: string;
+  request_id: string;
+  stars: number;
+  comment: string | null;
+  created_at: string;
+}
+
+// Rate the professional after a completed assistance job (1-5 stars).
+export async function createCraftRating(
+  token: string, requestId: string, stars: number, comment: string | null,
+): Promise<CraftRating> {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/rating`, {
+    method: "POST",
+    headers: { ..._auth(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ stars, comment }),
+  });
+  return _json<CraftRating>(res);
+}
+
+// The rating for a request, or null if not rated yet.
+export async function getCraftRating(token: string, requestId: string): Promise<CraftRating | null> {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/rating`, {
+    headers: _auth(token),
+  });
+  return _json<CraftRating | null>(res);
+}
+
 // Live position of the assigned professional. null (404) until the pro has
 // pushed a position — the caller polls again.
 export async function getCraftTracking(

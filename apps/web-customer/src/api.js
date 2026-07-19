@@ -529,6 +529,24 @@ export async function getPublicCraftTrack(shareToken) {
   return _json(res);
 }
 
+// Rate the professional after a completed assistance job (1-5 stars).
+export async function createCraftRating(token, requestId, stars, comment) {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/rating`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ stars, comment: comment || null }),
+  });
+  return _json(res);
+}
+
+// The rating for a request, or null if not rated yet.
+export async function getCraftRating(token, requestId) {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/rating`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // null when not rated yet
+}
+
 // Sprint 66 — in-app messaging (customer ↔ driver)
 export async function listTripMessages(token, tripId) {
   const res = await fetch(`${API_BASE}/v1/trips/${tripId}/messages`, {

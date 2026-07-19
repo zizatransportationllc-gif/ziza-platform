@@ -5291,6 +5291,54 @@ async def public_craft_track(
     return PublicCraftTrackResponse(**data)
 
 
+class CraftRatingBody(BaseModel):
+    stars: Annotated[int, Field(ge=1, le=5, description="Rating score (1 = worst, 5 = best)")]
+    comment: str | None = None
+
+
+class CraftRatingResponse(BaseModel):
+    rating_id: str
+    request_id: str
+    stars: int
+    comment: str | None = None
+    created_at: str
+
+
+@app.post(
+    "/v1/craft/requests/{request_id}/rating",
+    response_model=CraftRatingResponse,
+    status_code=201,
+    summary="Customer rates the professional after a completed job",
+)
+async def craft_create_rating(
+    request_id: str,
+    body: CraftRatingBody,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CraftRatingResponse:
+    if claims.role != "customer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only customers can rate a professional",
+        )
+    data = await crud.create_craft_rating(db, claims, request_id, body.stars, body.comment)
+    return CraftRatingResponse(**data)
+
+
+@app.get(
+    "/v1/craft/requests/{request_id}/rating",
+    response_model=CraftRatingResponse | None,
+    summary="Get the rating for a craft request (null if not rated yet)",
+)
+async def craft_get_rating(
+    request_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CraftRatingResponse | None:
+    data = await crud.get_craft_rating(db, request_id)
+    return CraftRatingResponse(**data) if data is not None else None
+
+
 @app.post(
     "/v1/craft/requests/{request_id}/cancel",
     response_model=CraftRequestResponse,
