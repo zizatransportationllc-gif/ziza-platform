@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { listNotifications } from "../api";
 import { useAuth } from "../context/AuthContext";
+import { useI18n } from "../i18n";
 import HomeScreen from "./HomeScreen";
 import MyCraftRequestsScreen from "./MyCraftRequestsScreen";
 import ActivityScreen from "./ActivityScreen";
@@ -32,6 +33,7 @@ const TABS: { key: Tab; icon: string; label: string; title: string }[] = [
 
 export default function MainScreen(): React.ReactElement {
   const { token } = useAuth();
+  const { t: tr } = useI18n();
   const navigation = useNavigation<NavProp>();
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>("course");
@@ -93,7 +95,9 @@ export default function MainScreen(): React.ReactElement {
               onPress={() => setTab(t.key)}
             >
               <Icon name={t.icon} size={22} color={isActive ? "#1D4ED8" : "#9CA3AF"} />
-              <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>{t.label}</Text>
+              <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
+                {tr(t.key === "course" ? "nav.ride" : `nav.${t.key}`)}
+              </Text>
             </TouchableOpacity>
           );
         })}
