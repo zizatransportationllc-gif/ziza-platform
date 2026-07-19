@@ -7,10 +7,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const API_BASE =
   (process.env.EXPO_PUBLIC_API_URL as string) || "http://localhost:8000";
 
-// Base URL of the customer web app — used to build the public "share my
-// intervention" link (that page is served by web-customer).
+// Base URL that serves the public "share my intervention" page (web-customer).
 export const WEB_BASE =
-  (process.env.EXPO_PUBLIC_WEB_URL as string) || "https://app.ziza.us";
+  (process.env.EXPO_PUBLIC_WEB_URL as string) || "https://share.ziza.us";
 
 const TOKEN_KEY = "ziza_access_token";
 const REFRESH_TOKEN_KEY = "ziza_refresh_token";
