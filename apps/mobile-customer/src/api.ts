@@ -723,6 +723,9 @@ export interface CraftBid {
   professional_avatar_url: string | null;
   professional_rating: number | null;
   professional_rating_count: number;
+  service_fee_cents: number | null;
+  tax_cents: number | null;
+  total_cents: number | null;
 }
 
 export const CRAFT_CATEGORIES = [

@@ -2306,6 +2306,15 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
                 <span className="craft-bid-eta">📍 {fmtMiles(b.distance_km)} mi away</span>
               )}
             </div>
+            {b.total_cents != null && (
+              <div className="craft-bid-fees">
+                <span className="craft-bid-total">You pay {formatUSD(b.total_cents)}</span>
+                <span className="craft-bid-fee-note">
+                  {formatUSD(b.price_cents)} bid + {formatUSD(b.service_fee_cents || 0)} service fee
+                  {b.tax_cents ? ` + ${formatUSD(b.tax_cents)} tax` : ""}
+                </span>
+              </div>
+            )}
             {b.note && <p className="craft-bid-note">💬 {b.note}</p>}
             {canSelect && b.status === "pending" && !success && (
               <button

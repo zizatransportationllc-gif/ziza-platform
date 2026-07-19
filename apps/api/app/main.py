@@ -5065,6 +5065,11 @@ class CraftBidResponse(BaseModel):
     professional_avatar_url: str | None = None
     professional_rating: float | None = None
     professional_rating_count: int = 0
+    # What the customer pays for this bid (bid + service fee + tax), for
+    # up-front fee transparency; null on the pro's own submit response.
+    service_fee_cents: int | None = None
+    tax_cents: int | None = None
+    total_cents: int | None = None
 
 
 class CreateBidBody(BaseModel):
