@@ -2123,6 +2123,13 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
     finally { setActionBusy(false); }
   }
 
+  const [cancelling, setCancelling] = useState(false);
+  async function handleCancelRequest() {
+    setCancelling(true); setError(null);
+    try { await cancelCraftRequest(token, request.request_id); onBack(); }
+    catch (e) { setError(e.message); setCancelling(false); }
+  }
+
   const canSelect = ["open", "bidding_closed"].includes(request.status);
   const isActive = ["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status);
   const acceptedBid = bids.find((b) => b.status === "accepted") || null;
@@ -2341,6 +2348,14 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
           </div>
         ))}
       </div>
+
+      {/* Cancel an open request (no pro assigned yet) */}
+      {canSelect && !success && (
+        <button className="craft-cancel-btn" onClick={handleCancelRequest} disabled={cancelling}>
+          {cancelling ? "Cancelling…" : "✕ Cancel this request"}
+        </button>
+      )}
+
       {/* Payment once the job is completed */}
       {request.status === "completed" && (
         <CraftPayment token={token} requestId={request.request_id} paid={!!request.paid_at} />
@@ -2566,131 +2581,31 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
 }
 
 // Main craft section — list + new request + bids view
+// Assistance tab — the request-creation form is the landing view (past requests
+// live in Activity). After posting, jump to the new request's bids so the
+// customer can watch offers and choose; going back returns to a fresh form.
 function CraftSection({ token, onNeedCard }) {
-  const [view, setView] = useState("list"); // "list" | "new" | "bids"
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState(null);
-  const [cancelling, setCancelling] = useState(null);
-  const [error, setError] = useState(null);
+  const [formKey, setFormKey] = useState(0);
 
-  const loadRequests = useCallback(async () => {
-    setLoading(true); setError(null);
-    try {
-      const data = await getMyCraftRequests(token);
-      setRequests(data);
-    } catch (e) { setError(e.message); }
-    finally { setLoading(false); }
-  }, [token]);
-
-  useEffect(() => { loadRequests(); }, [loadRequests]);
-
-  async function handleCancel(requestId) {
-    setCancelling(requestId);
-    try {
-      await cancelCraftRequest(token, requestId);
-      loadRequests();
-    } catch (_) {}
-    finally { setCancelling(null); }
-  }
-
-  if (view === "new") {
-    return (
-      <CraftNewRequestForm
-        token={token}
-        onCreated={() => { setView("list"); loadRequests(); }}
-        onCancel={() => setView("list")}
-      />
-    );
-  }
-
-  if (view === "bids" && selectedRequest) {
+  if (selectedRequest) {
     return (
       <CraftBidsView
         token={token}
         request={selectedRequest}
-        onBack={() => { setView("list"); loadRequests(); }}
+        onBack={() => { setSelectedRequest(null); setFormKey((k) => k + 1); }}
         onNeedCard={onNeedCard}
       />
     );
   }
 
-  // List view
   return (
-    <div className="craft-section">
-      <div className="craft-list-header">
-        <h2 className="estimate-title">🔧 Assistance</h2>
-        <button className="craft-new-btn" onClick={() => setView("new")}>
-          + New Request
-        </button>
-      </div>
-
-      {error && <p className="form-error">{error}</p>}
-      {loading && <p className="craft-loading">⏳ Loading…</p>}
-
-      {!loading && requests.length === 0 && (
-        <div className="craft-empty">
-          <p>No assistance requests yet.</p>
-          <button className="craft-submit-btn" onClick={() => setView("new")}>
-            Post Your First Request
-          </button>
-        </div>
-      )}
-
-      <div className="craft-list">
-        {requests.map((req) => {
-          const deadline = req.bid_deadline ? new Date(req.bid_deadline) : null;
-          const isExpired = deadline && deadline < new Date();
-          // The customer can open the detail at every stage of the job (to confirm
-          // arrival, see the code/photos, confirm completion, pay) — only a
-          // cancelled request has nothing to show.
-          const canViewBids = req.status !== "cancelled";
-          const bidsStage = ["open", "bidding_closed"].includes(req.status);
-          const canCancel = req.status === "open";
-
-          return (
-            <div key={req.request_id} className="craft-request-card">
-              <div className="craft-request-header">
-                <span className="craft-cat-chip">{CRAFT_CAT_LABELS[req.category] ?? req.category}</span>
-                <span className={`craft-status-badge cs-${CRAFT_STATUS_COLOR[req.status] ?? "pending"}`}>{CRAFT_STATUS_LABELS[req.status] ?? req.status}</span>
-              </div>
-              <p className="craft-request-desc">{req.description}</p>
-              {req.address && <p className="craft-meta">📍 {req.address}</p>}
-              {deadline && !isExpired && req.status === "open" && (
-                <p className="craft-deadline">
-                  ⏱ Bidding until: {deadline.toLocaleTimeString("en-US")}
-                </p>
-              )}
-              {isExpired && req.status === "open" && (
-                <p className="craft-expired">⏰ Bidding window closed</p>
-              )}
-              <p className="craft-date">
-                Posted: {new Date(req.created_at).toLocaleDateString("en-US", { dateStyle: "medium" })}
-              </p>
-              <div className="craft-request-actions">
-                {canViewBids && (
-                  <button
-                    className="craft-view-bids-btn"
-                    onClick={() => { setSelectedRequest(req); setView("bids"); }}
-                  >
-                    {bidsStage ? "View Bids →" : "View Details →"}
-                  </button>
-                )}
-                {canCancel && (
-                  <button
-                    className="craft-cancel-btn"
-                    onClick={() => handleCancel(req.request_id)}
-                    disabled={cancelling === req.request_id}
-                  >
-                    {cancelling === req.request_id ? "Cancelling…" : "✕ Cancel"}
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <CraftNewRequestForm
+      key={formKey}
+      token={token}
+      onCreated={(req) => setSelectedRequest(req)}
+      onCancel={() => setFormKey((k) => k + 1)}
+    />
   );
 }
 
