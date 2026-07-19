@@ -273,6 +273,20 @@ export async function updateProfessionalProfile(
   return _json<ProfessionalProfile>(res);
 }
 
+export interface ProfessionalRatingStats {
+  professional_id: string;
+  average_stars: number | null;
+  total_ratings: number;
+}
+
+// The professional's own average rating + review count.
+export async function getMyRatingStats(token: string): Promise<ProfessionalRatingStats> {
+  const res = await fetch(`${API_BASE}/v1/craft/professionals/me/rating`, {
+    headers: _auth(token),
+  });
+  return _json<ProfessionalRatingStats>(res);
+}
+
 // ---------------------------------------------------------------------------
 // Craft requests (professional view)
 // ---------------------------------------------------------------------------

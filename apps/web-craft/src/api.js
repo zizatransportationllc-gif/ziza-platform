@@ -117,6 +117,14 @@ export async function updateMyProfile(token, updates) {
   return _json(res);
 }
 
+// The professional's own average rating + review count.
+export async function getMyRating(token) {
+  const res = await fetch(`${API_BASE}/v1/craft/professionals/me/rating`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
 // Sprint 66 — personal profile (identity) editing via /v1/profile
 export async function getProfile(token) {
   const res = await fetch(`${API_BASE}/v1/profile`, {
