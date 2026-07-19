@@ -7,6 +7,7 @@ import {
   adminListPayouts, adminUpdatePayoutStatus, adminListRatings,
   adminGetSurge, adminSetSurge,
   adminGetPricing, adminSetPricing, // configurable fare formula
+  adminGetCoverage, adminSetCoverage, // configurable service coverage (states)
   adminListDocuments, adminUpdateDocumentStatus, adminGetPendingCounts,
   getCommissionSettings, setCommission, runPayoutBatch, // Sprint 29
   adminListApplications, adminReviewApplication, // Sprint 30
@@ -1155,6 +1156,84 @@ function RatingsPanel({ token }) {
 // ---------------------------------------------------------------------------
 // Surge Pricing Panel — Sprint 16
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Coverage Panel — the US states where customer address search is offered
+// ---------------------------------------------------------------------------
+
+const US_STATES = [
+  "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado",
+  "Connecticut", "Delaware", "Florida", "Georgia", "Hawaii", "Idaho",
+  "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana", "Maine",
+  "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi",
+  "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey",
+  "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio",
+  "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina",
+  "South Dakota", "Tennessee", "Texas", "Utah", "Vermont", "Virginia",
+  "Washington", "West Virginia", "Wisconsin", "Wyoming",
+];
+
+function CoveragePanel({ token }) {
+  const [selected, setSelected] = useState(null); // Set | null (loading)
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    adminGetCoverage(token)
+      .then((d) => setSelected(new Set(d.states)))
+      .catch((e) => setError(e.message));
+  }, [token]);
+
+  function toggle(state) {
+    setSaved(false);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(state)) next.delete(state);
+      else next.add(state);
+      return next;
+    });
+  }
+
+  async function save() {
+    if (!selected || selected.size === 0) { setError("Select at least one state."); return; }
+    setSaving(true); setError(null); setSaved(false);
+    try {
+      const d = await adminSetCoverage(token, [...selected]);
+      setSelected(new Set(d.states));
+      setSaved(true);
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
+  }
+
+  if (selected === null) return <p className="status loading">⏳ Loading…</p>;
+
+  return (
+    <div className="pricing-panel">
+      <h2>🗺️ Service Coverage</h2>
+      <p className="pricing-subtitle">
+        Customers can only search and pick addresses in the states you enable here.
+        New Jersey is the default. Changes take effect immediately.
+      </p>
+      {error && <p className="form-error">{error}</p>}
+      <div className="coverage-grid">
+        {US_STATES.map((s) => (
+          <label key={s} className={`coverage-item ${selected.has(s) ? "on" : ""}`}>
+            <input type="checkbox" checked={selected.has(s)} onChange={() => toggle(s)} />
+            <span>{s}</span>
+          </label>
+        ))}
+      </div>
+      <div className="coverage-actions">
+        <span className="coverage-count">{selected.size} state{selected.size !== 1 ? "s" : ""} covered</span>
+        <button className="pricing-save-btn" onClick={save} disabled={saving}>
+          {saving ? "Saving…" : "Save coverage"}
+        </button>
+        {saved && <span className="surge-success">✓ Saved</span>}
+      </div>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Fare Formula Panel — admin-configurable pricing coefficients
@@ -3274,6 +3353,7 @@ const TABS = [
   { id: "flags",        label: "🚩 Feature Flags" },
   { id: "services",     label: "🔧 Services" },
   { id: "pricing",      label: "💵 Fares" },
+  { id: "coverage",     label: "🗺️ Coverage" },
   { id: "users",        label: "👥 Users" },
   { id: "craft",        label: "🛠️ Craft" },
 ];
@@ -3330,6 +3410,7 @@ function Dashboard({ user, token, onLogout }) {
       {activeTab === "flags"        && <FlagsPanel          token={token} />}
       {activeTab === "services"     && <ServicesPanel       token={token} />}
       {activeTab === "pricing"      && <PricingPanel        token={token} />}
+      {activeTab === "coverage"     && <CoveragePanel       token={token} />}
       {activeTab === "users"        && <UsersPanel          token={token} />}
       {activeTab === "craft"        && <CraftPanel          token={token} />}
 

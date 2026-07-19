@@ -2158,6 +2158,42 @@ async def set_pricing(
     return base_fare_cents, per_mile_cents
 
 
+# ---------------------------------------------------------------------------
+# Service coverage — the US states where address search is offered (admin-set)
+# ---------------------------------------------------------------------------
+
+_COVERAGE_KEY = "coverage_states"
+_DEFAULT_COVERAGE = ["New Jersey"]
+
+
+async def get_covered_states(db: AsyncSession) -> list[str]:
+    """Return the list of covered US states (defaults to New Jersey)."""
+    row = await db.scalar(
+        select(PlatformSetting).where(PlatformSetting.key == _COVERAGE_KEY)
+    )
+    if row is None or not (row.value or "").strip():
+        return list(_DEFAULT_COVERAGE)
+    return [s.strip() for s in row.value.split(",") if s.strip()]
+
+
+async def set_covered_states(db: AsyncSession, states: list[str]) -> list[str]:
+    """Upsert the covered states. At least one is required; order preserved,
+    duplicates dropped."""
+    cleaned: list[str] = []
+    for s in states or []:
+        name = (s or "").strip()
+        if name and name not in cleaned:
+            cleaned.append(name)
+    if not cleaned:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="At least one covered state is required",
+        )
+    await _upsert_setting(db, _COVERAGE_KEY, ",".join(cleaned))
+    await db.commit()
+    return cleaned
+
+
 async def get_pricing_config(db: AsyncSession) -> dict:
     """Return the full fare-formula config (USD cents), with admin overrides
     falling back to the config defaults.
