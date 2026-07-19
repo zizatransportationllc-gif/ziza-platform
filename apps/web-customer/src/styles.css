@@ -663,7 +663,8 @@ span.craft-star { cursor: default; }
 .craft-bid-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; border: 1px solid var(--color-border); }
 .craft-bid-avatar-ph { display: grid; place-items: center; background: var(--color-accent-strong); color: #fff; font-weight: 700; font-size: 1.1rem; }
 .craft-bid-pro-meta { display: flex; flex-direction: column; min-width: 0; }
-.craft-bid-pro-name { font-weight: 700; font-size: 0.95rem; color: var(--color-fg); }
+.craft-bid-pro-name { font-weight: 700; font-size: 0.95rem; color: var(--color-fg); display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.craft-top-rated { font-size: 0.68rem; font-weight: 700; color: #08160d; background: var(--color-success); padding: 1px 7px; border-radius: 999px; }
 .craft-bid-pro-rating { font-size: 0.82rem; color: #f5b301; font-weight: 600; }
 .craft-bid-pro-price { margin-left: auto; font-family: var(--font-mono, monospace); font-variant-numeric: tabular-nums; font-size: 1.15rem; font-weight: 800; color: var(--color-fg); }
 

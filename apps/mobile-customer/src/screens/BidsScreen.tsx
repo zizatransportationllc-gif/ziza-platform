@@ -107,6 +107,27 @@ function StatusTimeline({ status }: { status: string }): React.ReactElement | nu
   );
 }
 
+type SortKey = "recommended" | "price" | "eta" | "rating";
+
+// Order bids by the chosen key. "recommended" blends price/ETA/rating via a
+// Borda rank so the best all-round pro surfaces, not just the cheapest.
+function sortBids(bids: CraftBid[], sortBy: SortKey): CraftBid[] {
+  const arr = [...bids];
+  if (sortBy === "price") return arr.sort((a, b) => a.price_cents - b.price_cents);
+  if (sortBy === "eta") return arr.sort((a, b) => a.eta_min - b.eta_min);
+  if (sortBy === "rating") return arr.sort((a, b) => (b.professional_rating ?? -1) - (a.professional_rating ?? -1));
+  const rankMap = (sorted: CraftBid[]) => new Map(sorted.map((b, i) => [b.bid_id, i]));
+  const rp = rankMap([...arr].sort((a, b) => a.price_cents - b.price_cents));
+  const re = rankMap([...arr].sort((a, b) => a.eta_min - b.eta_min));
+  const rr = rankMap([...arr].sort((a, b) => (b.professional_rating ?? -1) - (a.professional_rating ?? -1)));
+  const score = (b: CraftBid) => rp.get(b.bid_id)! + re.get(b.bid_id)! + rr.get(b.bid_id)!;
+  return arr.sort((a, b) => score(a) - score(b) || a.price_cents - b.price_cents);
+}
+
+function isTopRated(b: CraftBid): boolean {
+  return b.professional_rating != null && b.professional_rating >= 4.5 && b.professional_rating_count >= 3;
+}
+
 // Post-job rating — stars + optional comment, shown once completed.
 function RatingBlock({ token, requestId }: { token: string; requestId: string }): React.ReactElement | null {
   const [existing, setExisting] = useState<CraftRating | null | undefined>(undefined);
@@ -183,13 +204,8 @@ export default function BidsScreen(): React.ReactElement {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selecting, setSelecting] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<"price" | "eta" | "rating">("price");
-
-  const sortedBids = [...bids].sort((a, b) => {
-    if (sortBy === "eta") return a.eta_min - b.eta_min;
-    if (sortBy === "rating") return (b.professional_rating ?? -1) - (a.professional_rating ?? -1);
-    return a.price_cents - b.price_cents;
-  });
+  const [sortBy, setSortBy] = useState<SortKey>("recommended");
+  const sortedBids = sortBids(bids, sortBy);
 
   const loadData = useCallback(async (showLoader = true) => {
     if (!token) return;
@@ -355,9 +371,14 @@ export default function BidsScreen(): React.ReactElement {
             </View>
           )}
           <View style={styles.proMeta}>
-            <Text style={styles.proName} numberOfLines={1}>
-              {item.professional_name || "Professional"}
-            </Text>
+            <View style={styles.proNameRow}>
+              <Text style={styles.proName} numberOfLines={1}>
+                {item.professional_name || "Professional"}
+              </Text>
+              {isTopRated(item) && (
+                <Text style={styles.topRated}>🏅 Top rated</Text>
+              )}
+            </View>
             <Text style={styles.proRating}>
               {item.professional_rating != null
                 ? `★ ${item.professional_rating.toFixed(1)} · ${item.professional_rating_count} rating${item.professional_rating_count > 1 ? "s" : ""}`
@@ -512,14 +533,14 @@ export default function BidsScreen(): React.ReactElement {
           bids.length > 1 ? (
             <View style={styles.sortRow}>
               <Text style={styles.sortLabel}>Sort by</Text>
-              {(["price", "eta", "rating"] as const).map((k) => (
+              {(["recommended", "price", "eta", "rating"] as const).map((k) => (
                 <TouchableOpacity
                   key={k}
                   style={[styles.sortChip, sortBy === k && styles.sortChipOn]}
                   onPress={() => setSortBy(k)}
                 >
                   <Text style={[styles.sortChipText, sortBy === k && styles.sortChipTextOn]}>
-                    {k === "price" ? "Price" : k === "eta" ? "ETA" : "Rating"}
+                    {k === "recommended" ? "Recommended" : k === "price" ? "Price" : k === "eta" ? "ETA" : "Rating"}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -609,7 +630,9 @@ const styles = StyleSheet.create({
   proAvatarPh: { alignItems: "center", justifyContent: "center", backgroundColor: "#1D4ED8" },
   proAvatarPhText: { color: "#fff", fontWeight: "700", fontSize: 18 },
   proMeta: { flex: 1, minWidth: 0 },
-  proName: { fontSize: 15, fontWeight: "700", color: "#111827" },
+  proNameRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  proName: { fontSize: 15, fontWeight: "700", color: "#111827", flexShrink: 1 },
+  topRated: { fontSize: 10, fontWeight: "700", color: "#065F46", backgroundColor: "#D1FAE5", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 999, overflow: "hidden" },
   proRating: { fontSize: 13, fontWeight: "600", color: "#F5B301", marginTop: 1 },
   sortRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 12 },
   sortLabel: { fontSize: 12, color: "#6B7280" },

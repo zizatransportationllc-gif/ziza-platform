@@ -1834,6 +1834,27 @@ const CRAFT_STATUS_STEP = {
   completed: 4,
 };
 
+// Order bids by the chosen key. "recommended" blends price/ETA/rating via a
+// Borda rank (sum of each bid's position across the three dimensions; lowest
+// total wins), so the best all-round pro surfaces, not just the cheapest.
+function sortBids(bids, sortBy) {
+  const arr = [...bids];
+  if (sortBy === "price") return arr.sort((a, b) => a.price_cents - b.price_cents);
+  if (sortBy === "eta") return arr.sort((a, b) => a.eta_min - b.eta_min);
+  if (sortBy === "rating") return arr.sort((a, b) => (b.professional_rating ?? -1) - (a.professional_rating ?? -1));
+  const rankMap = (sorted) => new Map(sorted.map((b, i) => [b.bid_id, i]));
+  const rp = rankMap([...arr].sort((a, b) => a.price_cents - b.price_cents));
+  const re = rankMap([...arr].sort((a, b) => a.eta_min - b.eta_min));
+  const rr = rankMap([...arr].sort((a, b) => (b.professional_rating ?? -1) - (a.professional_rating ?? -1)));
+  const score = (b) => rp.get(b.bid_id) + re.get(b.bid_id) + rr.get(b.bid_id);
+  return arr.sort((a, b) => score(a) - score(b) || a.price_cents - b.price_cents);
+}
+
+// A pro is "Top rated" with a strong average over enough reviews.
+function isTopRated(bid) {
+  return bid.professional_rating != null && bid.professional_rating >= 4.5 && bid.professional_rating_count >= 3;
+}
+
 // Post-job rating widget — stars + optional comment, shown once completed.
 function CraftRatingWidget({ token, requestId }) {
   const [existing, setExisting] = useState(undefined); // undefined = loading
@@ -2095,13 +2116,11 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
   const isActive = ["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status);
   const acceptedBid = bids.find((b) => b.status === "accepted") || null;
 
-  // Sort the bids the customer is choosing between.
-  const [sortBy, setSortBy] = useState("price"); // "price" | "eta" | "rating"
-  const sortedBids = [...bids].sort((a, b) => {
-    if (sortBy === "eta") return a.eta_min - b.eta_min;
-    if (sortBy === "rating") return (b.professional_rating ?? -1) - (a.professional_rating ?? -1);
-    return a.price_cents - b.price_cents;
-  });
+  // Sort the bids the customer is choosing between. "Recommended" blends price,
+  // ETA and rating (Borda rank: best position in each dimension wins) so quality
+  // pros surface, not just the cheapest.
+  const [sortBy, setSortBy] = useState("recommended"); // recommended | price | eta | rating
+  const sortedBids = sortBids(bids, sortBy);
 
   // Share a public live-tracking link with a relative (native share / clipboard).
   const [shareMsg, setShareMsg] = useState(null);
@@ -2243,7 +2262,7 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
       {bids.length > 1 && (
         <div className="craft-sort-row">
           <span className="craft-sort-label">Sort by</span>
-          {[["price", "Price"], ["eta", "ETA"], ["rating", "Rating"]].map(([k, label]) => (
+          {[["recommended", "Recommended"], ["price", "Price"], ["eta", "ETA"], ["rating", "Rating"]].map(([k, label]) => (
             <button
               key={k}
               type="button"
@@ -2268,7 +2287,10 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
                 </div>
               )}
               <div className="craft-bid-pro-meta">
-                <span className="craft-bid-pro-name">{b.professional_name || "Professional"}</span>
+                <span className="craft-bid-pro-name">
+                  {b.professional_name || "Professional"}
+                  {isTopRated(b) && <span className="craft-top-rated">🏅 Top rated</span>}
+                </span>
                 <span className="craft-bid-pro-rating">
                   {b.professional_rating != null
                     ? `★ ${b.professional_rating.toFixed(1)} · ${b.professional_rating_count} rating${b.professional_rating_count > 1 ? "s" : ""}`
