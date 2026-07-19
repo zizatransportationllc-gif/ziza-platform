@@ -125,3 +125,16 @@ def test_bid_list_shows_professional_average_rating():
     assert bid["professional_rating"] == 5.0
     assert bid["professional_rating_count"] == 1
     assert bid["professional_name"]  # non-empty display name
+
+
+def test_professional_sees_own_rating_stats():
+    tc, tp, rid = _assigned_request()
+    _drive_to_completed(tc, tp, rid)
+    assert client.post(f"/v1/craft/requests/{rid}/rating", headers=_h(tc),
+                       json={"stars": 4}).status_code == 201
+
+    stats = client.get("/v1/craft/professionals/me/rating", headers=_h(tp))
+    assert stats.status_code == 200, stats.text
+    body = stats.json()
+    assert body["average_stars"] == 4.0
+    assert body["total_ratings"] == 1

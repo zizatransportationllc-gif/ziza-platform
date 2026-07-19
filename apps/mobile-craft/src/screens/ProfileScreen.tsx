@@ -20,7 +20,8 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
   registerProfessional, updateProfessionalProfile, CRAFT_CATEGORIES,
   getProfile, updateProfile, avatarUploadUrl, getBankAccount, setBankAccount,
-  UserProfile, BankAccountInfo,
+  getMyRatingStats,
+  UserProfile, BankAccountInfo, ProfessionalRatingStats,
 } from "../api";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { firebaseEnabled, changeEmail } from "../auth";
@@ -190,6 +191,11 @@ export default function ProfileScreen(): React.ReactElement {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [rating, setRating] = useState<ProfessionalRatingStats | null>(null);
+
+  useEffect(() => {
+    if (token) getMyRatingStats(token).then(setRating).catch(() => {});
+  }, [token]);
 
   useEffect(() => {
     if (profile) {
@@ -249,6 +255,21 @@ export default function ProfileScreen(): React.ReactElement {
       <Text style={styles.title}>Professional Profile</Text>
 
       {token ? <AccountSection token={token} /> : null}
+
+      {profile && rating ? (
+        <View style={styles.ratingCard}>
+          {rating.total_ratings > 0 ? (
+            <>
+              <Text style={styles.ratingStars}>⭐ {rating.average_stars?.toFixed(1)}</Text>
+              <Text style={styles.ratingCount}>
+                {rating.total_ratings} review{rating.total_ratings > 1 ? "s" : ""} from customers
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.ratingCount}>⭐ No ratings yet — complete jobs to build your reputation</Text>
+          )}
+        </View>
+      ) : null}
 
       {profile ? (
         <View style={styles.infoCard}>
@@ -336,6 +357,12 @@ const styles = StyleSheet.create({
   },
   infoLabel: { fontSize: 11, color: "#9CA3AF", fontWeight: "600", marginTop: 4 },
   infoValue: { fontSize: 15, color: "#111827", fontWeight: "500" },
+  ratingCard: {
+    backgroundColor: "#EEF3FE", borderRadius: 10, padding: 14, marginBottom: 12,
+    borderWidth: 1, borderColor: "#C7D7F7", alignItems: "center",
+  },
+  ratingStars: { fontSize: 22, fontWeight: "800", color: "#111827" },
+  ratingCount: { fontSize: 13, color: "#374151", marginTop: 2, textAlign: "center" },
   notRegistered: {
     backgroundColor: "#FFFBEB",
     borderRadius: 8,

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
   login, signup, exchangeFirebaseToken, fetchMe, registerUser, registerProfessional,
-  getMyProfile, updateMyProfile, getProfile, updateProfile,
+  getMyProfile, updateMyProfile, getMyRating, getProfile, updateProfile,
   avatarUploadUrl, getBankAccount, setBankAccount,
   listOpenRequests, getCraftRequest,
   submitBid, getMyBids, craftMarkArrived, craftWorkDone, uploadCraftPhoto, listCraftPhotos, reverseGeocode,
@@ -1592,6 +1592,7 @@ function CraftAccountSection({ token, profile, onProfileUpdated, profStatus, sub
 
 function Dashboard({ user, token, onLogout }) {
   const [profile, setProfile] = useState(null);
+  const [ratingStats, setRatingStats] = useState(null);
   const [profStatus, setProfStatus] = useState("pending_docs"); // Sprint 54 — safe default: lock until profile confirmed
   const [isOnline, setIsOnline] = useState(false);
   const [togglingOnline, setTogglingOnline] = useState(false);
@@ -1610,6 +1611,7 @@ function Dashboard({ user, token, onLogout }) {
   useEffect(() => {
     Promise.all([
       getMyProfile(token).then((p) => { setProfile(p); setIsOnline(p.is_online); setProfStatus(p.status || "pending_docs"); }).catch(() => {}),
+      getMyRating(token).then(setRatingStats).catch(() => {}),
     ]).finally(() => setInitialized(true));
     refreshUnread();
   }, [token]);
@@ -1651,6 +1653,16 @@ function Dashboard({ user, token, onLogout }) {
 
       <div className="status ok">✓ Signed in — <strong>{user.email}</strong></div>
       <div className="role-badge">{user.role} · {user.provider}</div>
+
+      {ratingStats && (
+        <div className="craft-my-rating">
+          {ratingStats.total_ratings > 0 ? (
+            <>⭐ <strong>{ratingStats.average_stars?.toFixed(1)}</strong> · {ratingStats.total_ratings} review{ratingStats.total_ratings > 1 ? "s" : ""}</>
+          ) : (
+            <>⭐ No ratings yet — complete jobs to build your reputation</>
+          )}
+        </div>
+      )}
 
       {/* Online / Offline toggle — locked while pending_docs */}
       <button

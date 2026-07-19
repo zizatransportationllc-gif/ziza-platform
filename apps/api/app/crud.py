@@ -6214,6 +6214,24 @@ async def get_craft_rating(db: AsyncSession, request_id: str) -> dict | None:
     return _craft_rating_to_dict(r) if r is not None else None
 
 
+async def get_professional_rating_stats(
+    db: AsyncSession, user_db_id: uuid.UUID
+) -> tuple[float | None, int, str]:
+    """Return (average_stars, total_ratings, professional_id) for a pro's own
+    reputation. (None, 0, id) when they have no ratings yet."""
+    prof = await get_professional_by_user(db, user_db_id)
+    if prof is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Professional profile not found.")
+    row = (
+        await db.execute(
+            select(func.avg(CraftRating.stars), func.count(CraftRating.id))
+            .where(CraftRating.professional_id == prof.id)
+        )
+    ).one()
+    avg = float(row[0]) if row[0] is not None else None
+    return avg, int(row[1] or 0), str(prof.id)
+
+
 async def list_open_craft_requests(
     db: AsyncSession,
     lat: float,

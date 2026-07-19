@@ -5119,6 +5119,31 @@ async def craft_update_professional(
     return ProfessionalResponse(**data)
 
 
+class ProfessionalRatingStats(BaseModel):
+    professional_id: str
+    average_stars: float | None = None
+    total_ratings: int
+
+
+@app.get(
+    "/v1/craft/professionals/me/rating",
+    response_model=ProfessionalRatingStats,
+    tags=["ratings"],
+    summary="Professional's own average rating + review count",
+)
+async def craft_get_my_rating(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProfessionalRatingStats:
+    user_db_id = await crud.get_user_db_id(db, claims.user_id)
+    avg, total, pro_id = await crud.get_professional_rating_stats(db, user_db_id)
+    return ProfessionalRatingStats(
+        professional_id=pro_id,
+        average_stars=round(avg, 2) if avg is not None else None,
+        total_ratings=total,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Craft request endpoints
 # ---------------------------------------------------------------------------
