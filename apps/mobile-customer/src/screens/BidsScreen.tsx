@@ -22,6 +22,7 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Share,
 } from "react-native";
 import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -38,6 +39,7 @@ import {
   getCraftPayment,
   simulateCraftPayment,
   getCraftTracking,
+  createCraftShareUrl,
   CraftBid,
   CraftRequest,
   CraftPhoto,
@@ -175,6 +177,17 @@ export default function BidsScreen(): React.ReactElement {
   };
 
   const canSelect = request?.status === "open" || request?.status === "bidding_closed";
+
+  // Share a public live-tracking link with a relative (native share sheet).
+  const handleShare = async () => {
+    if (!token) return;
+    try {
+      const url = await createCraftShareUrl(token, requestId);
+      await Share.share({ message: `Follow my ZIZA roadside assistance live: ${url}` });
+    } catch {
+      Alert.alert("Error", "Couldn't create the share link.");
+    }
+  };
 
   const [actionBusy, setActionBusy] = useState(false);
   const runAction = async (fn: (t: string, id: string) => Promise<CraftRequest>) => {
@@ -326,14 +339,19 @@ export default function BidsScreen(): React.ReactElement {
             );
           })()}
           {["assigned", "arrived", "in_progress"].includes(request.status) && (
-            <View style={styles.mapWrap}>
-              <CraftTrackingMap
-                customerLat={request.lat}
-                customerLng={request.lng}
-                proLat={tracking?.pro_lat ?? null}
-                proLng={tracking?.pro_lng ?? null}
-              />
-            </View>
+            <>
+              <View style={styles.mapWrap}>
+                <CraftTrackingMap
+                  customerLat={request.lat}
+                  customerLng={request.lng}
+                  proLat={tracking?.pro_lat ?? null}
+                  proLng={tracking?.pro_lng ?? null}
+                />
+              </View>
+              <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
+                <Text style={styles.shareBtnText}>🔗 Share live tracking</Text>
+              </TouchableOpacity>
+            </>
           )}
           {request.verification_code &&
             ["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status) && (
@@ -423,6 +441,11 @@ const styles = StyleSheet.create({
   proPrice: { fontSize: 18, fontWeight: "700", color: "#111827", fontVariant: ["tabular-nums"] },
   proStatus: { marginTop: 2, fontSize: 14, fontWeight: "600", color: "#1D4ED8" },
   mapWrap: { marginTop: 12, borderRadius: 10, overflow: "hidden" },
+  shareBtn: {
+    marginTop: 10, borderWidth: 1, borderColor: "#1D4ED8", borderRadius: 8,
+    paddingVertical: 11, alignItems: "center",
+  },
+  shareBtnText: { color: "#1D4ED8", fontWeight: "700", fontSize: 14 },
   codeCard: { marginTop: 10, backgroundColor: "#EEF3FE", borderWidth: 1, borderColor: "#C7D7F7", borderRadius: 8, padding: 10, alignItems: "center" },
   codeLabel: { fontSize: 11, color: "#1E40AF", fontWeight: "600" },
   codeValue: { fontSize: 24, fontWeight: "800", letterSpacing: 6, color: "#1D4ED8", fontVariant: ["tabular-nums"] },

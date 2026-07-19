@@ -14,6 +14,7 @@ import {
   checkPointInService, // Sprint 45
   createCraftRequest, getMyCraftRequests, getCraftRequestBids, selectCraftBid, cancelCraftRequest, // Sprint 48
   getCraftRequest, craftConfirmArrival, craftComplete, listCraftPhotos, getCraftTracking, // craft lifecycle
+  createCraftShare, getPublicCraftTrack, // craft share link
   createCraftPaymentIntent, getCraftPayment, // craft payment
   listRequestMessages, sendRequestMessage, // Sprint 66
   submitDocument, listMyDocuments, // Sprint 53
@@ -2007,6 +2008,21 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
   const isActive = ["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status);
   const acceptedBid = bids.find((b) => b.status === "accepted") || null;
 
+  // Share a public live-tracking link with a relative (native share / clipboard).
+  const [shareMsg, setShareMsg] = useState(null);
+  async function handleShare() {
+    try {
+      const { share_token } = await createCraftShare(token, request.request_id);
+      const url = `${window.location.origin}/?t=${share_token}`;
+      if (navigator.share) {
+        await navigator.share({ title: "ZIZA roadside", text: "Follow my roadside assistance live", url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        setShareMsg("Link copied ✓"); setTimeout(() => setShareMsg(null), 2500);
+      }
+    } catch { setShareMsg("Couldn't create link"); setTimeout(() => setShareMsg(null), 2500); }
+  }
+
   // Short "where is my pro" line keyed off the job status — the roadside
   // north-star is time-to-help, so surface the ETA while they're en route.
   function proStatusLine() {
@@ -2056,6 +2072,16 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
           proLat={tracking?.pro_lat ?? null}
           proLng={tracking?.pro_lng ?? null}
         />
+      )}
+
+      {/* Share a live-tracking link with a relative */}
+      {["assigned", "arrived", "in_progress"].includes(request.status) && (
+        <div className="craft-share-row">
+          <button type="button" className="craft-share-btn" onClick={handleShare}>
+            🔗 Share live tracking
+          </button>
+          {shareMsg && <span className="craft-share-msg">{shareMsg}</span>}
+        </div>
       )}
 
       {/* Shared verification code once a professional is assigned */}
@@ -2918,7 +2944,69 @@ function AccessDenied({ role, onLogout }) {
 // Root
 // ---------------------------------------------------------------------------
 
+// Public (no-login) live view of a shared intervention — opened from the link
+// a customer sends a relative (URL: /?t=<share_token>).
+function PublicCraftTrack({ shareToken }) {
+  const [data, setData] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const tick = () => getPublicCraftTrack(shareToken)
+      .then((d) => { if (active) { setData(d); setLoaded(true); } })
+      .catch(() => { if (active) setLoaded(true); });
+    tick();
+    const id = setInterval(tick, 5000);
+    return () => { active = false; clearInterval(id); };
+  }, [shareToken]);
+
+  const notFound = data?.notFound;
+  const isActive = data && !notFound && ["assigned", "arrived", "in_progress"].includes(data.status);
+  const isDone = data && !notFound && data.status === "completed";
+
+  return (
+    <div className="public-track">
+      <header className="public-track-header">
+        <span className="public-track-brand">ZIZA · Roadside</span>
+      </header>
+      {!loaded && <p className="public-track-msg">Loading…</p>}
+      {loaded && notFound && (
+        <div className="public-track-msg">
+          <p>This link isn’t available.</p>
+          <p className="public-track-sub">The intervention may have ended.</p>
+        </div>
+      )}
+      {loaded && data && !notFound && (
+        <div className="public-track-body">
+          <h1 className="public-track-title">
+            {CRAFT_CAT_LABELS[data.category] ?? data.category} assistance
+          </h1>
+          <p className="public-track-status">{CRAFT_STATUS_LABELS[data.status] ?? data.status}</p>
+          {isActive && data.eta_min != null && (
+            <p className="public-track-eta">🚗 Professional ~{data.eta_min} min away</p>
+          )}
+          {isActive && (
+            <CraftTrackingMap
+              customerLat={data.customer_lat}
+              customerLng={data.customer_lng}
+              proLat={data.pro_lat}
+              proLng={data.pro_lng}
+            />
+          )}
+          {isDone && <p className="public-track-eta">✅ Intervention completed</p>}
+        </div>
+      )}
+      <footer className="public-track-footer">Shared via ZIZA roadside assistance</footer>
+    </div>
+  );
+}
+
 export default function App() {
+  // Public share link short-circuit — a relative opens /?t=<token> with no login.
+  const shareToken = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("t")
+    : null;
+
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
   const [user, setUser] = useState(null);
   const [loginError, setLoginError] = useState(null);
@@ -3014,6 +3102,7 @@ export default function App() {
     localStorage.removeItem(TOKEN_KEY); setToken(null); setUser(null);
   }
 
+  if (shareToken) return <PublicCraftTrack shareToken={shareToken} />;
   if (!token) return <LoginForm onEmailLogin={handleEmailLogin} onGoogleLogin={handleGoogleLogin} onSignup={handleSignup} error={loginError} notice={loginNotice} loading={loginLoading} />;
   if (!user)  return <div className="app"><div className="status loading">⏳ Loading…</div></div>;
   if (user.role !== REQUIRED_ROLE) return <AccessDenied role={user.role} onLogout={handleLogout} />;
