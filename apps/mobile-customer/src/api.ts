@@ -719,6 +719,10 @@ export interface CraftBid {
   status: string;
   created_at: string;
   distance_km: number | null;
+  professional_name: string | null;
+  professional_avatar_url: string | null;
+  professional_rating: number | null;
+  professional_rating_count: number;
 }
 
 export const CRAFT_CATEGORIES = [

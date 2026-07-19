@@ -5031,6 +5031,11 @@ class CraftBidResponse(BaseModel):
     status: str
     created_at: str
     distance_km: float | None = None
+    # Pro identity + reputation (populated when the customer lists bids)
+    professional_name: str | None = None
+    professional_avatar_url: str | None = None
+    professional_rating: float | None = None
+    professional_rating_count: int = 0
 
 
 class CreateBidBody(BaseModel):
