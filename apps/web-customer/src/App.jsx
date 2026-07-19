@@ -24,6 +24,7 @@ import {
 import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, sendPasswordReset, resendVerification, changeEmail, firebaseSignOut } from "./auth";
 import Icon from "./Icon";
 import { EstimateMap, TripMap, CraftTrackingMap } from "./TripMap";
+import { useI18n } from "./i18n";
 
 const REQUIRED_ROLE = "customer";
 const TOKEN_KEY = "ziza_token";
@@ -2947,17 +2948,18 @@ function ActivitySection({ token, onNeedCard }) {
 // ---------------------------------------------------------------------------
 
 function AccountSection({ token, sub, onSub }) {
+  const { t, lang, setLang } = useI18n();
   const ITEMS = [
-    { key: "profile", icon: "👤", label: "Profile" },
-    { key: "cards",   icon: "💳", label: "Payment Methods" },
-    { key: "docs",    icon: "📄", label: "My Documents" },
-    { key: "places",  icon: "📍", label: "Saved Places" },
+    { key: "profile", icon: "👤", label: t("account.profile") },
+    { key: "cards",   icon: "💳", label: t("account.cards") },
+    { key: "docs",    icon: "📄", label: t("account.docs") },
+    { key: "places",  icon: "📍", label: t("account.places") },
   ];
 
   if (sub) {
     return (
       <div className="account-sub">
-        <button className="account-back-btn" onClick={() => onSub(null)}>← Account</button>
+        <button className="account-back-btn" onClick={() => onSub(null)}>← {t("account.back")}</button>
         {sub === "profile" && <ProfileSection token={token} />}
         {sub === "cards"   && <PaymentMethods token={token} />}
         {sub === "docs"    && <DocumentsSection token={token} />}
@@ -2968,7 +2970,7 @@ function AccountSection({ token, sub, onSub }) {
 
   return (
     <div className="account-section">
-      <h2 className="estimate-title">👤 Account</h2>
+      <h2 className="estimate-title">👤 {t("account.title")}</h2>
       <div className="account-menu">
         {ITEMS.map((it) => (
           <button key={it.key} className="account-menu-row" onClick={() => onSub(it.key)}>
@@ -2982,15 +2984,30 @@ function AccountSection({ token, sub, onSub }) {
           onClick={() => window.open(`${DRIVER_APP_URL}?signup=1`, "_blank", "noopener")}
         >
           <span className="account-menu-icon">🧑‍✈️</span>
-          <span className="account-menu-label">Become a Driver</span>
+          <span className="account-menu-label">{t("account.becomeDriver")}</span>
           <span className="account-menu-chevron">↗</span>
         </button>
+        <div className="account-menu-row account-lang-row">
+          <span className="account-menu-icon">🌐</span>
+          <span className="account-menu-label">{t("account.language")}</span>
+          <div className="account-lang-toggle">
+            <button
+              className={`account-lang-btn ${lang === "en" ? "active" : ""}`}
+              onClick={() => setLang("en")}
+            >EN</button>
+            <button
+              className={`account-lang-btn ${lang === "es" ? "active" : ""}`}
+              onClick={() => setLang("es")}
+            >ES</button>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
 function Dashboard({ user, token, onLogout }) {
+  const { t } = useI18n();
   const [activeTrip, setActiveTrip] = useState(null);
   const [mode, setMode] = useState("course"); // "course" | "assistance" | "activity" | "account" | "notifications"
   const [accountSub, setAccountSub] = useState(null); // sub-screen within Account
@@ -3055,25 +3072,25 @@ function Dashboard({ user, token, onLogout }) {
               className={`mode-tab ${mode === "course" ? "active" : ""}`}
               onClick={() => setMode("course")}
             >
-              <Icon name="ride" /> Ride
+              <Icon name="ride" /> {t("nav.ride")}
             </button>
             <button
               className={`mode-tab ${mode === "assistance" ? "active" : ""}`}
               onClick={() => setMode("assistance")}
             >
-              <Icon name="assistance" /> Assistance
+              <Icon name="assistance" /> {t("nav.assistance")}
             </button>
             <button
               className={`mode-tab ${mode === "activity" ? "active" : ""}`}
               onClick={() => setMode("activity")}
             >
-              <Icon name="activity" /> Activity
+              <Icon name="activity" /> {t("nav.activity")}
             </button>
             <button
               className={`mode-tab ${mode === "account" ? "active" : ""}`}
               onClick={() => { setAccountSub(null); setMode("account"); }}
             >
-              <Icon name="account" /> Account
+              <Icon name="account" /> {t("nav.account")}
             </button>
           </div>
           {mode === "course" && (
