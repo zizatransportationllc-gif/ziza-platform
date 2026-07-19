@@ -3,7 +3,7 @@
  * the assigned professional moving toward them, with a road-following route.
  * Mirrors TrackingMap (rides) but for the craft flow. OSRM routing (no key).
  */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 
@@ -12,6 +12,7 @@ interface Props {
   customerLng: number;
   proLat: number | null;
   proLng: number | null;
+  onEta?: (etaMin: number) => void;
 }
 
 interface LatLng {
@@ -19,12 +20,12 @@ interface LatLng {
   longitude: number;
 }
 
-async function fetchRouteCoords(
+async function fetchRoute(
   originLng: number,
   originLat: number,
   destLng: number,
   destLat: number,
-): Promise<LatLng[] | null> {
+): Promise<{ coords: LatLng[]; durationS: number | null } | null> {
   try {
     const url =
       `https://router.project-osrm.org/route/v1/driving/` +
@@ -33,9 +34,13 @@ async function fetchRouteCoords(
     const res = await fetch(url);
     if (!res.ok) return null;
     const data = await res.json();
-    const coords: [number, number][] = data.routes?.[0]?.geometry?.coordinates ?? null;
+    const route = data.routes?.[0];
+    const coords: [number, number][] = route?.geometry?.coordinates ?? null;
     if (!coords) return null;
-    return coords.map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
+    return {
+      coords: coords.map(([lng, lat]) => ({ latitude: lat, longitude: lng })),
+      durationS: route.duration ?? null,
+    };
   } catch {
     return null;
   }
@@ -46,20 +51,26 @@ export default function CraftTrackingMap({
   customerLng,
   proLat,
   proLng,
+  onEta,
 }: Props): React.ReactElement {
   const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
   const hasPro = proLat != null && proLng != null;
+  const onEtaRef = useRef(onEta);
+  onEtaRef.current = onEta;
 
-  // (Re)fetch the road route pro → customer as the pro moves.
+  // (Re)fetch the road route pro → customer as the pro moves; surface the ETA.
   useEffect(() => {
     if (!hasPro) { setRouteCoords([]); return; }
-    fetchRouteCoords(proLng!, proLat!, customerLng, customerLat).then((coords) => {
+    fetchRoute(proLng!, proLat!, customerLng, customerLat).then((r) => {
       setRouteCoords(
-        coords ?? [
+        r?.coords ?? [
           { latitude: proLat!, longitude: proLng! },
           { latitude: customerLat, longitude: customerLng },
         ],
       );
+      if (r?.durationS != null && onEtaRef.current) {
+        onEtaRef.current(Math.max(1, Math.round(r.durationS / 60)));
+      }
     });
   }, [proLat, proLng, customerLat, customerLng]);
 
