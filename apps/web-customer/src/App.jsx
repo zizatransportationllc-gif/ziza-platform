@@ -2092,6 +2092,14 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
   const isActive = ["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status);
   const acceptedBid = bids.find((b) => b.status === "accepted") || null;
 
+  // Sort the bids the customer is choosing between.
+  const [sortBy, setSortBy] = useState("price"); // "price" | "eta" | "rating"
+  const sortedBids = [...bids].sort((a, b) => {
+    if (sortBy === "eta") return a.eta_min - b.eta_min;
+    if (sortBy === "rating") return (b.professional_rating ?? -1) - (a.professional_rating ?? -1);
+    return a.price_cents - b.price_cents;
+  });
+
   // Share a public live-tracking link with a relative (native share / clipboard).
   const [shareMsg, setShareMsg] = useState(null);
   async function handleShare() {
@@ -2228,8 +2236,24 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
       {error   && <p className="form-error">{error}</p>}
       {loading && <p className="craft-loading">⏳ Loading bids…</p>}
 
+      {bids.length > 1 && (
+        <div className="craft-sort-row">
+          <span className="craft-sort-label">Sort by</span>
+          {[["price", "Price"], ["eta", "ETA"], ["rating", "Rating"]].map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              className={`craft-sort-chip ${sortBy === k ? "on" : ""}`}
+              onClick={() => setSortBy(k)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="craft-bids-list">
-        {bids.map((b) => (
+        {sortedBids.map((b) => (
           <div key={b.bid_id} className={`craft-bid-card ${b.status === "accepted" ? "craft-bid-accepted" : ""}`}>
             <div className="craft-bid-pro">
               {b.professional_avatar_url ? (
@@ -2247,15 +2271,15 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
                     : "No ratings yet"}
                 </span>
               </div>
+              <span className="craft-bid-pro-price">{formatUSD(b.price_cents)}</span>
             </div>
             <div className="craft-bid-header">
-              <span className="craft-bid-price">{formatUSD(b.price_cents)}</span>
-              <span className="craft-bid-eta">⏱ {b.eta_min} min</span>
+              <span className="craft-bid-eta">⏱ {b.eta_min} min ETA</span>
+              {b.distance_km != null && (
+                <span className="craft-bid-eta">📍 {fmtMiles(b.distance_km)} mi away</span>
+              )}
             </div>
             {b.note && <p className="craft-bid-note">💬 {b.note}</p>}
-            {b.distance_km != null && (
-              <p className="craft-bid-dist">📍 {fmtMiles(b.distance_km)} mi away</p>
-            )}
             {canSelect && b.status === "pending" && !success && (
               <button
                 className="craft-bid-select-btn"

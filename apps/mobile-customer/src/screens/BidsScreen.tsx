@@ -183,6 +183,13 @@ export default function BidsScreen(): React.ReactElement {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selecting, setSelecting] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<"price" | "eta" | "rating">("price");
+
+  const sortedBids = [...bids].sort((a, b) => {
+    if (sortBy === "eta") return a.eta_min - b.eta_min;
+    if (sortBy === "rating") return (b.professional_rating ?? -1) - (a.professional_rating ?? -1);
+    return a.price_cents - b.price_cents;
+  });
 
   const loadData = useCallback(async (showLoader = true) => {
     if (!token) return;
@@ -494,9 +501,27 @@ export default function BidsScreen(): React.ReactElement {
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       <FlatList
-        data={bids}
+        data={sortedBids}
         keyExtractor={(item) => item.bid_id}
         renderItem={renderBid}
+        ListHeaderComponent={
+          bids.length > 1 ? (
+            <View style={styles.sortRow}>
+              <Text style={styles.sortLabel}>Sort by</Text>
+              {(["price", "eta", "rating"] as const).map((k) => (
+                <TouchableOpacity
+                  key={k}
+                  style={[styles.sortChip, sortBy === k && styles.sortChipOn]}
+                  onPress={() => setSortBy(k)}
+                >
+                  <Text style={[styles.sortChipText, sortBy === k && styles.sortChipTextOn]}>
+                    {k === "price" ? "Price" : k === "eta" ? "ETA" : "Rating"}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null
+        }
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -582,6 +607,12 @@ const styles = StyleSheet.create({
   proMeta: { flex: 1, minWidth: 0 },
   proName: { fontSize: 15, fontWeight: "700", color: "#111827" },
   proRating: { fontSize: 13, fontWeight: "600", color: "#F5B301", marginTop: 1 },
+  sortRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 12 },
+  sortLabel: { fontSize: 12, color: "#6B7280" },
+  sortChip: { paddingVertical: 5, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: "#D1D5DB", backgroundColor: "#fff" },
+  sortChipOn: { backgroundColor: "#1D4ED8", borderColor: "#1D4ED8" },
+  sortChipText: { fontSize: 12, fontWeight: "600", color: "#374151" },
+  sortChipTextOn: { color: "#fff" },
   selectedBanner: {
     backgroundColor: "#EEF3FE",
     borderRadius: 6,
