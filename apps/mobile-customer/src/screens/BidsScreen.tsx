@@ -348,6 +348,9 @@ export default function BidsScreen(): React.ReactElement {
                   proLng={tracking?.pro_lng ?? null}
                 />
               </View>
+              {!tracking?.pro_lat && (
+                <Text style={styles.trackWaiting}>🛰️ Waiting for the professional's live position…</Text>
+              )}
               <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
                 <Text style={styles.shareBtnText}>🔗 Share live tracking</Text>
               </TouchableOpacity>
@@ -446,6 +449,7 @@ const styles = StyleSheet.create({
     paddingVertical: 11, alignItems: "center",
   },
   shareBtnText: { color: "#1D4ED8", fontWeight: "700", fontSize: 14 },
+  trackWaiting: { marginTop: 8, fontSize: 12, color: "#6B7280", textAlign: "center" },
   codeCard: { marginTop: 10, backgroundColor: "#EEF3FE", borderWidth: 1, borderColor: "#C7D7F7", borderRadius: 8, padding: 10, alignItems: "center" },
   codeLabel: { fontSize: 11, color: "#1E40AF", fontWeight: "600" },
   codeValue: { fontSize: 24, fontWeight: "800", letterSpacing: 6, color: "#1D4ED8", fontVariant: ["tabular-nums"] },

@@ -2070,12 +2070,17 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
 
       {/* Live map — the pro moving toward the customer, while en route / on site */}
       {["assigned", "arrived", "in_progress"].includes(request.status) && (
-        <CraftTrackingMap
-          customerLat={request.lat}
-          customerLng={request.lng}
-          proLat={tracking?.pro_lat ?? null}
-          proLng={tracking?.pro_lng ?? null}
-        />
+        <>
+          <CraftTrackingMap
+            customerLat={request.lat}
+            customerLng={request.lng}
+            proLat={tracking?.pro_lat ?? null}
+            proLng={tracking?.pro_lng ?? null}
+          />
+          {!tracking?.pro_lat && (
+            <p className="craft-track-waiting">🛰️ Waiting for the professional's live position…</p>
+          )}
+        </>
       )}
 
       {/* Share a live-tracking link with a relative */}
@@ -2996,6 +3001,9 @@ function PublicCraftTrack({ shareToken }) {
               proLat={data.pro_lat}
               proLng={data.pro_lng}
             />
+          )}
+          {isActive && data.pro_lat == null && (
+            <p className="craft-track-waiting">🛰️ Waiting for the professional's live position…</p>
           )}
           {isDone && <p className="public-track-eta">✅ Intervention completed</p>}
         </div>

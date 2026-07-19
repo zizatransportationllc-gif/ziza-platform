@@ -631,6 +631,7 @@ html, body {
 }
 .craft-share-btn:hover { background: var(--color-accent-strong); border-color: var(--color-accent-strong); color: #fff; }
 .craft-share-msg { font-size: 0.82rem; color: var(--color-success); font-weight: 600; }
+.craft-track-waiting { font-size: 0.82rem; color: var(--color-muted); text-align: center; margin: var(--space-2) 0 0; }
 
 /* Public (no-login) shared-intervention page */
 .public-track { min-height: 100vh; display: flex; flex-direction: column; background: var(--color-bg); color: var(--color-fg); }
