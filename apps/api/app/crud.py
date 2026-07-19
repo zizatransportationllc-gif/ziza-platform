@@ -5858,7 +5858,10 @@ def _craft_request_to_dict(r: CraftRequest, distance_km: float | None = None) ->
 
 
 def _craft_bid_to_dict(
-    b: CraftBid, distance_km: float | None = None, pro_info: dict | None = None
+    b: CraftBid,
+    distance_km: float | None = None,
+    pro_info: dict | None = None,
+    fee_info: dict | None = None,
 ) -> dict:
     return {
         "bid_id": str(b.id),
@@ -5878,6 +5881,11 @@ def _craft_bid_to_dict(
         "professional_avatar_url": pro_info.get("professional_avatar_url") if pro_info else None,
         "professional_rating": pro_info.get("professional_rating") if pro_info else None,
         "professional_rating_count": pro_info.get("professional_rating_count", 0) if pro_info else 0,
+        # What the customer will actually pay for this bid (bid + service fee +
+        # tax). Populated when listing bids so the fees are transparent up front.
+        "service_fee_cents": fee_info.get("service_fee_cents") if fee_info else None,
+        "tax_cents": fee_info.get("tax_cents") if fee_info else None,
+        "total_cents": fee_info.get("total_cents") if fee_info else None,
     }
 
 
@@ -6422,6 +6430,9 @@ async def list_bids_for_request(
         .where(CraftBid.request_id == request_id)
         .order_by(CraftBid.created_at.asc())
     )
+    from app.payment.split import compute_craft_split  # noqa: PLC0415
+
+    cfg = await load_payment_config(db)
     bids = list(result.scalars())
     out = []
     for b in bids:
@@ -6436,7 +6447,15 @@ async def list_bids_for_request(
                 customer_lat, customer_lng, b.professional_lat, b.professional_lng
             )
         pro_info = await _professional_bid_info(db, b.professional_id)
-        out.append(_craft_bid_to_dict(b, dist, pro_info))
+        fee_info = None
+        if b.price_cents > 0:
+            split = compute_craft_split(b.price_cents, cfg)
+            fee_info = {
+                "service_fee_cents": split.platform_fee_cents,
+                "tax_cents": split.tax_cents,
+                "total_cents": split.total_client_cents,
+            }
+        out.append(_craft_bid_to_dict(b, dist, pro_info, fee_info))
     return out
 
 

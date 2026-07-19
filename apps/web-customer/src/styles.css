@@ -667,6 +667,9 @@ span.craft-star { cursor: default; }
 .craft-top-rated { font-size: 0.68rem; font-weight: 700; color: #08160d; background: var(--color-success); padding: 1px 7px; border-radius: 999px; }
 .craft-bid-pro-rating { font-size: 0.82rem; color: #f5b301; font-weight: 600; }
 .craft-bid-pro-price { margin-left: auto; font-family: var(--font-mono, monospace); font-variant-numeric: tabular-nums; font-size: 1.15rem; font-weight: 800; color: var(--color-fg); }
+.craft-bid-fees { display: flex; flex-direction: column; margin: var(--space-2) 0; }
+.craft-bid-total { font-weight: 700; font-size: 0.98rem; color: var(--color-fg); font-variant-numeric: tabular-nums; }
+.craft-bid-fee-note { font-size: 0.76rem; color: var(--color-muted); }
 
 /* Bid sort control */
 .craft-sort-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }

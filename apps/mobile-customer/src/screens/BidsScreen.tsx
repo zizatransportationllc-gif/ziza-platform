@@ -393,6 +393,17 @@ export default function BidsScreen(): React.ReactElement {
           <Text style={styles.eta}>⏱ {item.eta_min} min</Text>
         </View>
 
+        {/* Fee transparency — what the customer actually pays */}
+        {item.total_cents != null && (
+          <View style={styles.feeBox}>
+            <Text style={styles.feeTotal}>You pay {formatUSD(item.total_cents)}</Text>
+            <Text style={styles.feeNote}>
+              {formatUSD(item.price_cents)} bid + {formatUSD(item.service_fee_cents || 0)} service fee
+              {item.tax_cents ? ` + ${formatUSD(item.tax_cents)} tax` : ""}
+            </Text>
+          </View>
+        )}
+
         {/* Distance */}
         {item.distance_km != null && (
           <Text style={styles.distance}>📏 {fmtMiles(item.distance_km)} mi from you</Text>
@@ -657,6 +668,9 @@ const styles = StyleSheet.create({
   },
   price: { fontSize: 24, fontWeight: "bold", color: "#111827", fontVariant: ["tabular-nums"] },
   eta: { fontSize: 16, fontWeight: "600", color: "#059669", fontVariant: ["tabular-nums"] },
+  feeBox: { backgroundColor: "#F9FAFB", borderRadius: 8, padding: 8, marginBottom: 6 },
+  feeTotal: { fontSize: 15, fontWeight: "700", color: "#111827", fontVariant: ["tabular-nums"] },
+  feeNote: { fontSize: 11, color: "#6B7280", marginTop: 1 },
   distance: { fontSize: 13, color: "#6B7280", marginBottom: 6 },
   note: { fontSize: 13, color: "#374151", fontStyle: "italic", marginBottom: 6 },
   date: { fontSize: 11, color: "#D1D5DB", marginBottom: 8 },

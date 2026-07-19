@@ -127,6 +127,22 @@ def test_bid_list_shows_professional_average_rating():
     assert bid["professional_name"]  # non-empty display name
 
 
+def test_bid_list_exposes_fee_breakdown():
+    from app.config import settings
+    from app.payment.split import PaymentConfig, compute_craft_split
+
+    tc, tp, rid = _assigned_request()  # bid price 8000
+    bids = client.get(f"/v1/craft/requests/{rid}/bids", headers=_h(tc)).json()
+    assert len(bids) >= 1
+    bid = bids[0]
+    expected = compute_craft_split(8000, PaymentConfig.from_settings(settings))
+    assert bid["service_fee_cents"] == expected.platform_fee_cents
+    assert bid["tax_cents"] == expected.tax_cents
+    assert bid["total_cents"] == expected.total_client_cents
+    # The total the customer pays is bid + fee + tax.
+    assert bid["total_cents"] == bid["price_cents"] + bid["service_fee_cents"] + bid["tax_cents"]
+
+
 def test_professional_sees_own_rating_stats():
     tc, tp, rid = _assigned_request()
     _drive_to_completed(tc, tp, rid)
