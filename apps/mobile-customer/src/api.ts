@@ -7,6 +7,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const API_BASE =
   (process.env.EXPO_PUBLIC_API_URL as string) || "http://localhost:8000";
 
+// Base URL of the customer web app — used to build the public "share my
+// intervention" link (that page is served by web-customer).
+export const WEB_BASE =
+  (process.env.EXPO_PUBLIC_WEB_URL as string) || "https://app.ziza.us";
+
 const TOKEN_KEY = "ziza_access_token";
 const REFRESH_TOKEN_KEY = "ziza_refresh_token";
 
@@ -779,6 +784,17 @@ export interface CraftTracking {
   pro_lng: number;
   distance_km: number;
   eta_min: number;
+}
+
+// Create (or fetch) the public share token for an intervention, and return the
+// full public URL a relative can open with no account.
+export async function createCraftShareUrl(token: string, requestId: string): Promise<string> {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/share`, {
+    method: "POST",
+    headers: _auth(token),
+  });
+  const { share_token } = await _json<{ share_token: string }>(res);
+  return `${WEB_BASE}/?t=${share_token}`;
 }
 
 // Live position of the assigned professional. null (404) until the pro has

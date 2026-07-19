@@ -510,6 +510,25 @@ export async function getCraftTracking(token, requestId) {
   return _json(res);
 }
 
+// Create (or fetch) the public share token for an intervention.
+export async function createCraftShare(token, requestId) {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/share`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res);
+}
+
+// Public (no-auth) live view of a shared intervention. Returns { notFound: true }
+// for an unknown/expired link.
+export async function getPublicCraftTrack(shareToken) {
+  const res = await fetch(`${API_BASE}/v1/public/craft/track/${shareToken}`, {
+    headers: { Accept: "application/json" },
+  });
+  if (res.status === 404) return { notFound: true };
+  return _json(res);
+}
+
 // Sprint 66 — in-app messaging (customer ↔ driver)
 export async function listTripMessages(token, tripId) {
   const res = await fetch(`${API_BASE}/v1/trips/${tripId}/messages`, {
