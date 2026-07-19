@@ -2273,6 +2273,38 @@ async def admin_set_surge(
     return SurgeResponse(surge_multiplier=value)
 
 
+class CoverageResponse(BaseModel):
+    states: list[str]
+
+
+class CoverageUpdateRequest(BaseModel):
+    states: list[str]
+
+
+@app.get("/v1/admin/settings/coverage", tags=["admin"])
+async def admin_get_coverage(
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CoverageResponse:
+    """Admin: return the US states where customer address search is offered."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return CoverageResponse(states=await crud.get_covered_states(db))
+
+
+@app.patch("/v1/admin/settings/coverage", tags=["admin"])
+async def admin_set_coverage(
+    body: CoverageUpdateRequest,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CoverageResponse:
+    """Admin: set the covered US states. Address autocomplete restricts results
+    to these states; takes effect immediately."""
+    if claims.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return CoverageResponse(states=await crud.set_covered_states(db, body.states))
+
+
 # ---------------------------------------------------------------------------
 # Admin — base fare & per-mile pricing (USD cents), Sprint 66
 # ---------------------------------------------------------------------------
@@ -3120,9 +3152,6 @@ class PlaceSearchResult(BaseModel):
     lng: float
 
 
-# New Jersey bounding box for Nominatim (lon_left, lat_top, lon_right, lat_bottom)
-_NJ_VIEWBOX = "-75.60,41.36,-73.89,38.93"
-
 
 def _format_place(item: dict) -> PlaceSearchResult:
     """Build a Google-Maps-style result (primary + secondary lines) from a
@@ -3161,14 +3190,16 @@ def _format_place(item: dict) -> PlaceSearchResult:
 async def search_places_autocomplete(
     q: str,
     _: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> list[PlaceSearchResult]:
     """Geocode a free-text address query via Nominatim (OpenStreetMap).
 
-    Results are restricted to the state of New Jersey, USA. Returns up to 5
-    matches sorted by relevance. Requires at least 3 characters.
+    Results are restricted to the admin-configured covered US states (defaults
+    to New Jersey). Returns up to 5 matches by relevance; needs ≥ 3 characters.
     """
     if len(q.strip()) < 3:
         return []
+    covered = set(await crud.get_covered_states(db))
     import httpx  # noqa: PLC0415
     async with httpx.AsyncClient(
         timeout=6.0,
@@ -3179,11 +3210,9 @@ async def search_places_autocomplete(
             params={
                 "q": q,
                 "format": "json",
-                "limit": 10,
+                "limit": 15,
                 "addressdetails": 1,
                 "countrycodes": "us",
-                "viewbox": _NJ_VIEWBOX,
-                "bounded": 1,          # restrict results to the NJ viewbox
             },
         )
         resp.raise_for_status()
@@ -3191,8 +3220,8 @@ async def search_places_autocomplete(
 
     results: list[PlaceSearchResult] = []
     for item in data:
-        # Keep only New Jersey results (the bounded box can clip border areas)
-        if (item.get("address", {}) or {}).get("state") != "New Jersey":
+        # Keep only results within a covered state.
+        if (item.get("address", {}) or {}).get("state") not in covered:
             continue
         results.append(_format_place(item))
         if len(results) >= 5:

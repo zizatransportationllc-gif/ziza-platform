@@ -254,6 +254,27 @@ export async function adminSetSurge(token, surgeMultiplier) {
   return _json(res); // { surge_multiplier: float }
 }
 
+// Admin — service coverage (covered US states for address search)
+export async function adminGetCoverage(token) {
+  const res = await fetch(`${API_BASE}/v1/admin/settings/coverage`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // { states: string[] }
+}
+
+export async function adminSetCoverage(token, states) {
+  const res = await fetch(`${API_BASE}/v1/admin/settings/coverage`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ states }),
+  });
+  return _json(res); // { states: string[] }
+}
+
 // Admin — full fare formula (base, per-mile, per-minute, minimum, category mult)
 export async function adminGetPricing(token) {
   const res = await fetch(`${API_BASE}/v1/admin/settings/pricing`, {
