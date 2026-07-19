@@ -1701,7 +1701,6 @@ function Dashboard({ user, token, onLogout }) {
         {togglingOnline ? "…" : driverStatus === "pending_docs" ? "🔒 Locked" : isOnline ? "Online" : "Offline"}
       </button>
 
-      <EarningsCard earnings={earnings} balance={balance} />
       <RatingStats stats={ratingStats} />
 
       {/* Active trip always shown regardless of tab */}
@@ -1772,7 +1771,12 @@ function Dashboard({ user, token, onLogout }) {
             )
           )}
 
-          {tab === "earnings"      && <PayoutSection token={token} />}
+          {tab === "earnings"      && (
+            <>
+              <EarningsCard earnings={earnings} balance={balance} />
+              <PayoutSection token={token} />
+            </>
+          )}
           {tab === "activity"      && <DriverTripHistory token={token} />}
           {tab === "account"       && (
             <DriverAccountSection
