@@ -314,6 +314,9 @@ export default function BidsScreen(): React.ReactElement {
   // Live position of the assigned pro (null until they push one). Poll while the
   // pro is travelling / on site.
   const [tracking, setTracking] = useState<CraftTracking | null>(null);
+  // Real routed ETA (minutes) from the live map, preferred over the backend
+  // straight-line estimate when available.
+  const [routeEta, setRouteEta] = useState<number | null>(null);
   useEffect(() => {
     const st = request?.status;
     if (!token || !st || !["assigned", "arrived", "in_progress"].includes(st)) {
@@ -428,7 +431,7 @@ export default function BidsScreen(): React.ReactElement {
           {(() => {
             const accepted = bids.find((b) => b.status === "accepted");
             if (!accepted || !["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status)) return null;
-            const etaMin = tracking?.eta_min ?? accepted.eta_min;
+            const etaMin = routeEta ?? tracking?.eta_min ?? accepted.eta_min;
             const line =
               request.status === "assigned" ? `🚗 On the way — ~${etaMin} min away`
               : request.status === "arrived" ? "📍 On site"
@@ -452,6 +455,7 @@ export default function BidsScreen(): React.ReactElement {
                   customerLng={request.lng}
                   proLat={tracking?.pro_lat ?? null}
                   proLng={tracking?.pro_lng ?? null}
+                  onEta={setRouteEta}
                 />
               </View>
               {!tracking?.pro_lat && (

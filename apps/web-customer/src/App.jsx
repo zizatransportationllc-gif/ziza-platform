@@ -2050,6 +2050,9 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
   // Live position of the assigned pro (null until they push one). Poll while the
   // pro is travelling / on site — stop once the work is under way or finished.
   const [tracking, setTracking] = useState(null);
+  // Real routed ETA (minutes) from the live map, preferred over the backend's
+  // straight-line estimate when available.
+  const [routeEta, setRouteEta] = useState(null);
   useEffect(() => {
     if (!["assigned", "arrived", "in_progress"].includes(request.status)) { setTracking(null); return; }
     let active = true;
@@ -2120,8 +2123,8 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
   function proStatusLine() {
     switch (request.status) {
       case "assigned": {
-        // Prefer the live ETA (updates as the pro drives), fall back to the bid.
-        const eta = tracking?.eta_min ?? acceptedBid?.eta_min;
+        // Prefer the real routed ETA, then the backend estimate, then the bid.
+        const eta = routeEta ?? tracking?.eta_min ?? acceptedBid?.eta_min;
         return eta != null ? `🚗 On the way — ~${eta} min away` : "🚗 On the way";
       }
       case "arrived":     return "📍 On site";
@@ -2164,6 +2167,7 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
             customerLng={request.lng}
             proLat={tracking?.pro_lat ?? null}
             proLng={tracking?.pro_lng ?? null}
+            onEta={setRouteEta}
           />
           {!tracking?.pro_lat && (
             <p className="craft-track-waiting">🛰️ Waiting for the professional's live position…</p>
@@ -3087,6 +3091,7 @@ function AccessDenied({ role, onLogout }) {
 function PublicCraftTrack({ shareToken }) {
   const [data, setData] = useState(null);
   const [loaded, setLoaded] = useState(false);
+  const [routeEta, setRouteEta] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -3120,8 +3125,8 @@ function PublicCraftTrack({ shareToken }) {
             {CRAFT_CAT_LABELS[data.category] ?? data.category} assistance
           </h1>
           <p className="public-track-status">{CRAFT_STATUS_LABELS[data.status] ?? data.status}</p>
-          {isActive && data.eta_min != null && (
-            <p className="public-track-eta">🚗 Professional ~{data.eta_min} min away</p>
+          {isActive && (routeEta ?? data.eta_min) != null && (
+            <p className="public-track-eta">🚗 Professional ~{routeEta ?? data.eta_min} min away</p>
           )}
           {isActive && (
             <CraftTrackingMap
@@ -3129,6 +3134,7 @@ function PublicCraftTrack({ shareToken }) {
               customerLng={data.customer_lng}
               proLat={data.pro_lat}
               proLng={data.pro_lng}
+              onEta={setRouteEta}
             />
           )}
           {isActive && data.pro_lat == null && (

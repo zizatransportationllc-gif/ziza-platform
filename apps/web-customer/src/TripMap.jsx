@@ -52,6 +52,28 @@ async function fetchRouteCoords(originLng, originLat, destLng, destLat) {
   }
 }
 
+// Like fetchRouteCoords but also returns the road-following ETA (driving
+// duration, seconds) so the caller can show a real routed ETA instead of a
+// crude straight-line estimate. Returns null on error.
+async function fetchRouteWithEta(originLng, originLat, destLng, destLat) {
+  if (!TOKEN) return null;
+  try {
+    const url = [
+      "https://api.mapbox.com/directions/v5/mapbox/driving/",
+      `${originLng},${originLat};${destLng},${destLat}`,
+      `?geometries=geojson&overview=full&steps=false&access_token=${TOKEN}`,
+    ].join("");
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const route = data.routes?.[0];
+    if (!route) return null;
+    return { coords: route.geometry?.coordinates ?? null, durationS: route.duration ?? null };
+  } catch {
+    return null;
+  }
+}
+
 // Build a GeoJSON Feature from a coordinates array (or 2-point fallback).
 function routeFeature(coords) {
   return {
@@ -264,16 +286,24 @@ export function TripMap({ trip, driverLocation }) {
  *   customerLat, customerLng – the request location (where help is needed)
  *   proLat, proLng           – the pro's live position | null (from tracking)
  */
-export function CraftTrackingMap({ customerLat, customerLng, proLat, proLng }) {
+export function CraftTrackingMap({ customerLat, customerLng, proLat, proLng, onEta }) {
   const mapRef = useRef(null);
   const [routeCoords, setRouteCoords] = useState(null);
   const hasPro = proLat != null && proLng != null;
+  const onEtaRef = useRef(onEta);
+  onEtaRef.current = onEta;
 
-  // (Re)fetch the road route pro → customer as the pro moves.
+  // (Re)fetch the road route pro → customer as the pro moves, and surface the
+  // real routed ETA to the parent.
   useEffect(() => {
     if (!hasPro || customerLat == null) return;
-    fetchRouteCoords(proLng, proLat, customerLng, customerLat)
-      .then((coords) => setRouteCoords(coords));
+    fetchRouteWithEta(proLng, proLat, customerLng, customerLat).then((r) => {
+      if (!r) return;
+      setRouteCoords(r.coords);
+      if (r.durationS != null && onEtaRef.current) {
+        onEtaRef.current(Math.max(1, Math.round(r.durationS / 60)));
+      }
+    });
   }, [proLat, proLng, customerLat, customerLng]);
 
   // Follow the pro.
