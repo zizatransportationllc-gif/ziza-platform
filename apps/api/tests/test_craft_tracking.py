@@ -117,3 +117,10 @@ def test_share_forbidden_for_professional():
 def test_public_track_404_for_unknown_token():
     pub = client.get("/v1/public/craft/track/does-not-exist")
     assert pub.status_code == 404, pub.text
+
+
+def test_customer_notified_pro_on_the_way_on_selection():
+    # _assigned_request selects a bid → the customer should get an "on the way" push.
+    tc, tp, rid = _assigned_request()
+    notifs = client.get("/v1/notifications", headers=_h(tc)).json()
+    assert any(n["type"] == "craft_pro_on_the_way" for n in notifs), notifs

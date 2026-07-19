@@ -6686,6 +6686,13 @@ async def select_craft_bid(
             "🛠️ Your bid was accepted",
             "A customer selected your offer. Open the request to navigate to them.",
         )
+    # Notify the customer that their pro is assigned and on the way, with the ETA.
+    await _push_notification(
+        db, req.customer_id,
+        "craft_pro_on_the_way",
+        "🚗 Your professional is on the way",
+        f"They should reach you in about {bid.eta_min} min — track them live in the app.",
+    )
     # Sprint 74 — hold the job amount on the customer's saved card (non-fatal).
     await _authorize_craft_payment(db, req, bid)
     return _craft_request_to_dict(req)
