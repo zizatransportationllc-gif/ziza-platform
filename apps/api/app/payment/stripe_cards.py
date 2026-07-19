@@ -196,3 +196,51 @@ def cancel_ride_authorization(payment_intent_id: str) -> dict:
         return {"status": pi.get("status")}
     except urllib.error.HTTPError as exc:
         return {"status": "failed", "error": _safe_json(exc).get("error", {}).get("code")}
+
+
+def create_hold_intent(
+    customer_id: str,
+    amount_cents: int,
+    ref: str,
+    *,
+    destination: str | None = None,
+    application_fee_cents: int | None = None,
+) -> dict:
+    """Create a manual-capture PaymentIntent the customer confirms **on-session**
+    (Stripe Payment Sheet / Elements), returning ``{id, client_secret, status}``.
+
+    Unlike ``create_ride_authorization`` this does NOT confirm off-session — the
+    client validates the hold in Stripe's UI, then the caller captures later.
+    In dev/CI (no key) returns a mock id + client_secret.
+    """
+    if not _enabled():
+        pid = f"pi_mock_{uuid.uuid4().hex[:16]}"
+        return {"id": pid, "client_secret": f"{pid}_secret_mock", "status": "requires_payment_method"}
+    fields = {
+        "amount": amount_cents,
+        "currency": "usd",
+        "customer": customer_id,
+        "capture_method": "manual",
+        "automatic_payment_methods[enabled]": "true",
+        "metadata[ziza_ref]": ref,
+    }
+    if destination is not None:
+        fields["transfer_data[destination]"] = destination
+    if application_fee_cents is not None:
+        fields["application_fee_amount"] = application_fee_cents
+    pi = _post("/payment_intents", fields)
+    return {"id": pi.get("id"), "client_secret": pi.get("client_secret"), "status": pi.get("status")}
+
+
+def get_intent_status(payment_intent_id: str) -> str | None:
+    """Return a PaymentIntent's current status (e.g. ``requires_capture``), or None.
+
+    In dev/CI (no key) returns ``requires_capture`` — the mock hold is treated as
+    validated so the flow can proceed."""
+    if not _enabled():
+        return "requires_capture"
+    try:
+        pi = _get(f"/payment_intents/{payment_intent_id}")
+        return pi.get("status")
+    except Exception:  # noqa: BLE001 — unknown/transient → let the caller decide
+        return None

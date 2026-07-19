@@ -671,6 +671,16 @@ span.craft-star { cursor: default; }
 .craft-bid-total { font-weight: 700; font-size: 0.98rem; color: var(--color-fg); font-variant-numeric: tabular-nums; }
 .craft-bid-fee-note { font-size: 0.76rem; color: var(--color-muted); }
 
+/* Stripe payment window (bid selection) */
+.craft-pay-overlay { position: fixed; inset: 0; background: rgba(3, 7, 18, 0.6); display: flex; align-items: center; justify-content: center; padding: var(--space-4); z-index: 1000; }
+.craft-pay-modal { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-lg, 14px); padding: var(--space-5); width: 100%; max-width: 420px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.craft-pay-title { font-size: 1.1rem; font-weight: 700; margin: 0 0 var(--space-1); }
+.craft-pay-amount { font-size: 1.05rem; font-weight: 700; color: var(--color-accent); margin: 0 0 var(--space-1); font-variant-numeric: tabular-nums; }
+.craft-pay-hint { font-size: 0.82rem; color: var(--color-muted); margin: 0 0 var(--space-4); }
+.craft-pay-element { margin-bottom: var(--space-4); }
+.craft-pay-actions { display: flex; gap: var(--space-3); }
+.craft-pay-actions .craft-submit-btn { flex: 1; }
+
 /* Bid sort control */
 .craft-sort-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
 .craft-sort-label { font-size: 0.8rem; color: var(--color-muted); }

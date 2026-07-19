@@ -5488,6 +5488,32 @@ async def craft_list_bids(
     return [CraftBidResponse(**d) for d in items]
 
 
+class CraftHoldIntentResponse(BaseModel):
+    client_secret: str
+    amount_cents: int
+    base_cents: int
+    service_fee_cents: int
+    tax_cents: int
+
+
+@app.post(
+    "/v1/craft/requests/{request_id}/bids/{bid_id}/payment-intent",
+    response_model=CraftHoldIntentResponse,
+    status_code=201,
+    summary="Create a Stripe hold the customer validates before selecting a bid",
+)
+async def craft_create_bid_hold(
+    request_id: str,
+    bid_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CraftHoldIntentResponse:
+    if claims.role != "customer":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only customers can pay")
+    data = await crud.create_craft_hold_intent(db, claims, request_id, bid_id)
+    return CraftHoldIntentResponse(**data)
+
+
 @app.post(
     "/v1/craft/requests/{request_id}/select",
     response_model=CraftRequestResponse,
