@@ -5235,6 +5235,62 @@ async def craft_get_tracking(
     return CraftTrackingResponse(**data)
 
 
+class CraftShareResponse(BaseModel):
+    share_token: str
+
+
+@app.post(
+    "/v1/craft/requests/{request_id}/share",
+    response_model=CraftShareResponse,
+    summary="Customer creates a public share link for the intervention",
+)
+async def craft_create_share(
+    request_id: str,
+    claims: Claims = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CraftShareResponse:
+    """Return an opaque token for the public 'follow my intervention' page.
+
+    Idempotent — the same token is returned on repeated calls.
+    """
+    if claims.role != "customer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only customers can share a request",
+        )
+    token = await crud.create_craft_share_token(db, claims, request_id)
+    return CraftShareResponse(share_token=token)
+
+
+class PublicCraftTrackResponse(BaseModel):
+    status: str
+    category: str
+    customer_lat: float
+    customer_lng: float
+    pro_lat: float | None = None
+    pro_lng: float | None = None
+    eta_min: int | None = None
+
+
+@app.get(
+    "/v1/public/craft/track/{token}",
+    response_model=PublicCraftTrackResponse,
+    summary="Public (no-auth) live view of a shared intervention",
+    tags=["public"],
+)
+async def public_craft_track(
+    token: str,
+    db: AsyncSession = Depends(get_db),
+) -> PublicCraftTrackResponse:
+    """Live status + pro position for a shared assistance link — no auth.
+
+    Only exposes the intervention location and the pro's live position/ETA.
+    404 for an unknown token.
+    """
+    data = await crud.get_public_craft_track(db, token)
+    return PublicCraftTrackResponse(**data)
+
+
 @app.post(
     "/v1/craft/requests/{request_id}/cancel",
     response_model=CraftRequestResponse,

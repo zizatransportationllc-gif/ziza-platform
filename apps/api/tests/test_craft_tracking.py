@@ -83,3 +83,37 @@ def test_tracking_404_for_unknown_request():
     tr = client.get("/v1/craft/requests/00000000-0000-0000-0000-000000000000/tracking",
                     headers=_h(tc))
     assert tr.status_code == 404, tr.text
+
+
+def test_share_link_public_tracking_no_auth():
+    tc, tp, rid = _assigned_request()
+    client.patch("/v1/craft/professionals/me", headers=_h(tp),
+                 json={"is_online": True, "current_lat": 40.72, "current_lng": -74.05})
+
+    # Customer mints the share token (idempotent).
+    s1 = client.post(f"/v1/craft/requests/{rid}/share", headers=_h(tc))
+    assert s1.status_code == 200, s1.text
+    token = s1.json()["share_token"]
+    assert token
+    s2 = client.post(f"/v1/craft/requests/{rid}/share", headers=_h(tc))
+    assert s2.json()["share_token"] == token  # same token on repeat
+
+    # A relative opens the public page — NO auth header.
+    pub = client.get(f"/v1/public/craft/track/{token}")
+    assert pub.status_code == 200, pub.text
+    body = pub.json()
+    assert body["status"] == "assigned"
+    assert body["category"] == "breakdown"
+    assert abs(body["pro_lat"] - 40.72) < 1e-6
+    assert body["eta_min"] >= 1
+
+
+def test_share_forbidden_for_professional():
+    tc, tp, rid = _assigned_request()
+    r = client.post(f"/v1/craft/requests/{rid}/share", headers=_h(tp))
+    assert r.status_code in (403, 404), r.text
+
+
+def test_public_track_404_for_unknown_token():
+    pub = client.get("/v1/public/craft/track/does-not-exist")
+    assert pub.status_code == 404, pub.text

@@ -6025,6 +6025,84 @@ async def get_craft_tracking(
     }
 
 
+async def _resolve_pro_position(db: AsyncSession, req: CraftRequest):
+    """Return (pro_lat, pro_lng, eta_min) for a request's assigned pro, or
+    (None, None, None) when no position is available."""
+    if req.selected_bid_id is None:
+        return None, None, None
+    bid = await db.scalar(select(CraftBid).where(CraftBid.id == req.selected_bid_id))
+    prof = (
+        await db.scalar(select(Professional).where(Professional.id == bid.professional_id))
+        if bid is not None
+        else None
+    )
+    p_lat = getattr(prof, "current_lat", None) if prof else None
+    p_lng = getattr(prof, "current_lng", None) if prof else None
+    if p_lat is None or p_lng is None:
+        return None, None, None
+    distance_km = _haversine_km(p_lat, p_lng, req.lat, req.lng)
+    eta_min = max(1, round((distance_km / CITY_SPEED_KMH) * 60))
+    return p_lat, p_lng, eta_min
+
+
+async def create_craft_share_token(
+    db: AsyncSession,
+    claims: Claims,
+    request_id: str,
+) -> str:
+    """Create (or return the existing) opaque public share token for a request.
+
+    Customer-only, and only for a request they own. Idempotent — repeated calls
+    return the same token so the link a relative already has keeps working.
+    """
+    import secrets
+
+    try:
+        rid = uuid.UUID(request_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid request_id format",
+        )
+    user = await _get_user_by_auth_id(db, claims.user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    req = await db.scalar(select(CraftRequest).where(CraftRequest.id == rid))
+    if req is None or req.customer_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Craft request not found")
+    if not req.share_token:
+        req.share_token = secrets.token_urlsafe(9)  # ~12 url-safe chars
+        await db.commit()
+        await db.refresh(req)
+    return req.share_token
+
+
+async def get_public_craft_track(db: AsyncSession, token: str) -> dict:
+    """Public (no-auth) live tracking for a shared assistance link.
+
+    Returns the job status + category + customer location, plus the pro's live
+    position + ETA while the job is active. 404 for an unknown token. Exposes
+    nothing that identifies the customer beyond the intervention location.
+    """
+    req = await db.scalar(select(CraftRequest).where(CraftRequest.share_token == token))
+    if req is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Link not found")
+
+    pro_lat = pro_lng = eta_min = None
+    if req.status in ("assigned", "arrived", "in_progress"):
+        pro_lat, pro_lng, eta_min = await _resolve_pro_position(db, req)
+
+    return {
+        "status": req.status,
+        "category": req.category,
+        "customer_lat": req.lat,
+        "customer_lng": req.lng,
+        "pro_lat": pro_lat,
+        "pro_lng": pro_lng,
+        "eta_min": eta_min,
+    }
+
+
 async def list_open_craft_requests(
     db: AsyncSession,
     lat: float,

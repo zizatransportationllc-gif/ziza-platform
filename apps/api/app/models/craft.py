@@ -104,6 +104,11 @@ class CraftRequest(Base):
     # and the assigned professional so they can confirm they're meeting the
     # right person on site.
     verification_code: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
+    # Opaque token for the public "share this intervention" live page. Generated
+    # on demand when the customer taps Share; lets a relative follow the job
+    # (pro position + ETA) without an account. Distinct from verification_code,
+    # which is a secret used on-site — never expose that publicly.
+    share_token: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, unique=True, index=True)
     # Set when the customer's payment for the assistance is confirmed.
     paid_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True, default=None
