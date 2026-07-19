@@ -15,6 +15,7 @@ import {
   createCraftRequest, getMyCraftRequests, getCraftRequestBids, selectCraftBid, cancelCraftRequest, // Sprint 48
   getCraftRequest, craftConfirmArrival, craftComplete, listCraftPhotos, getCraftTracking, // craft lifecycle
   createCraftShare, getPublicCraftTrack, // craft share link
+  createCraftRating, getCraftRating, // craft rating
   createCraftPaymentIntent, getCraftPayment, // craft payment
   listRequestMessages, sendRequestMessage, // Sprint 66
   submitDocument, listMyDocuments, // Sprint 53
@@ -1833,6 +1834,75 @@ const CRAFT_STATUS_STEP = {
   completed: 4,
 };
 
+// Post-job rating widget — stars + optional comment, shown once completed.
+function CraftRatingWidget({ token, requestId }) {
+  const [existing, setExisting] = useState(undefined); // undefined = loading
+  const [stars, setStars] = useState(0);
+  const [hover, setHover] = useState(0);
+  const [comment, setComment] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    getCraftRating(token, requestId).then((r) => setExisting(r ?? null)).catch(() => setExisting(null));
+  }, [token, requestId]);
+
+  async function submit() {
+    if (!stars) return;
+    setBusy(true); setErr(null);
+    try { setExisting(await createCraftRating(token, requestId, stars, comment.trim() || null)); }
+    catch (e) { setErr(e.message); }
+    finally { setBusy(false); }
+  }
+
+  if (existing === undefined) return null;
+
+  return (
+    <div className="craft-rating">
+      <h4 className="craft-rating-title">Rate your professional</h4>
+      {existing ? (
+        <>
+          <div className="craft-stars" aria-label={`${existing.stars} out of 5 stars`}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <span key={n} className={`craft-star ${n <= existing.stars ? "on" : ""}`}>★</span>
+            ))}
+          </div>
+          {existing.comment && <p className="craft-rating-comment">“{existing.comment}”</p>}
+          <p className="craft-rating-thanks">Thanks for your feedback!</p>
+        </>
+      ) : (
+        <>
+          <div className="craft-stars">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                className={`craft-star ${n <= (hover || stars) ? "on" : ""}`}
+                onClick={() => setStars(n)}
+                onMouseEnter={() => setHover(n)}
+                onMouseLeave={() => setHover(0)}
+                aria-label={`${n} star${n > 1 ? "s" : ""}`}
+              >★</button>
+            ))}
+          </div>
+          <textarea
+            className="craft-textarea"
+            rows={2}
+            maxLength={500}
+            placeholder="Add a comment (optional)…"
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+          />
+          {err && <p className="form-error">{err}</p>}
+          <button type="button" className="craft-submit-btn" disabled={!stars || busy} onClick={submit}>
+            {busy ? "Sending…" : "Submit rating"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function CraftStatusTimeline({ status }) {
   if (status === "cancelled") return null;
   const current = CRAFT_STATUS_STEP[status] ?? 0;
@@ -2174,6 +2244,11 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
       {/* Payment once the job is completed */}
       {request.status === "completed" && (
         <CraftPayment token={token} requestId={request.request_id} paid={!!request.paid_at} />
+      )}
+
+      {/* Rate the professional once the job is completed */}
+      {request.status === "completed" && (
+        <CraftRatingWidget token={token} requestId={request.request_id} />
       )}
 
       {(isActive || success || bids.some((b) => b.status === "accepted")) && (

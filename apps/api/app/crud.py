@@ -5766,7 +5766,7 @@ async def set_service_flags(db: AsyncSession, updates: dict[str, bool]) -> dict[
 # Sprint 47 — Ziza Craft marketplace
 # ===========================================================================
 
-from app.models.craft import CraftBid, CraftRequest, CraftPhoto, Professional  # noqa: E402
+from app.models.craft import CraftBid, CraftRequest, CraftPhoto, CraftRating, Professional  # noqa: E402
 from app.models.professional_payout_request import (  # noqa: E402
     ProfessionalPayoutRequest as ProPayoutModel,
 )
@@ -6101,6 +6101,85 @@ async def get_public_craft_track(db: AsyncSession, token: str) -> dict:
         "pro_lng": pro_lng,
         "eta_min": eta_min,
     }
+
+
+def _craft_rating_to_dict(r: CraftRating) -> dict:
+    return {
+        "rating_id": str(r.id),
+        "request_id": str(r.request_id),
+        "stars": r.stars,
+        "comment": r.comment,
+        "created_at": _utc(r.created_at).isoformat(),
+    }
+
+
+async def create_craft_rating(
+    db: AsyncSession,
+    claims: Claims,
+    request_id: str,
+    stars: int,
+    comment: str | None,
+) -> dict:
+    """Customer rates the professional after a completed assistance job.
+
+    Validates: request exists + owned by the customer, status completed,
+    a professional was assigned, not already rated.
+    """
+    try:
+        rid = uuid.UUID(request_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid request_id format",
+        )
+    user = await _get_user_by_auth_id(db, claims.user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    req = await db.scalar(select(CraftRequest).where(CraftRequest.id == rid))
+    if req is None or req.customer_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Craft request not found")
+    if req.status != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Only completed requests can be rated (current status: {req.status})",
+        )
+    bid = (
+        await db.scalar(select(CraftBid).where(CraftBid.id == req.selected_bid_id))
+        if req.selected_bid_id else None
+    )
+    if bid is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Request has no assigned professional",
+        )
+    existing = await db.scalar(select(CraftRating).where(CraftRating.request_id == rid))
+    if existing is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Request already rated")
+
+    rating = CraftRating(
+        request_id=req.id,
+        professional_id=bid.professional_id,
+        customer_id=user.id,
+        stars=stars,
+        comment=(comment.strip() if comment else None) or None,
+    )
+    db.add(rating)
+    await db.commit()
+    await db.refresh(rating)
+    return _craft_rating_to_dict(rating)
+
+
+async def get_craft_rating(db: AsyncSession, request_id: str) -> dict | None:
+    """Return the rating for a request, or None if not yet rated."""
+    try:
+        rid = uuid.UUID(request_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid request_id format",
+        )
+    r = await db.scalar(select(CraftRating).where(CraftRating.request_id == rid))
+    return _craft_rating_to_dict(r) if r is not None else None
 
 
 async def list_open_craft_requests(

@@ -169,3 +169,30 @@ class CraftBid(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
+
+
+class CraftRating(Base):
+    """Post-intervention rating left by the customer for the professional.
+
+    One rating per completed assistance request (unique on request_id).
+    Stars: 1 (worst) → 5 (best); optional free-text comment.
+    """
+
+    __tablename__ = "craft_ratings"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    request_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("craft_requests.id", ondelete="CASCADE"),
+        unique=True, nullable=False, index=True,
+    )
+    professional_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("professionals.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    customer_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    stars: Mapped[int] = mapped_column(Integer, nullable=False)  # 1–5
+    comment: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
