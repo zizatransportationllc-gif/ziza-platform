@@ -207,6 +207,14 @@ export default function BidsScreen(): React.ReactElement {
     loadData();
   }, [loadData]);
 
+  // While bidding is open, refresh so new offers appear live (no manual pull).
+  useEffect(() => {
+    const st = request?.status;
+    if (st !== "open" && st !== "bidding_closed") return;
+    const id = setInterval(() => loadData(false), 7000);
+    return () => clearInterval(id);
+  }, [request?.status, loadData]);
+
   const handleSelect = (bid: CraftBid) => {
     Alert.alert(
       "Select Professional",
@@ -477,7 +485,11 @@ export default function BidsScreen(): React.ReactElement {
           />
         }
         ListEmptyComponent={
-          <Text style={styles.empty}>No bids received yet. Check back soon.</Text>
+          <Text style={styles.empty}>
+            {request && ["open", "bidding_closed"].includes(request.status)
+              ? "⏳ Waiting for nearby professionals to send their offers…"
+              : "No bids received yet."}
+          </Text>
         }
         ListFooterComponent={
           token && bids.some((b) => b.status === "accepted")

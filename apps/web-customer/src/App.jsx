@@ -2037,6 +2037,16 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
     return () => clearInterval(id);
   }, [request.status, reloadRequest]);
 
+  // While bidding is open, refresh the bids list so new offers appear live
+  // (previously the list only loaded once, so a waiting customer saw it stale).
+  useEffect(() => {
+    if (!["open", "bidding_closed"].includes(request.status)) return;
+    const id = setInterval(() => {
+      getCraftRequestBids(token, request.request_id).then(setBids).catch(() => {});
+    }, 5000);
+    return () => clearInterval(id);
+  }, [token, request.request_id, request.status]);
+
   // Live position of the assigned pro (null until they push one). Poll while the
   // pro is travelling / on site — stop once the work is under way or finished.
   const [tracking, setTracking] = useState(null);
@@ -2210,6 +2220,9 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
       <h3 className="craft-bids-title">
         {bids.length > 0 ? `${bids.length} bid${bids.length > 1 ? "s" : ""}` : "No bids yet"}
       </h3>
+      {!loading && bids.length === 0 && ["open", "bidding_closed"].includes(request.status) && (
+        <p className="craft-track-waiting">⏳ Waiting for nearby professionals to send their offers…</p>
+      )}
 
       {success && <p className="craft-success">{success}</p>}
       {error   && <p className="form-error">{error}</p>}
