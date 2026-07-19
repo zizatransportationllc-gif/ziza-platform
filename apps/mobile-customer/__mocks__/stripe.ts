@@ -10,3 +10,11 @@ export const useConfirmSetupIntent = (): {
   confirmSetupIntent: async () => ({ setupIntent: null, error: undefined }),
   loading: false,
 });
+
+export const useStripe = (): {
+  initPaymentSheet: () => Promise<{ error: undefined }>;
+  presentPaymentSheet: () => Promise<{ error: undefined }>;
+} => ({
+  initPaymentSheet: async () => ({ error: undefined }),
+  presentPaymentSheet: async () => ({ error: undefined }),
+});

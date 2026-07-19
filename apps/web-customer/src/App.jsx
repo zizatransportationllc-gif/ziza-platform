@@ -15,6 +15,7 @@ import {
   createCraftRequest, getMyCraftRequests, getCraftRequestBids, selectCraftBid, cancelCraftRequest, // Sprint 48
   getCraftRequest, craftConfirmArrival, craftComplete, listCraftPhotos, getCraftTracking, // craft lifecycle
   createCraftShare, getPublicCraftTrack, // craft share link
+  createCraftBidHold, // craft payment window (Stripe hold at selection)
   createCraftRating, getCraftRating, // craft rating
   createCraftPaymentIntent, getCraftPayment, // craft payment
   listRequestMessages, sendRequestMessage, // Sprint 66
@@ -2092,18 +2093,27 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
     listCraftPhotos(token, request.request_id).then(setPhotos).catch(() => {});
   }, [token, request.request_id, request.status]);
 
+  // Open the Stripe payment window for the chosen bid (create the hold first).
+  const [payModal, setPayModal] = useState(null); // { bidId, clientSecret, amountCents } | null
   async function handleSelect(bidId) {
     setSelecting(bidId); setError(null);
     try {
-      const updated = await selectCraftBid(token, request.request_id, bidId);
-      setRequest(updated);
-      setSuccess("✅ Professional accepted! They are on their way.");
+      const hold = await createCraftBidHold(token, request.request_id, bidId);
+      setPayModal({ bidId, clientSecret: hold.client_secret, amountCents: hold.amount_cents });
     } catch (e) {
       setError(e.message);
-      // Sprint 74 — no saved card → send them to the Payment tab to add one.
+      // No saved card → send them to the Payment tab to add one.
       if (/payment card/i.test(e.message || "") && onNeedCard) onNeedCard();
     }
     finally { setSelecting(null); }
+  }
+
+  // Called once the customer validates the hold in the Stripe window.
+  async function confirmSelection() {
+    const updated = await selectCraftBid(token, request.request_id, payModal.bidId);
+    setRequest(updated);
+    setSuccess("✅ Payment validated — professional accepted! They are on their way.");
+    setPayModal(null);
   }
 
   async function runAction(fn) {
@@ -2344,6 +2354,69 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
       {(isActive || success || bids.some((b) => b.status === "accepted")) && (
         <RequestChatPanel token={token} requestId={request.request_id} accent="#4c82f0" />
       )}
+
+      {payModal && (
+        <CraftPayModal
+          clientSecret={payModal.clientSecret}
+          amountLabel={formatUSD(payModal.amountCents)}
+          onConfirmed={confirmSelection}
+          onClose={() => setPayModal(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Stripe payment window shown at bid selection — the customer validates a hold
+// (manual-capture PaymentIntent); the amount is captured when the job is done.
+function CraftPayModal({ clientSecret, amountLabel, onConfirmed, onClose }) {
+  const stripeRef = useRef(null);
+  const elementsRef = useRef(null);
+  const nodeRef = useRef(null);
+  const [ready, setReady] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    const pk = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+    if (!pk || !window.Stripe) { setErr("Payment is unavailable right now."); return; }
+    const stripe = window.Stripe(pk);
+    stripeRef.current = stripe;
+    const elements = stripe.elements({ clientSecret });
+    elementsRef.current = elements;
+    const pe = elements.create("payment");
+    pe.on("ready", () => setReady(true));
+    pe.mount(nodeRef.current);
+    return () => { try { pe.unmount(); } catch { /* noop */ } };
+  }, [clientSecret]);
+
+  async function pay() {
+    setBusy(true); setErr(null);
+    try {
+      const { error } = await stripeRef.current.confirmPayment({
+        elements: elementsRef.current,
+        redirect: "if_required",
+      });
+      if (error) { setErr(error.message); setBusy(false); return; }
+      await onConfirmed();
+    } catch (e) { setErr(e.message); setBusy(false); }
+  }
+
+  return (
+    <div className="craft-pay-overlay" onClick={onClose}>
+      <div className="craft-pay-modal" onClick={(e) => e.stopPropagation()}>
+        <h3 className="craft-pay-title">Validate your payment</h3>
+        <p className="craft-pay-amount">You authorize {amountLabel}</p>
+        <p className="craft-pay-hint">You're only charged when the professional finishes the job.</p>
+        <div ref={nodeRef} className="craft-pay-element" />
+        {err && <p className="form-error">{err}</p>}
+        <div className="craft-pay-actions">
+          <button type="button" className="craft-back-btn" onClick={onClose} disabled={busy}>Cancel</button>
+          <button type="button" className="craft-submit-btn" onClick={pay} disabled={!ready || busy}>
+            {busy ? "Processing…" : `Authorize ${amountLabel}`}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

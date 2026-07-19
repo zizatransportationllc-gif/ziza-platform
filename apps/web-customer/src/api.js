@@ -510,6 +510,15 @@ export async function getCraftTracking(token, requestId) {
   return _json(res);
 }
 
+// Create the Stripe hold the customer validates before selecting a bid.
+export async function createCraftBidHold(token, requestId, bidId) {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/bids/${bidId}/payment-intent`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  return _json(res); // { client_secret, amount_cents, base_cents, service_fee_cents, tax_cents }
+}
+
 // Create (or fetch) the public share token for an intervention.
 export async function createCraftShare(token, requestId) {
   const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/share`, {

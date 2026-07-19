@@ -6698,6 +6698,85 @@ async def _authorize_craft_payment(db: AsyncSession, req, bid) -> None:
         )
 
 
+async def create_craft_hold_intent(
+    db: AsyncSession, claims: Claims, request_id: str, bid_id: str
+) -> dict:
+    """Create a manual-capture PaymentIntent for a bid the customer is about to
+    select, returning the ``client_secret`` the app confirms in Stripe's payment
+    window. The hold is captured later when the professional finishes the job.
+    """
+    from app.payment import stripe_cards  # noqa: PLC0415
+    from app.payment.split import compute_craft_split  # noqa: PLC0415
+    from app.models.craft import Professional  # noqa: PLC0415
+
+    try:
+        rid = uuid.UUID(request_id)
+        bid_uuid = uuid.UUID(bid_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid id format")
+
+    user = await _get_user_by_auth_id(db, claims.user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    req = await db.scalar(select(CraftRequest).where(CraftRequest.id == rid))
+    if req is None or req.customer_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Craft request not found")
+    if req.status not in ("open", "bidding_closed"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Cannot pay for a request with status '{req.status}'.",
+        )
+    bid = await db.scalar(
+        select(CraftBid).where(CraftBid.id == bid_uuid, CraftBid.request_id == rid)
+    )
+    if bid is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bid not found for this request.")
+    if not user.stripe_customer_id:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Add a payment card before selecting a professional.",
+        )
+    prof = await db.get(Professional, bid.professional_id)
+    destination = getattr(prof, "stripe_account_id", None) if prof else None
+    if not destination:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This professional can't receive payments yet.",
+        )
+
+    cfg = await load_payment_config(db)
+    split = compute_craft_split(bid.price_cents, cfg)
+    res = stripe_cards.create_hold_intent(
+        user.stripe_customer_id, split.total_client_cents, str(req.id),
+        destination=destination, application_fee_cents=split.platform_amount_cents,
+    )
+
+    # Upsert the request's PaymentIntent row (replace any prior unconfirmed one).
+    intent = await db.scalar(select(PaymentIntent).where(PaymentIntent.craft_request_id == req.id))
+    if intent is None:
+        intent = PaymentIntent(craft_request_id=req.id, provider="stripe")
+        db.add(intent)
+    intent.amount_cents = split.total_client_cents
+    intent.base_cents = split.base_cents
+    intent.platform_fee_cents = split.platform_fee_cents
+    intent.tax_cents = split.tax_cents
+    intent.stripe_fee_est_cents = split.stripe_fee_est_cents
+    intent.payee_amount_cents = split.pro_amount_cents
+    intent.platform_amount_cents = split.platform_amount_cents
+    intent.payee_account_id = destination
+    intent.provider_ref = res["id"]
+    intent.status = "pending"
+    await db.commit()
+
+    return {
+        "client_secret": res["client_secret"],
+        "amount_cents": split.total_client_cents,
+        "base_cents": split.base_cents,
+        "service_fee_cents": split.platform_fee_cents,
+        "tax_cents": split.tax_cents,
+    }
+
+
 async def _capture_craft_payment(db: AsyncSession, req) -> None:
     """Capture the held craft payment when the pro marks the work done."""
     from app.payment import stripe_cards  # noqa: PLC0415
@@ -6799,8 +6878,20 @@ async def select_craft_bid(
         "🚗 Your professional is on the way",
         f"They should reach you in about {bid.eta_min} min — track them live in the app.",
     )
-    # Sprint 74 — hold the job amount on the customer's saved card (non-fatal).
-    await _authorize_craft_payment(db, req, bid)
+    # Payment hold. If the customer validated a Stripe hold in the payment window
+    # (a PaymentIntent already exists), reconcile its status → authorized so the
+    # capture at completion works. Otherwise fall back to the legacy off-session
+    # hold on the saved card (non-fatal).
+    from app.payment import stripe_cards  # noqa: PLC0415
+    intent = await db.scalar(select(PaymentIntent).where(PaymentIntent.craft_request_id == req.id))
+    if intent is not None:
+        if intent.status != "authorized" and intent.provider_ref:
+            st = stripe_cards.get_intent_status(intent.provider_ref)
+            if st == "requires_capture":
+                intent.status = "authorized"
+                await db.commit()
+    else:
+        await _authorize_craft_payment(db, req, bid)
     return _craft_request_to_dict(req)
 
 

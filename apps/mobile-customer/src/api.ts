@@ -823,6 +823,25 @@ export async function createCraftRating(
   return _json<CraftRating>(res);
 }
 
+export interface CraftHoldIntent {
+  client_secret: string;
+  amount_cents: number;
+  base_cents: number;
+  service_fee_cents: number;
+  tax_cents: number;
+}
+
+// Create the Stripe hold the customer validates before selecting a bid.
+export async function createCraftBidHold(
+  token: string, requestId: string, bidId: string,
+): Promise<CraftHoldIntent> {
+  const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/bids/${bidId}/payment-intent`, {
+    method: "POST",
+    headers: _auth(token),
+  });
+  return _json<CraftHoldIntent>(res);
+}
+
 // The rating for a request, or null if not rated yet.
 export async function getCraftRating(token: string, requestId: string): Promise<CraftRating | null> {
   const res = await fetch(`${API_BASE}/v1/craft/requests/${requestId}/rating`, {
