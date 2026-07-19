@@ -9,7 +9,7 @@ const API_BASE =
 
 // Base URL that serves the public "share my intervention" page (web-customer).
 export const WEB_BASE =
-  (process.env.EXPO_PUBLIC_WEB_URL as string) || "https://app.ziza.us";
+  (process.env.EXPO_PUBLIC_WEB_URL as string) || "https://app.ziza.live";
 
 const TOKEN_KEY = "ziza_access_token";
 const REFRESH_TOKEN_KEY = "ziza_refresh_token";
