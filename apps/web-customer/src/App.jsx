@@ -27,6 +27,10 @@ import { EstimateMap, TripMap, CraftTrackingMap } from "./TripMap";
 const REQUIRED_ROLE = "customer";
 const TOKEN_KEY = "ziza_token";
 
+// Base URL for the public "share my intervention" link. Baked at build time;
+// defaults to the dedicated share domain.
+const SHARE_BASE = import.meta.env.VITE_SHARE_URL || "https://share.ziza.us";
+
 // "Become a Driver" now redirects to the standalone web-driver app (sign-up tab).
 // Baked at build time like VITE_API_URL; falls back to the local dev port.
 const DRIVER_APP_URL = import.meta.env.VITE_DRIVER_URL || "http://localhost:3002";
@@ -2013,7 +2017,7 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
   async function handleShare() {
     try {
       const { share_token } = await createCraftShare(token, request.request_id);
-      const url = `${window.location.origin}/?t=${share_token}`;
+      const url = `${SHARE_BASE}/?t=${share_token}`;
       if (navigator.share) {
         await navigator.share({ title: "ZIZA roadside", text: "Follow my roadside assistance live", url });
       } else {
