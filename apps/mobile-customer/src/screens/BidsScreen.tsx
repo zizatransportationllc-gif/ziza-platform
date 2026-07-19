@@ -333,6 +333,29 @@ export default function BidsScreen(): React.ReactElement {
           </View>
         )}
 
+        {/* Professional identity + average rating */}
+        <View style={styles.proRow}>
+          {item.professional_avatar_url ? (
+            <Image source={{ uri: item.professional_avatar_url }} style={styles.proAvatar} />
+          ) : (
+            <View style={[styles.proAvatar, styles.proAvatarPh]}>
+              <Text style={styles.proAvatarPhText}>
+                {(item.professional_name || "P").charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
+          <View style={styles.proMeta}>
+            <Text style={styles.proName} numberOfLines={1}>
+              {item.professional_name || "Professional"}
+            </Text>
+            <Text style={styles.proRating}>
+              {item.professional_rating != null
+                ? `★ ${item.professional_rating.toFixed(1)} · ${item.professional_rating_count} rating${item.professional_rating_count > 1 ? "s" : ""}`
+                : "No ratings yet"}
+            </Text>
+          </View>
+        </View>
+
         {/* Price + ETA */}
         <View style={styles.priceRow}>
           <Text style={styles.price}>{formatUSD(item.price_cents)}</Text>
@@ -552,6 +575,13 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
   },
   cardSelected: { borderColor: "#1D4ED8", borderWidth: 2 },
+  proRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 },
+  proAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#E5E7EB" },
+  proAvatarPh: { alignItems: "center", justifyContent: "center", backgroundColor: "#1D4ED8" },
+  proAvatarPhText: { color: "#fff", fontWeight: "700", fontSize: 18 },
+  proMeta: { flex: 1, minWidth: 0 },
+  proName: { fontSize: 15, fontWeight: "700", color: "#111827" },
+  proRating: { fontSize: 13, fontWeight: "600", color: "#F5B301", marginTop: 1 },
   selectedBanner: {
     backgroundColor: "#EEF3FE",
     borderRadius: 6,

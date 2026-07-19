@@ -2231,6 +2231,23 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
       <div className="craft-bids-list">
         {bids.map((b) => (
           <div key={b.bid_id} className={`craft-bid-card ${b.status === "accepted" ? "craft-bid-accepted" : ""}`}>
+            <div className="craft-bid-pro">
+              {b.professional_avatar_url ? (
+                <img className="craft-bid-avatar" src={b.professional_avatar_url} alt="" />
+              ) : (
+                <div className="craft-bid-avatar craft-bid-avatar-ph">
+                  {(b.professional_name || "P").charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="craft-bid-pro-meta">
+                <span className="craft-bid-pro-name">{b.professional_name || "Professional"}</span>
+                <span className="craft-bid-pro-rating">
+                  {b.professional_rating != null
+                    ? `★ ${b.professional_rating.toFixed(1)} · ${b.professional_rating_count} rating${b.professional_rating_count > 1 ? "s" : ""}`
+                    : "No ratings yet"}
+                </span>
+              </div>
+            </div>
             <div className="craft-bid-header">
               <span className="craft-bid-price">{formatUSD(b.price_cents)}</span>
               <span className="craft-bid-eta">⏱ {b.eta_min} min</span>

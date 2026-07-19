@@ -100,3 +100,28 @@ def test_get_rating_null_when_absent():
     g = client.get(f"/v1/craft/requests/{rid}/rating", headers=_h(tc))
     assert g.status_code == 200
     assert g.json() is None
+
+
+def test_bid_list_shows_professional_average_rating():
+    # First job: complete and rate the pro 5 stars.
+    tc, tp, rid = _assigned_request()
+    _drive_to_completed(tc, tp, rid)
+    assert client.post(f"/v1/craft/requests/{rid}/rating", headers=_h(tc),
+                       json={"stars": 5}).status_code == 201
+
+    # Second job: the same pro bids; the customer's bid list carries the rating.
+    rid2 = client.post("/v1/craft/requests", headers=_h(tc), json={
+        "category": "breakdown", "description": "Another issue",
+        "lat": 40.73, "lng": -74.17,
+    }).json()["request_id"]
+    b = client.post(f"/v1/craft/requests/{rid2}/bids", headers=_h(tp), json={
+        "price_cents": 5000, "professional_lat": 40.72, "professional_lng": -74.05,
+    })
+    assert b.status_code == 201, b.text
+
+    bids = client.get(f"/v1/craft/requests/{rid2}/bids", headers=_h(tc)).json()
+    assert len(bids) >= 1
+    bid = bids[0]
+    assert bid["professional_rating"] == 5.0
+    assert bid["professional_rating_count"] == 1
+    assert bid["professional_name"]  # non-empty display name

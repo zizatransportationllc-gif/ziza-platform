@@ -5821,7 +5821,9 @@ def _craft_request_to_dict(r: CraftRequest, distance_km: float | None = None) ->
     }
 
 
-def _craft_bid_to_dict(b: CraftBid, distance_km: float | None = None) -> dict:
+def _craft_bid_to_dict(
+    b: CraftBid, distance_km: float | None = None, pro_info: dict | None = None
+) -> dict:
     return {
         "bid_id": str(b.id),
         "request_id": str(b.request_id),
@@ -5834,6 +5836,36 @@ def _craft_bid_to_dict(b: CraftBid, distance_km: float | None = None) -> dict:
         "status": b.status,
         "created_at": b.created_at.isoformat(),
         "distance_km": round(distance_km, 2) if distance_km is not None else None,
+        # Pro identity + reputation, so the customer can choose (populated when
+        # listing bids; None on the pro's own submit response).
+        "professional_name": pro_info.get("professional_name") if pro_info else None,
+        "professional_avatar_url": pro_info.get("professional_avatar_url") if pro_info else None,
+        "professional_rating": pro_info.get("professional_rating") if pro_info else None,
+        "professional_rating_count": pro_info.get("professional_rating_count", 0) if pro_info else 0,
+    }
+
+
+async def _professional_bid_info(db: AsyncSession, professional_id: uuid.UUID) -> dict:
+    """Name, avatar and average rating of a professional, for the bid card."""
+    prof = await db.get(Professional, professional_id)
+    name = None
+    avatar = None
+    if prof is not None:
+        user = await db.get(User, prof.user_id)
+        if user is not None:
+            name = getattr(user, "full_name", None) or (getattr(user, "email", "") or "").split("@")[0] or None
+            avatar = signed_read_url(getattr(user, "avatar_url", None))
+    row = (
+        await db.execute(
+            select(func.avg(CraftRating.stars), func.count(CraftRating.id))
+            .where(CraftRating.professional_id == professional_id)
+        )
+    ).one()
+    return {
+        "professional_name": name,
+        "professional_avatar_url": avatar,
+        "professional_rating": round(float(row[0]), 1) if row[0] is not None else None,
+        "professional_rating_count": int(row[1] or 0),
     }
 
 
@@ -6349,7 +6381,8 @@ async def list_bids_for_request(
             dist = _haversine_km(
                 customer_lat, customer_lng, b.professional_lat, b.professional_lng
             )
-        out.append(_craft_bid_to_dict(b, dist))
+        pro_info = await _professional_bid_info(db, b.professional_id)
+        out.append(_craft_bid_to_dict(b, dist, pro_info))
     return out
 
 
