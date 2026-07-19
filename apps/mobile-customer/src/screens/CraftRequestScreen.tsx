@@ -137,13 +137,22 @@ export default function CraftRequestScreen(): React.ReactElement {
         address: address.trim() || null,
         bid_deadline_minutes: parseInt(bidMinutes, 10) || 30,
       });
+      // Reset the form so returning to the Assistance tab shows a clean one.
+      setCategory("");
+      setServiceAnswer(null);
+      setDescription("");
       Alert.alert(
         "Request Submitted",
         `Your ${category} request has been posted. Professionals can now bid for ${bidMinutes} minutes.`,
         [
           {
-            text: "View Requests",
-            onPress: () => navigation.replace("MyCraftRequests"),
+            text: "Track bids",
+            onPress: () =>
+              navigation.navigate("Bids", {
+                requestId: req.request_id,
+                customerLat: req.lat,
+                customerLng: req.lng,
+              }),
           },
         ]
       );

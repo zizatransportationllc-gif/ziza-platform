@@ -16,7 +16,7 @@ import { listNotifications } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { useI18n } from "../i18n";
 import HomeScreen from "./HomeScreen";
-import MyCraftRequestsScreen from "./MyCraftRequestsScreen";
+import CraftRequestScreen from "./CraftRequestScreen";
 import ActivityScreen from "./ActivityScreen";
 import AccountScreen from "./AccountScreen";
 import Icon from "../components/Icon";
@@ -80,7 +80,7 @@ export default function MainScreen(): React.ReactElement {
     <View style={styles.root}>
       <View style={styles.pane}>
         {tab === "course" && <HomeScreen />}
-        {tab === "assistance" && <MyCraftRequestsScreen />}
+        {tab === "assistance" && <CraftRequestScreen />}
         {tab === "activity" && <ActivityScreen />}
         {tab === "account" && <AccountScreen />}
       </View>

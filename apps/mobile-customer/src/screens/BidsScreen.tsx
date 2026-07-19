@@ -41,6 +41,7 @@ import {
   getCraftPayment,
   simulateCraftPayment,
   getCraftTracking,
+  cancelCraftRequest,
   createCraftShareUrl,
   createCraftBidHold,
   createCraftRating,
@@ -293,6 +294,26 @@ export default function BidsScreen(): React.ReactElement {
     }
   };
 
+  // Cancel an open request (no pro assigned yet).
+  const handleCancelRequest = () => {
+    if (!token) return;
+    Alert.alert("Cancel request", "Cancel this assistance request?", [
+      { text: "Keep it", style: "cancel" },
+      {
+        text: "Cancel request",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await cancelCraftRequest(token, requestId);
+            navigation.goBack();
+          } catch (e: any) {
+            Alert.alert("Error", e?.message || "Couldn't cancel the request.");
+          }
+        },
+      },
+    ]);
+  };
+
   const [actionBusy, setActionBusy] = useState(false);
   const runAction = async (fn: (t: string, id: string) => Promise<CraftRequest>) => {
     if (!token) return;
@@ -536,6 +557,11 @@ export default function BidsScreen(): React.ReactElement {
           {token && request.status === "completed" && (
             <RatingBlock token={token} requestId={requestId} />
           )}
+          {["open", "bidding_closed"].includes(request.status) && (
+            <TouchableOpacity style={styles.cancelReqBtn} onPress={handleCancelRequest}>
+              <Text style={styles.cancelReqText}>✕ Cancel this request</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -607,6 +633,8 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   requestDesc: { fontSize: 14, color: "#374151" },
+  cancelReqBtn: { marginTop: 12, paddingVertical: 10, alignItems: "center" },
+  cancelReqText: { color: "#EF4444", fontWeight: "600", fontSize: 14 },
   proCard: {
     marginTop: 12, backgroundColor: "#F9FAFB", borderWidth: 1, borderColor: "#E5E7EB",
     borderRadius: 8, padding: 10,
