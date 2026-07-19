@@ -30,8 +30,8 @@ const REQUIRED_ROLE = "customer";
 const TOKEN_KEY = "ziza_token";
 
 // Base URL for the public "share my intervention" link. Baked at build time;
-// defaults to the dedicated share domain.
-const SHARE_BASE = import.meta.env.VITE_SHARE_URL || "https://share.ziza.us";
+// defaults to the app domain that serves the public tracking page.
+const SHARE_BASE = import.meta.env.VITE_SHARE_URL || "https://app.ziza.us";
 
 // "Become a Driver" now redirects to the standalone web-driver app (sign-up tab).
 // Baked at build time like VITE_API_URL; falls back to the local dev port.
