@@ -6712,6 +6712,12 @@ async def _ensure_craft_pending_intent(db: AsyncSession, req, bid):
 
     cfg = await load_payment_config(db)
     split = compute_craft_split(bid.price_cents, cfg)
+    if not destination:
+        # Professional not payable yet (no connected account) — don't lock a
+        # pending charge. The post-completion checkout flow handles the
+        # onboarding-gated case; this keeps the amount unbound until they can
+        # actually receive the split.
+        return split
     intent = await db.scalar(select(PaymentIntent).where(PaymentIntent.craft_request_id == req.id))
     if intent is None:
         intent = PaymentIntent(craft_request_id=req.id, provider="stripe")
