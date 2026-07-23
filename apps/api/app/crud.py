@@ -4349,6 +4349,7 @@ async def start_connect_onboarding(
     same rail. Switching provider re-provisions (the old account id belongs to the
     old provider). ``None`` keeps the payee's existing choice, else the global.
     """
+    from app.config import settings  # noqa: PLC0415
     from app.payment.connect import get_connect  # noqa: PLC0415
 
     if provider is not None and provider not in ("stripe", "finix"):
@@ -4413,6 +4414,7 @@ async def start_connect_onboarding(
 
 async def get_connect_status(db: AsyncSession, auth_id: str, role: str) -> dict:
     """Return the payee's onboarding/payout status (on their chosen provider)."""
+    from app.config import settings  # noqa: PLC0415
     from app.payment.connect import get_connect  # noqa: PLC0415
 
     entity = await _payout_entity(db, auth_id, role)
