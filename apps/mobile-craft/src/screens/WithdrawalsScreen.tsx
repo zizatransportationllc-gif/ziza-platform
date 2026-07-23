@@ -47,10 +47,11 @@ export default function WithdrawalsScreen(): React.ReactElement {
 
   const payoutsReady = connect?.payouts_enabled ?? false;
   const issuingReady = connect?.card_issuing_active ?? false;
+  const [payoutProvider, setPayoutProvider] = useState<"finix" | "stripe">("finix");
   const handleOnboard = async () => {
     if (!token) return;
     try {
-      const r = await connectOnboard(token);
+      const r = await connectOnboard(token, payoutProvider);
       if (r.onboarding_url) Linking.openURL(r.onboarding_url).catch(() => {});
     } catch { /* ignore */ }
   };
@@ -122,9 +123,25 @@ export default function WithdrawalsScreen(): React.ReactElement {
       )}
 
       {connect && !payoutsReady && (
-        <TouchableOpacity style={styles.onboardBanner} onPress={handleOnboard}>
-          <Text style={styles.onboardText}>⚠️ Set up your payout account to get paid →</Text>
-        </TouchableOpacity>
+        <View style={styles.onboardBanner}>
+          <Text style={styles.onboardText}>⚠️ Set up your payout account to get paid</Text>
+          <View style={styles.providerRow}>
+            {(["finix", "stripe"] as const).map((p) => (
+              <TouchableOpacity
+                key={p}
+                style={[styles.providerPill, payoutProvider === p && styles.providerPillActive]}
+                onPress={() => setPayoutProvider(p)}
+              >
+                <Text style={[styles.providerPillText, payoutProvider === p && styles.providerPillTextActive]}>
+                  {p === "finix" ? "Finix" : "Stripe"}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TouchableOpacity style={styles.onboardBtn} onPress={handleOnboard}>
+            <Text style={styles.onboardBtnText}>Set up payouts →</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       <Text style={styles.autoNote}>
@@ -162,6 +179,13 @@ const styles = StyleSheet.create({
   autoNote: { fontSize: 13, color: "#6B7280", marginVertical: 8 },
   onboardBanner: { backgroundColor: "#FEF3C7", borderWidth: 1, borderColor: "#FCD34D", borderRadius: 8, padding: 12, marginBottom: 14 },
   onboardText: { color: "#92400E", fontSize: 13, fontWeight: "600" },
+  providerRow: { flexDirection: "row", gap: 8, marginTop: 8, marginBottom: 10 },
+  providerPill: { flex: 1, borderWidth: 1, borderColor: "#FCD34D", borderRadius: 6, paddingVertical: 8, alignItems: "center", backgroundColor: "#FFFBEB" },
+  providerPillActive: { backgroundColor: "#92400E", borderColor: "#92400E" },
+  providerPillText: { color: "#92400E", fontSize: 13, fontWeight: "600" },
+  providerPillTextActive: { color: "#FFFFFF" },
+  onboardBtn: { backgroundColor: "#92400E", borderRadius: 6, paddingVertical: 10, alignItems: "center" },
+  onboardBtnText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
   balanceCard: {
     backgroundColor: "#1D4ED8",
     borderRadius: 14,

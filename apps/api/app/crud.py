@@ -3106,7 +3106,6 @@ async def _require_payee_connect_account(
     receive transfers *before* the customer can pay. Sprint 70.
     """
     from app.payment.connect import get_connect  # noqa: PLC0415
-    payee_connect = get_connect()
 
     payee = None
     if payee_id is not None:
@@ -3118,7 +3117,7 @@ async def _require_payee_connect_account(
             detail=f"The {label} has not completed payment onboarding yet.",
         )
     try:
-        st = payee_connect.get_account_status(account_id)
+        st = get_connect(getattr(payee, "payout_provider", None)).get_account_status(account_id)
     except Exception:  # noqa: BLE001 — treat provider errors as "not ready"
         st = {"payouts_enabled": False}
     if not st.get("payouts_enabled"):
@@ -4178,7 +4177,7 @@ async def get_driver_balance(db: AsyncSession, auth_user_id: str) -> dict:
     # Sprint 70 — the driver's split share is transferred to their Connect
     # account at charge time; expose that (real, withdrawable) balance.
     from app.payment.connect import get_connect  # noqa: PLC0415
-    connect = get_connect().get_balance(driver.stripe_account_id or "")
+    connect = get_connect(driver.payout_provider).get_balance(driver.stripe_account_id or "")
 
     return {
         "driver_id": str(driver.id),
@@ -4198,6 +4197,7 @@ async def _resolve_payout_destination(
     """Resolve the provider-specific payout destination for a payee.
 
     - ``wellsfargo`` → the payee's bank account (decrypted) for ACH/RTP.
+    - ``finix``      → the payee's Finix Merchant (+ bank Payment Instrument).
     - ``stripe`` / ``mock`` → the Stripe Connect account id.
     Raises ``RuntimeError`` when the payee has not set up a destination.
     """
@@ -4210,6 +4210,14 @@ async def _resolve_payout_destination(
             "account": decrypt_bank_account_number(ba),
             "holder": ba.account_holder_name,
         }
+    if provider == "finix":
+        # Finix funds settle to the payee's Merchant (id held in stripe_account_id);
+        # an on-demand CREDIT also needs their bank Payment Instrument. SANDBOX
+        # SCAFFOLD — resolve the default bank PI from the merchant's Finix identity
+        # before enabling live on-demand payouts.
+        if not stripe_account_id:
+            raise RuntimeError("Payee has not set up payouts (no Finix merchant)")
+        return {"merchant_id": stripe_account_id, "payment_instrument": None}
     if not stripe_account_id:
         raise RuntimeError("Payee has not set up payouts (no connected account)")
     return {"account_id": stripe_account_id}
@@ -4229,7 +4237,8 @@ async def run_payout_batch(db: AsyncSession) -> dict:
     from app.config import settings as _settings  # noqa: PLC0415
     from app.payment.payout_adapter import get_payout_adapter  # noqa: PLC0415
 
-    adapter = get_payout_adapter(_settings.payout_provider)
+    # Adapter + destination are resolved per payee inside the loop — each may be
+    # on a different provider (the one they chose at "Set up payouts").
 
     # Fetch all approved payout requests with driver + user info
     result = await db.execute(
@@ -4255,8 +4264,10 @@ async def run_payout_batch(db: AsyncSession) -> dict:
         net_amount_cents = req.amount_cents - commission_cents
 
         try:
+            prov = driver.payout_provider or _settings.payout_provider
+            adapter = get_payout_adapter(prov)
             destination = await _resolve_payout_destination(
-                db, _settings.payout_provider,
+                db, prov,
                 user_id=driver.user_id, stripe_account_id=driver.stripe_account_id,
             )
             ref = await adapter.send_payout(
@@ -4328,30 +4339,54 @@ async def _payout_entity(db: AsyncSession, auth_id: str, role: str):
     )
 
 
-async def start_connect_onboarding(db: AsyncSession, auth_id: str, role: str) -> dict:
-    """Ensure a payout account exists and return a hosted onboarding link."""
+async def start_connect_onboarding(
+    db: AsyncSession, auth_id: str, role: str, provider: str | None = None
+) -> dict:
+    """Ensure a payout account exists (with the chosen provider) and return a link.
+
+    ``provider`` is the payee's pick at "Set up payouts" ("stripe" | "finix").
+    It is persisted on the payee so every later provider operation stays on the
+    same rail. Switching provider re-provisions (the old account id belongs to the
+    old provider). ``None`` keeps the payee's existing choice, else the global.
+    """
     from app.payment.connect import get_connect  # noqa: PLC0415
-    payee_connect = get_connect()
+
+    if provider is not None and provider not in ("stripe", "finix"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Unknown payout provider (expected 'stripe' or 'finix').",
+        )
 
     user = await _get_user_by_auth_id(db, auth_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
     entity = await _payout_entity(db, auth_id, role)
 
-    # Sprint 72 — a REAL Stripe account is provisioned only once the admin has
+    # Switching provider invalidates the previous provider's account id — drop it
+    # so a fresh account is provisioned on the newly chosen rail below.
+    if provider and provider != entity.payout_provider:
+        entity.stripe_account_id = None
+        entity.payout_provider = provider
+        await db.commit()
+        await db.refresh(entity)
+
+    effective = entity.payout_provider or settings.payout_provider
+    payee_connect = get_connect(effective)
+
+    # Sprint 72 — a REAL provider account is provisioned only once the admin has
     # validated the payee's KYC documents (status → 'active'); this keeps unvetted
-    # payees off Stripe. The guard applies only when Stripe is live: in mock mode
-    # (no key, e.g. CI) there is no real account to guard.
+    # payees off the provider. The guard applies only when the provider is live: in
+    # mock mode (no key, e.g. CI) there is no real account to guard.
     if payee_connect._enabled() and getattr(entity, "status", None) != "active":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Your account must be approved by Ziza before you can set up payouts.",
         )
 
-    # Self-heal: an id Stripe no longer recognizes (a mock id from before Stripe
-    # went live in this env, or a pre-Custom Express account) must be replaced —
-    # otherwise account-link creation 500s and the payee is stuck, unable to
-    # onboard or get paid. Drop it so a fresh Custom account is provisioned below.
+    # Self-heal: an id the provider no longer recognizes (a mock id from before it
+    # went live in this env, or a pre-Custom account) must be replaced — otherwise
+    # account-link creation 500s and the payee is stuck, unable to onboard or get
+    # paid. Drop it so a fresh account is provisioned below.
     if entity.stripe_account_id and not payee_connect.account_exists(
         entity.stripe_account_id
     ):
@@ -4359,6 +4394,9 @@ async def start_connect_onboarding(db: AsyncSession, auth_id: str, role: str) ->
 
     if not entity.stripe_account_id:
         entity.stripe_account_id = payee_connect.create_connected_account(user.email)
+        # Pin the provider alongside the freshly created account id.
+        if not entity.payout_provider:
+            entity.payout_provider = effective
         await db.commit()
         await db.refresh(entity)
 
@@ -4366,26 +4404,32 @@ async def start_connect_onboarding(db: AsyncSession, auth_id: str, role: str) ->
     url = payee_connect.create_account_link(
         entity.stripe_account_id, return_url, refresh_url
     )
-    return {"account_id": entity.stripe_account_id, "onboarding_url": url}
+    return {
+        "account_id": entity.stripe_account_id,
+        "onboarding_url": url,
+        "provider": effective,
+    }
 
 
 async def get_connect_status(db: AsyncSession, auth_id: str, role: str) -> dict:
-    """Return the payee's onboarding/payout status."""
+    """Return the payee's onboarding/payout status (on their chosen provider)."""
     from app.payment.connect import get_connect  # noqa: PLC0415
-    payee_connect = get_connect()
 
     entity = await _payout_entity(db, auth_id, role)
+    provider = entity.payout_provider or settings.payout_provider
     if not entity.stripe_account_id:
         return {
             "account_id": None, "onboarded": False,
             "payouts_enabled": False, "card_issuing_active": False,
+            "provider": provider,
         }
-    st = payee_connect.get_account_status(entity.stripe_account_id)
+    st = get_connect(provider).get_account_status(entity.stripe_account_id)
     return {
         "account_id": entity.stripe_account_id,
         "onboarded": st["details_submitted"],
         "payouts_enabled": st["payouts_enabled"],
         "card_issuing_active": st.get("card_issuing_active", False),
+        "provider": provider,
     }
 
 
@@ -4407,7 +4451,6 @@ def _issuing_card_to_dict(card) -> dict:
 async def _require_issuing_ready(db: AsyncSession, auth_id: str, role: str):
     """Resolve the payee entity and require an onboarded Connect account (409)."""
     from app.payment.connect import get_connect  # noqa: PLC0415
-    payee_connect = get_connect()
 
     entity = await _payout_entity(db, auth_id, role)
     if not entity.stripe_account_id:
@@ -4415,7 +4458,7 @@ async def _require_issuing_ready(db: AsyncSession, auth_id: str, role: str):
             status_code=status.HTTP_409_CONFLICT,
             detail="Complete payment onboarding before requesting a card.",
         )
-    st = payee_connect.get_account_status(entity.stripe_account_id)
+    st = get_connect(entity.payout_provider).get_account_status(entity.stripe_account_id)
     if not st.get("payouts_enabled"):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -4572,7 +4615,8 @@ async def run_professional_payout_batch(db: AsyncSession) -> dict:
     from app.config import settings as _settings  # noqa: PLC0415
     from app.payment.payout_adapter import get_payout_adapter  # noqa: PLC0415
 
-    adapter = get_payout_adapter(_settings.payout_provider)
+    # Adapter + destination are resolved per payee inside the loop — each may be
+    # on the provider they chose at "Set up payouts".
     result = await db.execute(
         select(ProPayoutModel, Professional)
         .join(Professional, ProPayoutModel.professional_id == Professional.id)
@@ -4587,8 +4631,10 @@ async def run_professional_payout_batch(db: AsyncSession) -> dict:
     now = datetime.now(timezone.utc)
     for req, prof in rows:
         try:
+            prov = prof.payout_provider or _settings.payout_provider
+            adapter = get_payout_adapter(prov)
             destination = await _resolve_payout_destination(
-                db, _settings.payout_provider,
+                db, prov,
                 user_id=prof.user_id, stripe_account_id=prof.stripe_account_id,
             )
             ref = await adapter.send_payout(
@@ -6588,7 +6634,7 @@ async def get_professional_balance(db: AsyncSession, auth_user_id: str) -> dict:
     # Sprint 70 — the pro's bid is transferred to their Connect account at charge
     # time; expose that (real, withdrawable) balance.
     from app.payment.connect import get_connect  # noqa: PLC0415
-    connect = get_connect().get_balance(prof.stripe_account_id or "")
+    connect = get_connect(prof.payout_provider).get_balance(prof.stripe_account_id or "")
     return {
         "professional_id": str(prof.id),
         "gains_cents": gains,

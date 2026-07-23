@@ -404,12 +404,17 @@ export async function getConnectStatus(token) {
   return _json(res); // { account_id, onboarded, payouts_enabled, card_issuing_active }
 }
 
-export async function connectOnboard(token) {
+export async function connectOnboard(token, provider) {
   const res = await fetch(`${API_BASE}/v1/payouts/connect/onboard`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(provider ? { provider } : {}),
   });
-  return _json(res); // { account_id, onboarding_url }
+  return _json(res); // { account_id, onboarding_url, provider }
 }
 
 // Sprint 70 — Stripe Issuing debit card (spend the Connect balance)

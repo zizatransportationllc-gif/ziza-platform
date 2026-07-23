@@ -54,6 +54,29 @@ def test_driver_connect_onboard_and_status():
     assert st.json()["card_issuing_active"] is True  # mock account is issuing-ready
 
 
+def test_driver_can_choose_finix_provider_at_setup():
+    """The payee picks their payout provider at 'Set up payouts'; it is persisted
+    and every status read stays on that provider."""
+    d_tok = _tok("driver@ziza.dev")
+    client.post("/v1/auth/register", headers=_h(d_tok))
+    client.post("/v1/drivers/register", headers=_h(d_tok))
+
+    r = client.post("/v1/payouts/connect/onboard", headers=_h(d_tok), json={"provider": "finix"})
+    assert r.status_code == 201, r.text
+    data = r.json()
+    assert data["provider"] == "finix"
+    assert data["account_id"].startswith("MU_mock_")  # Finix mock merchant id
+    assert data["onboarding_url"]
+
+    st = client.get("/v1/payouts/connect/status", headers=_h(d_tok)).json()
+    assert st["provider"] == "finix"
+    assert st["onboarded"] is True
+
+    # An unknown provider is rejected.
+    bad = client.post("/v1/payouts/connect/onboard", headers=_h(d_tok), json={"provider": "paypal"})
+    assert bad.status_code == 422
+
+
 def test_pro_connect_onboard():
     p_tok = _tok("professional@ziza.dev")
     client.post("/v1/auth/register", headers=_h(p_tok))
