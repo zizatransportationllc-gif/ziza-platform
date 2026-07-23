@@ -13,6 +13,7 @@ The payout **destination** is a provider-specific dict resolved by the batch:
 """
 from __future__ import annotations
 
+import base64
 import json
 import urllib.request
 from typing import Protocol
@@ -133,6 +134,63 @@ class WellsFargoPayoutAdapter:
         return payout_ref
 
 
+class FinixPayoutAdapter:
+    """Finix payout via a CREDIT Transfer to the payee's bank Payment Instrument.
+
+    ``destination`` carries the Finix ids resolved by the batch:
+      ``{"merchant_id": "MU…", "payment_instrument": "PI…"}``.
+
+    NOTE: on Finix, a payee's charges normally settle to their Merchant
+    automatically; this explicit CREDIT path is for on-demand payouts. Confirm
+    the transfer ``type``/field names against the Finix payouts guide before
+    going live (SANDBOX SCAFFOLD).
+    """
+
+    _provider_name = "finix"
+
+    def __init__(self, *, api_base: str, username: str, password: str, version: str) -> None:
+        self._api_base = api_base.rstrip("/")
+        self._username = username
+        self._password = password
+        self._version = version
+
+    async def send_payout(self, *, destination: dict, amount_cents: int, ref: str) -> str:
+        merchant_id = destination.get("merchant_id")
+        instrument = destination.get("payment_instrument")
+        if not merchant_id or not instrument:
+            raise RuntimeError("Payee has no Finix merchant / payment instrument on file")
+        token = base64.b64encode(f"{self._username}:{self._password}".encode()).decode()
+        body = json.dumps({
+            "type": "CREDIT",
+            "merchant": merchant_id,
+            "destination": instrument,
+            "amount": amount_cents,
+            "currency": "USD",
+            # Finix uses a body idempotency key (not a header) — retries never double-pay.
+            "idempotency_id": f"payout_{ref}",
+            "tags": {"ziza_ref": ref},
+        }).encode()
+        req = urllib.request.Request(
+            f"{self._api_base}/transfers",
+            data=body,
+            headers={
+                "Authorization": f"Basic {token}",
+                "Content-Type": "application/json",
+                "Accept": "application/hal+json",
+                "Finix-Version": self._version,
+            },
+        )
+        try:
+            with urllib.request.urlopen(req) as resp:
+                transfer = json.loads(resp.read())
+        except Exception as exc:
+            raise RuntimeError(f"Finix payout failed: {exc}") from exc
+        payout_ref = transfer.get("id")
+        if not payout_ref:
+            raise RuntimeError(f"Finix returned an unexpected response: {transfer!r}")
+        return payout_ref
+
+
 def get_payout_adapter(provider: str) -> PayoutAdapter:
     """Factory — returns the correct adapter based on ``provider``."""
     from app.config import settings  # noqa: PLC0415
@@ -144,5 +202,12 @@ def get_payout_adapter(provider: str) -> PayoutAdapter:
             api_key=settings.wellsfargo_gateway_api_key,
             funding_account=settings.wellsfargo_funding_account,
             rail=settings.wellsfargo_payment_rail,
+        )
+    if provider == "finix":
+        return FinixPayoutAdapter(
+            api_base=settings.finix_api_base,
+            username=settings.finix_username,
+            password=settings.finix_password,
+            version=settings.finix_version,
         )
     return MockPayoutAdapter()

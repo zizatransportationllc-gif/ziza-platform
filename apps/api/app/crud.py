@@ -3105,7 +3105,8 @@ async def _require_payee_connect_account(
     (driver / professional) must have an onboarded Connect account that can
     receive transfers *before* the customer can pay. Sprint 70.
     """
-    from app.payment import stripe_connect  # noqa: PLC0415
+    from app.payment.connect import get_connect  # noqa: PLC0415
+    payee_connect = get_connect()
 
     payee = None
     if payee_id is not None:
@@ -3117,7 +3118,7 @@ async def _require_payee_connect_account(
             detail=f"The {label} has not completed payment onboarding yet.",
         )
     try:
-        st = stripe_connect.get_account_status(account_id)
+        st = payee_connect.get_account_status(account_id)
     except Exception:  # noqa: BLE001 — treat provider errors as "not ready"
         st = {"payouts_enabled": False}
     if not st.get("payouts_enabled"):
@@ -4176,8 +4177,8 @@ async def get_driver_balance(db: AsyncSession, auth_user_id: str) -> dict:
 
     # Sprint 70 — the driver's split share is transferred to their Connect
     # account at charge time; expose that (real, withdrawable) balance.
-    from app.payment import stripe_connect  # noqa: PLC0415
-    connect = stripe_connect.get_balance(driver.stripe_account_id or "")
+    from app.payment.connect import get_connect  # noqa: PLC0415
+    connect = get_connect().get_balance(driver.stripe_account_id or "")
 
     return {
         "driver_id": str(driver.id),
@@ -4328,8 +4329,9 @@ async def _payout_entity(db: AsyncSession, auth_id: str, role: str):
 
 
 async def start_connect_onboarding(db: AsyncSession, auth_id: str, role: str) -> dict:
-    """Ensure a Stripe Connect account exists and return a hosted onboarding link."""
-    from app.payment import stripe_connect  # noqa: PLC0415
+    """Ensure a payout account exists and return a hosted onboarding link."""
+    from app.payment.connect import get_connect  # noqa: PLC0415
+    payee_connect = get_connect()
 
     user = await _get_user_by_auth_id(db, auth_id)
     if user is None:
@@ -4340,7 +4342,7 @@ async def start_connect_onboarding(db: AsyncSession, auth_id: str, role: str) ->
     # validated the payee's KYC documents (status → 'active'); this keeps unvetted
     # payees off Stripe. The guard applies only when Stripe is live: in mock mode
     # (no key, e.g. CI) there is no real account to guard.
-    if stripe_connect._enabled() and getattr(entity, "status", None) != "active":
+    if payee_connect._enabled() and getattr(entity, "status", None) != "active":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Your account must be approved by Ziza before you can set up payouts.",
@@ -4350,26 +4352,27 @@ async def start_connect_onboarding(db: AsyncSession, auth_id: str, role: str) ->
     # went live in this env, or a pre-Custom Express account) must be replaced —
     # otherwise account-link creation 500s and the payee is stuck, unable to
     # onboard or get paid. Drop it so a fresh Custom account is provisioned below.
-    if entity.stripe_account_id and not stripe_connect.account_exists(
+    if entity.stripe_account_id and not payee_connect.account_exists(
         entity.stripe_account_id
     ):
         entity.stripe_account_id = None
 
     if not entity.stripe_account_id:
-        entity.stripe_account_id = stripe_connect.create_connected_account(user.email)
+        entity.stripe_account_id = payee_connect.create_connected_account(user.email)
         await db.commit()
         await db.refresh(entity)
 
     return_url, refresh_url = _connect_redirect_urls(role)
-    url = stripe_connect.create_account_link(
+    url = payee_connect.create_account_link(
         entity.stripe_account_id, return_url, refresh_url
     )
     return {"account_id": entity.stripe_account_id, "onboarding_url": url}
 
 
 async def get_connect_status(db: AsyncSession, auth_id: str, role: str) -> dict:
-    """Return the payee's Stripe Connect onboarding/payout status."""
-    from app.payment import stripe_connect  # noqa: PLC0415
+    """Return the payee's onboarding/payout status."""
+    from app.payment.connect import get_connect  # noqa: PLC0415
+    payee_connect = get_connect()
 
     entity = await _payout_entity(db, auth_id, role)
     if not entity.stripe_account_id:
@@ -4377,7 +4380,7 @@ async def get_connect_status(db: AsyncSession, auth_id: str, role: str) -> dict:
             "account_id": None, "onboarded": False,
             "payouts_enabled": False, "card_issuing_active": False,
         }
-    st = stripe_connect.get_account_status(entity.stripe_account_id)
+    st = payee_connect.get_account_status(entity.stripe_account_id)
     return {
         "account_id": entity.stripe_account_id,
         "onboarded": st["details_submitted"],
@@ -4403,7 +4406,8 @@ def _issuing_card_to_dict(card) -> dict:
 
 async def _require_issuing_ready(db: AsyncSession, auth_id: str, role: str):
     """Resolve the payee entity and require an onboarded Connect account (409)."""
-    from app.payment import stripe_connect  # noqa: PLC0415
+    from app.payment.connect import get_connect  # noqa: PLC0415
+    payee_connect = get_connect()
 
     entity = await _payout_entity(db, auth_id, role)
     if not entity.stripe_account_id:
@@ -4411,7 +4415,7 @@ async def _require_issuing_ready(db: AsyncSession, auth_id: str, role: str):
             status_code=status.HTTP_409_CONFLICT,
             detail="Complete payment onboarding before requesting a card.",
         )
-    st = stripe_connect.get_account_status(entity.stripe_account_id)
+    st = payee_connect.get_account_status(entity.stripe_account_id)
     if not st.get("payouts_enabled"):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -6583,8 +6587,8 @@ async def get_professional_balance(db: AsyncSession, auth_user_id: str) -> dict:
     gains, committed, disponible = await _professional_gains_and_payouts(db, prof)
     # Sprint 70 — the pro's bid is transferred to their Connect account at charge
     # time; expose that (real, withdrawable) balance.
-    from app.payment import stripe_connect  # noqa: PLC0415
-    connect = stripe_connect.get_balance(prof.stripe_account_id or "")
+    from app.payment.connect import get_connect  # noqa: PLC0415
+    connect = get_connect().get_balance(prof.stripe_account_id or "")
     return {
         "professional_id": str(prof.id),
         "gains_cents": gains,

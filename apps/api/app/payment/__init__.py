@@ -7,6 +7,7 @@ Exposes a ``get_adapter()`` factory that returns the right backend based on
   "cinetpay"    → CinetPayAdapter      (West Africa)
   "stripe"      → StripeAdapter        (international cards)
   "wellsfargo"  → WellsFargoAdapter    (US cards — Wells Fargo Merchant Services)
+  "finix"       → FinixAdapter         (US marketplace acquiring + split)
 """
 from __future__ import annotations
 
@@ -35,6 +36,17 @@ def get_adapter():
             api_key=settings.wellsfargo_api_key,
             merchant_id=settings.wellsfargo_merchant_id,
             webhook_secret=settings.wellsfargo_webhook_secret,
+        )
+    if provider == "finix":
+        from app.payment.finix_adapter import FinixAdapter  # noqa: PLC0415
+        return FinixAdapter(
+            api_base=settings.finix_api_base,
+            username=settings.finix_username,
+            password=settings.finix_password,
+            version=settings.finix_version,
+            platform_merchant_id=settings.finix_platform_merchant_id,
+            webhook_username=settings.finix_webhook_username,
+            webhook_password=settings.finix_webhook_password,
         )
     # Default: mock adapter (safe fallback for dev / CI)
     from app.payment.mock import MockPaymentAdapter  # noqa: PLC0415
