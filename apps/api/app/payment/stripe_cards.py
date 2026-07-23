@@ -232,6 +232,52 @@ def create_hold_intent(
     return {"id": pi.get("id"), "client_secret": pi.get("client_secret"), "status": pi.get("status")}
 
 
+def charge_saved_card(
+    customer_id: str,
+    payment_method_id: str,
+    amount_cents: int,
+    ref: str,
+    *,
+    destination: str | None = None,
+    application_fee_cents: int | None = None,
+) -> dict:
+    """Charge the saved card **immediately** (automatic capture) off-session, with
+    the Connect split. Used for charge-at-completion (no prior hold): the craft
+    amount is captured in one step when the professional marks the work done.
+
+    Returns ``{id, status, error_code?, decline_code?}``; ``status == 'succeeded'``
+    means the money was captured. Any Stripe error (declined, authentication
+    required, …) returns ``status == 'failed'`` rather than raising. In dev/CI
+    (no key) returns a mock succeeded charge.
+    """
+    if not _enabled():
+        return {"id": f"pi_mock_{uuid.uuid4().hex[:16]}", "status": "succeeded"}
+    fields = {
+        "amount": amount_cents,
+        "currency": "usd",
+        "customer": customer_id,
+        "payment_method": payment_method_id,
+        "confirm": "true",
+        "off_session": "true",
+        "metadata[ziza_ref]": ref,
+    }
+    if destination is not None:
+        fields["transfer_data[destination]"] = destination
+    if application_fee_cents is not None:
+        fields["application_fee_amount"] = application_fee_cents
+    try:
+        pi = _post("/payment_intents", fields)
+        return {"id": pi.get("id"), "status": pi.get("status")}
+    except urllib.error.HTTPError as exc:
+        err = _safe_json(exc).get("error", {})
+        return {
+            "id": (err.get("payment_intent") or {}).get("id"),
+            "status": "failed",
+            "error_code": err.get("code"),
+            "decline_code": err.get("decline_code"),
+        }
+
+
 def get_intent_status(payment_intent_id: str) -> str | None:
     """Return a PaymentIntent's current status (e.g. ``requires_capture``), or None.
 
