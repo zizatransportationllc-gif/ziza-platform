@@ -2017,9 +2017,17 @@ async def list_pro_payout_requests(
 # WS3 (Sprint 68) — Stripe Connect onboarding (driver + professional)
 # ---------------------------------------------------------------------------
 
+class ConnectOnboardRequest(BaseModel):
+    # Payout provider the payee picks at "Set up payouts" ("stripe" | "finix").
+    # Optional — omitted keeps their existing choice / the platform default.
+    provider: str | None = None
+
+
 class ConnectOnboardResponse(BaseModel):
     account_id: str
     onboarding_url: str
+    # The provider the account was provisioned on (echoed back for the UI).
+    provider: str | None = None
 
 
 class ConnectStatusResponse(BaseModel):
@@ -2029,20 +2037,25 @@ class ConnectStatusResponse(BaseModel):
     # Whether the connected account's card_issuing capability is active — lets the
     # UI offer "Get my card" only when a card can actually be issued.
     card_issuing_active: bool = False
+    # Which provider the payee is onboarded on ("stripe" | "finix").
+    provider: str | None = None
 
 
 @app.post("/v1/payouts/connect/onboard", tags=["payouts"], status_code=201)
 async def connect_onboard(
+    body: ConnectOnboardRequest = ConnectOnboardRequest(),
     claims: Claims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ConnectOnboardResponse:
-    """Driver/professional: start (or resume) Stripe Connect onboarding to receive payouts."""
+    """Driver/professional: start (or resume) payout onboarding on the chosen provider."""
     if claims.role not in ("driver", "professional"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only drivers and professionals can set up payouts",
         )
-    result = await crud.start_connect_onboarding(db, claims.user_id, claims.role)
+    result = await crud.start_connect_onboarding(
+        db, claims.user_id, claims.role, provider=body.provider
+    )
     return ConnectOnboardResponse(**result)
 
 

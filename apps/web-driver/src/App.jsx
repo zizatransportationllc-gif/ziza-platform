@@ -793,10 +793,11 @@ function PayoutSection({ token }) {
   useEffect(() => { load(); }, [load]);
 
   const payoutsReady = connect && connect.payouts_enabled;
+  const [payoutProvider, setPayoutProvider] = useState("finix");
 
   async function handleOnboard() {
     try {
-      const r = await connectOnboard(token);
+      const r = await connectOnboard(token, payoutProvider);
       if (r.onboarding_url) window.open(r.onboarding_url, "_blank", "noopener");
     } catch (e) { setError(e.message); }
   }
@@ -812,6 +813,19 @@ function PayoutSection({ token }) {
           <p style={{ margin: "0 0 8px" }}>
             ⚠️ To get paid, set up your payout account.
           </p>
+          <div style={{ marginBottom: 8 }}>
+            <label htmlFor="payout-provider" style={{ fontSize: 13, marginRight: 8 }}>
+              Payment provider:
+            </label>
+            <select
+              id="payout-provider"
+              value={payoutProvider}
+              onChange={(e) => setPayoutProvider(e.target.value)}
+            >
+              <option value="finix">Finix</option>
+              <option value="stripe">Stripe</option>
+            </select>
+          </div>
           <button type="button" className="payout-submit-btn" onClick={handleOnboard}>
             Set up payouts →
           </button>

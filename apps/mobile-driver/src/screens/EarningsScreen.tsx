@@ -49,9 +49,10 @@ function WithdrawalCard({ token }: { token: string }): React.ReactElement {
   useEffect(() => { load(); }, [load]);
 
   const payoutsReady = connect?.payouts_enabled ?? false;
+  const [payoutProvider, setPayoutProvider] = useState<"finix" | "stripe">("finix");
   const handleOnboard = async () => {
     try {
-      const r = await connectOnboard(token);
+      const r = await connectOnboard(token, payoutProvider);
       if (r.onboarding_url) Linking.openURL(r.onboarding_url).catch(() => {});
     } catch { /* ignore */ }
   };
@@ -110,9 +111,25 @@ function WithdrawalCard({ token }: { token: string }): React.ReactElement {
       )}
 
       {connect && !payoutsReady && (
-        <TouchableOpacity style={styles.onboardBanner} onPress={handleOnboard}>
-          <Text style={styles.onboardText}>⚠️ Set up your payout account to get paid →</Text>
-        </TouchableOpacity>
+        <View style={styles.onboardBanner}>
+          <Text style={styles.onboardText}>⚠️ Set up your payout account to get paid</Text>
+          <View style={styles.providerRow}>
+            {(["finix", "stripe"] as const).map((p) => (
+              <TouchableOpacity
+                key={p}
+                style={[styles.providerPill, payoutProvider === p && styles.providerPillActive]}
+                onPress={() => setPayoutProvider(p)}
+              >
+                <Text style={[styles.providerPillText, payoutProvider === p && styles.providerPillTextActive]}>
+                  {p === "finix" ? "Finix" : "Stripe"}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TouchableOpacity style={styles.onboardBtn} onPress={handleOnboard}>
+            <Text style={styles.onboardBtnText}>Set up payouts →</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       <Text style={styles.autoNote}>
@@ -234,6 +251,13 @@ const styles = StyleSheet.create({
   pastTitle: { fontSize: 14, fontWeight: "700", color: "#111827", marginTop: 8 },
   onboardBanner: { backgroundColor: "#FEF3C7", borderWidth: 1, borderColor: "#FCD34D", borderRadius: 8, padding: 12, marginBottom: 12 },
   onboardText: { color: "#92400E", fontSize: 13, fontWeight: "600" },
+  providerRow: { flexDirection: "row", gap: 8, marginTop: 8, marginBottom: 10 },
+  providerPill: { flex: 1, borderWidth: 1, borderColor: "#FCD34D", borderRadius: 6, paddingVertical: 8, alignItems: "center", backgroundColor: "#FFFBEB" },
+  providerPillActive: { backgroundColor: "#92400E", borderColor: "#92400E" },
+  providerPillText: { color: "#92400E", fontSize: 13, fontWeight: "600" },
+  providerPillTextActive: { color: "#FFFFFF" },
+  onboardBtn: { backgroundColor: "#92400E", borderRadius: 6, paddingVertical: 10, alignItems: "center" },
+  onboardBtnText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
   available: { fontSize: 14, color: "#374151", marginBottom: 10 },
   availableStrong: { fontWeight: "700", color: "#1D4ED8" },
   pending: { fontSize: 13, color: "#6B7280", marginBottom: 10, marginTop: -4 },

@@ -134,7 +134,7 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     # Payment — Sprint 24
     # ------------------------------------------------------------------
-    # Which payment backend to use: "mock" | "cinetpay" | "stripe" | "wellsfargo"
+    # Which payment backend to use: "mock" | "cinetpay" | "stripe" | "wellsfargo" | "finix"
     payment_provider: str = "mock"
 
     # CinetPay (West Africa / Ivory Coast)
@@ -166,6 +166,23 @@ class Settings(BaseSettings):
     wellsfargo_merchant_id: str = ""
     wellsfargo_webhook_secret: str = ""
 
+    # Finix (US marketplace acquiring + split — Stripe-Connect replacement)
+    # Sandbox defaults; prod overrides finix_api_base to the live host
+    # (https://finix.live-payments-api.com) and injects real credentials from
+    # Secret Manager. HTTP Basic auth (API user + password); Finix-Version is
+    # pinned on every request.
+    finix_api_base: str = "https://finix.sandbox-payments-api.com"
+    finix_username: str = ""            # Finix API user id (USsr…)
+    finix_password: str = ""            # Finix API user password
+    finix_version: str = "2022-02-01"   # Finix-Version header (pinned)
+    # Ziza's own Finix Merchant id — the payee for non-split charges (wallet
+    # top-ups) and the platform side of split charges.
+    finix_platform_merchant_id: str = ""
+    # Basic-auth credentials Finix is configured to send on webhook POSTs
+    # (Authentication.type = BASIC); verified in FinixAdapter.verify_webhook.
+    finix_webhook_username: str = ""
+    finix_webhook_password: str = ""
+
     # Where Stripe Checkout redirects the customer after paying (success/cancel).
     # Must be a LIVE customer-app URL; default is the prod domain, dev overrides
     # it via the PAYMENT_RETURN_URL env var (see deploy workflows).
@@ -194,6 +211,7 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     # Which payout backend to use:
     #   "mock" | "stripe" (Stripe Connect) | "wellsfargo" (WF Gateway ACH/RTP)
+    #   | "finix" (Finix CREDIT transfer to the payee's bank instrument)
     payout_provider: str = "mock"
 
     # Wells Fargo Gateway (developer.wellsfargo.com) — outbound bank payments.

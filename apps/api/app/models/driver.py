@@ -49,7 +49,11 @@ class Driver(Base):
         DateTime(timezone=True), nullable=True
     )
     # WS3 (Sprint 68) — Stripe Connect (Express) account for real payouts.
+    # NB: reused to hold the payee's provider account id (Stripe acct_… or Finix MU…).
     stripe_account_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # 2026-07 — payout provider the payee chose at onboarding ("stripe" | "finix").
+    # Null → falls back to the global settings.payout_provider.
+    payout_provider: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
