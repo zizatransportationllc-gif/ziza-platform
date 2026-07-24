@@ -5502,7 +5502,8 @@ async def craft_list_bids(
 
 
 class CraftHoldIntentResponse(BaseModel):
-    client_secret: str
+    # Charge-at-completion: this is just the amount breakdown shown before
+    # selecting a bid — no card hold is placed, so there is no client_secret.
     amount_cents: int
     base_cents: int
     service_fee_cents: int

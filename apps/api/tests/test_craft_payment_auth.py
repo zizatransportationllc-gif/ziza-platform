@@ -1,8 +1,7 @@
-"""Sprint 74 — craft payment: authorize the customer's saved card when they
-select a bid, capture it when the professional marks the work done.
+"""Craft payment: no hold at bid selection — the customer's saved card is charged
+in one step when the professional marks the work done (charge-at-completion).
 
-Mock mode (no stripe key): get_default_payment_method is patched to simulate a
-saved card so the authorize/capture wiring runs end-to-end.
+Mock mode (no stripe key): the charge wiring runs end-to-end without Stripe.
 """
 from fastapi.testclient import TestClient
 
@@ -49,7 +48,7 @@ def _request_with_bid(tc: str, tp: str):
     return rid, bid_id
 
 
-def test_craft_authorized_at_select_and_captured_at_work_done(monkeypatch):
+def test_craft_pending_at_select_and_charged_at_work_done(monkeypatch):
     from app.payment import stripe_cards
     monkeypatch.setattr(stripe_cards, "get_default_payment_method", lambda _cid: "pm_test")
 
@@ -58,14 +57,36 @@ def test_craft_authorized_at_select_and_captured_at_work_done(monkeypatch):
 
     sel = client.post(f"/v1/craft/requests/{rid}/select", headers=_h(tc), json={"bid_id": bid_id})
     assert sel.status_code == 200, sel.text
+    # No hold placed at selection — the amount is just locked as pending.
     pay = client.get(f"/v1/craft/requests/{rid}/payment", headers=_h(tc))
-    assert pay.status_code == 200 and pay.json() and pay.json()["status"] == "authorized", pay.text
+    assert pay.status_code == 200 and pay.json() and pay.json()["status"] == "pending", pay.text
 
     client.patch(f"/v1/craft/requests/{rid}/arrived", headers=_h(tp))
     client.patch(f"/v1/craft/requests/{rid}/confirm-arrival", headers=_h(tc))
     assert client.patch(f"/v1/craft/requests/{rid}/work-done", headers=_h(tp)).status_code == 200
     pay2 = client.get(f"/v1/craft/requests/{rid}/payment", headers=_h(tc))
     assert pay2.json()["status"] == "paid"
+
+
+def test_craft_charge_failure_at_completion_marks_failed(monkeypatch):
+    """If the card is declined at completion, the intent is marked failed (the pro
+    already did the work — surfaced for follow-up, not silently paid)."""
+    from app.payment import stripe_cards
+    monkeypatch.setattr(stripe_cards, "get_default_payment_method", lambda _cid: "pm_test")
+    monkeypatch.setattr(
+        stripe_cards, "charge_saved_card",
+        lambda *a, **k: {"id": "pi_x", "status": "failed", "decline_code": "card_declined"},
+    )
+
+    tc, tp = _card_customer(), _payable_pro()
+    rid, bid_id = _request_with_bid(tc, tp)
+    client.post(f"/v1/craft/requests/{rid}/select", headers=_h(tc), json={"bid_id": bid_id})
+    client.patch(f"/v1/craft/requests/{rid}/arrived", headers=_h(tp))
+    client.patch(f"/v1/craft/requests/{rid}/confirm-arrival", headers=_h(tc))
+    assert client.patch(f"/v1/craft/requests/{rid}/work-done", headers=_h(tp)).status_code == 200
+
+    pay = client.get(f"/v1/craft/requests/{rid}/payment", headers=_h(tc))
+    assert pay.json()["status"] == "failed"
 
 
 def test_selecting_bid_requires_card_when_stripe_live(monkeypatch):
