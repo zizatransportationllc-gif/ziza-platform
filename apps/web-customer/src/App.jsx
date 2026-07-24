@@ -2016,10 +2016,10 @@ function CraftPayment({ token, requestId, paid }) {
   if (paid || intent?.status === "paid") {
     return <p className="craft-success">✅ Payment confirmed{intent ? ` — ${formatUSD(intent.amount_cents)}` : ""}</p>;
   }
-  if (intent?.status === "authorized") {
+  if (intent?.status === "pending") {
     return (
       <p className="payment-hint" style={{ color: "var(--color-muted)" }}>
-        💳 Held on your card{intent ? ` (${formatUSD(intent.amount_cents)})` : ""} — charged when the professional finishes the job.
+        💳 {intent ? `${formatUSD(intent.amount_cents)} ` : ""}will be charged to your card when the professional finishes the job.
       </p>
     );
   }
@@ -2093,13 +2093,15 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
     listCraftPhotos(token, request.request_id).then(setPhotos).catch(() => {});
   }, [token, request.request_id, request.status]);
 
-  // Open the Stripe payment window for the chosen bid (create the hold first).
-  const [payModal, setPayModal] = useState(null); // { bidId, clientSecret, amountCents } | null
+  // Show a confirmation with the amount breakdown before selecting the bid.
+  // Charge-at-completion: no card hold is placed here — the saved card is charged
+  // when the professional finishes the job.
+  const [payModal, setPayModal] = useState(null); // { bidId, amountCents } | null
   async function handleSelect(bidId) {
     setSelecting(bidId); setError(null);
     try {
-      const hold = await createCraftBidHold(token, request.request_id, bidId);
-      setPayModal({ bidId, clientSecret: hold.client_secret, amountCents: hold.amount_cents });
+      const quote = await createCraftBidHold(token, request.request_id, bidId);
+      setPayModal({ bidId, amountCents: quote.amount_cents });
     } catch (e) {
       setError(e.message);
       // No saved card → send them to the Payment tab to add one.
@@ -2108,11 +2110,12 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
     finally { setSelecting(null); }
   }
 
-  // Called once the customer validates the hold in the Stripe window.
+  // Confirm the selection — assigns the professional; the card is charged later,
+  // when they mark the job done.
   async function confirmSelection() {
     const updated = await selectCraftBid(token, request.request_id, payModal.bidId);
     setRequest(updated);
-    setSuccess("✅ Payment validated — professional accepted! They are on their way.");
+    setSuccess("✅ Professional accepted — they're on their way! Your card is charged when the job is done.");
     setPayModal(null);
   }
 
@@ -2372,7 +2375,6 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
 
       {payModal && (
         <CraftPayModal
-          clientSecret={payModal.clientSecret}
           amountLabel={formatUSD(payModal.amountCents)}
           onConfirmed={confirmSelection}
           onClose={() => setPayModal(null)}
@@ -2382,37 +2384,16 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
   );
 }
 
-// Stripe payment window shown at bid selection — the customer validates a hold
-// (manual-capture PaymentIntent); the amount is captured when the job is done.
-function CraftPayModal({ clientSecret, amountLabel, onConfirmed, onClose }) {
-  const stripeRef = useRef(null);
-  const elementsRef = useRef(null);
-  const nodeRef = useRef(null);
-  const [ready, setReady] = useState(false);
+// Confirmation shown at bid selection. Charge-at-completion: no card hold is
+// placed — the saved default card is charged when the professional finishes the
+// job. Selecting requires a saved card (enforced server-side).
+function CraftPayModal({ amountLabel, onConfirmed, onClose }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
-  useEffect(() => {
-    const pk = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
-    if (!pk || !window.Stripe) { setErr("Payment is unavailable right now."); return; }
-    const stripe = window.Stripe(pk);
-    stripeRef.current = stripe;
-    const elements = stripe.elements({ clientSecret });
-    elementsRef.current = elements;
-    const pe = elements.create("payment");
-    pe.on("ready", () => setReady(true));
-    pe.mount(nodeRef.current);
-    return () => { try { pe.unmount(); } catch { /* noop */ } };
-  }, [clientSecret]);
-
-  async function pay() {
+  async function confirm() {
     setBusy(true); setErr(null);
     try {
-      const { error } = await stripeRef.current.confirmPayment({
-        elements: elementsRef.current,
-        redirect: "if_required",
-      });
-      if (error) { setErr(error.message); setBusy(false); return; }
       await onConfirmed();
     } catch (e) { setErr(e.message); setBusy(false); }
   }
@@ -2420,15 +2401,16 @@ function CraftPayModal({ clientSecret, amountLabel, onConfirmed, onClose }) {
   return (
     <div className="craft-pay-overlay" onClick={onClose}>
       <div className="craft-pay-modal" onClick={(e) => e.stopPropagation()}>
-        <h3 className="craft-pay-title">Validate your payment</h3>
-        <p className="craft-pay-amount">You authorize {amountLabel}</p>
-        <p className="craft-pay-hint">You're only charged when the professional finishes the job.</p>
-        <div ref={nodeRef} className="craft-pay-element" />
+        <h3 className="craft-pay-title">Confirm your selection</h3>
+        <p className="craft-pay-amount">Total {amountLabel}</p>
+        <p className="craft-pay-hint">
+          Your saved card is charged only when the professional finishes the job.
+        </p>
         {err && <p className="form-error">{err}</p>}
         <div className="craft-pay-actions">
           <button type="button" className="craft-back-btn" onClick={onClose} disabled={busy}>Cancel</button>
-          <button type="button" className="craft-submit-btn" onClick={pay} disabled={!ready || busy}>
-            {busy ? "Processing…" : `Authorize ${amountLabel}`}
+          <button type="button" className="craft-submit-btn" onClick={confirm} disabled={busy}>
+            {busy ? "Selecting…" : "Select professional"}
           </button>
         </div>
       </div>
