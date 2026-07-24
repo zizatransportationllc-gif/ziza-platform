@@ -25,7 +25,6 @@ import {
   Share,
   TextInput,
 } from "react-native";
-import { useStripe } from "@stripe/stripe-react-native";
 import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
@@ -43,7 +42,6 @@ import {
   getCraftTracking,
   cancelCraftRequest,
   createCraftShareUrl,
-  createCraftBidHold,
   createCraftRating,
   getCraftRating,
   CraftBid,
@@ -199,7 +197,6 @@ export default function BidsScreen(): React.ReactElement {
   const { token } = useAuth();
   const route = useRoute<RouteProps>();
   const navigation = useNavigation<NavProp>();
-  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const { requestId, customerLat, customerLng } = route.params;
 
   const [request, setRequest] = useState<CraftRequest | null>(null);
@@ -242,28 +239,30 @@ export default function BidsScreen(): React.ReactElement {
     return () => clearInterval(id);
   }, [request?.status, loadData]);
 
-  // Select a pro: open the Stripe payment window to validate the hold, then
-  // assign the bid. The amount is only captured when the pro finishes the job.
-  const handleSelect = async (bid: CraftBid) => {
+  // Select a pro. Charge-at-completion: no card hold is placed here — after a
+  // quick confirmation the bid is assigned, and the saved card is charged in one
+  // step when the professional finishes the job.
+  const handleSelect = (bid: CraftBid) => {
+    if (!token) return;
+    const total = bid.total_cents ?? bid.price_cents;
+    Alert.alert(
+      "Select this professional?",
+      `Total ${formatUSD(total)} — your saved card is charged only when the job is done.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Select", onPress: () => doSelect(bid) },
+      ]
+    );
+  };
+
+  const doSelect = async (bid: CraftBid) => {
     if (!token) return;
     setSelecting(bid.bid_id);
     try {
-      const hold = await createCraftBidHold(token, requestId, bid.bid_id);
-      const init = await initPaymentSheet({
-        merchantDisplayName: "ZIZA",
-        paymentIntentClientSecret: hold.client_secret,
-      });
-      if (init.error) throw new Error(init.error.message);
-      const { error } = await presentPaymentSheet();
-      if (error) {
-        // Customer canceled or the authorization failed — don't assign.
-        if (error.code !== "Canceled") Alert.alert("Payment", error.message);
-        return;
-      }
       await selectCraftBid(token, requestId, bid.bid_id);
       Alert.alert(
         "Professional Selected",
-        "Payment validated. The professional has been notified — you're charged only when the job is done.",
+        "They've been notified and are on their way. Your card is charged only when the job is done.",
         [{ text: "OK", onPress: () => navigation.navigate("MyCraftRequests") }]
       );
     } catch (e: any) {
