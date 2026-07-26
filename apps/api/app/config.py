@@ -182,6 +182,11 @@ class Settings(BaseSettings):
     # (Authentication.type = BASIC); verified in FinixAdapter.verify_webhook.
     finix_webhook_username: str = ""
     finix_webhook_password: str = ""
+    # Pre-built hosted Finix Onboarding Form URL (e.g. the dev sandbox form). When
+    # set, payees are sent to this single hosted link to self-onboard (Finix
+    # provisions the Identity+Merchant on submit) instead of creating a form per
+    # payee via the API. Contains a bearer token — inject via secret, never commit.
+    finix_onboarding_url: str = ""
 
     # Where Stripe Checkout redirects the customer after paying (success/cancel).
     # Must be a LIVE customer-app URL; default is the prod domain, dev overrides

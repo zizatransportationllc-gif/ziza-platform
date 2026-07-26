@@ -97,6 +97,11 @@ def create_account_link(account_id: str, return_url: str, refresh_url: str) -> s
     ``account_id`` is the merchant id; we resolve its identity and open a form
     scoped to it. In dev/CI a deterministic fake URL is returned.
     """
+    # A pre-built hosted Onboarding Form (e.g. dev sandbox): all payees self-
+    # onboard through the same link, so the per-payee return/refresh URLs and the
+    # account id don't apply — Finix provisions the Identity+Merchant on submit.
+    if settings.finix_onboarding_url:
+        return settings.finix_onboarding_url
     if not _enabled():
         return f"https://onboarding.finix.com/mock/{account_id}"
     merchant = _get(f"/merchants/{account_id}")
