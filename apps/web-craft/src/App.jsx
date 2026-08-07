@@ -75,6 +75,38 @@ const DOCUMENT_STATUS_LABELS = {
   needs_resubmission: "Resubmit Required",
 };
 
+// Progress milestones for an assigned job, mirroring web-customer's
+// customer-facing timeline so both sides see the same "where is this job
+// right now" shape. Each status maps to the step the job has reached.
+const CRAFT_TIMELINE_STEPS = ["Requested", "On the way", "Arrived", "In progress", "Completed"];
+const CRAFT_STATUS_STEP = {
+  open: 0, bidding_closed: 0,
+  assigned: 1, arrived: 2,
+  in_progress: 3, pro_done: 3,
+  completed: 4,
+};
+
+function CraftStatusTimeline({ status }) {
+  if (status === "cancelled") return null;
+  const current = CRAFT_STATUS_STEP[status] ?? 0;
+  const complete = status === "completed";
+  return (
+    <ol className="craft-timeline" aria-label="Job progress">
+      {CRAFT_TIMELINE_STEPS.map((label, i) => {
+        const done = complete || i < current;
+        const active = !complete && i === current;
+        const state = done ? "done" : active ? "active" : "todo";
+        return (
+          <li key={label} className={`craft-tl-step craft-tl-${state}`}>
+            <span className="craft-tl-dot">{done ? "✓" : i + 1}</span>
+            <span className="craft-tl-label">{label}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Login form
 // ---------------------------------------------------------------------------
@@ -423,6 +455,11 @@ function RequestDetail({ token, requestId, onBack, canManage = false }) {
           </span>
         </div>
       </div>
+
+      {/* Progress timeline once the job is assigned (winning pro only) */}
+      {canManage && ["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status) && (
+        <CraftStatusTimeline status={request.status} />
+      )}
 
       {/* Shared verification code once a bid is selected (winning pro only) */}
       {canManage && request.verification_code && (
