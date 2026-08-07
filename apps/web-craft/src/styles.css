@@ -125,6 +125,27 @@ html, body { margin: 0; padding: 0; background: var(--color-bg); color: var(--co
 .detail-category { font-size: 0.8rem; font-weight: 700; color: var(--color-accent); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-2); }
 .detail-description { font-size: 1rem; color: var(--color-fg); margin-bottom: var(--space-3); line-height: 1.5; }
 .detail-meta { display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: 0.82rem; color: var(--color-muted); }
+
+/* Job progress timeline (Requested → On the way → … → Completed) */
+.craft-timeline { list-style: none; display: flex; padding: 0; margin: 0 0 var(--space-4); }
+.craft-tl-step { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; }
+.craft-tl-step::before {
+  content: ""; position: absolute; top: 11px; left: -50%; width: 100%; height: 2px;
+  background: var(--color-border); z-index: 0;
+}
+.craft-tl-step:first-child::before { display: none; }
+.craft-tl-dot {
+  position: relative; z-index: 1; width: 24px; height: 24px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 0.7rem; font-weight: 700;
+  background: var(--color-surface); border: 2px solid var(--color-border); color: var(--color-muted);
+}
+.craft-tl-label { font-size: 0.66rem; text-align: center; color: var(--color-muted); line-height: 1.25; }
+.craft-tl-done .craft-tl-dot { background: var(--color-success); border-color: var(--color-success); color: #08160d; }
+.craft-tl-done::before { background: var(--color-success); }
+.craft-tl-active .craft-tl-dot { background: var(--color-accent-strong); border-color: var(--color-accent-strong); color: #fff; }
+.craft-tl-active::before { background: var(--color-accent-strong); }
+.craft-tl-active .craft-tl-label { color: var(--color-fg); font-weight: 700; }
+
 .bid-form { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-5); text-align: left; }
 .bid-form h3 { font-size: 1rem; font-weight: 700; margin-bottom: var(--space-4); color: var(--color-fg); }
 .bid-form label { display: block; font-size: 0.82rem; color: var(--color-muted); margin-bottom: var(--space-1); font-weight: 600; }
