@@ -2033,6 +2033,7 @@ function CraftPayment({ token, requestId, paid }) {
 // Bids view for a single craft request
 function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
   const [request, setRequest] = useState(initialRequest);
+  const { t } = useI18n();
   const [bids, setBids] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selecting, setSelecting] = useState(null);
@@ -2115,7 +2116,7 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
   async function confirmSelection() {
     const updated = await selectCraftBid(token, request.request_id, payModal.bidId);
     setRequest(updated);
-    setSuccess("✅ Professional accepted — they're on their way! Your card is charged when the job is done.");
+    setSuccess(t("bids.selectionSuccess"));
     setPayModal(null);
   }
 
@@ -2150,12 +2151,12 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
       const { share_token } = await createCraftShare(token, request.request_id);
       const url = `${SHARE_BASE}/?t=${share_token}`;
       if (navigator.share) {
-        await navigator.share({ title: "ZIZA roadside", text: "Follow my roadside assistance live", url });
+        await navigator.share({ title: t("bids.shareTitle"), text: t("bids.shareText"), url });
       } else {
         await navigator.clipboard.writeText(url);
-        setShareMsg("Link copied ✓"); setTimeout(() => setShareMsg(null), 2500);
+        setShareMsg(t("bids.shareLinkCopied")); setTimeout(() => setShareMsg(null), 2500);
       }
-    } catch { setShareMsg("Couldn't create link"); setTimeout(() => setShareMsg(null), 2500); }
+    } catch { setShareMsg(t("bids.shareLinkError")); setTimeout(() => setShareMsg(null), 2500); }
   }
 
   // Short "where is my pro" line keyed off the job status — the roadside
@@ -2165,19 +2166,19 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
       case "assigned": {
         // Prefer the real routed ETA, then the backend estimate, then the bid.
         const eta = routeEta ?? tracking?.eta_min ?? acceptedBid?.eta_min;
-        return eta != null ? `🚗 On the way — ~${eta} min away` : "🚗 On the way";
+        return eta != null ? t("bids.statusOnTheWayEta", { eta }) : t("bids.statusOnTheWay");
       }
-      case "arrived":     return "📍 On site";
+      case "arrived":     return t("bids.statusOnSite");
       case "in_progress":
-      case "pro_done":    return "🔧 Working on it";
-      case "completed":   return "✅ Job done";
+      case "pro_done":    return t("bids.statusWorking");
+      case "completed":   return t("bids.statusJobDone");
       default:            return null;
     }
   }
 
   return (
     <div className="craft-detail">
-      <button className="craft-back-btn" onClick={onBack}>← Back to my requests</button>
+      <button className="craft-back-btn" onClick={onBack}>{t("bids.backToRequests")}</button>
       <div className="craft-request-info">
         <span className="craft-cat-chip">{CRAFT_CAT_LABELS[request.category] ?? request.category}</span>
         <span className="craft-status-label">{CRAFT_STATUS_LABELS[request.status] ?? request.status}</span>
@@ -2192,7 +2193,7 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
       {isActive && acceptedBid && (
         <div className="craft-pro-card">
           <div className="craft-pro-head">
-            <span className="craft-pro-title">Your professional</span>
+            <span className="craft-pro-title">{t("bids.yourProfessional")}</span>
             <span className="craft-pro-price">{formatUSD(acceptedBid.price_cents)}</span>
           </div>
           <span className="craft-pro-status">{proStatusLine()}</span>
@@ -2210,7 +2211,7 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
             onEta={setRouteEta}
           />
           {!tracking?.pro_lat && (
-            <p className="craft-track-waiting">🛰️ Waiting for the professional's live position…</p>
+            <p className="craft-track-waiting">{t("bids.waitingPosition")}</p>
           )}
         </>
       )}
@@ -2219,7 +2220,7 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
       {["assigned", "arrived", "in_progress"].includes(request.status) && (
         <div className="craft-share-row">
           <button type="button" className="craft-share-btn" onClick={handleShare}>
-            🔗 Share live tracking
+            {t("bids.shareLiveTracking")}
           </button>
           {shareMsg && <span className="craft-share-msg">{shareMsg}</span>}
         </div>
@@ -2228,34 +2229,34 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
       {/* Shared verification code once a professional is assigned */}
       {isActive && request.verification_code && (
         <div className="verify-code-card">
-          <span className="verify-code-label">🔐 Verification code</span>
+          <span className="verify-code-label">{t("bids.verificationCode")}</span>
           <span className="verify-code-value">{request.verification_code}</span>
-          <span className="verify-code-hint">Share it with your professional on site.</span>
+          <span className="verify-code-hint">{t("bids.verificationHint")}</span>
         </div>
       )}
 
       {/* Customer lifecycle actions */}
       {request.status === "arrived" && (
         <button className="board-btn" disabled={actionBusy} onClick={() => runAction(craftConfirmArrival)}>
-          {actionBusy ? "Confirming…" : "✅ Confirm the professional has arrived"}
+          {actionBusy ? t("bids.confirming") : t("bids.confirmArrived")}
         </button>
       )}
       {request.status === "pro_done" && (
         <button className="board-btn" disabled={actionBusy} onClick={() => runAction(craftComplete)}>
-          {actionBusy ? "Confirming…" : "✅ Confirm the work is finished"}
+          {actionBusy ? t("bids.confirming") : t("bids.confirmFinished")}
         </button>
       )}
 
       {/* Before/after photos from the professional (read-only) */}
       {photos.length > 0 && (
         <div className="craft-photos-ro">
-          <h4 className="craft-photos-ro-title">📷 Photos from your professional</h4>
+          <h4 className="craft-photos-ro-title">{t("bids.photosTitle")}</h4>
           {["before", "after"].map((k) => {
             const items = photos.filter((p) => p.kind === k);
             if (items.length === 0) return null;
             return (
               <div key={k} className="craft-photo-group">
-                <span className="craft-photo-kind">{k === "before" ? "Before" : "After"}</span>
+                <span className="craft-photo-kind">{k === "before" ? t("bids.photoBefore") : t("bids.photoAfter")}</span>
                 <div className="craft-photo-thumbs">
                   {items.map((p) => p.url && (
                     <a key={p.photo_id} href={p.url} target="_blank" rel="noopener noreferrer">
@@ -2270,20 +2271,20 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
       )}
 
       <h3 className="craft-bids-title">
-        {bids.length > 0 ? `${bids.length} bid${bids.length > 1 ? "s" : ""}` : "No bids yet"}
+        {bids.length === 0 ? t("bids.titleNone") : bids.length === 1 ? t("bids.titleOne") : t("bids.titleMany", { count: bids.length })}
       </h3>
       {!loading && bids.length === 0 && ["open", "bidding_closed"].includes(request.status) && (
-        <p className="craft-track-waiting">⏳ Waiting for nearby professionals to send their offers…</p>
+        <p className="craft-track-waiting">{t("bids.waitingOffers")}</p>
       )}
 
       {success && <p className="craft-success">{success}</p>}
       {error   && <p className="form-error">{error}</p>}
-      {loading && <p className="craft-loading">⏳ Loading bids…</p>}
+      {loading && <p className="craft-loading">{t("bids.loading")}</p>}
 
       {bids.length > 1 && (
         <div className="craft-sort-row">
-          <span className="craft-sort-label">Sort by</span>
-          {[["recommended", "Recommended"], ["price", "Price"], ["eta", "ETA"], ["rating", "Rating"]].map(([k, label]) => (
+          <span className="craft-sort-label">{t("bids.sortBy")}</span>
+          {[["recommended", t("bids.sortRecommended")], ["price", t("bids.sortPrice")], ["eta", t("bids.sortEta")], ["rating", t("bids.sortRating")]].map(([k, label]) => (
             <button
               key={k}
               type="button"
@@ -2309,29 +2310,31 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
               )}
               <div className="craft-bid-pro-meta">
                 <span className="craft-bid-pro-name">
-                  {b.professional_name || "Professional"}
-                  {isTopRated(b) && <span className="craft-top-rated">🏅 Top rated</span>}
+                  {b.professional_name || t("bids.defaultProName")}
+                  {isTopRated(b) && <span className="craft-top-rated">{t("bids.topRated")}</span>}
                 </span>
                 <span className="craft-bid-pro-rating">
                   {b.professional_rating != null
-                    ? `★ ${b.professional_rating.toFixed(1)} · ${b.professional_rating_count} rating${b.professional_rating_count > 1 ? "s" : ""}`
-                    : "No ratings yet"}
+                    ? (b.professional_rating_count > 1
+                        ? t("bids.ratingMany", { rating: b.professional_rating.toFixed(1), count: b.professional_rating_count })
+                        : t("bids.ratingOne", { rating: b.professional_rating.toFixed(1) }))
+                    : t("bids.noRatings")}
                 </span>
               </div>
               <span className="craft-bid-pro-price">{formatUSD(b.price_cents)}</span>
             </div>
             <div className="craft-bid-header">
-              <span className="craft-bid-eta">⏱ {b.eta_min} min ETA</span>
+              <span className="craft-bid-eta">{t("bids.etaMin", { eta: b.eta_min })}</span>
               {b.distance_km != null && (
-                <span className="craft-bid-eta">📍 {fmtMiles(b.distance_km)} mi away</span>
+                <span className="craft-bid-eta">{t("bids.distanceAway", { miles: fmtMiles(b.distance_km) })}</span>
               )}
             </div>
             {b.total_cents != null && (
               <div className="craft-bid-fees">
-                <span className="craft-bid-total">You pay {formatUSD(b.total_cents)}</span>
+                <span className="craft-bid-total">{t("bids.youPay", { total: formatUSD(b.total_cents) })}</span>
                 <span className="craft-bid-fee-note">
-                  {formatUSD(b.price_cents)} bid + {formatUSD(b.service_fee_cents || 0)} service fee
-                  {b.tax_cents ? ` + ${formatUSD(b.tax_cents)} tax` : ""}
+                  {t("bids.feeNote", { price: formatUSD(b.price_cents), fee: formatUSD(b.service_fee_cents || 0) })}
+                  {b.tax_cents ? t("bids.taxAmount", { tax: formatUSD(b.tax_cents) }) : ""}
                 </span>
               </div>
             )}
@@ -2342,11 +2345,11 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
                 onClick={() => handleSelect(b.bid_id)}
                 disabled={selecting === b.bid_id}
               >
-                {selecting === b.bid_id ? "Accepting…" : "✓ Accept this bid"}
+                {selecting === b.bid_id ? t("bids.accepting") : t("bids.acceptBid")}
               </button>
             )}
             {b.status === "accepted" && (
-              <span className="craft-bid-accepted-label">✅ You accepted this bid</span>
+              <span className="craft-bid-accepted-label">{t("bids.accepted")}</span>
             )}
           </div>
         ))}
@@ -2355,7 +2358,7 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
       {/* Cancel an open request (no pro assigned yet) */}
       {canSelect && !success && (
         <button className="craft-cancel-btn" onClick={handleCancelRequest} disabled={cancelling}>
-          {cancelling ? "Cancelling…" : "✕ Cancel this request"}
+          {cancelling ? t("bids.cancelling") : t("bids.cancelRequest")}
         </button>
       )}
 
@@ -2388,6 +2391,7 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
 // placed — the saved default card is charged when the professional finishes the
 // job. Selecting requires a saved card (enforced server-side).
 function CraftPayModal({ amountLabel, onConfirmed, onClose }) {
+  const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
@@ -2401,16 +2405,16 @@ function CraftPayModal({ amountLabel, onConfirmed, onClose }) {
   return (
     <div className="craft-pay-overlay" onClick={onClose}>
       <div className="craft-pay-modal" onClick={(e) => e.stopPropagation()}>
-        <h3 className="craft-pay-title">Confirm your selection</h3>
-        <p className="craft-pay-amount">Total {amountLabel}</p>
+        <h3 className="craft-pay-title">{t("bids.payModalTitle")}</h3>
+        <p className="craft-pay-amount">{t("bids.payModalTotal", { amount: amountLabel })}</p>
         <p className="craft-pay-hint">
-          Your saved card is charged only when the professional finishes the job.
+          {t("bids.payModalHint")}
         </p>
         {err && <p className="form-error">{err}</p>}
         <div className="craft-pay-actions">
-          <button type="button" className="craft-back-btn" onClick={onClose} disabled={busy}>Cancel</button>
+          <button type="button" className="craft-back-btn" onClick={onClose} disabled={busy}>{t("bids.payModalCancel")}</button>
           <button type="button" className="craft-submit-btn" onClick={confirm} disabled={busy}>
-            {busy ? "Selecting…" : "Select professional"}
+            {busy ? t("bids.payModalSelecting") : t("bids.payModalSelect")}
           </button>
         </div>
       </div>
