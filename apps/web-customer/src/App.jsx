@@ -25,7 +25,7 @@ import {
 import { firebaseEnabled, signInWithGoogle, signUpEmail, signInEmail, sendPasswordReset, resendVerification, changeEmail, firebaseSignOut } from "./auth";
 import Icon from "./Icon";
 import { EstimateMap, TripMap, CraftTrackingMap } from "./TripMap";
-import { useI18n } from "./i18n";
+import { useI18n, translations } from "./i18n";
 
 const REQUIRED_ROLE = "customer";
 const TOKEN_KEY = "ziza_token";
@@ -71,9 +71,11 @@ const STATUS_LABELS = {
 
 const TERMINAL_STATUSES = new Set(["completed", "cancelled"]);
 
-function formatUSD(n) {
+// `lang` is optional — existing call sites (still-English screens) keep working
+// unchanged; pass it once a screen adopts the "es-US" locale for Spanish copy.
+function formatUSD(n, lang) {
   if (n == null) return "—";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n / 100);
+  return new Intl.NumberFormat(lang === "es" ? "es-US" : "en-US", { style: "currency", currency: "USD" }).format(n / 100);
 }
 
 // Price breakdown shown to the customer before/while paying (Sprint 70).
@@ -111,6 +113,7 @@ function fmtMiles(km) { return (km * KM_TO_MI).toFixed(1); }
 // Password input with a "Show password" checkbox (toggles visibility).
 function PasswordInput({ value, onChange, placeholder, required }) {
   const [show, setShow] = useState(false);
+  const { t } = useI18n();
   return (
     <div className="password-field">
       <input
@@ -122,13 +125,14 @@ function PasswordInput({ value, onChange, placeholder, required }) {
       />
       <label className="password-toggle">
         <input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} />
-        Show password
+        {t("login.showPassword")}
       </label>
     </div>
   );
 }
 
 function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, notice, loading }) {
+  const { t } = useI18n();
   const [tab, setTab] = useState("signin");
   // Sign-in fields
   const [email, setEmail] = useState("customer@ziza.dev");
@@ -146,21 +150,21 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, notice, loadi
 
   async function handleForgot() {
     setResetMsg(null);
-    if (!email.trim()) { setResetMsg("Enter your email above, then tap again."); return; }
+    if (!email.trim()) { setResetMsg(t("login.forgotEmailFirst")); return; }
     try {
       await sendPasswordReset(email.trim());
-      setResetMsg("Password reset email sent — check your inbox.");
-    } catch (e) { setResetMsg(e.message || "Could not send reset email."); }
+      setResetMsg(t("login.resetSent"));
+    } catch (e) { setResetMsg(e.message || t("login.resetError")); }
   }
 
   function handleSignup(e) {
     e.preventDefault();
     setSuError(null);
-    if (!suFirstName.trim()) { setSuError("First name is required"); return; }
-    if (!suLastName.trim()) { setSuError("Last name is required"); return; }
-    if (!suBirthDate) { setSuError("Date of birth is required"); return; }
-    if (suPassword !== suConfirm) { setSuError("Passwords do not match"); return; }
-    if (suPassword.length < 6) { setSuError("Password must be at least 6 characters"); return; }
+    if (!suFirstName.trim()) { setSuError(t("login.errorFirstNameRequired")); return; }
+    if (!suLastName.trim()) { setSuError(t("login.errorLastNameRequired")); return; }
+    if (!suBirthDate) { setSuError(t("login.errorBirthDateRequired")); return; }
+    if (suPassword !== suConfirm) { setSuError(t("login.errorPasswordsMismatch")); return; }
+    if (suPassword.length < 6) { setSuError(t("login.errorPasswordTooShort")); return; }
     onSignup(suEmail, suPassword, suFirstName.trim(), suLastName.trim(), suBirthDate, suPhone);
   }
 
@@ -168,23 +172,23 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, notice, loadi
     <div className="app">
       <img src="/logo-customer.svg" alt="Ziza Customer" className="app-logo" />
       <div className="auth-tabs">
-        <button className={`auth-tab${tab === "signin" ? " active" : ""}`} onClick={() => setTab("signin")}>Sign In</button>
-        <button className={`auth-tab${tab === "signup" ? " active" : ""}`} onClick={() => setTab("signup")}>Create Account</button>
+        <button className={`auth-tab${tab === "signin" ? " active" : ""}`} onClick={() => setTab("signin")}>{t("login.signIn")}</button>
+        <button className={`auth-tab${tab === "signup" ? " active" : ""}`} onClick={() => setTab("signup")}>{t("login.createAccount")}</button>
       </div>
       {tab === "signin" ? (
         <>
           <form className="login-form" onSubmit={(e) => { e.preventDefault(); onEmailLogin(email, password); }}>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
-            <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
-            <button type="submit" disabled={loading}>{loading ? "Signing in…" : "Sign In"}</button>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("login.emailPlaceholder")} required />
+            <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t("login.passwordPlaceholder")} required />
+            <button type="submit" disabled={loading}>{loading ? t("login.signingIn") : t("login.signIn")}</button>
           </form>
           {firebaseEnabled && (
             <button className="google-btn" onClick={onGoogleLogin} disabled={loading}>
-              <span>G</span> Continue with Google
+              <span>G</span> {t("login.continueWithGoogle")}
             </button>
           )}
           {firebaseEnabled && (
-            <button type="button" className="link-btn" onClick={handleForgot}>Forgot password?</button>
+            <button type="button" className="link-btn" onClick={handleForgot}>{t("login.forgotPassword")}</button>
           )}
           {resetMsg && <p className="hint">{resetMsg}</p>}
           {notice && <p className="verify-notice">{notice}</p>}
@@ -194,14 +198,14 @@ function LoginForm({ onEmailLogin, onGoogleLogin, onSignup, error, notice, loadi
       ) : (
         <>
           <form className="login-form" onSubmit={handleSignup}>
-            <input type="text" value={suFirstName} onChange={(e) => setSuFirstName(e.target.value)} placeholder="First name" required />
-            <input type="text" value={suLastName} onChange={(e) => setSuLastName(e.target.value)} placeholder="Last name" required />
-            <input type="date" value={suBirthDate} onChange={(e) => setSuBirthDate(e.target.value)} placeholder="Date of birth" required />
-            <input type="email" value={suEmail} onChange={(e) => setSuEmail(e.target.value)} placeholder="Email address" required />
-            <PasswordInput value={suPassword} onChange={(e) => setSuPassword(e.target.value)} placeholder="Password (min. 6 characters)" required />
-            <PasswordInput value={suConfirm} onChange={(e) => setSuConfirm(e.target.value)} placeholder="Confirm password" required />
-            <input type="tel" value={suPhone} onChange={(e) => setSuPhone(e.target.value)} placeholder="Phone number (optional)" />
-            <button type="submit" disabled={loading}>{loading ? "Creating account…" : "Create Account"}</button>
+            <input type="text" value={suFirstName} onChange={(e) => setSuFirstName(e.target.value)} placeholder={t("login.firstNamePlaceholder")} required />
+            <input type="text" value={suLastName} onChange={(e) => setSuLastName(e.target.value)} placeholder={t("login.lastNamePlaceholder")} required />
+            <input type="date" value={suBirthDate} onChange={(e) => setSuBirthDate(e.target.value)} placeholder={t("login.birthDatePlaceholder")} required />
+            <input type="email" value={suEmail} onChange={(e) => setSuEmail(e.target.value)} placeholder={t("login.emailAddressPlaceholder")} required />
+            <PasswordInput value={suPassword} onChange={(e) => setSuPassword(e.target.value)} placeholder={t("login.passwordMinPlaceholder")} required />
+            <PasswordInput value={suConfirm} onChange={(e) => setSuConfirm(e.target.value)} placeholder={t("login.confirmPasswordPlaceholder")} required />
+            <input type="tel" value={suPhone} onChange={(e) => setSuPhone(e.target.value)} placeholder={t("login.phonePlaceholder")} />
+            <button type="submit" disabled={loading}>{loading ? t("login.creatingAccount") : t("login.createAccount")}</button>
           </form>
           {notice && <p className="verify-notice">{notice}</p>}
           {(suError || error) && <p className="form-error">{suError || error}</p>}
@@ -1765,17 +1769,11 @@ function SavedPlacesSection({ token }) {
 const CRAFT_CATEGORIES = [
   "breakdown", "flat_tyre", "tow", "fuel", "lockout", "battery", "accident", "diagnostics", "other",
 ];
-const CRAFT_CAT_LABELS = {
-  breakdown:   "Breakdown",
-  flat_tyre:   "Flat Tire",
-  tow:         "Towing",
-  fuel:        "Out of Fuel",
-  lockout:     "Lockout",
-  battery:     "Dead Battery",
-  accident:    "Post-Accident",
-  diagnostics: "Diagnostics",
-  other:       "Other",
-};
+// Category label — translated via i18n key `assistance.category.<code>`
+// (falls back to the raw code for a category not in that list).
+function craftCategoryLabel(cat, t) {
+  return CRAFT_CATEGORIES.includes(cat) ? t(`assistance.category.${cat}`) : cat;
+}
 // Category → Icon name (see Icon.jsx). Keeps the label text-only so the same
 // map renders cleanly in both the picker (icon + text) and the status chips.
 const CRAFT_CAT_ICON = {
@@ -1792,13 +1790,17 @@ const CRAFT_CAT_ICON = {
 // One optional quick question per service type — a couple of chips that help
 // the pro quote accurately (fuel type, spare tire, jump vs replace…). The
 // answer is prefixed to the description sent; there's no schema change.
+// Values are i18n keys, not raw text — see `assistance.serviceQ.*` in i18n.jsx.
+// The description prefix sent to the backend always uses the ENGLISH copy
+// (via `translations.en`), regardless of the customer's display language,
+// since it's read by the professional in a separate, not-yet-translated app.
 const CRAFT_SERVICE_Q = {
-  breakdown: { q: "Engine", opts: ["Won't start", "Starts then stalls"] },
-  flat_tyre: { q: "Spare tire", opts: ["Have a spare", "No spare"] },
-  tow:       { q: "Vehicle", opts: ["Still rolls", "Wheels locked"] },
-  fuel:      { q: "Fuel type", opts: ["Gas", "Diesel"] },
-  lockout:   { q: "Keys", opts: ["Locked inside", "Lost"] },
-  battery:   { q: "Need", opts: ["Jump start", "Replacement"] },
+  breakdown: { qKey: "assistance.serviceQ.breakdown.q", optKeys: ["assistance.serviceQ.breakdown.opt1", "assistance.serviceQ.breakdown.opt2"] },
+  flat_tyre: { qKey: "assistance.serviceQ.flat_tyre.q", optKeys: ["assistance.serviceQ.flat_tyre.opt1", "assistance.serviceQ.flat_tyre.opt2"] },
+  tow:       { qKey: "assistance.serviceQ.tow.q", optKeys: ["assistance.serviceQ.tow.opt1", "assistance.serviceQ.tow.opt2"] },
+  fuel:      { qKey: "assistance.serviceQ.fuel.q", optKeys: ["assistance.serviceQ.fuel.opt1", "assistance.serviceQ.fuel.opt2"] },
+  lockout:   { qKey: "assistance.serviceQ.lockout.q", optKeys: ["assistance.serviceQ.lockout.opt1", "assistance.serviceQ.lockout.opt2"] },
+  battery:   { qKey: "assistance.serviceQ.battery.q", optKeys: ["assistance.serviceQ.battery.opt1", "assistance.serviceQ.battery.opt2"] },
 };
 
 const CRAFT_STATUS_LABELS = {
@@ -2032,6 +2034,7 @@ function CraftPayment({ token, requestId, paid }) {
 
 // Bids view for a single craft request
 function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
+  const { t } = useI18n();
   const [request, setRequest] = useState(initialRequest);
   const [bids, setBids] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2179,7 +2182,7 @@ function CraftBidsView({ token, request: initialRequest, onBack, onNeedCard }) {
     <div className="craft-detail">
       <button className="craft-back-btn" onClick={onBack}>← Back to my requests</button>
       <div className="craft-request-info">
-        <span className="craft-cat-chip">{CRAFT_CAT_LABELS[request.category] ?? request.category}</span>
+        <span className="craft-cat-chip">{craftCategoryLabel(request.category, t)}</span>
         <span className="craft-status-label">{CRAFT_STATUS_LABELS[request.status] ?? request.status}</span>
       </div>
       <p className="craft-description">{request.description}</p>
@@ -2420,9 +2423,11 @@ function CraftPayModal({ amountLabel, onConfirmed, onClose }) {
 
 // New craft request form
 function CraftNewRequestForm({ token, onCreated, onCancel }) {
+  const { t } = useI18n();
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
-  // Optional answer to the per-service quick question (reset when category changes).
+  // Optional answer to the per-service quick question — stores the i18n key of
+  // the chosen option (not the display text), reset when category changes.
   const [serviceAnswer, setServiceAnswer] = useState(null);
   // Location is a single { lat, lng, name } object — set by the Mapbox address
   // autocomplete (AddressInput, same as the ride form) or by GPS.
@@ -2434,7 +2439,7 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
   // Resolve the browser GPS position into a { lat, lng, name } location,
   // reverse-geocoding to a readable address (falls back to coordinates).
   const useGPS = useCallback((silent) => {
-    if (!navigator.geolocation) { if (!silent) setError("Geolocation not available in this browser."); return; }
+    if (!navigator.geolocation) { if (!silent) setError(t("assistance.form.errorNoGeolocation")); return; }
     setLocating(true); if (!silent) setError(null);
     navigator.geolocation.getCurrentPosition(
       async ({ coords }) => {
@@ -2444,10 +2449,10 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
         setLocation({ lat: latitude, lng: longitude, name });
         setLocating(false);
       },
-      () => { if (!silent) setError("Couldn't get your GPS position — search your address instead."); setLocating(false); },
+      () => { if (!silent) setError(t("assistance.form.errorGpsFailed")); setLocating(false); },
       { timeout: silent ? 8000 : 10000 },
     );
-  }, [token]);
+  }, [token, t]);
 
   // Auto-detect GPS silently on mount (the customer can override by searching).
   useEffect(() => {
@@ -2457,13 +2462,15 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!category) { setError("Please select a category."); return; }
-    if (!location) { setError("Add your location — search an address or use GPS."); return; }
+    if (!category) { setError(t("assistance.form.errorSelectCategory")); return; }
+    if (!location) { setError(t("assistance.form.errorNoLocation")); return; }
     setSubmitting(true); setError(null);
     // Prefix the quick-question answer so the pro sees it in the description.
+    // Always in English (translations.en), regardless of display language —
+    // the pro app isn't translated, this text is read by a person, not parsed.
     const svcQ = CRAFT_SERVICE_Q[category];
     const fullDescription = svcQ && serviceAnswer
-      ? `${svcQ.q}: ${serviceAnswer}\n${description.trim()}`.trim()
+      ? `${translations.en[svcQ.qKey]}: ${translations.en[serviceAnswer]}\n${description.trim()}`.trim()
       : description.trim();
     try {
       const req = await createCraftRequest(token, {
@@ -2482,14 +2489,14 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
   return (
     <div className="craft-form-wrap">
       <div className="craft-form-header">
-        <h2 className="craft-form-title">🔧 Request Roadside Help</h2>
-        <button className="craft-back-btn" onClick={onCancel}>✕ Cancel</button>
+        <h2 className="craft-form-title">{t("assistance.form.title")}</h2>
+        <button className="craft-back-btn" onClick={onCancel}>{t("assistance.form.cancel")}</button>
       </div>
 
       <form className="craft-form" onSubmit={handleSubmit}>
         {/* Category */}
         <div className="craft-field">
-          <span className="craft-label">Type of issue</span>
+          <span className="craft-label">{t("assistance.form.typeOfIssue")}</span>
           <div className="craft-cat-grid">
             {CRAFT_CATEGORIES.map((cat) => (
               <button
@@ -2498,7 +2505,7 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
                 className={`craft-cat-btn ${category === cat ? "craft-cat-selected" : ""}`}
                 onClick={() => { setCategory(cat); setServiceAnswer(null); }}
               >
-                <Icon name={CRAFT_CAT_ICON[cat]} size={16} /> {CRAFT_CAT_LABELS[cat]}
+                <Icon name={CRAFT_CAT_ICON[cat]} size={16} /> {craftCategoryLabel(cat, t)}
               </button>
             ))}
           </div>
@@ -2507,16 +2514,16 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
         {/* Optional quick question for this service type */}
         {CRAFT_SERVICE_Q[category] && (
           <div className="craft-field">
-            <span className="craft-label">{CRAFT_SERVICE_Q[category].q}</span>
+            <span className="craft-label">{t(CRAFT_SERVICE_Q[category].qKey)}</span>
             <div className="craft-chip-row">
-              {CRAFT_SERVICE_Q[category].opts.map((opt) => (
+              {CRAFT_SERVICE_Q[category].optKeys.map((optKey) => (
                 <button
-                  key={opt}
+                  key={optKey}
                   type="button"
-                  className={`craft-chip ${serviceAnswer === opt ? "craft-chip-selected" : ""}`}
-                  onClick={() => setServiceAnswer(serviceAnswer === opt ? null : opt)}
+                  className={`craft-chip ${serviceAnswer === optKey ? "craft-chip-selected" : ""}`}
+                  onClick={() => setServiceAnswer(serviceAnswer === optKey ? null : optKey)}
                 >
-                  {opt}
+                  {t(optKey)}
                 </button>
               ))}
             </div>
@@ -2525,12 +2532,12 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
 
         {/* Description */}
         <div className="craft-field">
-          <span className="craft-label">Describe the issue</span>
+          <span className="craft-label">{t("assistance.form.describeIssue")}</span>
           <textarea
             className="craft-textarea"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="e.g. Car won't start, clicking noise when turning key…"
+            placeholder={t("assistance.form.descriptionPlaceholder")}
             rows={3}
             maxLength={1000}
             required
@@ -2541,21 +2548,21 @@ function CraftNewRequestForm({ token, onCreated, onCancel }) {
             with the 📡 button for one-tap GPS. Selecting an address sets the
             coordinates too, so the pro knows exactly where to go. */}
         <div className="craft-field">
-          <span className="craft-label">Your location</span>
+          <span className="craft-label">{t("assistance.form.yourLocation")}</span>
           <AddressInput
             icon="📍"
-            placeholder="Search your address…"
+            placeholder={t("assistance.form.searchAddress")}
             value={location}
             onSelect={setLocation}
             token={token}
             onGps={() => useGPS(false)}
           />
-          {locating && <p className="craft-gps-ok">⏳ Detecting your GPS position…</p>}
+          {locating && <p className="craft-gps-ok">{t("assistance.form.detectingGps")}</p>}
         </div>
 
         {error && <p className="form-error">{error}</p>}
         <button type="submit" className="craft-submit-btn" disabled={submitting || !category || !location}>
-          {submitting ? "Posting…" : "📤 Post Request"}
+          {submitting ? t("assistance.form.posting") : t("assistance.form.postRequest")}
         </button>
       </form>
     </div>
@@ -2836,6 +2843,7 @@ function PaymentMethods({ token }) {
 
 // Read-only list of the customer's assistance requests, used inside Activity.
 function ActivityCraftList({ token, onOpen }) {
+  const { t } = useI18n();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(null);
@@ -2858,7 +2866,7 @@ function ActivityCraftList({ token, onOpen }) {
       {requests.map((req) => (
         <div key={req.request_id} className="craft-request-card">
           <div className="craft-request-header">
-            <span className="craft-cat-chip">{CRAFT_CAT_LABELS[req.category] ?? req.category}</span>
+            <span className="craft-cat-chip">{craftCategoryLabel(req.category, t)}</span>
             <span className={`craft-status-badge cs-${CRAFT_STATUS_COLOR[req.status] ?? "pending"}`}>{CRAFT_STATUS_LABELS[req.status] ?? req.status}</span>
           </div>
           <p className="craft-request-desc">{req.description}</p>
@@ -3107,6 +3115,7 @@ function AccessDenied({ role, onLogout }) {
 // Public (no-login) live view of a shared intervention — opened from the link
 // a customer sends a relative (URL: /?t=<share_token>).
 function PublicCraftTrack({ shareToken }) {
+  const { t } = useI18n();
   const [data, setData] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [routeEta, setRouteEta] = useState(null);
@@ -3140,7 +3149,7 @@ function PublicCraftTrack({ shareToken }) {
       {loaded && data && !notFound && (
         <div className="public-track-body">
           <h1 className="public-track-title">
-            {CRAFT_CAT_LABELS[data.category] ?? data.category} assistance
+            {t("assistance.publicTrackTitle", { category: craftCategoryLabel(data.category, t) })}
           </h1>
           <p className="public-track-status">{CRAFT_STATUS_LABELS[data.status] ?? data.status}</p>
           {isActive && (routeEta ?? data.eta_min) != null && (
@@ -3167,6 +3176,7 @@ function PublicCraftTrack({ shareToken }) {
 }
 
 export default function App() {
+  const { t } = useI18n();
   // Public share link short-circuit — a relative opens /?t=<token> with no login.
   const shareToken = typeof window !== "undefined"
     ? new URLSearchParams(window.location.search).get("t")
@@ -3217,7 +3227,7 @@ export default function App() {
     if (resend) { try { await resendVerification(); } catch (_) { /* best effort */ } }
     await firebaseSignOut();
     setLoginError(null);
-    setLoginNotice(`Please verify your email. We sent a link to ${email} — click it, then sign in.`);
+    setLoginNotice(t("login.verifyNotice", { email }));
   }
 
   async function handleEmailLogin(email, password) {

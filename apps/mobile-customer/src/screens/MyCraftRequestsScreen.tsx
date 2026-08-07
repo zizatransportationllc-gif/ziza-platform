@@ -17,10 +17,17 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
-import { getMyCraftRequests, CraftRequest } from "../api";
+import { getMyCraftRequests, CraftRequest, CRAFT_CATEGORIES } from "../api";
 import { useAuth } from "../context/AuthContext";
+import { useI18n } from "../i18n";
+import { localeFor } from "../lib/locale";
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "MyCraftRequests">;
+
+// Category label — translated via i18n key `assistance.category.<code>`.
+function categoryLabel(cat: string, t: (key: string) => string): string {
+  return (CRAFT_CATEGORIES as readonly string[]).includes(cat) ? t(`assistance.category.${cat}`) : cat;
+}
 
 const STATUS_COLORS: Record<string, string> = {
   open: "#059669",
@@ -35,6 +42,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function MyCraftRequestsScreen(): React.ReactElement {
   const { token } = useAuth();
+  const { t, lang } = useI18n();
   const navigation = useNavigation<NavProp>();
   const [requests, setRequests] = useState<CraftRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,12 +57,12 @@ export default function MyCraftRequestsScreen(): React.ReactElement {
       const items = await getMyCraftRequests(token);
       setRequests(items);
     } catch (e: any) {
-      setError(e.message || "Failed to load requests");
+      setError(e.message || t("assistance.list.errorLoad"));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [token]);
+  }, [token, t]);
 
   useEffect(() => {
     loadRequests();
@@ -72,7 +80,7 @@ export default function MyCraftRequestsScreen(): React.ReactElement {
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          <Text style={styles.category}>{item.category.toUpperCase()}</Text>
+          <Text style={styles.category}>{categoryLabel(item.category, t).toUpperCase()}</Text>
           <Text style={[styles.status, { color: STATUS_COLORS[item.status] ?? "#6B7280" }]}>
             {item.status.replace("_", " ")}
           </Text>
@@ -86,16 +94,16 @@ export default function MyCraftRequestsScreen(): React.ReactElement {
 
         {deadline && !isExpired && item.status === "open" ? (
           <Text style={styles.deadline}>
-            ⏱ Bidding until: {deadline.toLocaleTimeString()}
+            {t("assistance.list.biddingUntil", { time: deadline.toLocaleTimeString(localeFor(lang)) })}
           </Text>
         ) : null}
 
         {isExpired && item.status === "open" ? (
-          <Text style={styles.expired}>⏰ Bidding window closed</Text>
+          <Text style={styles.expired}>{t("assistance.list.biddingClosed")}</Text>
         ) : null}
 
         <Text style={styles.date}>
-          Posted: {new Date(item.created_at).toLocaleDateString()}
+          {t("assistance.list.posted", { date: new Date(item.created_at).toLocaleDateString(localeFor(lang)) })}
         </Text>
 
         {canSeeBids && (
@@ -109,7 +117,7 @@ export default function MyCraftRequestsScreen(): React.ReactElement {
               })
             }
           >
-            <Text style={styles.bidsBtnText}>{bidsStage ? "View Bids →" : "View Details →"}</Text>
+            <Text style={styles.bidsBtnText}>{bidsStage ? t("assistance.list.viewBids") : t("assistance.list.viewDetails")}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -130,7 +138,7 @@ export default function MyCraftRequestsScreen(): React.ReactElement {
         style={styles.newRequestBtn}
         onPress={() => navigation.navigate("CraftRequest")}
       >
-        <Text style={styles.newRequestBtnText}>+ New Request</Text>
+        <Text style={styles.newRequestBtnText}>{t("assistance.list.newRequest")}</Text>
       </TouchableOpacity>
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -151,12 +159,12 @@ export default function MyCraftRequestsScreen(): React.ReactElement {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.empty}>No craft requests yet.</Text>
+            <Text style={styles.empty}>{t("assistance.list.empty")}</Text>
             <TouchableOpacity
               style={styles.postFirstBtn}
               onPress={() => navigation.navigate("CraftRequest")}
             >
-              <Text style={styles.postFirstBtnText}>Post Your First Request</Text>
+              <Text style={styles.postFirstBtnText}>{t("assistance.list.postFirst")}</Text>
             </TouchableOpacity>
           </View>
         }

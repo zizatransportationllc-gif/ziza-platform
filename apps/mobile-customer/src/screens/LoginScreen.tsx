@@ -19,6 +19,7 @@ import { login as apiLogin, signup as apiSignup, exchangeFirebaseToken as apiExc
 import { firebaseEnabled, signInEmail, signUpEmail, sendPasswordReset, resendVerification, firebaseSignOut } from "../auth";
 import { useAuth } from "../context/AuthContext";
 import ZizaCustomerLogo from "../components/ZizaCustomerLogo";
+import { useI18n } from "../i18n";
 
 // Password field with a "Show password" checkbox (toggles visibility).
 function PasswordField({
@@ -31,6 +32,7 @@ function PasswordField({
   placeholder: string;
 }): React.ReactElement {
   const [show, setShow] = useState(false);
+  const { t } = useI18n();
   return (
     <View style={styles.pwField}>
       <TextInput
@@ -45,7 +47,7 @@ function PasswordField({
         <View style={[styles.pwCheckbox, show && styles.pwCheckboxOn]}>
           {show ? <Text style={styles.pwCheckmark}>✓</Text> : null}
         </View>
-        <Text style={styles.pwToggleLabel}>Show password</Text>
+        <Text style={styles.pwToggleLabel}>{t("login.showPassword")}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -53,6 +55,7 @@ function PasswordField({
 
 export default function LoginScreen(): React.ReactElement {
   const { login } = useAuth();
+  const { t } = useI18n();
 
   // tab: "signin" | "signup"
   const [tab, setTab] = useState<"signin" | "signup">("signin");
@@ -80,7 +83,7 @@ export default function LoginScreen(): React.ReactElement {
     if (resend) { try { await resendVerification(); } catch (_) { /* best effort */ } }
     await firebaseSignOut();
     setError(null);
-    setNotice(`Please verify your email. We sent a link to ${addr} — tap it, then sign in.`);
+    setNotice(t("login.verifyNotice", { email: addr }));
   };
 
   const handleLogin = async () => {
@@ -94,30 +97,30 @@ export default function LoginScreen(): React.ReactElement {
       await login(data.access_token, data.refresh_token ?? null);
     } catch (e: any) {
       if (e.message === "EMAIL_NOT_VERIFIED") { await handleUnverified(email.trim(), true); return; }
-      setError(e.message || "Login failed");
+      setError(e.message || t("login.loginFailedDefault"));
     } finally {
       setLoading(false);
     }
   };
 
   const handleForgot = async () => {
-    if (!email.trim()) { Alert.alert("Forgot password", "Enter your email above first."); return; }
+    if (!email.trim()) { Alert.alert(t("login.forgotTitle"), t("login.forgotEmailFirst")); return; }
     try {
       await sendPasswordReset(email.trim());
-      Alert.alert("Password reset", "A reset email has been sent — check your inbox.");
+      Alert.alert(t("login.resetSentTitle"), t("login.resetSent"));
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Could not send reset email.");
+      Alert.alert(t("login.errorTitle"), e.message || t("login.resetError"));
     }
   };
 
   const handleSignup = async () => {
     setError(null);
-    if (!suFirstName.trim()) { setError("First name is required"); return; }
-    if (!suLastName.trim()) { setError("Last name is required"); return; }
-    if (!suBirthDate.trim()) { setError("Date of birth is required (YYYY-MM-DD)"); return; }
-    if (!suEmail.trim()) { setError("Email is required"); return; }
-    if (suPassword.length < 6) { setError("Password must be at least 6 characters"); return; }
-    if (suPassword !== suConfirm) { setError("Passwords do not match"); return; }
+    if (!suFirstName.trim()) { setError(t("login.errorFirstNameRequired")); return; }
+    if (!suLastName.trim()) { setError(t("login.errorLastNameRequired")); return; }
+    if (!suBirthDate.trim()) { setError(t("login.errorBirthDateRequired")); return; }
+    if (!suEmail.trim()) { setError(t("login.errorEmailRequired")); return; }
+    if (suPassword.length < 6) { setError(t("login.errorPasswordTooShort")); return; }
+    if (suPassword !== suConfirm) { setError(t("login.errorPasswordsMismatch")); return; }
     setLoading(true);
     setNotice(null);
     try {
@@ -127,7 +130,7 @@ export default function LoginScreen(): React.ReactElement {
       await login(data.access_token, data.refresh_token ?? null);
     } catch (e: any) {
       if (e.message === "EMAIL_NOT_VERIFIED") { await handleUnverified(suEmail.trim(), false); return; }
-      setError(e.message || "Sign-up failed");
+      setError(e.message || t("login.signupFailedDefault"));
     } finally {
       setLoading(false);
     }
@@ -149,13 +152,13 @@ export default function LoginScreen(): React.ReactElement {
             style={[styles.tab, tab === "signin" && styles.tabActive]}
             onPress={() => { setTab("signin"); setError(null); }}
           >
-            <Text style={[styles.tabText, tab === "signin" && styles.tabTextActive]}>Sign In</Text>
+            <Text style={[styles.tabText, tab === "signin" && styles.tabTextActive]}>{t("login.signIn")}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tab, tab === "signup" && styles.tabActive]}
             onPress={() => { setTab("signup"); setError(null); }}
           >
-            <Text style={[styles.tabText, tab === "signup" && styles.tabTextActive]}>Create Account</Text>
+            <Text style={[styles.tabText, tab === "signup" && styles.tabTextActive]}>{t("login.createAccount")}</Text>
           </TouchableOpacity>
         </View>
 
@@ -164,29 +167,29 @@ export default function LoginScreen(): React.ReactElement {
 
         {tab === "signin" ? (
           <>
-            <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder="Email" keyboardType="email-address" autoCapitalize="none" />
-            <PasswordField value={password} onChangeText={setPassword} placeholder="Password" />
+            <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder={t("login.emailPlaceholder")} keyboardType="email-address" autoCapitalize="none" />
+            <PasswordField value={password} onChangeText={setPassword} placeholder={t("login.passwordPlaceholder")} />
             <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
-              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign In</Text>}
+              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t("login.signIn")}</Text>}
             </TouchableOpacity>
             {firebaseEnabled && (
               <TouchableOpacity onPress={handleForgot}>
-                <Text style={styles.forgot}>Forgot password?</Text>
+                <Text style={styles.forgot}>{t("login.forgotPassword")}</Text>
               </TouchableOpacity>
             )}
             <Text style={styles.hint}>Dev: customer@ziza.dev / ziza2024</Text>
           </>
         ) : (
           <>
-            <TextInput style={styles.input} value={suFirstName} onChangeText={setSuFirstName} placeholder="First name" autoCapitalize="words" />
-            <TextInput style={styles.input} value={suLastName} onChangeText={setSuLastName} placeholder="Last name" autoCapitalize="words" />
-            <TextInput style={styles.input} value={suBirthDate} onChangeText={setSuBirthDate} placeholder="Date of birth (YYYY-MM-DD)" keyboardType="numbers-and-punctuation" />
-            <TextInput style={styles.input} value={suEmail} onChangeText={setSuEmail} placeholder="Email address" keyboardType="email-address" autoCapitalize="none" />
-            <PasswordField value={suPassword} onChangeText={setSuPassword} placeholder="Password (min. 6 characters)" />
-            <PasswordField value={suConfirm} onChangeText={setSuConfirm} placeholder="Confirm password" />
-            <TextInput style={styles.input} value={suPhone} onChangeText={setSuPhone} placeholder="Phone number (optional)" keyboardType="phone-pad" />
+            <TextInput style={styles.input} value={suFirstName} onChangeText={setSuFirstName} placeholder={t("login.firstNamePlaceholder")} autoCapitalize="words" />
+            <TextInput style={styles.input} value={suLastName} onChangeText={setSuLastName} placeholder={t("login.lastNamePlaceholder")} autoCapitalize="words" />
+            <TextInput style={styles.input} value={suBirthDate} onChangeText={setSuBirthDate} placeholder={t("login.birthDatePlaceholder")} keyboardType="numbers-and-punctuation" />
+            <TextInput style={styles.input} value={suEmail} onChangeText={setSuEmail} placeholder={t("login.emailAddressPlaceholder")} keyboardType="email-address" autoCapitalize="none" />
+            <PasswordField value={suPassword} onChangeText={setSuPassword} placeholder={t("login.passwordMinPlaceholder")} />
+            <PasswordField value={suConfirm} onChangeText={setSuConfirm} placeholder={t("login.confirmPasswordPlaceholder")} />
+            <TextInput style={styles.input} value={suPhone} onChangeText={setSuPhone} placeholder={t("login.phonePlaceholder")} keyboardType="phone-pad" />
             <TouchableOpacity style={styles.button} onPress={handleSignup} disabled={loading}>
-              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Create Account</Text>}
+              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t("login.createAccount")}</Text>}
             </TouchableOpacity>
           </>
         )}
