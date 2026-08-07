@@ -82,6 +82,8 @@ services:
       context: ./apps/web-customer
       args:
         VITE_API_URL: http://localhost:8000
+        VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN:-}
+        VITE_STRIPE_PUBLISHABLE_KEY: ${VITE_STRIPE_PUBLISHABLE_KEY:-}
     container_name: ziza-web-customer
     environment:
       PORT: "8080"
@@ -96,6 +98,7 @@ services:
       context: ./apps/web-driver
       args:
         VITE_API_URL: http://localhost:8000
+        VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN:-}
     container_name: ziza-web-driver
     environment:
       PORT: "8080"
@@ -110,6 +113,7 @@ services:
       context: ./apps/web-admin
       args:
         VITE_API_URL: http://localhost:8000
+        VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN:-}
     container_name: ziza-web-admin
     environment:
       PORT: "8080"
@@ -124,6 +128,7 @@ services:
       context: ./apps/web-craft
       args:
         VITE_API_URL: http://localhost:8000
+        VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN:-}
     container_name: ziza-web-craft
     environment:
       PORT: "8080"
