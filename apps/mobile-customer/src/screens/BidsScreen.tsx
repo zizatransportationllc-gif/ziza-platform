@@ -53,12 +53,15 @@ import {
 import CraftTrackingMap from "../components/CraftTrackingMap";
 import { Linking } from "react-native";
 import { useAuth } from "../context/AuthContext";
+import { useI18n, Lang } from "../i18n";
+import { localeFor } from "../lib/locale";
 
 type RouteProps = RouteProp<RootStackParamList, "Bids">;
 type NavProp = NativeStackNavigationProp<RootStackParamList, "Bids">;
 
-function formatUSD(cents: number): string {
-  return new Intl.NumberFormat("en-US", {
+// `lang` is optional — falls back to en-US when not passed.
+function formatUSD(cents: number, lang?: Lang): string {
+  return new Intl.NumberFormat(localeFor(lang ?? "en"), {
     style: "currency",
     currency: "USD",
   }).format(cents / 100);
@@ -68,7 +71,7 @@ function formatUSD(cents: number): string {
 const fmtMiles = (km: number): string => (km / 1.609344).toFixed(1);
 
 // Customer-facing progress milestones for an assistance job.
-const TL_STEPS = ["Requested", "On the way", "Arrived", "In progress", "Done"];
+const TL_STEP_KEYS = ["bids.tlRequested", "bids.tlOnTheWay", "bids.tlArrived", "bids.tlInProgress", "bids.tlDone"];
 const STATUS_STEP: Record<string, number> = {
   open: 0, bidding_closed: 0,
   assigned: 1, arrived: 2,
@@ -78,13 +81,15 @@ const STATUS_STEP: Record<string, number> = {
 
 /** Horizontal step timeline showing where the job is right now. */
 function StatusTimeline({ status }: { status: string }): React.ReactElement | null {
+  const { t } = useI18n();
   if (status === "cancelled") return null;
   const current = STATUS_STEP[status] ?? 0;
   const complete = status === "completed";
-  const last = TL_STEPS.length - 1;
+  const last = TL_STEP_KEYS.length - 1;
   return (
     <View style={tl.row}>
-      {TL_STEPS.map((label, i) => {
+      {TL_STEP_KEYS.map((labelKey, i) => {
+        const label = t(labelKey);
         const done = complete || i < current;
         const active = !complete && i === current;
         const leftOn = i <= current || complete;   // segment reaching this dot
@@ -131,6 +136,7 @@ function isTopRated(b: CraftBid): boolean {
 
 // Post-job rating — stars + optional comment, shown once completed.
 function RatingBlock({ token, requestId }: { token: string; requestId: string }): React.ReactElement | null {
+  const { t } = useI18n();
   const [existing, setExisting] = useState<CraftRating | null | undefined>(undefined);
   const [stars, setStars] = useState(0);
   const [comment, setComment] = useState("");
@@ -146,7 +152,7 @@ function RatingBlock({ token, requestId }: { token: string; requestId: string })
     try {
       setExisting(await createCraftRating(token, requestId, stars, comment.trim() || null));
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Couldn't submit rating");
+      Alert.alert(t("bids.errorTitle"), e.message || t("bids.ratingErrorSubmit"));
     } finally {
       setBusy(false);
     }
@@ -157,7 +163,7 @@ function RatingBlock({ token, requestId }: { token: string; requestId: string })
 
   return (
     <View style={rt.box}>
-      <Text style={rt.title}>Rate your professional</Text>
+      <Text style={rt.title}>{t("bids.ratingTitle")}</Text>
       <View style={rt.starsRow}>
         {[1, 2, 3, 4, 5].map((n) => (
           <TouchableOpacity key={n} disabled={!!existing} onPress={() => setStars(n)}>
@@ -168,13 +174,13 @@ function RatingBlock({ token, requestId }: { token: string; requestId: string })
       {existing ? (
         <>
           {existing.comment ? <Text style={rt.comment}>“{existing.comment}”</Text> : null}
-          <Text style={rt.thanks}>Thanks for your feedback!</Text>
+          <Text style={rt.thanks}>{t("bids.ratingThanks")}</Text>
         </>
       ) : (
         <>
           <TextInput
             style={rt.input}
-            placeholder="Add a comment (optional)…"
+            placeholder={t("bids.ratingCommentPlaceholder")}
             value={comment}
             onChangeText={setComment}
             multiline
@@ -185,7 +191,7 @@ function RatingBlock({ token, requestId }: { token: string; requestId: string })
             onPress={submit}
             disabled={!stars || busy}
           >
-            <Text style={rt.btnText}>{busy ? "Sending…" : "Submit rating"}</Text>
+            <Text style={rt.btnText}>{busy ? t("bids.ratingSending") : t("bids.ratingSubmit")}</Text>
           </TouchableOpacity>
         </>
       )}
@@ -195,6 +201,7 @@ function RatingBlock({ token, requestId }: { token: string; requestId: string })
 
 export default function BidsScreen(): React.ReactElement {
   const { token } = useAuth();
+  const { t, lang } = useI18n();
   const route = useRoute<RouteProps>();
   const navigation = useNavigation<NavProp>();
   const { requestId, customerLat, customerLng } = route.params;
@@ -220,12 +227,12 @@ export default function BidsScreen(): React.ReactElement {
       setRequest(req);
       setBids(bidList);
     } catch (e: any) {
-      setError(e.message || "Failed to load bids");
+      setError(e.message || t("bids.errorLoad"));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [token, requestId, customerLat, customerLng]);
+  }, [token, requestId, customerLat, customerLng, t]);
 
   useEffect(() => {
     loadData();
@@ -246,11 +253,11 @@ export default function BidsScreen(): React.ReactElement {
     if (!token) return;
     const total = bid.total_cents ?? bid.price_cents;
     Alert.alert(
-      "Select this professional?",
-      `Total ${formatUSD(total)} — your saved card is charged only when the job is done.`,
+      t("bids.selectConfirmTitle"),
+      t("bids.selectConfirmBody", { total: formatUSD(total, lang) }),
       [
-        { text: "Cancel", style: "cancel" },
-        { text: "Select", onPress: () => doSelect(bid) },
+        { text: t("bids.cancel"), style: "cancel" },
+        { text: t("bids.select"), onPress: () => doSelect(bid) },
       ]
     );
   };
@@ -261,19 +268,19 @@ export default function BidsScreen(): React.ReactElement {
     try {
       await selectCraftBid(token, requestId, bid.bid_id);
       Alert.alert(
-        "Professional Selected",
-        "They've been notified and are on their way. Your card is charged only when the job is done.",
-        [{ text: "OK", onPress: () => navigation.navigate("MyCraftRequests") }]
+        t("bids.selectedTitle"),
+        t("bids.selectedBody"),
+        [{ text: t("bids.ok"), onPress: () => navigation.navigate("MyCraftRequests") }]
       );
     } catch (e: any) {
-      const msg = e?.message || "Failed to select bid";
+      const msg = e?.message || t("bids.errorSelect");
       if (msg.toLowerCase().includes("payment card")) {
-        Alert.alert("Add a payment card", "You need a saved card to select a professional.", [
-          { text: "Not now", style: "cancel" },
-          { text: "Add a card", onPress: () => navigation.navigate("PaymentMethods") },
+        Alert.alert(t("bids.addCardTitle"), t("bids.addCardBody"), [
+          { text: t("bids.notNow"), style: "cancel" },
+          { text: t("bids.addCardBtn"), onPress: () => navigation.navigate("PaymentMethods") },
         ]);
       } else {
-        Alert.alert("Error", msg);
+        Alert.alert(t("bids.errorTitle"), msg);
       }
     } finally {
       setSelecting(null);
@@ -287,26 +294,26 @@ export default function BidsScreen(): React.ReactElement {
     if (!token) return;
     try {
       const url = await createCraftShareUrl(token, requestId);
-      await Share.share({ message: `Follow my ZIZA roadside assistance live: ${url}` });
+      await Share.share({ message: t("bids.shareMessage", { url }) });
     } catch {
-      Alert.alert("Error", "Couldn't create the share link.");
+      Alert.alert(t("bids.errorTitle"), t("bids.shareLinkError"));
     }
   };
 
   // Cancel an open request (no pro assigned yet).
   const handleCancelRequest = () => {
     if (!token) return;
-    Alert.alert("Cancel request", "Cancel this assistance request?", [
-      { text: "Keep it", style: "cancel" },
+    Alert.alert(t("bids.cancelRequestTitle"), t("bids.cancelRequestBody"), [
+      { text: t("bids.keepIt"), style: "cancel" },
       {
-        text: "Cancel request",
+        text: t("bids.cancelRequestTitle"),
         style: "destructive",
         onPress: async () => {
           try {
             await cancelCraftRequest(token, requestId);
             navigation.goBack();
           } catch (e: any) {
-            Alert.alert("Error", e?.message || "Couldn't cancel the request.");
+            Alert.alert(t("bids.errorTitle"), e?.message || t("bids.errorCancelRequest"));
           }
         },
       },
@@ -318,7 +325,7 @@ export default function BidsScreen(): React.ReactElement {
     if (!token) return;
     setActionBusy(true);
     try { setRequest(await fn(token, requestId)); }
-    catch (e: any) { Alert.alert("Error", e.message || "Action failed"); }
+    catch (e: any) { Alert.alert(t("bids.errorTitle"), e.message || t("bids.errorAction")); }
     finally { setActionBusy(false); }
   };
 
@@ -337,7 +344,7 @@ export default function BidsScreen(): React.ReactElement {
         Linking.openURL(intent.checkout_url).catch(() => {});
       }
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Payment failed");
+      Alert.alert(t("bids.errorTitle"), e.message || t("bids.errorPayment"));
     } finally {
       setPaying(false);
     }
@@ -380,7 +387,7 @@ export default function BidsScreen(): React.ReactElement {
       <View style={[styles.card, isSelected && styles.cardSelected]}>
         {isSelected && (
           <View style={styles.selectedBanner}>
-            <Text style={styles.selectedBannerText}>✓ Selected</Text>
+            <Text style={styles.selectedBannerText}>{t("bids.selectedBanner")}</Text>
           </View>
         )}
 
@@ -398,40 +405,42 @@ export default function BidsScreen(): React.ReactElement {
           <View style={styles.proMeta}>
             <View style={styles.proNameRow}>
               <Text style={styles.proName} numberOfLines={1}>
-                {item.professional_name || "Professional"}
+                {item.professional_name || t("bids.defaultProName")}
               </Text>
               {isTopRated(item) && (
-                <Text style={styles.topRated}>🏅 Top rated</Text>
+                <Text style={styles.topRated}>{t("bids.topRated")}</Text>
               )}
             </View>
             <Text style={styles.proRating}>
               {item.professional_rating != null
-                ? `★ ${item.professional_rating.toFixed(1)} · ${item.professional_rating_count} rating${item.professional_rating_count > 1 ? "s" : ""}`
-                : "No ratings yet"}
+                ? (item.professional_rating_count > 1
+                    ? t("bids.ratingMany", { rating: item.professional_rating.toFixed(1), count: item.professional_rating_count })
+                    : t("bids.ratingOne", { rating: item.professional_rating.toFixed(1) }))
+                : t("bids.noRatings")}
             </Text>
           </View>
         </View>
 
         {/* Price + ETA */}
         <View style={styles.priceRow}>
-          <Text style={styles.price}>{formatUSD(item.price_cents)}</Text>
-          <Text style={styles.eta}>⏱ {item.eta_min} min</Text>
+          <Text style={styles.price}>{formatUSD(item.price_cents, lang)}</Text>
+          <Text style={styles.eta}>{t("bids.etaMin", { eta: item.eta_min })}</Text>
         </View>
 
         {/* Fee transparency — what the customer actually pays */}
         {item.total_cents != null && (
           <View style={styles.feeBox}>
-            <Text style={styles.feeTotal}>You pay {formatUSD(item.total_cents)}</Text>
+            <Text style={styles.feeTotal}>{t("bids.youPay", { total: formatUSD(item.total_cents, lang) })}</Text>
             <Text style={styles.feeNote}>
-              {formatUSD(item.price_cents)} bid + {formatUSD(item.service_fee_cents || 0)} service fee
-              {item.tax_cents ? ` + ${formatUSD(item.tax_cents)} tax` : ""}
+              {t("bids.feeNote", { price: formatUSD(item.price_cents, lang), fee: formatUSD(item.service_fee_cents || 0, lang) })}
+              {item.tax_cents ? t("bids.taxAmount", { tax: formatUSD(item.tax_cents, lang) }) : ""}
             </Text>
           </View>
         )}
 
         {/* Distance */}
         {item.distance_km != null && (
-          <Text style={styles.distance}>📏 {fmtMiles(item.distance_km)} mi from you</Text>
+          <Text style={styles.distance}>{t("bids.distanceFromYou", { miles: fmtMiles(item.distance_km) })}</Text>
         )}
 
         {/* Note */}
@@ -439,7 +448,7 @@ export default function BidsScreen(): React.ReactElement {
           <Text style={styles.note} numberOfLines={3}>💬 {item.note}</Text>
         ) : null}
 
-        <Text style={styles.date}>Bid at: {new Date(item.created_at).toLocaleString()}</Text>
+        <Text style={styles.date}>{t("bids.bidAt", { date: new Date(item.created_at).toLocaleString(localeFor(lang)) })}</Text>
 
         {/* Select button */}
         {canSelect && item.status === "pending" && (
@@ -451,7 +460,7 @@ export default function BidsScreen(): React.ReactElement {
             {isSelecting ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Text style={styles.selectBtnText}>Select This Professional</Text>
+              <Text style={styles.selectBtnText}>{t("bids.selectThisProfessional")}</Text>
             )}
           </TouchableOpacity>
         )}
@@ -461,7 +470,7 @@ export default function BidsScreen(): React.ReactElement {
             styles.bidStatus,
             item.status === "accepted" ? styles.bidAccepted : styles.bidRejected,
           ]}>
-            {item.status === "accepted" ? "✓ Accepted" : "✗ Not selected"}
+            {item.status === "accepted" ? t("bids.acceptedShort") : t("bids.notSelected")}
           </Text>
         )}
       </View>
@@ -490,15 +499,15 @@ export default function BidsScreen(): React.ReactElement {
             if (!accepted || !["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status)) return null;
             const etaMin = routeEta ?? tracking?.eta_min ?? accepted.eta_min;
             const line =
-              request.status === "assigned" ? `🚗 On the way — ~${etaMin} min away`
-              : request.status === "arrived" ? "📍 On site"
-              : request.status === "completed" ? "✅ Job done"
-              : "🔧 Working on it";
+              request.status === "assigned" ? t("bids.statusOnTheWayEta", { eta: etaMin })
+              : request.status === "arrived" ? t("bids.statusOnSite")
+              : request.status === "completed" ? t("bids.statusJobDone")
+              : t("bids.statusWorking");
             return (
               <View style={styles.proCard}>
                 <View style={styles.proHead}>
-                  <Text style={styles.proTitle}>YOUR PROFESSIONAL</Text>
-                  <Text style={styles.proPrice}>{formatUSD(accepted.price_cents)}</Text>
+                  <Text style={styles.proTitle}>{t("bids.yourProfessionalCaps")}</Text>
+                  <Text style={styles.proPrice}>{formatUSD(accepted.price_cents, lang)}</Text>
                 </View>
                 <Text style={styles.proStatus}>{line}</Text>
               </View>
@@ -516,33 +525,33 @@ export default function BidsScreen(): React.ReactElement {
                 />
               </View>
               {!tracking?.pro_lat && (
-                <Text style={styles.trackWaiting}>🛰️ Waiting for the professional's live position…</Text>
+                <Text style={styles.trackWaiting}>{t("bids.waitingPosition")}</Text>
               )}
               <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
-                <Text style={styles.shareBtnText}>🔗 Share live tracking</Text>
+                <Text style={styles.shareBtnText}>{t("bids.shareLiveTracking")}</Text>
               </TouchableOpacity>
             </>
           )}
           {request.verification_code &&
             ["assigned", "arrived", "in_progress", "pro_done", "completed"].includes(request.status) && (
               <View style={styles.codeCard}>
-                <Text style={styles.codeLabel}>🔐 VERIFICATION CODE</Text>
+                <Text style={styles.codeLabel}>{t("bids.verificationCodeCaps")}</Text>
                 <Text style={styles.codeValue}>{request.verification_code}</Text>
               </View>
             )}
           {request.status === "arrived" && (
             <TouchableOpacity style={styles.lifeBtn} onPress={() => runAction(craftConfirmArrival)} disabled={actionBusy}>
-              <Text style={styles.lifeBtnText}>✅ Confirm the professional has arrived</Text>
+              <Text style={styles.lifeBtnText}>{t("bids.confirmArrived")}</Text>
             </TouchableOpacity>
           )}
           {request.status === "pro_done" && (
             <TouchableOpacity style={styles.lifeBtn} onPress={() => runAction(craftComplete)} disabled={actionBusy}>
-              <Text style={styles.lifeBtnText}>✅ Confirm the work is finished</Text>
+              <Text style={styles.lifeBtnText}>{t("bids.confirmFinished")}</Text>
             </TouchableOpacity>
           )}
           {photos.length > 0 && (
             <View style={styles.photosBox}>
-              <Text style={styles.photosTitle}>📷 Photos from your professional</Text>
+              <Text style={styles.photosTitle}>{t("bids.photosTitle")}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {photos.map((p) => (p.url ? <Image key={p.photo_id} source={{ uri: p.url }} style={styles.photoThumb} /> : null))}
               </ScrollView>
@@ -550,7 +559,7 @@ export default function BidsScreen(): React.ReactElement {
           )}
           {request.status === "completed" && (
             <Text style={styles.paidLabel}>
-              {request.paid_at ? "✅ Payment confirmed" : "💳 Charged automatically to your saved card."}
+              {request.paid_at ? t("bids.paymentConfirmed") : t("bids.paymentAutoCharge")}
             </Text>
           )}
           {token && request.status === "completed" && (
@@ -558,7 +567,7 @@ export default function BidsScreen(): React.ReactElement {
           )}
           {["open", "bidding_closed"].includes(request.status) && (
             <TouchableOpacity style={styles.cancelReqBtn} onPress={handleCancelRequest}>
-              <Text style={styles.cancelReqText}>✕ Cancel this request</Text>
+              <Text style={styles.cancelReqText}>{t("bids.cancelRequestBtn")}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -573,7 +582,7 @@ export default function BidsScreen(): React.ReactElement {
         ListHeaderComponent={
           bids.length > 1 ? (
             <View style={styles.sortRow}>
-              <Text style={styles.sortLabel}>Sort by</Text>
+              <Text style={styles.sortLabel}>{t("bids.sortBy")}</Text>
               {(["recommended", "price", "eta", "rating"] as const).map((k) => (
                 <TouchableOpacity
                   key={k}
@@ -581,7 +590,7 @@ export default function BidsScreen(): React.ReactElement {
                   onPress={() => setSortBy(k)}
                 >
                   <Text style={[styles.sortChipText, sortBy === k && styles.sortChipTextOn]}>
-                    {k === "recommended" ? "Recommended" : k === "price" ? "Price" : k === "eta" ? "ETA" : "Rating"}
+                    {k === "recommended" ? t("bids.sortRecommended") : k === "price" ? t("bids.sortPrice") : k === "eta" ? t("bids.sortEta") : t("bids.sortRating")}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -601,8 +610,8 @@ export default function BidsScreen(): React.ReactElement {
         ListEmptyComponent={
           <Text style={styles.empty}>
             {request && ["open", "bidding_closed"].includes(request.status)
-              ? "⏳ Waiting for nearby professionals to send their offers…"
-              : "No bids received yet."}
+              ? t("bids.waitingOffers")
+              : t("bids.noneReceived")}
           </Text>
         }
         ListFooterComponent={
