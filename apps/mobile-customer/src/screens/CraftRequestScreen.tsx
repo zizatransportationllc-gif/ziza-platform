@@ -26,39 +26,38 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { createCraftRequest, reverseGeocode, CRAFT_CATEGORIES } from "../api";
 import Icon from "../components/Icon";
+import { useAuth } from "../context/AuthContext";
+import { useI18n, translations } from "../i18n";
 
-const CAT_LABELS: Record<string, string> = {
-  breakdown:   "Breakdown",
-  flat_tyre:   "Flat Tire",
-  tow:         "Towing",
-  fuel:        "Out of Fuel",
-  lockout:     "Lockout",
-  battery:     "Dead Battery",
-  accident:    "Post-Accident",
-  diagnostics: "Diagnostics",
-  other:       "Other",
-};
 const CAT_ICON: Record<string, string> = {
   breakdown: "assistance", flat_tyre: "tire", tow: "tow", fuel: "fuel",
   lockout: "lock", battery: "battery", accident: "alert",
   diagnostics: "search", other: "assistance",
 };
+// Category label — translated via i18n key `assistance.category.<code>`.
+function categoryLabel(cat: string, t: (key: string) => string): string {
+  return (CRAFT_CATEGORIES as readonly string[]).includes(cat) ? t(`assistance.category.${cat}`) : cat;
+}
 // One optional quick question per service type — a couple of chips that help
 // the pro quote accurately. The answer is prefixed to the description sent.
-const SERVICE_Q: Record<string, { q: string; opts: string[] }> = {
-  breakdown: { q: "Engine", opts: ["Won't start", "Starts then stalls"] },
-  flat_tyre: { q: "Spare tire", opts: ["Have a spare", "No spare"] },
-  tow:       { q: "Vehicle", opts: ["Still rolls", "Wheels locked"] },
-  fuel:      { q: "Fuel type", opts: ["Gas", "Diesel"] },
-  lockout:   { q: "Keys", opts: ["Locked inside", "Lost"] },
-  battery:   { q: "Need", opts: ["Jump start", "Replacement"] },
+// Values are i18n keys, not raw text — see `assistance.serviceQ.*` in i18n.tsx.
+// The description prefix sent to the backend always uses the ENGLISH copy
+// (via `translations.en`), regardless of display language — it's read by the
+// professional in a separate, not-yet-translated app.
+const SERVICE_Q: Record<string, { qKey: string; optKeys: string[] }> = {
+  breakdown: { qKey: "assistance.serviceQ.breakdown.q", optKeys: ["assistance.serviceQ.breakdown.opt1", "assistance.serviceQ.breakdown.opt2"] },
+  flat_tyre: { qKey: "assistance.serviceQ.flat_tyre.q", optKeys: ["assistance.serviceQ.flat_tyre.opt1", "assistance.serviceQ.flat_tyre.opt2"] },
+  tow:       { qKey: "assistance.serviceQ.tow.q", optKeys: ["assistance.serviceQ.tow.opt1", "assistance.serviceQ.tow.opt2"] },
+  fuel:      { qKey: "assistance.serviceQ.fuel.q", optKeys: ["assistance.serviceQ.fuel.opt1", "assistance.serviceQ.fuel.opt2"] },
+  lockout:   { qKey: "assistance.serviceQ.lockout.q", optKeys: ["assistance.serviceQ.lockout.opt1", "assistance.serviceQ.lockout.opt2"] },
+  battery:   { qKey: "assistance.serviceQ.battery.q", optKeys: ["assistance.serviceQ.battery.opt1", "assistance.serviceQ.battery.opt2"] },
 };
-import { useAuth } from "../context/AuthContext";
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "CraftRequest">;
 
 export default function CraftRequestScreen(): React.ReactElement {
   const { token } = useAuth();
+  const { t } = useI18n();
   const navigation = useNavigation<NavProp>();
 
   const [category, setCategory] = useState<string>("");
@@ -77,7 +76,7 @@ export default function CraftRequestScreen(): React.ReactElement {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        if (!silent) Alert.alert("Permission denied", "Location permission is required.");
+        if (!silent) Alert.alert(t("assistance.form.permissionDeniedTitle"), t("assistance.form.permissionDeniedBody"));
         return;
       }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
@@ -89,7 +88,7 @@ export default function CraftRequestScreen(): React.ReactElement {
         if (r?.name) setAddress((prev) => (silent ? prev || r.name! : r.name!));
       }
     } catch (e: any) {
-      if (!silent) Alert.alert("Error", e.message || "Failed to get location");
+      if (!silent) Alert.alert(t("login.errorTitle"), e.message || t("assistance.form.errorGetLocation"));
     } finally {
       setLocating(false);
     }
@@ -124,9 +123,11 @@ export default function CraftRequestScreen(): React.ReactElement {
     setSubmitting(true);
     setError(null);
     // Prefix the quick-question answer so the pro sees it in the description.
+    // Always in English (translations.en), regardless of display language —
+    // the pro app isn't translated, this text is read by a person, not parsed.
     const svcQ = SERVICE_Q[category];
     const fullDescription = svcQ && serviceAnswer
-      ? `${svcQ.q}: ${serviceAnswer}\n${description.trim()}`.trim()
+      ? `${translations.en[svcQ.qKey]}: ${translations.en[serviceAnswer]}\n${description.trim()}`.trim()
       : description.trim();
     try {
       const req = await createCraftRequest(token, {
@@ -142,11 +143,11 @@ export default function CraftRequestScreen(): React.ReactElement {
       setServiceAnswer(null);
       setDescription("");
       Alert.alert(
-        "Request Submitted",
-        `Your ${category} request has been posted. Professionals can now bid for ${bidMinutes} minutes.`,
+        t("assistance.form.requestSubmittedTitle"),
+        t("assistance.form.requestSubmittedBody", { category: categoryLabel(category, t), minutes: bidMinutes }),
         [
           {
-            text: "Track bids",
+            text: t("assistance.form.trackBids"),
             onPress: () =>
               navigation.navigate("Bids", {
                 requestId: req.request_id,
@@ -157,7 +158,7 @@ export default function CraftRequestScreen(): React.ReactElement {
         ]
       );
     } catch (e: any) {
-      setError(e.message || "Failed to submit request");
+      setError(e.message || t("assistance.form.errorSubmit"));
     } finally {
       setSubmitting(false);
     }
@@ -165,11 +166,11 @@ export default function CraftRequestScreen(): React.ReactElement {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Request Roadside Help</Text>
-      <Text style={styles.subtitle}>Roadside assistance</Text>
+      <Text style={styles.title}>{t("assistance.form.title")}</Text>
+      <Text style={styles.subtitle}>{t("assistance.form.subtitle")}</Text>
 
       {/* Category picker */}
-      <Text style={styles.label}>Type of Issue</Text>
+      <Text style={styles.label}>{t("assistance.form.typeOfIssue")}</Text>
       <View style={styles.categories}>
         {CRAFT_CATEGORIES.map((cat) => (
           <TouchableOpacity
@@ -179,7 +180,7 @@ export default function CraftRequestScreen(): React.ReactElement {
           >
             <Icon name={CAT_ICON[cat] ?? "assistance"} size={15} color={category === cat ? "#1D4ED8" : "#374151"} />
             <Text style={[styles.catChipText, category === cat && styles.catChipTextSelected]}>
-              {CAT_LABELS[cat] ?? cat}
+              {categoryLabel(cat, t)}
             </Text>
           </TouchableOpacity>
         ))}
@@ -188,16 +189,16 @@ export default function CraftRequestScreen(): React.ReactElement {
       {/* Optional quick question for this service type */}
       {SERVICE_Q[category] && (
         <>
-          <Text style={styles.label}>{SERVICE_Q[category].q}</Text>
+          <Text style={styles.label}>{t(SERVICE_Q[category].qKey)}</Text>
           <View style={styles.categories}>
-            {SERVICE_Q[category].opts.map((opt) => (
+            {SERVICE_Q[category].optKeys.map((optKey) => (
               <TouchableOpacity
-                key={opt}
-                style={[styles.catChip, serviceAnswer === opt && styles.catChipSelected]}
-                onPress={() => setServiceAnswer(serviceAnswer === opt ? null : opt)}
+                key={optKey}
+                style={[styles.catChip, serviceAnswer === optKey && styles.catChipSelected]}
+                onPress={() => setServiceAnswer(serviceAnswer === optKey ? null : optKey)}
               >
-                <Text style={[styles.catChipText, serviceAnswer === opt && styles.catChipTextSelected]}>
-                  {opt}
+                <Text style={[styles.catChipText, serviceAnswer === optKey && styles.catChipTextSelected]}>
+                  {t(optKey)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -206,39 +207,39 @@ export default function CraftRequestScreen(): React.ReactElement {
       )}
 
       {/* Description */}
-      <Text style={styles.label}>Describe the issue</Text>
+      <Text style={styles.label}>{t("assistance.form.describeIssue")}</Text>
       <TextInput
         style={[styles.input, styles.multiline]}
         value={description}
         onChangeText={setDescription}
-        placeholder="e.g. Car won't start, clicking noise when turning key..."
+        placeholder={t("assistance.form.descriptionPlaceholder")}
         multiline
         numberOfLines={4}
       />
 
       {/* Location — enter an address (Mapbox search) or use GPS. No manual
           coordinates: lat/lng are resolved behind the scenes from either. */}
-      <Text style={styles.label}>Your location</Text>
+      <Text style={styles.label}>{t("assistance.form.yourLocation")}</Text>
       <TouchableOpacity style={styles.addressField} onPress={openSearch}>
         <Text
           style={address ? styles.addressText : styles.addressPlaceholder}
           numberOfLines={2}
         >
-          {address || "Search your address…"}
+          {address || t("assistance.form.searchAddress")}
         </Text>
         <Text style={styles.addressSearchIcon}>🔍</Text>
       </TouchableOpacity>
-      <Text style={styles.orDivider}>or</Text>
+      <Text style={styles.orDivider}>{t("assistance.form.orDivider")}</Text>
       <TouchableOpacity style={styles.gpsBtn} onPress={() => handleGPS(false)} disabled={locating}>
         {locating ? (
           <ActivityIndicator color="#1D4ED8" />
         ) : (
-          <Text style={styles.gpsBtnText}>📍 Use my GPS location</Text>
+          <Text style={styles.gpsBtnText}>{t("assistance.form.gpsButton")}</Text>
         )}
       </TouchableOpacity>
 
       {/* Bidding window */}
-      <Text style={styles.label}>Bidding window (minutes)</Text>
+      <Text style={styles.label}>{t("assistance.form.biddingWindow")}</Text>
       <TextInput
         style={styles.input}
         value={bidMinutes}
@@ -257,7 +258,7 @@ export default function CraftRequestScreen(): React.ReactElement {
         {submitting ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.submitBtnText}>Post Request</Text>
+          <Text style={styles.submitBtnText}>{t("assistance.form.postRequest")}</Text>
         )}
       </TouchableOpacity>
     </ScrollView>
