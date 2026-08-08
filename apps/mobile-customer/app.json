@@ -37,7 +37,12 @@
           "locationWhenInUsePermission": "Ziza uses your location to find drivers near you and calculate fares."
         }
       ],
-      "@stripe/stripe-react-native"
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.zizatransportation.customer"
+        }
+      ]
     ],
     "extra": {
       "eas": {
