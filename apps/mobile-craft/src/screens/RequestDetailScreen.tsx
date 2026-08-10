@@ -65,33 +65,46 @@ export default function RequestDetailScreen(): React.ReactElement {
   const [bidError, setBidError] = useState<string | null>(null);
   const [bidSuccess, setBidSuccess] = useState(false);
 
-  // My GPS position for distance data
+  // My GPS position for distance data. The backend computes the bid's ETA
+  // from this position, so it's required to submit a bid — not just a
+  // nice-to-have — and a failure here must be surfaced, not swallowed.
   const [myLat, setMyLat] = useState<number | null>(null);
   const [myLng, setMyLng] = useState<number | null>(null);
   const [myAddr, setMyAddr] = useState<string | null>(null);
+  const [locationStatus, setLocationStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [locationErrorMsg, setLocationErrorMsg] = useState<string | null>(null);
+
+  const captureLocation = useCallback(async () => {
+    if (!token) return;
+    setLocationStatus("loading");
+    setLocationErrorMsg(null);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setLocationStatus("error");
+        setLocationErrorMsg("Location permission is required to submit a bid (used to calculate your ETA).");
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      setMyLat(loc.coords.latitude);
+      setMyLng(loc.coords.longitude);
+      setLocationStatus("ready");
+      reverseGeocode(token, loc.coords.latitude, loc.coords.longitude)
+        .then((r) => { if (r?.name) setMyAddr(r.name); })
+        .catch(() => {});
+    } catch {
+      setLocationStatus("error");
+      setLocationErrorMsg("Couldn't get your location. Check that GPS is enabled and try again.");
+    }
+  }, [token]);
 
   useEffect(() => {
     (async () => {
       if (!token) return;
       try {
-        // Grab position in parallel with request load
-        const posPromise = (async () => {
-          try {
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status === "granted") {
-              const loc = await Location.getCurrentPositionAsync({
-                accuracy: Location.Accuracy.Balanced,
-              });
-              setMyLat(loc.coords.latitude);
-              setMyLng(loc.coords.longitude);
-              reverseGeocode(token, loc.coords.latitude, loc.coords.longitude)
-                .then((r) => { if (r?.name) setMyAddr(r.name); })
-                .catch(() => {});
-            }
-          } catch {
-            // location unavailable — bid still works without it
-          }
-        })();
+        const posPromise = captureLocation();
         const req = await getCraftRequest(token, requestId);
         setRequest(req);
         await posPromise;
@@ -101,6 +114,7 @@ export default function RequestDetailScreen(): React.ReactElement {
         setLoading(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, requestId]);
 
   // Poll the status so the pro sees customer-side transitions (e.g. the customer
@@ -121,6 +135,10 @@ export default function RequestDetailScreen(): React.ReactElement {
     const priceNum = parseFloat(priceDollars);
     if (isNaN(priceNum) || priceNum <= 0) {
       setBidError("Enter a valid price (e.g. 85.00)");
+      return;
+    }
+    if (myLat == null || myLng == null) {
+      setBidError(locationErrorMsg || "Your location is required to submit a bid. Tap Retry above and allow location access.");
       return;
     }
     setSubmitting(true);
@@ -270,6 +288,23 @@ export default function RequestDetailScreen(): React.ReactElement {
 
           <Text style={styles.meta}>⏱ ETA is calculated automatically from your GPS position.</Text>
 
+          {locationStatus === "loading" && (
+            <View style={styles.locationNotice}>
+              <ActivityIndicator size="small" color="#1D4ED8" />
+              <Text style={styles.locationNoticeText}>Getting your location…</Text>
+            </View>
+          )}
+          {locationStatus === "error" && (
+            <View style={styles.locationNotice}>
+              <Text style={[styles.locationNoticeText, styles.locationNoticeError]}>
+                ⚠️ {locationErrorMsg}
+              </Text>
+              <TouchableOpacity onPress={captureLocation}>
+                <Text style={styles.locationRetry}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <Text style={styles.label}>Note (optional)</Text>
           <TextInput
             style={[styles.input, styles.noteInput]}
@@ -283,9 +318,9 @@ export default function RequestDetailScreen(): React.ReactElement {
           {bidError ? <Text style={styles.errorText}>{bidError}</Text> : null}
 
           <TouchableOpacity
-            style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
+            style={[styles.submitBtn, (submitting || locationStatus !== "ready") && styles.submitBtnDisabled]}
             onPress={handleSubmitBid}
-            disabled={submitting}
+            disabled={submitting || locationStatus !== "ready"}
           >
             {submitting ? (
               <ActivityIndicator color="#fff" />
@@ -435,6 +470,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#F9FAFB",
   },
   noteInput: { height: 80, textAlignVertical: "top" },
+  locationNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 14,
+    gap: 8,
+  },
+  locationNoticeText: { fontSize: 13, color: "#6B7280", flexShrink: 1 },
+  locationNoticeError: { color: "#D97706" },
+  locationRetry: { fontSize: 13, fontWeight: "700", color: "#1D4ED8" },
   errorText: { color: "#EF4444", textAlign: "center", marginBottom: 8, fontSize: 13 },
   submitBtn: {
     backgroundColor: "#1D4ED8",
