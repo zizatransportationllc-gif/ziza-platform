@@ -19,9 +19,9 @@ export default function CategoryPicker({
 }: Props): React.ReactElement {
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.container}>
-      {categories.map((cat) => (
+      {categories.map((cat, index) => (
         <TouchableOpacity
-          key={cat.category_id}
+          key={`${cat.category_id ?? "cat"}-${index}`}
           style={[styles.chip, selected === cat.category_id && styles.chipSelected]}
           onPress={() => onSelect(cat.category_id)}
         >
